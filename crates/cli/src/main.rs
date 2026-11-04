@@ -47,7 +47,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         runtime_profile_setting.as_deref() == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
+            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"
                 .into(),
         );
     };
@@ -303,7 +303,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         let library = args
             .get(1)
             .filter(|argument| !argument.starts_with("--"))
-            .map_or(library, |directory| std::path::PathBuf::from(directory));
+            .map_or(library, std::path::PathBuf::from);
         println!("{}", native_packages::publish_library(&library)?);
         return Ok(ExitCode::SUCCESS);
     }
@@ -488,7 +488,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     ]
     .contains(&command)
     {
-        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"));
+        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"));
     }
     let mut json_run = false;
     let mut no_source_cache = false;

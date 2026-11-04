@@ -705,12 +705,12 @@
 <div class="ahi"><section id="slot-hero-headline" class="instrument family-typography-reading renderer-kinetic-headline interaction-progressive-css" data-ahi="ahi.typography-reading.kinetic-headline" data-ahi-renderer="kinetic-headline" data-ahi-element="section" data-ahi-version="1"><section class="instrument-semantic instrument-semantic-section" data-ahi-semantic="section"><header class="kinetic-headline"><h2>A language for the work ahead.</h2><p class="headline-deck">Programming, re-examined</p><p>A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.</p></header></section></section></div>
 <div class="v-dev hero-specs">
 <dl class="specs">
-<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 51, timezone data 2026c)</code></dd></div>
+<div><dt>Version</dt><dd><code>guion 0.1.0 (artifact format 60, timezone data 2026c)</code></dd></div>
 <div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
 <div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
 <div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
 <div><dt>Browser</dt><dd>WebAssembly ABI 1.0, which runs the playground below</dd></div>
-<div><dt>Tooling</dt><dd>16 subcommands in one binary, most with <code>--json</code></dd></div>
+<div><dt>Tooling</dt><dd>18 subcommands in one binary, most with <code>--json</code></dd></div>
 </dl>
 </div>
 <div class="cta-row">
@@ -829,7 +829,7 @@
 <div class="reason-main">
 <h3>More than a language.</h3>
 <p class="v-plain">One command makes a project, checks it, tidies it, tests it, runs it, packs it up, and tells you what it can do. A person, or an assistant, can ask for a report instead of text.</p>
-<p class="v-dev">16 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
+<p class="v-dev">18 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
 </div>
 <aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Report kinds and schemas are indexed in <code>docs/agents/index.json</code>; the table in section 03 lists each one.</p></aside>
 </li>
@@ -849,7 +849,7 @@
 <div class="sectionhead">
 <div><p class="overline">03 / The apparatus</p><h2>One command.<br><span class="serif">The whole job.</span></h2></div>
 <p class="v-plain">Most languages leave you to put the tools together yourself. Guion ships one program that walks the whole path, from an empty folder to something you can hand to someone else.</p>
-<p class="v-dev">16 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
+<p class="v-dev">18 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
 </div>
 <div class="v-plain" data-ahi="ahi.relationships-diagrams.flow-map">
 <ol class="route">
@@ -860,7 +860,7 @@
 <li><code>guion build</code><strong>Build.</strong><span>Turns it into one portable file with a recorded fingerprint.</span></li>
 <li><code>guion package</code><strong>Hand over.</strong><span>Packs the program and the runtime it needs into a folder.</span></li>
 </ol>
-<p class="route-also">Also: <code>fmt</code> tidies spacing · <code>lint</code> flags unused code · <code>inspect</code> shows what a program can do · <code>doc</code> lists what it offers · <code>doctor</code> checks the machine · <code>verify-package</code>, <code>install</code>, <code>add</code>, <code>sync</code> and <code>update</code> handle delivery and dependencies.</p>
+<p class="route-also">Also: <code>fmt</code> tidies spacing · <code>lint</code> flags unused code · <code>inspect</code> shows what a program can do · <code>doc</code> lists what it offers · <code>doctor</code> checks the machine · <code>verify-package</code>, <code>install</code>, <code>add</code>, <code>sync</code> and <code>update</code> handle delivery and dependencies · <code>add NAME</code> fetches a library from the Guion package registry after checking its hashes, and <code>publish</code> and <code>yank</code> put one there or withdraw it.</p>
 </div>
 <div class="v-dev">
 <div class="table-wrap" tabindex="0" role="region" aria-label="All guion subcommands">
@@ -883,6 +883,8 @@
 <tr><th scope="row"><code>guion doc</code></th><td><code>FILE.gu [--json]</code></td><td>Prints signatures; --json emits guion_api_report with parameter names, checked types and reachable effects.</td><td><code>guion_api_report v2</code></td></tr>
 <tr><th scope="row"><code>guion doctor</code></th><td><code>[--json]</code></td><td>Reports the current host and enabled profile; a core build reports Python interoperability disabled.</td><td><code>guion_doctor_report v1</code></td></tr>
 <tr><th scope="row"><code>guion install</code></th><td><code>PACKAGE_DIRECTORY [--prefix DIR]</code></td><td>Verifies the package, installs into share/guion/apps/NAME/VERSION and creates its launcher.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion publish</code></th><td><code>[DIRECTORY]</code></td><td>Checks the library (including its declared capabilities), packs it and uploads it with the publisher token in GUION_REGISTRY_TOKEN; a published version never changes.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion yank</code></th><td><code>NAME VERSION [--undo]</code></td><td>Marks a published version yanked so resolution skips it; existing locks keep working. --undo restores it.</td><td>—</td></tr>
 </tbody>
 </table>
 </div>
@@ -1037,9 +1039,9 @@ entry = &quot;main.gu&quot;
 [network]
 hosts = [&quot;api.example.test&quot;]
 </code></pre></div>
-<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 51, timezone data 2026c))</p><pre class="code light"><code>{
+<div><p class="mono muted">report (schema_version 1, captured with guion 0.1.0 (artifact format 60, timezone data 2026c))</p><pre class="code light"><code>{
   <span class="k">&quot;analysis_scope&quot;</span>: &quot;reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations&quot;,
-  <span class="k">&quot;artifact_format&quot;</span>: 51,
+  <span class="k">&quot;artifact_format&quot;</span>: 60,
   <span class="k">&quot;capability_claim&quot;</span>: &quot;static_bytecode_reachability_not_sandbox&quot;,
   <span class="k">&quot;clock_grant&quot;</span>: {
     <span class="k">&quot;grant_model&quot;</span>: &quot;wall-clock reads are denied unless explicitly enabled&quot;,
@@ -1080,7 +1082,10 @@ hosts = [&quot;api.example.test&quot;]
     <span class="k">&quot;network_hosts&quot;</span>: [
       &quot;api.example.test&quot;
     ],
-    <span class="k">&quot;provenance&quot;</span>: &quot;guion.toml&quot;
+    <span class="k">&quot;process_commands&quot;</span>: [],
+    <span class="k">&quot;provenance&quot;</span>: &quot;guion.toml&quot;,
+    <span class="k">&quot;socket_bind&quot;</span>: [],
+    <span class="k">&quot;socket_connect&quot;</span>: []
   },
   <span class="k">&quot;network_grant&quot;</span>: {
     <span class="k">&quot;grant_model&quot;</span>: &quot;exact hostname; network access is denied when no grant is present&quot;,
@@ -1088,6 +1093,12 @@ hosts = [&quot;api.example.test&quot;]
     <span class="k">&quot;required_for_entry&quot;</span>: true,
     <span class="k">&quot;run_option&quot;</span>: &quot;guion run --allow-http-host HOST&quot;,
     <span class="k">&quot;runtime_supplied_urls_require_an_explicit_hostname_grant&quot;</span>: true
+  },
+  <span class="k">&quot;process_grant&quot;</span>: {
+    <span class="k">&quot;grant_model&quot;</span>: &quot;exact command name; every command is denied when no grant is present; no shell, cleared environment, timeout and output caps apply&quot;,
+    <span class="k">&quot;manifest_key&quot;</span>: &quot;[process].commands&quot;,
+    <span class="k">&quot;required_for_entry&quot;</span>: false,
+    <span class="k">&quot;run_option&quot;</span>: &quot;guion run --allow-command NAME&quot;
   },
   <span class="k">&quot;python_calls&quot;</span>: [],
   <span class="k">&quot;required_effects&quot;</span>: [
@@ -1097,6 +1108,12 @@ hosts = [&quot;api.example.test&quot;]
     &quot;process.arguments&quot;
   ],
   <span class="k">&quot;schema_version&quot;</span>: 1,
+  <span class="k">&quot;socket_grant&quot;</span>: {
+    <span class="k">&quot;grant_model&quot;</span>: &quot;exact host and port (or host:*); connecting, sending datagrams and binding are denied without a matching entry; every call has a timeout and size cap&quot;,
+    <span class="k">&quot;manifest_key&quot;</span>: &quot;[sockets].connect / [sockets].bind&quot;,
+    <span class="k">&quot;required_for_entry&quot;</span>: false,
+    <span class="k">&quot;run_option&quot;</span>: &quot;guion run --allow-connect HOST:PORT --allow-bind HOST:PORT&quot;
+  },
   <span class="k">&quot;source&quot;</span>: &quot;main.gu&quot;
 }</code></pre></div>
 </div>

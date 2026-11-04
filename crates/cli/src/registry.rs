@@ -17,13 +17,16 @@ pub struct Registry {
     base: String,
 }
 
+/// The Guion package registry (registry/ deployed as a Cloudflare Worker over R2).
+pub const DEFAULT_REGISTRY_URL: &str = "https://guion-registry.thomasbuild.workers.dev";
+
 fn is_loopback(host: &str) -> bool {
     matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
 }
 
 impl Registry {
     /// The registry URL comes from `GUION_REGISTRY_URL`, then `[registry] url` in the project
-    /// manifest. There is no built-in default: an official registry address is not fixed yet.
+    /// manifest, then the built-in default.
     pub fn configured(project: &Path) -> Result<Registry, String> {
         let from_environment = std::env::var("GUION_REGISTRY_URL").ok();
         let from_manifest = || -> Option<String> {
@@ -35,9 +38,9 @@ impl Registry {
                 .as_str()
                 .map(str::to_owned)
         };
-        let url = from_environment.or_else(from_manifest).ok_or(
-            "no registry is configured; set GUION_REGISTRY_URL or add `[registry]` with `url = \"https://...\"` to guion.toml",
-        )?;
+        let url = from_environment
+            .or_else(from_manifest)
+            .unwrap_or_else(|| DEFAULT_REGISTRY_URL.to_owned());
         Registry::new(&url)
     }
 
@@ -603,8 +606,7 @@ mod tests {
         let error = Registry::new(&base)
             .unwrap()
             .download(&claimed)
-            .err()
-            .expect("must refuse");
+            .expect_err("must refuse");
         assert!(error.contains("does not match"), "{error}");
     }
 }

@@ -756,6 +756,7 @@ E_NET_TIMEOUT
 E_NODES
 E_NOREPLACE
 E_NORMALIZATION_FORM
+E_NOT_OWNER
 E_NUMBER_KEY
 E_OBJECT_KEYS
 E_OPEN_CREATE
@@ -803,6 +804,7 @@ E_RECORD_FIELD_DUPLICATE
 E_RECORD_NAME
 E_RECORD_UNCLOSED
 E_REGEX_INVALID
+E_REGISTRY
 E_RESOURCE_CLOSED
 E_RESOURCE_LIMIT
 E_RESOURCE_OWNER
@@ -903,6 +905,7 @@ E_UV_NOT_FOUND
 E_UV_UNAVAILABLE
 E_UV_VERSION_MISMATCH
 E_VALUE_BYTES
+E_VERSION_EXISTS
 E_WS_CLOSED
 E_WS_HANDSHAKE
 E_WS_PROTOCOL
@@ -1243,4 +1246,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:c0115d7cf6049ec49b1096d289b6eb8ebb8b7a1456e544014a4b81551129567c. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:16b5ef3ac1c209e54a602c3b9f1b663a6aeb378fad37a6ed2b5a6bf43a41374b. Validated by `cargo xtask agent-reference --check`. -->

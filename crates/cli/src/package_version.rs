@@ -99,13 +99,6 @@ impl VersionReq {
         })
     }
 
-    pub fn exact(version: Version) -> VersionReq {
-        VersionReq {
-            text: version.to_string(),
-            bounds: vec![Bound::AtLeast(version), Bound::AtMost(version)],
-        }
-    }
-
     pub fn matches(&self, version: Version) -> bool {
         self.bounds.iter().all(|bound| bound.allows(version))
     }

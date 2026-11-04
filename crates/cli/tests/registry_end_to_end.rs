@@ -393,3 +393,57 @@ fn publish_add_yank_and_verify_against_the_local_registry() {
     }
     let _ = std::fs::remove_dir_all(&work);
 }
+
+#[test]
+fn a_published_library_can_depend_on_another_registry_library() {
+    if !wrangler_available() {
+        eprintln!(
+            "SKIPPED: wrangler is not installed; scripts/verify-package-registry.sh requires it"
+        );
+        return;
+    }
+    let registry = start_registry("registry-deps");
+    let alice = new_publisher(&registry, "alice");
+    let work = std::env::temp_dir().join(format!("guion-dependency-work-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&work);
+    std::fs::create_dir_all(&work).unwrap();
+
+    let base = work.join("base-math");
+    write_library(
+        &base,
+        "base-math",
+        "1.2.0",
+        "",
+        "pub fn double(value: Int) -> Int:\n    return value * 2\n",
+    );
+    let published = guion(&base, &registry, Some(&alice), &["publish"]);
+    assert!(published.status.success(), "{}", text(&published));
+
+    // `top-math` asks for a range; publishing pins it to what the registry holds now.
+    let top = work.join("top-math");
+    write_library(
+        &top,
+        "top-math",
+        "0.1.0",
+        "",
+        "import \"pkg:base-math/src/lib.gu\"\n\npub fn quadruple(value: Int) -> Int:\n    return double(double(value))\n",
+    );
+    let mut manifest = std::fs::read_to_string(top.join("guion.toml")).unwrap();
+    manifest.push_str("\n[dependencies]\nbase-math = \"^1.0\"\n");
+    std::fs::write(top.join("guion.toml"), manifest).unwrap();
+    let published = guion(&top, &registry, Some(&alice), &["publish"]);
+    assert!(published.status.success(), "{}", text(&published));
+
+    // A consumer adds only `top-math`; `base-math` arrives with it, pinned and hash-checked.
+    let app = work.join("app");
+    new_project(&app, "pkg:top-math/src/lib.gu", "quadruple(5)");
+    let added = guion(&app, &registry, None, &["add", "top-math"]);
+    assert!(added.status.success(), "{}", text(&added));
+    let lock = std::fs::read_to_string(app.join("guion.lock")).unwrap();
+    assert!(lock.contains("base-math"), "{lock}");
+    assert!(lock.contains("1.2.0"), "{lock}");
+    let run = guion(&app, &registry, None, &["run", "src/main.gu"]);
+    assert!(run.status.success(), "{}", text(&run));
+    assert!(text(&run).contains("20"), "{}", text(&run));
+    let _ = std::fs::remove_dir_all(&work);
+}

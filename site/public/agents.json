@@ -6,7 +6,7 @@
   "contact": "rmichael@rmichaelthomas.com",
   "howToUse": "Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.",
   "cli": {
-    "version": "guion 0.1.0 (artifact format 51, timezone data 2026c)",
+    "version": "guion 0.1.0 (artifact format 60, timezone data 2026c)",
     "commands": [
       "new",
       "check",
@@ -23,7 +23,9 @@
       "inspect",
       "doc",
       "doctor",
-      "install"
+      "install",
+      "publish",
+      "yank"
     ]
   },
   "claims": [

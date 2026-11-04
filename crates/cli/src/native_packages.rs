@@ -53,6 +53,9 @@ struct LibraryManifest {
 #[derive(Clone, Debug)]
 struct PackageDependency {
     version: String,
+    /// A dependency with no `path` or `url` is a registry dependency: `version` is a range that
+    /// `guion publish` resolves and pins to an exact archive before the library is uploaded.
+    registry: bool,
     path: Option<String>,
     url: Option<String>,
     sha256: Option<String>,
@@ -242,13 +245,28 @@ pub fn publish_library(library: &Path) -> Result<String, String> {
         return Err("a library with `path` dependencies cannot be published: they only exist on your machine".into());
     }
     let registry = crate::registry::Registry::configured(&library)?;
-    // A clean `guion check` (which also compares capabilities with what the code uses) comes first.
-    check_before_publish(&library, &manifest)?;
     let stage = temporary_path(&std::env::temp_dir(), "guion-publish")?;
     fs::create_dir_all(&stage).map_err(|error| format!("cannot create publish stage: {error}"))?;
     let result = (|| {
         let packaged = stage.join("package");
-        package_library(&library, &packaged)?;
+        // Registry dependencies are acquired into a staged copy (which pins each to an exact
+        // version, URL and hash). That copy is what gets checked, and its manifest is what ships.
+        let checked = stage.join("checked");
+        copy_library_tree(&library, &checked)?;
+        for (name, dependency) in &manifest.dependencies {
+            if dependency.registry {
+                add_from_registry(&checked, name, Some(&dependency.version))
+                    .map_err(|error| format!("dependency `{name}`: {error}"))?;
+            }
+        }
+        let pinned = read_library_manifest(&checked, None)?;
+        // A clean `guion check` (which also compares capabilities with what the code uses).
+        check_before_publish(&checked, &pinned)?;
+        let source = stage.join("source");
+        copy_library_tree(&library, &source)?;
+        fs::copy(checked.join("guion.toml"), source.join("guion.toml"))
+            .map_err(|error| format!("cannot write the pinned manifest: {error}"))?;
+        package_library(&source, &packaged)?;
         let archive = crate::registry::tar_directory(&packaged)?;
         let meta = serde_json::json!({
             "capabilities": manifest_capabilities_json(&manifest),
@@ -882,6 +900,9 @@ fn resolve_package_graph(
                     archive_boundary.map(Path::to_path_buf),
                 )
             } else {
+                if dependency.registry {
+                    return Err(format!("dependency `{dependency_name}` is a registry range ({}); only a published package has it pinned, so install this one with `guion add`", dependency.version));
+                }
                 let url = dependency
                     .url
                     .as_deref()
@@ -998,8 +1019,10 @@ fn add_path_internal(
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let project_manifest: toml::Value = toml::from_str(&manifest_text)
         .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    // A library being published acquires its own registry dependencies the same way a project does.
     if project_manifest
         .get("project")
+        .or_else(|| project_manifest.get("package"))
         .and_then(toml::Value::as_table)
         .is_none()
     {
@@ -1524,7 +1547,6 @@ fn read_library_manifest(
             .ok_or_else(|| format!("{}: [dependencies] must be a table", path.display()))?;
         for (dependency_name, requirement) in table {
             validate_package_name(dependency_name)?;
-            let version = requirement_version(requirement)?;
             let path_source = requirement
                 .get("path")
                 .and_then(toml::Value::as_str)
@@ -1533,9 +1555,15 @@ fn read_library_manifest(
                 .get("url")
                 .and_then(toml::Value::as_str)
                 .map(str::to_owned);
-            if path_source.is_some() == url_source.is_some() {
+            if path_source.is_some() && url_source.is_some() {
                 return Err(format!("{}: dependency `{dependency_name}` must declare exactly one of `path` or `url`", path.display()));
             }
+            let registry = path_source.is_none() && url_source.is_none();
+            let version = if registry {
+                registry_requirement(requirement)?
+            } else {
+                requirement_version(requirement)?
+            };
             if let Some(path_source) = &path_source {
                 if path_source.is_empty() || Path::new(path_source).is_absolute() {
                     return Err(format!(
@@ -1561,6 +1589,7 @@ fn read_library_manifest(
                 dependency_name.clone(),
                 PackageDependency {
                     version,
+                    registry,
                     path: path_source,
                     url: url_source,
                     sha256,
@@ -1897,6 +1926,17 @@ fn set_manifest_digest(path: &Path, digest: &str) -> Result<(), String> {
     let serialized = toml::to_string_pretty(&value)
         .map_err(|error| format!("cannot write package manifest: {error}"))?;
     fs::write(path, serialized).map_err(|error| format!("cannot write package manifest: {error}"))
+}
+
+/// The version range of a registry dependency, written `"^1.2"` or `{ version = "^1.2" }`.
+fn registry_requirement(requirement: &toml::Value) -> Result<String, String> {
+    let text = requirement
+        .as_str()
+        .or_else(|| requirement.get("version").and_then(toml::Value::as_str))
+        .ok_or("a registry dependency must specify a version range such as \"^1.0\"")?
+        .to_owned();
+    crate::package_version::VersionReq::parse(&text)?;
+    Ok(text)
 }
 
 fn requirement_version(requirement: &toml::Value) -> Result<String, String> {
