@@ -110,9 +110,10 @@ fn http_server_routes_requests_and_rejects_malformed_or_oversized_ones() {
 
     let chunked = exchange(
         port,
-        b"POST /echo HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+        b"POST /echo HTTP/1.1\r\nHost: x\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n6;ext=1\r\n world\r\n0\r\nX-Trailer: 1\r\n\r\n",
     );
-    assert!(chunked.starts_with("HTTP/1.1 501"), "{chunked}");
+    assert!(chunked.starts_with("HTTP/1.1 200 OK"), "{chunked}");
+    assert!(chunked.ends_with("\r\n\r\nhello world"), "{chunked}");
 
     let big = exchange(port, b"POST /echo HTTP/1.1\r\nContent-Length: 5000\r\n\r\n");
     assert!(big.starts_with("HTTP/1.1 413"), "{big}");
@@ -134,7 +135,6 @@ fn http_server_routes_requests_and_rejects_malformed_or_oversized_ones() {
         String::from_utf8_lossy(&output.stderr)
     );
     for code in [
-        "E_HTTP_UNSUPPORTED",
         "E_HTTP_BODY_TOO_LARGE",
         "E_HTTP_REQUEST_INVALID",
         "E_HTTP_HEADER_TOO_LARGE",
@@ -380,6 +380,162 @@ fn main() -> Int:
     assert!(
         output.status.success(),
         "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn read_response(stream: &mut TcpStream) -> String {
+    let mut head = Vec::new();
+    let mut byte = [0u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        stream.read_exact(&mut byte).expect("response head");
+        head.push(byte[0]);
+    }
+    let head_text = String::from_utf8_lossy(&head).into_owned();
+    let length: usize = head_text
+        .lines()
+        .find_map(|line| line.strip_prefix("Content-Length: "))
+        .map(|value| value.trim().parse().unwrap())
+        .unwrap_or(0);
+    let mut body = vec![0u8; length];
+    stream.read_exact(&mut body).expect("response body");
+    format!("{head_text}{}", String::from_utf8_lossy(&body))
+}
+
+const POOL_SERVER: &str = r##"import "std:http_server"
+import "std:net"
+import "std:types"
+import "std:bytes"
+
+fn handle(conn: TcpConn, pending: Bytes, count: Int) -> Int:
+    match http_server_read_request_from(conn, pending, 5000, 1000):
+        Ok(request):
+            let sent = http_server_reply_text(request, 200, request.path + "#" + int_to_text(count))
+            if request.keep_alive:
+                return handle(conn, request.pending, count + 1)
+            return count + 1
+        Err(problem):
+            return count
+
+fn serve(listener_handle: Int) -> Int:
+    match http_server_accept(TcpListener(listener_handle), 15000):
+        Ok(conn):
+            return handle(conn, bytes_from_ints([]), 0)
+        Err(problem):
+            return 0
+
+fn main() -> Int:
+    let listener = unwrap(http_server_listen("127.0.0.1", PORT))
+    let handle_number = listener.handle
+    match parallel_map([handle_number, handle_number, handle_number], serve, 3):
+        Ok(counts):
+            print(counts[0] + counts[1] + counts[2])
+        Err(problem):
+            print(task_message(problem))
+            return 1
+    return 0
+"##;
+
+// Several workers accept on one listener, so an idle keep-alive connection does not stop other
+// clients from being served; requests on one connection are answered in order, including two
+// that arrive in a single write.
+#[test]
+fn http_server_workers_serve_keep_alive_connections_at_the_same_time() {
+    let port = free_port();
+    let dir = project(
+        "http-pool",
+        &POOL_SERVER
+            .replace("PORT", &port.to_string())
+            .replace("import \"std:bytes\"\n", ""),
+    );
+    let server = spawn_guion(&dir, &["--allow-bind", "127.0.0.1:*"]);
+
+    let mut first = connect(port);
+    first
+        .write_all(b"GET /a HTTP/1.1\r\nHost: x\r\n\r\n")
+        .unwrap();
+    assert!(read_response(&mut first).ends_with("/a#0"));
+
+    // The first connection stays open and idle while a second client is served.
+    let mut second = connect(port);
+    second
+        .write_all(b"GET /b HTTP/1.1\r\nHost: x\r\n\r\n")
+        .unwrap();
+    let reply = read_response(&mut second);
+    assert!(reply.contains("Connection: keep-alive"), "{reply}");
+    assert!(reply.ends_with("/b#0"), "{reply}");
+
+    first
+        .write_all(b"GET /a2 HTTP/1.1\r\nHost: x\r\n\r\n")
+        .unwrap();
+    assert!(read_response(&mut first).ends_with("/a2#1"));
+
+    // Two requests in one write, the second asking to close.
+    let mut third = connect(port);
+    third
+        .write_all(
+            b"GET /p1 HTTP/1.1\r\nHost: x\r\n\r\nGET /p2 HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n",
+        )
+        .unwrap();
+    assert!(read_response(&mut third).ends_with("/p1#0"));
+    let last = read_response(&mut third);
+    assert!(last.contains("Connection: close"), "{last}");
+    assert!(last.ends_with("/p2#1"), "{last}");
+
+    drop(first);
+    drop(second);
+    drop(third);
+    let output = server.wait_with_output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // 2 on the first connection, 1 on the second, 2 on the third.
+    assert_eq!(stdout.trim(), "5", "{stdout}");
+}
+
+#[test]
+fn chunked_bodies_with_ambiguous_or_unsupported_framing_are_rejected() {
+    let port = free_port();
+    let dir = project(
+        "http-framing",
+        &HTTP_SERVER
+            .replace("PORT", &port.to_string())
+            .replace("served < 8", "served < 4"),
+    );
+    let server = spawn_guion(&dir, &["--allow-bind", "127.0.0.1:*"]);
+
+    let both = exchange(
+        port,
+        b"POST /echo HTTP/1.1\r\nContent-Length: 3\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n",
+    );
+    assert!(both.starts_with("HTTP/1.1 400"), "{both}");
+
+    let gzip = exchange(
+        port,
+        b"POST /echo HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n",
+    );
+    assert!(gzip.starts_with("HTTP/1.1 501"), "{gzip}");
+
+    let bad_size = exchange(
+        port,
+        b"POST /echo HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\nabc\r\n0\r\n\r\n",
+    );
+    assert!(bad_size.starts_with("HTTP/1.1 400"), "{bad_size}");
+
+    let too_big = exchange(
+        port,
+        b"POST /echo HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n7d0\r\n",
+    );
+    assert!(too_big.starts_with("HTTP/1.1 413"), "{too_big}");
+
+    let output = server.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
 }

@@ -14,7 +14,7 @@ use rustls::{
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const MAX_OPEN_SOCKETS: usize = 64;
@@ -62,31 +62,79 @@ impl TlsStream {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct SocketTable {
-    sockets: HashMap<i64, Socket>,
+struct TableState {
+    sockets: HashMap<i64, Arc<Mutex<Socket>>>,
     next: i64,
 }
 
+/// The open sockets of one program. Parallel workers share the table of the program that started
+/// them, so a handle opened in one worker can be used in another; each socket has its own lock, so
+/// a slow read on one socket never blocks the others. Only the program's own table closes sockets
+/// when it ends.
+#[derive(Debug)]
+pub(crate) struct SocketTable {
+    state: Arc<Mutex<TableState>>,
+    owner: bool,
+}
+
+impl Default for SocketTable {
+    fn default() -> Self {
+        Self {
+            state: Arc::default(),
+            owner: true,
+        }
+    }
+}
+
 impl SocketTable {
+    /// A view of this table for a parallel worker. It sees the same handles but does not close
+    /// them when the worker ends.
+    pub(crate) fn share(&self) -> Self {
+        Self {
+            state: Arc::clone(&self.state),
+            owner: false,
+        }
+    }
+
+    fn state(&self) -> std::sync::MutexGuard<'_, TableState> {
+        self.state.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
     pub(crate) fn open_count(&self) -> usize {
-        self.sockets.len()
+        self.state().sockets.len()
     }
 
     pub(crate) fn close_all(&mut self) {
-        self.sockets.clear();
+        if self.owner {
+            self.state().sockets.clear();
+        }
     }
 
-    fn insert(&mut self, socket: Socket) -> Result<i64, Failure> {
-        if self.sockets.len() >= MAX_OPEN_SOCKETS {
+    fn insert(&self, socket: Socket) -> Result<i64, Failure> {
+        let mut state = self.state();
+        if state.sockets.len() >= MAX_OPEN_SOCKETS {
             return Err(Failure::new(
                 "E_NET_LIMIT",
                 format!("at most {MAX_OPEN_SOCKETS} sockets may be open at once"),
             ));
         }
-        self.next += 1;
-        self.sockets.insert(self.next, socket);
-        Ok(self.next)
+        state.next += 1;
+        let handle = state.next;
+        state.sockets.insert(handle, Arc::new(Mutex::new(socket)));
+        Ok(handle)
     }
+
+    fn get(&self, handle: i64) -> Option<Arc<Mutex<Socket>>> {
+        self.state().sockets.get(&handle).cloned()
+    }
+
+    fn remove(&self, handle: i64) -> bool {
+        self.state().sockets.remove(&handle).is_some()
+    }
+}
+
+fn locked(slot: &Arc<Mutex<Socket>>) -> std::sync::MutexGuard<'_, Socket> {
+    slot.lock().unwrap_or_else(|error| error.into_inner())
 }
 
 struct Failure {
@@ -227,9 +275,10 @@ pub(crate) fn run(
             let Value::Int(handle) = next()? else {
                 return Err(type_error(span));
             };
-            match table.sockets.remove(&handle.to_i64().unwrap_or(-1)) {
-                Some(_) => Ok(Value::Unit),
-                None => Err(Failure::new("E_NET_HANDLE", "socket handle is not open")),
+            if table.remove(handle.to_i64().unwrap_or(-1)) {
+                Ok(Value::Unit)
+            } else {
+                Err(Failure::new("E_NET_HANDLE", "socket handle is not open"))
             }
         }
         NetFunction::UdpSendTo => {
@@ -352,11 +401,21 @@ fn accept_stream(
 ) -> Result<TcpStream, Failure> {
     let timeout = timeout_of(policy, timeout)?;
     let accepted = {
-        let Some(Socket::Listener(listener)) = table.sockets.get(&handle) else {
-            return Err(Failure::new(
-                "E_NET_HANDLE",
-                "handle is not a listening socket",
-            ));
+        // Wait on a duplicate of the listener so other workers can accept on it at the same time.
+        let listener = {
+            let slot = table
+                .get(handle)
+                .ok_or_else(|| Failure::new("E_NET_HANDLE", "handle is not a listening socket"))?;
+            let guard = locked(&slot);
+            let Socket::Listener(listener) = &*guard else {
+                return Err(Failure::new(
+                    "E_NET_HANDLE",
+                    "handle is not a listening socket",
+                ));
+            };
+            listener
+                .try_clone()
+                .map_err(|error| Failure::io(&error, "cannot configure listener"))?
         };
         listener
             .set_nonblocking(true)
@@ -386,12 +445,14 @@ fn accept_stream(
 }
 
 fn local_port(table: &SocketTable, handle: i64) -> Result<Value, Failure> {
-    let address = match table.sockets.get(&handle) {
-        Some(Socket::Listener(socket)) => socket.local_addr(),
-        Some(Socket::Stream(socket)) => socket.local_addr(),
-        Some(Socket::Datagram(socket)) => socket.local_addr(),
-        Some(Socket::Tls(stream)) => stream.tcp().local_addr(),
-        None => return Err(Failure::new("E_NET_HANDLE", "socket handle is not open")),
+    let slot = table
+        .get(handle)
+        .ok_or_else(|| Failure::new("E_NET_HANDLE", "socket handle is not open"))?;
+    let address = match &*locked(&slot) {
+        Socket::Listener(socket) => socket.local_addr(),
+        Socket::Stream(socket) => socket.local_addr(),
+        Socket::Datagram(socket) => socket.local_addr(),
+        Socket::Tls(stream) => stream.tcp().local_addr(),
     }
     .map_err(|error| Failure::io(&error, "cannot read local address"))?;
     Ok(int(i64::from(address.port())))
@@ -403,8 +464,14 @@ fn send(
     handle: i64,
     data: &[u8],
 ) -> Result<Value, Failure> {
-    match table.sockets.get_mut(&handle) {
-        Some(Socket::Stream(stream)) => {
+    let slot = table.get(handle).ok_or_else(|| {
+        Failure::new(
+            "E_NET_HANDLE",
+            "handle is not a connected TCP or TLS socket",
+        )
+    })?;
+    match &mut *locked(&slot) {
+        Socket::Stream(stream) => {
             stream
                 .set_write_timeout(Some(policy.max_socket_timeout))
                 .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
@@ -412,7 +479,7 @@ fn send(
                 .write_all(data)
                 .map_err(|error| Failure::io(&error, "send failed"))?;
         }
-        Some(Socket::Tls(stream)) => {
+        Socket::Tls(stream) => {
             stream
                 .tcp()
                 .set_write_timeout(Some(policy.max_socket_timeout))
@@ -452,14 +519,20 @@ fn recv(
     let max = read_limit(policy, max)?;
     let timeout = timeout_of(policy, timeout)?;
     let mut buffer = vec![0u8; max];
-    let count = match table.sockets.get_mut(&handle) {
-        Some(Socket::Stream(stream)) => {
+    let slot = table.get(handle).ok_or_else(|| {
+        Failure::new(
+            "E_NET_HANDLE",
+            "handle is not a connected TCP or TLS socket",
+        )
+    })?;
+    let count = match &mut *locked(&slot) {
+        Socket::Stream(stream) => {
             stream
                 .set_read_timeout(Some(timeout))
                 .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
             stream.read(&mut buffer)
         }
-        Some(Socket::Tls(stream)) => {
+        Socket::Tls(stream) => {
             stream
                 .tcp()
                 .set_read_timeout(Some(timeout))
@@ -497,7 +570,11 @@ fn udp_send_to(
         .into_iter()
         .next()
         .ok_or_else(|| Failure::new("E_NET_RESOLVE", format!("`{host}` has no addresses")))?;
-    let Some(Socket::Datagram(socket)) = table.sockets.get(&handle) else {
+    let slot = table
+        .get(handle)
+        .ok_or_else(|| Failure::new("E_NET_HANDLE", "handle is not a UDP socket"))?;
+    let guard = locked(&slot);
+    let Socket::Datagram(socket) = &*guard else {
         return Err(Failure::new("E_NET_HANDLE", "handle is not a UDP socket"));
     };
     let sent = socket
@@ -515,7 +592,11 @@ fn udp_recv_from(
 ) -> Result<Value, Failure> {
     let max = read_limit(policy, max)?;
     let timeout = timeout_of(policy, timeout)?;
-    let Some(Socket::Datagram(socket)) = table.sockets.get(&handle) else {
+    let slot = table
+        .get(handle)
+        .ok_or_else(|| Failure::new("E_NET_HANDLE", "handle is not a UDP socket"))?;
+    let guard = locked(&slot);
+    let Socket::Datagram(socket) = &*guard else {
         return Err(Failure::new("E_NET_HANDLE", "handle is not a UDP socket"));
     };
     socket

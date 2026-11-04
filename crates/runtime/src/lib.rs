@@ -8901,6 +8901,7 @@ impl Instance {
             let native_compilations = native_compilations.clone();
             let native_code = native_code.clone();
             let http = self.http.clone();
+            let sockets = self.sockets.share();
             let sender = sender.clone();
             handles.push(thread::spawn(move || {
                 let mut assigned_index = Some(initial_index);
@@ -8945,7 +8946,7 @@ impl Instance {
                             policy.max_file_bytes,
                             policy.max_file_bytes,
                         ),
-                        sockets: net_ops::SocketTable::default(),
+                        sockets: sockets.share(),
                         databases: stdlib_services::DatabaseRegistry::with_roots(
                             database_roots,
                             policy.max_file_bytes,

@@ -231,3 +231,50 @@ fn inspection_reports_the_socket_effect_and_grants() {
         serde_json::json!(["127.0.0.1:80"])
     );
 }
+
+// Handles opened by the main program are usable from `parallel_map` workers, and handles opened
+// in one worker are usable from another: two workers accept on the shared listener while two
+// others connect to it, and every connection gets its own reply.
+#[test]
+fn socket_handles_are_shared_between_parallel_workers() {
+    let source = r#"import "std:net"
+import "std:types"
+
+# An item packs a role (0 server, 1 client), the listener handle and its port.
+fn serve(listener_handle: Int) -> Int:
+    let listener = TcpListener(listener_handle)
+    let conn = unwrap(tcp_accept(listener, 5000))
+    let request = unwrap(tcp_recv(conn, 64, 5000))
+    assert(is_ok(tcp_send(conn, request)))
+    assert(is_ok(tcp_close(conn)))
+    return 1
+
+fn call(port: Int) -> Int:
+    let conn = unwrap(tcp_connect("127.0.0.1", port, 5000))
+    assert(is_ok(tcp_send_text(conn, "ping")))
+    assert(unwrap(tcp_recv(conn, 64, 5000)) == bytes_from_text("ping"))
+    assert(is_ok(tcp_close(conn)))
+    return 1
+
+fn work(item: Int) -> Int:
+    let role = item % 10
+    let rest = item // 10
+    if role == 0:
+        return serve(rest)
+    return call(rest)
+
+fn main() -> Int:
+    let listener = unwrap(tcp_listen("127.0.0.1", 0))
+    let port = unwrap(tcp_listener_port(listener))
+    let items = [listener.handle * 10, listener.handle * 10, port * 10 + 1, port * 10 + 1]
+    match parallel_map(items, work, 4):
+        Ok(done):
+            assert(done == [1, 1, 1, 1])
+        Err(problem):
+            print(task_message(problem))
+            return 1
+    assert(is_ok(tcp_listener_close(listener)))
+    return 0
+"#;
+    assert_ok(&run_project("net-shared", "", LOOPBACK, source));
+}
