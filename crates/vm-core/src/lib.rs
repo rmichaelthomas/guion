@@ -7,9 +7,9 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
-    TextMap, Type, Value,
+    Artifact, BigInt, CodecFunction, FileErrorValue, Float64, FsFunction, HttpErrorValue,
+    JsonErrorValue, MathFunction, NativeResourceValue, Op, RegexFunction, RuntimeError,
+    ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -2659,6 +2659,131 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Math(function) => {
+                let function = *function;
+                let right = if function.arity() == 2 {
+                    match pop!() {
+                        Value::Float64(value) => Some(value.get()),
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "math functions require Float64 values",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                } else {
+                    None
+                };
+                let Value::Float64(left) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "math functions require Float64 values",
+                        instruction.span,
+                    ));
+                };
+                let result = apply_math(function, left.get(), right.unwrap_or(0.0)).map_err(
+                    |(code, message)| RuntimeError::new(code, message, instruction.span),
+                )?;
+                push_stack!(Value::Float64(result));
+            }
+            Op::Codec(function) => {
+                let function = *function;
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let value = apply_codec(function, operands).map_err(|(code, message)| {
+                    RuntimeError::new(code, message, instruction.span)
+                })?;
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::Regex(function) => {
+                let function = *function;
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let value = apply_regex(function, operands).map_err(|(code, message)| {
+                    RuntimeError::new(code, message, instruction.span)
+                })?;
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::IntToFloat => {
+                let Value::Int(value) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "int_to_float requires an Int value",
+                        instruction.span,
+                    ));
+                };
+                let converted = match value.small() {
+                    Some(small) => Float64::new(small as f64),
+                    None => value.to_string().parse::<f64>().ok().and_then(Float64::new),
+                }
+                .ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_FLOAT_NONFINITE",
+                        "Int is too large to convert to Float64",
+                        instruction.span,
+                    )
+                })?;
+                push_stack!(Value::Float64(converted));
+            }
+            Op::FloatToInt => {
+                let Value::Float64(value) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "float_to_int requires a Float64 value",
+                        instruction.span,
+                    ));
+                };
+                push_stack!(Value::Int(float_to_bigint(value.get())));
+            }
+            Op::NumberToText => {
+                let text = match pop!() {
+                    Value::Int(value) => value.to_string(),
+                    Value::Float64(value) => float_to_text(value.get()),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "number-to-text conversion requires an Int or Float64 value",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let value = Value::Text(SharedText::from(text.as_str()));
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::RandomMix => {
+                let Value::Int(state) = pop!() else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "random_mix requires an Int state",
+                        instruction.span,
+                    ));
+                };
+                push_stack!(Value::Int(BigInt::from_u64(splitmix64_mix(
+                    bigint_low_u64(&state)
+                ))));
+            }
             Op::BytesFromInts => {
                 let values = match pop!() {
                     Value::List(values) => values,
@@ -4617,6 +4742,17 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextSplit => "TextSplit",
         Op::TextReplace => "TextReplace",
         Op::TextTrim => "TextTrim",
+        Op::Math(function) => function.op_name(),
+        Op::Codec(function) => function.op_name(),
+        Op::Fs(function) => function.op_name(),
+        Op::Regex(function) => function.op_name(),
+        Op::Process(function) => function.op_name(),
+        Op::Net(function) => function.op_name(),
+        Op::Tls(function) => function.op_name(),
+        Op::IntToFloat => "IntToFloat",
+        Op::FloatToInt => "FloatToInt",
+        Op::NumberToText => "NumberToText",
+        Op::RandomMix => "RandomMix",
         Op::BytesFromInts => "BytesFromInts",
         Op::BytesFromText => "BytesFromText",
         Op::BytesJoin => "BytesJoin",
@@ -6578,6 +6714,133 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Float64);
             }
+            Op::Math(function) => {
+                for _ in 0..function.arity() {
+                    if pop_type(&mut state.stack, pc)? != Type::Float64 {
+                        return Err(format!(
+                            "math functions require Float64 at instruction {pc}"
+                        ));
+                    }
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::Codec(function) => {
+                let (parameters, result) = codec_signature(*function);
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(result);
+            }
+            Op::Tls(function) => {
+                let expected = match function {
+                    guion_model::TlsFunction::Connect => {
+                        [Type::Text, Type::Int, Type::Int, Type::Text]
+                    }
+                    guion_model::TlsFunction::Accept => {
+                        [Type::Int, Type::Int, Type::Text, Type::Text]
+                    }
+                };
+                for expected in expected.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Int),
+                    Box::new(Type::List(Box::new(Type::Text))),
+                ));
+            }
+            Op::Net(function) => {
+                let (parameters, ok) = net_signature(*function);
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(Type::Result(
+                    Box::new(ok),
+                    Box::new(Type::List(Box::new(Type::Text))),
+                ));
+            }
+            Op::Process(function) => {
+                let texts = Type::List(Box::new(Type::Text));
+                match function {
+                    guion_model::ProcessFunction::Run => {
+                        let stdin = pop_type(&mut state.stack, pc)?;
+                        let arguments = pop_type(&mut state.stack, pc)?;
+                        let command = pop_type(&mut state.stack, pc)?;
+                        if stdin != Type::Text || arguments != texts || command != Type::Text {
+                            return Err(format!(
+                                "process_run requires Text, List[Text], Text operands at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(texts.clone()), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::Pid => state.stack.push(Type::Int),
+                    guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
+                }
+            }
+            Op::Regex(function) => {
+                for _ in 0..function.arity() {
+                    if pop_type(&mut state.stack, pc)? != Type::Text {
+                        return Err(format!(
+                            "{} requires Text operands at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(regex_result_type(*function));
+            }
+            Op::Fs(function) => {
+                for _ in 0..function.arity() {
+                    if pop_type(&mut state.stack, pc)? != Type::Text {
+                        return Err(format!(
+                            "{} requires Text paths at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(fs_result_type(*function));
+            }
+            Op::IntToFloat => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("int_to_float requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::FloatToInt => {
+                if pop_type(&mut state.stack, pc)? != Type::Float64 {
+                    return Err(format!("float_to_int requires Float64 at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::NumberToText => {
+                if !matches!(pop_type(&mut state.stack, pc)?, Type::Int | Type::Float64) {
+                    return Err(format!(
+                        "number-to-text conversion requires Int or Float64 at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::RandomMix => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("random_mix requires Int at instruction {pc}"));
+                }
+                state.stack.push(Type::Int);
+            }
             Op::ListPush => {
                 let value = pop_type(&mut state.stack, pc)?;
                 match pop_type(&mut state.stack, pc)? {
@@ -7827,6 +8090,531 @@ impl VmHost for PortableHost {
             format!("host operation `{name}` is not available in this environment"),
             context.instruction.span,
         ))
+    }
+}
+
+/// Applies a pure math function. Domain errors and non-finite results are reported, never returned
+/// as NaN or infinity, matching `sqrt`.
+fn apply_math(
+    function: MathFunction,
+    a: f64,
+    b: f64,
+) -> Result<Float64, (&'static str, &'static str)> {
+    const DOMAIN: &str = "R_MATH_DOMAIN";
+    let value = match function {
+        MathFunction::Sin => a.sin(),
+        MathFunction::Cos => a.cos(),
+        MathFunction::Tan => a.tan(),
+        MathFunction::Asin if (-1.0..=1.0).contains(&a) => a.asin(),
+        MathFunction::Acos if (-1.0..=1.0).contains(&a) => a.acos(),
+        MathFunction::Asin | MathFunction::Acos => {
+            return Err((DOMAIN, "asin and acos require a value between -1 and 1"));
+        }
+        MathFunction::Atan => a.atan(),
+        MathFunction::Sinh => a.sinh(),
+        MathFunction::Cosh => a.cosh(),
+        MathFunction::Tanh => a.tanh(),
+        MathFunction::Exp => a.exp(),
+        MathFunction::Ln | MathFunction::Log10 | MathFunction::Log2 if a <= 0.0 => {
+            return Err((DOMAIN, "logarithms require a positive value"));
+        }
+        MathFunction::Ln => a.ln(),
+        MathFunction::Log10 => a.log10(),
+        MathFunction::Log2 => a.log2(),
+        MathFunction::Floor => a.floor(),
+        MathFunction::Ceil => a.ceil(),
+        MathFunction::Round => a.round(),
+        MathFunction::Abs => a.abs(),
+        MathFunction::Pow => {
+            if a == 0.0 && b < 0.0 {
+                return Err(("R_DIV_ZERO", "pow of zero to a negative power"));
+            }
+            if a < 0.0 && b.fract() != 0.0 {
+                return Err((
+                    DOMAIN,
+                    "pow of a negative base requires an integer exponent",
+                ));
+            }
+            a.powf(b)
+        }
+        MathFunction::Atan2 => a.atan2(b),
+        MathFunction::Hypot => a.hypot(b),
+    };
+    Float64::new(value).ok_or((
+        "R_FLOAT_NONFINITE",
+        "math function produced a non-finite Float64 value",
+    ))
+}
+
+/// Applies a math function for native code. A domain error or non-finite result comes back as
+/// NaN, which a valid result never is, and the caller replays the call in the VM to raise the
+/// exact error.
+pub fn math_or_nan(function: MathFunction, a: f64, b: f64) -> f64 {
+    apply_math(function, a, b).map_or(f64::NAN, Float64::get)
+}
+
+/// Truncates toward zero. `Float64` values are always finite, so the result is exact.
+fn float_to_bigint(value: f64) -> BigInt {
+    let truncated = value.trunc();
+    if truncated.abs() < 9.0e18 {
+        BigInt::from_i64(truncated as i64)
+    } else {
+        BigInt::parse(&format!("{truncated:.0}")).unwrap_or_else(|_| BigInt::zero())
+    }
+}
+
+/// The same shortest round-trip text that `print` shows for a `Float64`.
+fn float_to_text(value: f64) -> String {
+    format!("{value}")
+}
+
+/// The low 64 bits of an `Int`, in two's complement for negative values.
+fn bigint_low_u64(value: &BigInt) -> u64 {
+    if let Some(small) = value.small() {
+        return small as u64;
+    }
+    let modulus = BigInt::parse("18446744073709551616").expect("2^64 parses");
+    match value.floor_div_rem(&modulus) {
+        Some((_, remainder)) => remainder.to_string().parse::<u64>().unwrap_or(0),
+        None => 0,
+    }
+}
+
+/// The SplitMix64 output function.
+fn splitmix64_mix(state: u64) -> u64 {
+    let mut z = state;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+/// The `Result[T, FileError]` type a filesystem function pushes.
+fn fs_result_type(function: FsFunction) -> Type {
+    let ok = match function {
+        FsFunction::Exists => Type::Bool,
+        FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
+        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
+        FsFunction::ListDir => Type::List(Box::new(Type::Text)),
+        FsFunction::MakeDir | FsFunction::Remove | FsFunction::RemoveAll | FsFunction::Rename => {
+            Type::Unit
+        }
+    };
+    Type::Result(Box::new(ok), Box::new(Type::FileError))
+}
+
+/// Operand types (push order) and success type of a socket function; failures are `[code, message]`.
+fn net_signature(function: guion_model::NetFunction) -> (Vec<Type>, Type) {
+    use guion_model::NetFunction as N;
+    match function {
+        N::TcpConnect => (vec![Type::Text, Type::Int, Type::Int], Type::Int),
+        N::TcpListen | N::UdpBind => (vec![Type::Text, Type::Int], Type::Int),
+        N::TcpAccept => (vec![Type::Int, Type::Int], Type::Int),
+        N::LocalPort => (vec![Type::Int], Type::Int),
+        N::Send => (vec![Type::Int, Type::Bytes], Type::Int),
+        N::Recv => (vec![Type::Int, Type::Int, Type::Int], Type::Bytes),
+        N::Close => (vec![Type::Int], Type::Unit),
+        N::UdpSendTo => (
+            vec![Type::Int, Type::Text, Type::Int, Type::Bytes],
+            Type::Int,
+        ),
+        N::UdpRecvFrom => (
+            vec![Type::Int, Type::Int, Type::Int],
+            Type::List(Box::new(Type::Bytes)),
+        ),
+    }
+}
+
+/// The type a regex function pushes: `Result[T, Text]` (the error is the pattern's compile
+/// message), except `escape`, which cannot fail.
+fn regex_result_type(function: RegexFunction) -> Type {
+    let ok = match function {
+        RegexFunction::IsMatch => Type::Bool,
+        RegexFunction::Find => Type::Option(Box::new(Type::List(Box::new(Type::Text)))),
+        RegexFunction::FindAll | RegexFunction::Split => Type::List(Box::new(Type::Text)),
+        RegexFunction::Replace | RegexFunction::ReplaceFirst => Type::Text,
+        RegexFunction::Escape => return Type::Text,
+    };
+    Type::Result(Box::new(ok), Box::new(Type::Text))
+}
+
+const REGEX_MAX_PATTERN_BYTES: usize = 4096;
+const REGEX_SIZE_LIMIT: usize = 1 << 20;
+const REGEX_CACHE_ENTRIES: usize = 64;
+
+thread_local! {
+    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, std::rc::Rc<regex::Regex>>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Compiles `pattern` with bounded program size, reusing a small per-thread cache. The cached
+/// `Regex` is shared rather than cloned: a clone starts with an empty matcher cache, which made
+/// every call rebuild its lazy DFA states.
+fn compile_regex(pattern: &str) -> Result<std::rc::Rc<regex::Regex>, String> {
+    if pattern.len() > REGEX_MAX_PATTERN_BYTES {
+        return Err(format!(
+            "pattern is longer than {REGEX_MAX_PATTERN_BYTES} bytes"
+        ));
+    }
+    REGEX_CACHE.with(|cache| {
+        if let Some(found) = cache.borrow().get(pattern) {
+            return Ok(std::rc::Rc::clone(found));
+        }
+        let compiled = std::rc::Rc::new(
+            regex::RegexBuilder::new(pattern)
+                .size_limit(REGEX_SIZE_LIMIT)
+                .dfa_size_limit(REGEX_SIZE_LIMIT)
+                .build()
+                .map_err(|error| error.to_string())?,
+        );
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= REGEX_CACHE_ENTRIES {
+            cache.clear();
+        }
+        cache.insert(pattern.to_string(), std::rc::Rc::clone(&compiled));
+        Ok(compiled)
+    })
+}
+
+fn apply_regex(
+    function: RegexFunction,
+    mut operands: Vec<Value>,
+) -> Result<Value, (&'static str, &'static str)> {
+    const TYPE: (&str, &str) = (
+        "R_TYPE_INVALID",
+        "regex function received an invalid operand",
+    );
+    let text_value = |text: &str| Value::Text(SharedText::from(text));
+    let mut texts = Vec::with_capacity(operands.len());
+    for operand in operands.drain(..) {
+        let Value::Text(text) = operand else {
+            return Err(TYPE);
+        };
+        texts.push(text.to_string());
+    }
+    if function == RegexFunction::Escape {
+        return Ok(text_value(&regex::escape(&texts[0])));
+    }
+    let compiled = match compile_regex(&texts[0]) {
+        Ok(compiled) => compiled,
+        Err(message) => return Ok(Value::ResultErr(Box::new(text_value(&message)))),
+    };
+    let subject = texts[1].as_str();
+    let text_list = |items: Vec<&str>| {
+        Value::List(Shared::new(
+            items.into_iter().map(text_value).collect::<Vec<_>>(),
+        ))
+    };
+    let ok = match function {
+        RegexFunction::IsMatch => Value::Bool(compiled.is_match(subject)),
+        RegexFunction::Find => match compiled.captures(subject) {
+            Some(captures) => Value::OptionSome(Box::new(text_list(
+                captures
+                    .iter()
+                    .map(|group| group.map_or("", |matched| matched.as_str()))
+                    .collect(),
+            ))),
+            None => Value::OptionNone,
+        },
+        RegexFunction::FindAll => {
+            text_list(compiled.find_iter(subject).map(|m| m.as_str()).collect())
+        }
+        RegexFunction::Replace => text_value(&compiled.replace_all(subject, texts[2].as_str())),
+        RegexFunction::ReplaceFirst => text_value(&compiled.replace(subject, texts[2].as_str())),
+        RegexFunction::Split => text_list(compiled.split(subject).collect()),
+        RegexFunction::Escape => unreachable!("handled above"),
+    };
+    Ok(Value::ResultOk(Box::new(ok)))
+}
+
+/// Operand and result types of a codec function; operands are listed in push order.
+fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
+    let option = |inner: Type| Type::Option(Box::new(inner));
+    match function {
+        CodecFunction::Base64Encode
+        | CodecFunction::Base64UrlEncode
+        | CodecFunction::HexEncode
+        | CodecFunction::TextFromBytesLossy => (vec![Type::Bytes], Type::Text),
+        CodecFunction::Base64Decode | CodecFunction::Base64UrlDecode | CodecFunction::HexDecode => {
+            (vec![Type::Text], option(Type::Bytes))
+        }
+        CodecFunction::BytesToInts => (vec![Type::Bytes], Type::List(Box::new(Type::Int))),
+        CodecFunction::BytesSlice => (vec![Type::Bytes, Type::Int, Type::Int], Type::Bytes),
+        CodecFunction::TextFromBytes => (vec![Type::Bytes], option(Type::Text)),
+        CodecFunction::PercentEncode => (vec![Type::Text], Type::Text),
+        CodecFunction::PercentDecode => (vec![Type::Text], option(Type::Text)),
+        CodecFunction::Sha1 => (vec![Type::Bytes], Type::Bytes),
+        CodecFunction::BytesXor => (vec![Type::Bytes, Type::Bytes], Type::Bytes),
+    }
+}
+
+const BASE64_STANDARD: &[u8; 64] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+fn base64_encode(bytes: &[u8], alphabet: &[u8; 64]) -> String {
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let block = (u32::from(chunk[0]) << 16)
+            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*chunk.get(2).unwrap_or(&0));
+        out.push(alphabet[(block >> 18) as usize & 63] as char);
+        out.push(alphabet[(block >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 {
+            alphabet[(block >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            alphabet[block as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Strict decoding: the alphabet must match, the length must be a multiple of four, and padding
+/// is required. Trailing bits of the final group are ignored, as in Python's `b64decode`.
+fn base64_decode(text: &str, alphabet: &[u8; 64]) -> Option<Vec<u8>> {
+    let bytes = text.as_bytes();
+    if !bytes.len().is_multiple_of(4) {
+        return None;
+    }
+    let mut lookup = [255u8; 256];
+    for (index, symbol) in alphabet.iter().enumerate() {
+        lookup[usize::from(*symbol)] = index as u8;
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    let groups = bytes.len() / 4;
+    for (group, chunk) in bytes.chunks(4).enumerate() {
+        let last = group + 1 == groups;
+        let padding = chunk.iter().rev().take_while(|byte| **byte == b'=').count();
+        if padding > 2 || (padding > 0 && !last) {
+            return None;
+        }
+        let mut block = 0u32;
+        for byte in &chunk[..4 - padding] {
+            let value = lookup[usize::from(*byte)];
+            if value == 255 {
+                return None;
+            }
+            block = (block << 6) | u32::from(value);
+        }
+        block <<= 6 * padding as u32;
+        out.push((block >> 16) as u8);
+        if padding < 2 {
+            out.push((block >> 8) as u8);
+        }
+        if padding < 1 {
+            out.push(block as u8);
+        }
+    }
+    Some(out)
+}
+
+fn hex_decode(text: &str) -> Option<Vec<u8>> {
+    let bytes = text.as_bytes();
+    if !bytes.len().is_multiple_of(2) {
+        return None;
+    }
+    let nibble = |byte: u8| match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    };
+    bytes
+        .chunks(2)
+        .map(|pair| Some(nibble(pair[0])? << 4 | nibble(pair[1])?))
+        .collect()
+}
+
+/// RFC 3986 component encoding: everything except unreserved characters is percent-encoded.
+fn percent_encode(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            out.push(byte as char);
+        } else {
+            out.push('%');
+            out.push(char::from(b"0123456789ABCDEF"[usize::from(byte >> 4)]));
+            out.push(char::from(b"0123456789ABCDEF"[usize::from(byte & 15)]));
+        }
+    }
+    out
+}
+
+/// SHA-1 (RFC 3174). Offered for the WebSocket handshake and legacy interchange only.
+fn sha1(data: &[u8]) -> [u8; 20] {
+    let mut state: [u32; 5] = [
+        0x6745_2301,
+        0xEFCD_AB89,
+        0x98BA_DCFE,
+        0x1032_5476,
+        0xC3D2_E1F0,
+    ];
+    let mut message = data.to_vec();
+    message.push(0x80);
+    while message.len() % 64 != 56 {
+        message.push(0);
+    }
+    message.extend_from_slice(&((data.len() as u64) * 8).to_be_bytes());
+    for block in message.chunks(64) {
+        let mut words = [0u32; 80];
+        for (index, chunk) in block.chunks(4).enumerate() {
+            words[index] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        }
+        for index in 16..80 {
+            words[index] =
+                (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16])
+                    .rotate_left(1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e] = state;
+        for (index, word) in words.iter().enumerate() {
+            let (mix, constant) = match index {
+                0..=19 => ((b & c) | (!b & d), 0x5A82_7999),
+                20..=39 => (b ^ c ^ d, 0x6ED9_EBA1),
+                40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1B_BCDC),
+                _ => (b ^ c ^ d, 0xCA62_C1D6),
+            };
+            let next = a
+                .rotate_left(5)
+                .wrapping_add(mix)
+                .wrapping_add(e)
+                .wrapping_add(constant)
+                .wrapping_add(*word);
+            e = d;
+            d = c;
+            c = b.rotate_left(30);
+            b = a;
+            a = next;
+        }
+        for (slot, value) in state.iter_mut().zip([a, b, c, d, e]) {
+            *slot = slot.wrapping_add(value);
+        }
+    }
+    let mut digest = [0u8; 20];
+    for (index, word) in state.iter().enumerate() {
+        digest[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
+    }
+    digest
+}
+
+fn percent_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let pair = bytes.get(index + 1..index + 3)?;
+            let digits = std::str::from_utf8(pair).ok()?;
+            out.push(
+                u8::from_str_radix(digits, 16)
+                    .ok()
+                    .filter(|_| pair.iter().all(u8::is_ascii_hexdigit))?,
+            );
+            index += 3;
+        } else {
+            out.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+fn apply_codec(
+    function: CodecFunction,
+    mut operands: Vec<Value>,
+) -> Result<Value, (&'static str, &'static str)> {
+    const TYPE: (&str, &str) = (
+        "R_TYPE_INVALID",
+        "codec function received an invalid operand",
+    );
+    let text_value = |text: &str| Value::Text(SharedText::from(text));
+    let option_of = |value: Option<Value>| match value {
+        Some(value) => Value::OptionSome(Box::new(value)),
+        None => Value::OptionNone,
+    };
+    if function == CodecFunction::BytesSlice {
+        let (Value::Int(end), Value::Int(start), Value::Bytes(bytes)) = (
+            operands.pop().ok_or(TYPE)?,
+            operands.pop().ok_or(TYPE)?,
+            operands.pop().ok_or(TYPE)?,
+        ) else {
+            return Err(TYPE);
+        };
+        let bounds = (start.to_usize(), end.to_usize());
+        return match bounds {
+            (Some(start), Some(end)) if start <= end && end <= bytes.len() => {
+                Ok(Value::Bytes(Shared::new(bytes[start..end].to_vec())))
+            }
+            _ => Err((
+                "R_INDEX_BOUNDS",
+                "bytes_slice requires 0 <= start <= end <= len(bytes)",
+            )),
+        };
+    }
+    if function == CodecFunction::BytesXor {
+        let (Value::Bytes(key), Value::Bytes(data)) =
+            (operands.pop().ok_or(TYPE)?, operands.pop().ok_or(TYPE)?)
+        else {
+            return Err(TYPE);
+        };
+        if key.is_empty() {
+            return Err(("R_INDEX_BOUNDS", "bytes_xor requires a non-empty key"));
+        }
+        let mixed = data
+            .iter()
+            .enumerate()
+            .map(|(index, byte)| byte ^ key[index % key.len()])
+            .collect();
+        return Ok(Value::Bytes(Shared::new(mixed)));
+    }
+    let operand = operands.pop().ok_or(TYPE)?;
+    match (function, operand) {
+        (CodecFunction::Base64Encode, Value::Bytes(bytes)) => {
+            Ok(text_value(&base64_encode(&bytes, BASE64_STANDARD)))
+        }
+        (CodecFunction::Base64UrlEncode, Value::Bytes(bytes)) => {
+            Ok(text_value(&base64_encode(&bytes, BASE64_URL)))
+        }
+        (CodecFunction::HexEncode, Value::Bytes(bytes)) => {
+            let mut out = String::with_capacity(bytes.len() * 2);
+            for byte in bytes.iter() {
+                out.push(char::from(b"0123456789abcdef"[usize::from(byte >> 4)]));
+                out.push(char::from(b"0123456789abcdef"[usize::from(byte & 15)]));
+            }
+            Ok(text_value(&out))
+        }
+        (CodecFunction::Base64Decode, Value::Text(text)) => Ok(option_of(
+            base64_decode(&text, BASE64_STANDARD).map(|bytes| Value::Bytes(Shared::new(bytes))),
+        )),
+        (CodecFunction::Base64UrlDecode, Value::Text(text)) => Ok(option_of(
+            base64_decode(&text, BASE64_URL).map(|bytes| Value::Bytes(Shared::new(bytes))),
+        )),
+        (CodecFunction::HexDecode, Value::Text(text)) => Ok(option_of(
+            hex_decode(&text).map(|bytes| Value::Bytes(Shared::new(bytes))),
+        )),
+        (CodecFunction::BytesToInts, Value::Bytes(bytes)) => Ok(Value::List(Shared::new(
+            bytes
+                .iter()
+                .map(|byte| Value::Int(BigInt::from_i64(i64::from(*byte))))
+                .collect(),
+        ))),
+        (CodecFunction::TextFromBytes, Value::Bytes(bytes)) => {
+            Ok(option_of(std::str::from_utf8(&bytes).ok().map(text_value)))
+        }
+        (CodecFunction::TextFromBytesLossy, Value::Bytes(bytes)) => {
+            Ok(text_value(&String::from_utf8_lossy(&bytes)))
+        }
+        (CodecFunction::Sha1, Value::Bytes(bytes)) => {
+            Ok(Value::Bytes(Shared::new(sha1(&bytes).to_vec())))
+        }
+        (CodecFunction::PercentEncode, Value::Text(text)) => Ok(text_value(&percent_encode(&text))),
+        (CodecFunction::PercentDecode, Value::Text(text)) => Ok(option_of(
+            percent_decode(&text).map(|decoded| text_value(&decoded)),
+        )),
+        _ => Err(TYPE),
     }
 }
 

@@ -1,0 +1,167 @@
+import "std:text"
+import "std:types"
+
+pub record Url:
+    scheme: Text
+    userinfo: Text
+    host: Text
+    port: Int
+    path: Text
+    query: Text
+    fragment: Text
+
+pub record QueryPair:
+    name: Text
+    value: Text
+
+fn url_is_scheme_char(ch: Text, first: Bool) -> Bool:
+    if (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z"):
+        return true
+    if first:
+        return false
+    return (ch >= "0" and ch <= "9") or ch == "+" or ch == "-" or ch == "."
+
+fn url_scheme_end(text: Text) -> Int:
+    var index = 0
+    while index < len(text):
+        let ch = text[index]
+        if ch == ":":
+            if index == 0:
+                return -1
+            return index
+        if not url_is_scheme_char(ch, index == 0):
+            return -1
+        set index = index + 1
+    return -1
+
+fn url_parse_port(text: Text) -> Int:
+    if len(text) == 0:
+        return -1
+    var index = 0
+    while index < len(text):
+        let ch = text[index]
+        if ch < "0" or ch > "9":
+            return -2
+        set index = index + 1
+    let parsed = text_parse_int(text)
+    if not is_ok(parsed):
+        return -2
+    let port = unwrap(parsed)
+    if port > 65535:
+        return -2
+    return port
+
+pub fn url_encode_component(value: Text) -> Text:
+    return native_percent_encode(value)
+
+pub fn url_decode_component(value: Text) -> Result[Text, StdError]:
+    let decoded = native_percent_decode(value)
+    if is_some(decoded):
+        return Ok(unwrap(decoded))
+    return Err(std_error("E_URL_INVALID", "text has an invalid percent escape or is not valid UTF-8"))
+
+pub fn url_parse(input: Text) -> Result[Url, StdError]:
+    var rest = input
+    var fragment = ""
+    let hash = text_find(rest, "#", 0)
+    if hash >= 0:
+        set fragment = text_slice(rest, hash + 1, len(rest))
+        set rest = text_slice(rest, 0, hash)
+    var query = ""
+    let mark = text_find(rest, "?", 0)
+    if mark >= 0:
+        set query = text_slice(rest, mark + 1, len(rest))
+        set rest = text_slice(rest, 0, mark)
+    var scheme = ""
+    let colon = url_scheme_end(rest)
+    if colon >= 0:
+        set scheme = text_slice(rest, 0, colon)
+        set rest = text_slice(rest, colon + 1, len(rest))
+    var userinfo = ""
+    var host = ""
+    var port = -1
+    if len(rest) >= 2 and text_slice(rest, 0, 2) == "//":
+        set rest = text_slice(rest, 2, len(rest))
+        var authority = rest
+        let slash = text_find(rest, "/", 0)
+        if slash >= 0:
+            set authority = text_slice(rest, 0, slash)
+            set rest = text_slice(rest, slash, len(rest))
+        else:
+            set rest = ""
+        let at = text_find(authority, "@", 0)
+        if at >= 0:
+            set userinfo = text_slice(authority, 0, at)
+            set authority = text_slice(authority, at + 1, len(authority))
+        if len(authority) > 0 and authority[0] == "[":
+            let close = text_find(authority, "]", 0)
+            if close < 0:
+                return Err(std_error("E_URL_INVALID", "IPv6 host is missing a closing bracket"))
+            set host = text_slice(authority, 0, close + 1)
+            let tail = text_slice(authority, close + 1, len(authority))
+            if len(tail) > 0:
+                if tail[0] != ":":
+                    return Err(std_error("E_URL_INVALID", "unexpected text after the IPv6 host"))
+                set port = url_parse_port(text_slice(tail, 1, len(tail)))
+        else:
+            let port_mark = text_find(authority, ":", 0)
+            if port_mark >= 0:
+                set host = text_slice(authority, 0, port_mark)
+                set port = url_parse_port(text_slice(authority, port_mark + 1, len(authority)))
+            else:
+                set host = authority
+        if port == -2:
+            return Err(std_error("E_URL_INVALID", "port must be a number from 0 to 65535"))
+    return Ok(Url(scheme, userinfo, host, port, rest, query, fragment))
+
+pub fn url_to_text(url: Url) -> Text:
+    var out = ""
+    if len(url.scheme) > 0:
+        set out = url.scheme + ":"
+    if len(url.host) > 0 or len(url.userinfo) > 0:
+        set out = out + "//"
+        if len(url.userinfo) > 0:
+            set out = out + url.userinfo + "@"
+        set out = out + url.host
+        if url.port >= 0:
+            set out = out + ":" + int_to_text(url.port)
+    set out = out + url.path
+    if len(url.query) > 0:
+        set out = out + "?" + url.query
+    if len(url.fragment) > 0:
+        set out = out + "#" + url.fragment
+    return out
+
+pub fn url_query_parse(query: Text) -> Result[List[QueryPair], StdError]:
+    var pairs: List[QueryPair] = []
+    if len(query) == 0:
+        return Ok(pairs)
+    var start = 0
+    while start <= len(query):
+        var stop = text_find(query, "&", start)
+        if stop < 0:
+            set stop = len(query)
+        let item = text_slice(query, start, stop)
+        if len(item) > 0:
+            var name = item
+            var value = ""
+            let equals = text_find(item, "=", 0)
+            if equals >= 0:
+                set name = text_slice(item, 0, equals)
+                set value = text_slice(item, equals + 1, len(item))
+            let decoded_name = url_decode_component(text_replace(name, "+", " "))?
+            let decoded_value = url_decode_component(text_replace(value, "+", " "))?
+            set pairs = list_push(pairs, QueryPair(decoded_name, decoded_value))
+        set start = stop + 1
+    return Ok(pairs)
+
+pub fn url_query_build(pairs: List[QueryPair]) -> Text:
+    var out = ""
+    var index = 0
+    while index < len(pairs):
+        if index > 0:
+            set out = out + "&"
+        let pair = pairs[index]
+        set out = out + url_encode_component(pair.name) + "=" + url_encode_component(pair.value)
+        set index = index + 1
+    return out

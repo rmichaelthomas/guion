@@ -1,0 +1,356 @@
+import "std:types"
+import "std:net"
+import "std:text"
+
+pub record HttpHeader:
+    name: Text
+    value: Text
+
+pub record HttpServerRequest:
+    conn: TcpConn
+    method: Text
+    target: Text
+    path: Text
+    query: Text
+    headers: List[HttpHeader]
+    body: Bytes
+    pending: Bytes
+    keep_alive: Bool
+
+pub record HttpChunkedBody:
+    body: Bytes
+    rest: Bytes
+
+fn hs_find_head_end(data: List[Int], start: Int) -> Int:
+    var index = start
+    while index + 3 < len(data):
+        if data[index] == 13 and data[index + 1] == 10 and data[index + 2] == 13 and data[index + 3] == 10:
+            return index
+        set index = index + 1
+    return -1
+
+fn hs_reason(status: Int) -> Text:
+    if status == 200:
+        return "OK"
+    if status == 201:
+        return "Created"
+    if status == 204:
+        return "No Content"
+    if status == 301:
+        return "Moved Permanently"
+    if status == 302:
+        return "Found"
+    if status == 304:
+        return "Not Modified"
+    if status == 400:
+        return "Bad Request"
+    if status == 401:
+        return "Unauthorized"
+    if status == 403:
+        return "Forbidden"
+    if status == 404:
+        return "Not Found"
+    if status == 405:
+        return "Method Not Allowed"
+    if status == 411:
+        return "Length Required"
+    if status == 413:
+        return "Content Too Large"
+    if status == 426:
+        return "Upgrade Required"
+    if status == 431:
+        return "Request Header Fields Too Large"
+    if status == 500:
+        return "Internal Server Error"
+    if status == 501:
+        return "Not Implemented"
+    if status == 503:
+        return "Service Unavailable"
+    return "Status"
+
+pub fn http_server_listen(host: Text, port: Int) -> Result[TcpListener, StdError]:
+    return tcp_listen(host, port)
+
+pub fn http_server_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]:
+    return tcp_accept(listener, timeout_ms)
+
+pub fn http_server_header(request: HttpServerRequest, name: Text) -> Option[Text]:
+    let wanted = text_casefold(name)
+    var index = 0
+    while index < len(request.headers):
+        if request.headers[index].name == wanted:
+            return Some(request.headers[index].value)
+        set index = index + 1
+    return None
+
+fn hs_send(conn: TcpConn, status: Int, content_type: Text, body: Bytes, keep_alive: Bool) -> Result[Int, StdError]:
+    var connection = "close"
+    if keep_alive:
+        set connection = "keep-alive"
+    let head = "HTTP/1.1 " + int_to_text(status) + " " + hs_reason(status) + "\r\nContent-Type: " + content_type + "\r\nContent-Length: " + int_to_text(len(body)) + "\r\nConnection: " + connection + "\r\n\r\n"
+    return tcp_send(conn, bytes_join([bytes_from_text(head), body]))
+
+pub fn http_server_send(conn: TcpConn, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]:
+    return hs_send(conn, status, content_type, body, false)
+
+# Sends the response and closes the connection.
+pub fn http_server_respond(request: HttpServerRequest, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]:
+    let sent = hs_send(request.conn, status, content_type, body, false)
+    let closed = tcp_close(request.conn)
+    return sent
+
+pub fn http_server_respond_text(request: HttpServerRequest, status: Int, text: Text) -> Result[Int, StdError]:
+    return http_server_respond(request, status, "text/plain; charset=utf-8", bytes_from_text(text))
+
+# Sends the response and keeps the connection open when the client asked for that. Read the next
+# request with http_server_read_next. When the client did not ask for keep-alive the connection is
+# closed, so a caller can use this for every request.
+pub fn http_server_reply(request: HttpServerRequest, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]:
+    let sent = hs_send(request.conn, status, content_type, body, request.keep_alive)
+    if not request.keep_alive:
+        let closed = tcp_close(request.conn)
+    return sent
+
+pub fn http_server_reply_text(request: HttpServerRequest, status: Int, text: Text) -> Result[Int, StdError]:
+    return http_server_reply(request, status, "text/plain; charset=utf-8", bytes_from_text(text))
+
+fn hs_reject(conn: TcpConn, status: Int) -> Unit:
+    let sent = hs_send(conn, status, "text/plain; charset=utf-8", bytes_from_text(hs_reason(status) + "\n"), false)
+    let closed = tcp_close(conn)
+
+fn hs_fill(conn: TcpConn, buffer: Bytes, timeout_ms: Int) -> Result[Bytes, StdError]:
+    match tcp_recv(conn, 4096, timeout_ms):
+        Ok(chunk):
+            if len(chunk) == 0:
+                if len(buffer) == 0:
+                    return Err(std_error("E_HTTP_CLOSED", "the client closed the connection"))
+                return Err(std_error("E_HTTP_REQUEST_INVALID", "connection closed in the middle of a request"))
+            return Ok(bytes_join([buffer, chunk]))
+        Err(problem):
+            return Err(problem)
+
+fn hs_find_crlf(data: List[Int], start: Int) -> Int:
+    var index = start
+    while index + 1 < len(data):
+        if data[index] == 13 and data[index + 1] == 10:
+            return index
+        set index = index + 1
+    return -1
+
+# The value of one hexadecimal digit, or -1.
+fn hs_hex_digit(digit: Text) -> Int:
+    return text_find("0123456789abcdef", text_casefold(digit), 0)
+
+fn hs_hex_value(text: Text) -> Int:
+    if len(text) == 0 or len(text) > 8:
+        return -1
+    var value = 0
+    var index = 0
+    while index < len(text):
+        let digit = hs_hex_digit(text_slice(text, index, index + 1))
+        if digit < 0:
+            return -1
+        set value = value * 16 + digit
+        set index = index + 1
+    return value
+
+# Reads one CRLF-terminated line from `buffer`, reading more from the connection as needed.
+# Returns the line and the bytes after it.
+fn hs_read_line(conn: TcpConn, buffer: Bytes, timeout_ms: Int, limit: Int) -> Result[HttpChunkedBody, StdError]:
+    var current = buffer
+    var position = hs_find_crlf(bytes_to_ints(current), 0)
+    while position < 0:
+        if len(current) > limit:
+            hs_reject(conn, 400)
+            return Err(std_error("E_HTTP_REQUEST_INVALID", "chunk framing line is too long"))
+        match hs_fill(conn, current, timeout_ms):
+            Ok(more):
+                set current = more
+            Err(problem):
+                return Err(problem)
+        set position = hs_find_crlf(bytes_to_ints(current), 0)
+    return Ok(HttpChunkedBody(bytes_slice(current, 0, position), bytes_slice(current, position + 2, len(current))))
+
+# Decodes a chunked request body. `rest` holds the bytes already received after the head.
+fn hs_read_chunked(conn: TcpConn, rest: Bytes, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpChunkedBody, StdError]:
+    var buffer = rest
+    var body = bytes_from_ints([])
+    var finished = false
+    while not finished:
+        match hs_read_line(conn, buffer, timeout_ms, 1024):
+            Ok(line):
+                set buffer = line.rest
+                let line_option = text_from_bytes(line.body)
+                if not is_some(line_option):
+                    hs_reject(conn, 400)
+                    return Err(std_error("E_HTTP_REQUEST_INVALID", "chunk size line is not valid text"))
+                var size_text = unwrap(line_option)
+                let semicolon = text_find(size_text, ";", 0)
+                if semicolon >= 0:
+                    set size_text = text_slice(size_text, 0, semicolon)
+                let size = hs_hex_value(text_trim(size_text))
+                if size < 0:
+                    hs_reject(conn, 400)
+                    return Err(std_error("E_HTTP_REQUEST_INVALID", "malformed chunk size"))
+                if size == 0:
+                    set finished = true
+                else:
+                    if len(body) + size > max_body_bytes:
+                        hs_reject(conn, 413)
+                        return Err(std_error("E_HTTP_BODY_TOO_LARGE", "request body is larger than the limit"))
+                    while len(buffer) < size + 2:
+                        match hs_fill(conn, buffer, timeout_ms):
+                            Ok(more):
+                                set buffer = more
+                            Err(problem):
+                                return Err(problem)
+                    let terminator = bytes_to_ints(bytes_slice(buffer, size, size + 2))
+                    if terminator[0] != 13 or terminator[1] != 10:
+                        hs_reject(conn, 400)
+                        return Err(std_error("E_HTTP_REQUEST_INVALID", "chunk is not followed by CRLF"))
+                    set body = bytes_join([body, bytes_slice(buffer, 0, size)])
+                    set buffer = bytes_slice(buffer, size + 2, len(buffer))
+            Err(problem):
+                return Err(problem)
+    # Trailer fields are read and ignored up to the blank line that ends the body.
+    var trailer_bytes = 0
+    var more_trailers = true
+    while more_trailers:
+        match hs_read_line(conn, buffer, timeout_ms, 8192):
+            Ok(line):
+                set buffer = line.rest
+                if len(line.body) == 0:
+                    set more_trailers = false
+                else:
+                    set trailer_bytes = trailer_bytes + len(line.body)
+                    if trailer_bytes > 8192:
+                        hs_reject(conn, 431)
+                        return Err(std_error("E_HTTP_HEADER_TOO_LARGE", "chunked trailers are larger than 8192 bytes"))
+            Err(problem):
+                return Err(problem)
+    return Ok(HttpChunkedBody(body, buffer))
+
+# Reads the next request from a connection. `pending` holds bytes already received past the
+# previous request (the `pending` field of that request, or empty for the first request).
+pub fn http_server_read_request_from(conn: TcpConn, pending: Bytes, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]:
+    var buffer = pending
+    var head_end = hs_find_head_end(bytes_to_ints(buffer), 0)
+    var scanned = 0
+    if len(buffer) > 3:
+        set scanned = len(buffer) - 3
+    while head_end < 0:
+        if len(buffer) > 16384:
+            hs_reject(conn, 431)
+            return Err(std_error("E_HTTP_HEADER_TOO_LARGE", "request head is larger than 16384 bytes"))
+        match hs_fill(conn, buffer, timeout_ms):
+            Ok(more):
+                set buffer = more
+            Err(problem):
+                return Err(problem)
+        set head_end = hs_find_head_end(bytes_to_ints(buffer), scanned)
+        if len(buffer) > 3:
+            set scanned = len(buffer) - 3
+    if head_end > 16384:
+        hs_reject(conn, 431)
+        return Err(std_error("E_HTTP_HEADER_TOO_LARGE", "request head is larger than 16384 bytes"))
+    let head_bytes = bytes_slice(buffer, 0, head_end)
+    let head_option = text_from_bytes(head_bytes)
+    if not is_some(head_option):
+        hs_reject(conn, 400)
+        return Err(std_error("E_HTTP_REQUEST_INVALID", "request head is not valid UTF-8"))
+    let lines = text_split(unwrap(head_option), "\r\n")
+    let first = text_split(lines[0], " ")
+    if len(first) != 3 or not (first[2] == "HTTP/1.1" or first[2] == "HTTP/1.0"):
+        hs_reject(conn, 400)
+        return Err(std_error("E_HTTP_REQUEST_INVALID", "malformed request line"))
+    var headers: List[HttpHeader] = []
+    var content_length = -1
+    var chunked = false
+    var keep_alive = first[2] == "HTTP/1.1"
+    var index = 1
+    while index < len(lines):
+        let line = lines[index]
+        let colon = text_find(line, ":", 0)
+        if colon < 1:
+            hs_reject(conn, 400)
+            return Err(std_error("E_HTTP_REQUEST_INVALID", "malformed header line"))
+        let name = text_casefold(text_trim(text_slice(line, 0, colon)))
+        let value = text_trim(text_slice(line, colon + 1, len(line)))
+        if name == "transfer-encoding":
+            if text_casefold(value) != "chunked":
+                hs_reject(conn, 501)
+                return Err(std_error("E_HTTP_UNSUPPORTED", "only the chunked transfer encoding is supported"))
+            set chunked = true
+        if name == "content-length":
+            match text_parse_int(value):
+                Ok(parsed):
+                    if parsed < 0:
+                        hs_reject(conn, 400)
+                        return Err(std_error("E_HTTP_REQUEST_INVALID", "negative Content-Length"))
+                    set content_length = parsed
+                Err(problem):
+                    hs_reject(conn, 400)
+                    return Err(std_error("E_HTTP_REQUEST_INVALID", "Content-Length is not a number"))
+        if name == "connection":
+            let token = text_casefold(value)
+            if token == "close":
+                set keep_alive = false
+            if token == "keep-alive":
+                set keep_alive = true
+        if len(headers) >= 100:
+            hs_reject(conn, 431)
+            return Err(std_error("E_HTTP_HEADER_TOO_LARGE", "more than 100 headers"))
+        set headers = list_push(headers, HttpHeader(name, value))
+        set index = index + 1
+    # A request that names both framings is ambiguous, which is how request smuggling works.
+    if chunked and content_length >= 0:
+        hs_reject(conn, 400)
+        return Err(std_error("E_HTTP_REQUEST_INVALID", "both Content-Length and Transfer-Encoding were sent"))
+    let after_head = bytes_slice(buffer, head_end + 4, len(buffer))
+    var body = bytes_from_ints([])
+    var rest = after_head
+    if chunked:
+        match hs_read_chunked(conn, after_head, timeout_ms, max_body_bytes):
+            Ok(decoded):
+                set body = decoded.body
+                set rest = decoded.rest
+            Err(problem):
+                return Err(problem)
+    else:
+        if content_length > max_body_bytes:
+            hs_reject(conn, 413)
+            return Err(std_error("E_HTTP_BODY_TOO_LARGE", "request body is larger than the limit"))
+        if content_length > 0:
+            set body = after_head
+            if len(body) > content_length:
+                set body = bytes_slice(after_head, 0, content_length)
+                set rest = bytes_slice(after_head, content_length, len(after_head))
+            else:
+                set rest = bytes_from_ints([])
+            while len(body) < content_length:
+                var want = content_length - len(body)
+                if want > 65536:
+                    set want = 65536
+                match tcp_recv(conn, want, timeout_ms):
+                    Ok(chunk):
+                        if len(chunk) == 0:
+                            return Err(std_error("E_HTTP_REQUEST_INVALID", "connection closed before the body ended"))
+                        set body = bytes_join([body, chunk])
+                    Err(problem):
+                        return Err(problem)
+    let target = first[1]
+    let question = text_find(target, "?", 0)
+    var path = target
+    var query = ""
+    if question >= 0:
+        set path = text_slice(target, 0, question)
+        set query = text_slice(target, question + 1, len(target))
+    return Ok(HttpServerRequest(conn, first[0], target, path, query, headers, body, rest, keep_alive))
+
+# Reads the first (or only) request from a connection.
+pub fn http_server_read_request(conn: TcpConn, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]:
+    return http_server_read_request_from(conn, bytes_from_ints([]), timeout_ms, max_body_bytes)
+
+# Reads the next request on a connection that was kept open by http_server_reply.
+pub fn http_server_read_next(previous: HttpServerRequest, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]:
+    return http_server_read_request_from(previous.conn, previous.pending, timeout_ms, max_body_bytes)

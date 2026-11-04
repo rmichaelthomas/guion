@@ -1,0 +1,1 @@
+Throwaway test certificates for `crates/cli/tests/stdlib_tls.rs`. `ca.pem` signed `server.pem` (valid for `localhost` and `127.0.0.1`); the CA private key was discarded after signing. `other-ca.pem` is an unrelated CA used to prove that untrusted issuers are rejected. None of these keys protects anything.

@@ -572,6 +572,14 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 175
     if name == "TextTrim":
         return 176
+    if name == "IntToFloat":
+        return 178
+    if name == "FloatToInt":
+        return 179
+    if name == "NumberToText":
+        return 180
+    if name == "RandomMix":
+        return 181
     if name == "UnixTimeMs":
         return 156
     if name == "TimeTodayLocal":
@@ -652,10 +660,188 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 155
     return -1
 
+fn ab_math_code(name: Text) -> Int:
+    if name == "MathSin":
+        return 0
+    if name == "MathCos":
+        return 1
+    if name == "MathTan":
+        return 2
+    if name == "MathAsin":
+        return 3
+    if name == "MathAcos":
+        return 4
+    if name == "MathAtan":
+        return 5
+    if name == "MathSinh":
+        return 6
+    if name == "MathCosh":
+        return 7
+    if name == "MathTanh":
+        return 8
+    if name == "MathExp":
+        return 9
+    if name == "MathLn":
+        return 10
+    if name == "MathLog10":
+        return 11
+    if name == "MathLog2":
+        return 12
+    if name == "MathFloor":
+        return 13
+    if name == "MathCeil":
+        return 14
+    if name == "MathRound":
+        return 15
+    if name == "MathAbs":
+        return 16
+    if name == "MathPow":
+        return 17
+    if name == "MathAtan2":
+        return 18
+    if name == "MathHypot":
+        return 19
+    return -1
+
+fn ab_codec_code(name: Text) -> Int:
+    if name == "CodecBase64Encode":
+        return 0
+    if name == "CodecBase64UrlEncode":
+        return 1
+    if name == "CodecBase64Decode":
+        return 2
+    if name == "CodecBase64UrlDecode":
+        return 3
+    if name == "CodecHexEncode":
+        return 4
+    if name == "CodecHexDecode":
+        return 5
+    if name == "CodecBytesToInts":
+        return 6
+    if name == "CodecBytesSlice":
+        return 7
+    if name == "CodecTextFromBytes":
+        return 8
+    if name == "CodecTextFromBytesLossy":
+        return 9
+    if name == "CodecPercentEncode":
+        return 10
+    if name == "CodecPercentDecode":
+        return 11
+    if name == "CodecSha1":
+        return 12
+    if name == "CodecBytesXor":
+        return 13
+    return -1
+
+fn ab_fs_code(name: Text) -> Int:
+    if name == "FsOpExists":
+        return 0
+    if name == "FsOpKind":
+        return 1
+    if name == "FsOpSize":
+        return 2
+    if name == "FsOpModifiedMs":
+        return 3
+    if name == "FsOpListDir":
+        return 4
+    if name == "FsOpMakeDir":
+        return 5
+    if name == "FsOpRemove":
+        return 6
+    if name == "FsOpRemoveAll":
+        return 7
+    if name == "FsOpRename":
+        return 8
+    if name == "FsOpCopy":
+        return 9
+    if name == "FsOpTempDir":
+        return 10
+    if name == "FsOpTempFile":
+        return 11
+    return -1
+
+fn ab_regex_code(name: Text) -> Int:
+    if name == "RegexIsMatch":
+        return 0
+    if name == "RegexFind":
+        return 1
+    if name == "RegexFindAll":
+        return 2
+    if name == "RegexReplace":
+        return 3
+    if name == "RegexReplaceFirst":
+        return 4
+    if name == "RegexSplit":
+        return 5
+    if name == "RegexEscape":
+        return 6
+    return -1
+
+fn ab_process_code(name: Text) -> Int:
+    if name == "ProcessRun":
+        return 0
+    if name == "ProcessPid":
+        return 1
+    if name == "ProcessSignalPoll":
+        return 2
+    return -1
+
+fn ab_net_code(name: Text) -> Int:
+    if name == "NetTcpConnect":
+        return 0
+    if name == "NetTcpListen":
+        return 1
+    if name == "NetTcpAccept":
+        return 2
+    if name == "NetLocalPort":
+        return 3
+    if name == "NetSend":
+        return 4
+    if name == "NetRecv":
+        return 5
+    if name == "NetClose":
+        return 6
+    if name == "NetUdpBind":
+        return 7
+    if name == "NetUdpSendTo":
+        return 8
+    if name == "NetUdpRecvFrom":
+        return 9
+    return -1
+
+fn ab_tls_code(name: Text) -> Int:
+    if name == "TlsConnect":
+        return 0
+    if name == "TlsAccept":
+        return 1
+    return -1
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(0), ab_constant(instruction)])
+    let math_code = ab_math_code(name)
+    if math_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(177), ab_u8(math_code)])
+    let codec_code = ab_codec_code(name)
+    if codec_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(182), ab_u8(codec_code)])
+    let fs_code = ab_fs_code(name)
+    if fs_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(183), ab_u8(fs_code)])
+    let regex_code = ab_regex_code(name)
+    if regex_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(184), ab_u8(regex_code)])
+    let process_code = ab_process_code(name)
+    if process_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(185), ab_u8(process_code)])
+    let net_code = ab_net_code(name)
+    if net_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(186), ab_u8(net_code)])
+    let tls_code = ab_tls_code(name)
+    if tls_code >= 0:
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(187), ab_u8(tls_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -783,7 +969,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(51), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(59), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

@@ -1,0 +1,132 @@
+import "std:types"
+
+pub record TcpConn:
+    handle: Int
+
+pub record TcpListener:
+    handle: Int
+
+pub record UdpSock:
+    handle: Int
+
+pub record Datagram:
+    data: Bytes
+    host: Text
+    port: Int
+
+pub fn tcp_connect(host: Text, port: Int, timeout_ms: Int) -> Result[TcpConn, StdError]:
+    match native_net_tcp_connect(host, port, timeout_ms):
+        Ok(handle):
+            return Ok(TcpConn(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_listen(host: Text, port: Int) -> Result[TcpListener, StdError]:
+    match native_net_tcp_listen(host, port):
+        Ok(handle):
+            return Ok(TcpListener(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_listener_port(listener: TcpListener) -> Result[Int, StdError]:
+    match native_net_local_port(listener.handle):
+        Ok(port):
+            return Ok(port)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]:
+    match native_net_tcp_accept(listener.handle, timeout_ms):
+        Ok(handle):
+            return Ok(TcpConn(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_send(conn: TcpConn, data: Bytes) -> Result[Int, StdError]:
+    match native_net_send(conn.handle, data):
+        Ok(count):
+            return Ok(count)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_send_text(conn: TcpConn, text: Text) -> Result[Int, StdError]:
+    return tcp_send(conn, bytes_from_text(text))
+
+pub fn tcp_recv(conn: TcpConn, max_bytes: Int, timeout_ms: Int) -> Result[Bytes, StdError]:
+    match native_net_recv(conn.handle, max_bytes, timeout_ms):
+        Ok(data):
+            return Ok(data)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_close(conn: TcpConn) -> Result[Unit, StdError]:
+    match native_net_close(conn.handle):
+        Ok(done):
+            return Ok(done)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tcp_listener_close(listener: TcpListener) -> Result[Unit, StdError]:
+    match native_net_close(listener.handle):
+        Ok(done):
+            return Ok(done)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn udp_bind(host: Text, port: Int) -> Result[UdpSock, StdError]:
+    match native_net_udp_bind(host, port):
+        Ok(handle):
+            return Ok(UdpSock(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn udp_port(socket: UdpSock) -> Result[Int, StdError]:
+    match native_net_local_port(socket.handle):
+        Ok(port):
+            return Ok(port)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn udp_send_to(socket: UdpSock, host: Text, port: Int, data: Bytes) -> Result[Int, StdError]:
+    match native_net_udp_send_to(socket.handle, host, port, data):
+        Ok(count):
+            return Ok(count)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn udp_recv_from(socket: UdpSock, max_bytes: Int, timeout_ms: Int) -> Result[Datagram, StdError]:
+    match native_net_udp_recv_from(socket.handle, max_bytes, timeout_ms):
+        Ok(parts):
+            let sender = text_from_bytes_lossy(parts[1])
+            var split = len(sender) - 1
+            while split > 0 and sender[split] != ":":
+                set split = split - 1
+            let host = text_slice(sender, 0, split)
+            match text_parse_int(text_slice(sender, split + 1, len(sender))):
+                Ok(port):
+                    return Ok(Datagram(parts[0], host, port))
+                Err(problem):
+                    return Err(std_error("E_NET_IO", "sender address was not host:port"))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn udp_close(socket: UdpSock) -> Result[Unit, StdError]:
+    match native_net_close(socket.handle):
+        Ok(done):
+            return Ok(done)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tls_connect(host: Text, port: Int, timeout_ms: Int, extra_ca_pem: Text) -> Result[TcpConn, StdError]:
+    match native_tls_connect(host, port, timeout_ms, extra_ca_pem):
+        Ok(handle):
+            return Ok(TcpConn(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn tls_accept(listener: TcpListener, timeout_ms: Int, certificate_chain_pem: Text, private_key_pem: Text) -> Result[TcpConn, StdError]:
+    match native_tls_accept(listener.handle, timeout_ms, certificate_chain_pem, private_key_pem):
+        Ok(handle):
+            return Ok(TcpConn(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))

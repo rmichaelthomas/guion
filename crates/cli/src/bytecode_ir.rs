@@ -3,8 +3,9 @@
 use std::{collections::BTreeMap, fs};
 
 use guion_model::{
-    Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, Op, RecordDefinition,
-    RecordField, Span, Type, Value,
+    Artifact, BigInt, CodecFunction, ExternalFunction, Float64, FsFunction, Function, Instruction,
+    MathFunction, NetFunction, Op, ProcessFunction, RecordDefinition, RecordField, RegexFunction,
+    Span, TlsFunction, Type, Value,
 };
 use serde_json::Value as Json;
 
@@ -351,6 +352,10 @@ fn parse_instruction(
         "TextSplit" => Op::TextSplit,
         "TextReplace" => Op::TextReplace,
         "TextTrim" => Op::TextTrim,
+        "IntToFloat" => Op::IntToFloat,
+        "FloatToInt" => Op::FloatToInt,
+        "NumberToText" => Op::NumberToText,
+        "RandomMix" => Op::RandomMix,
         "BytesFromInts" => Op::BytesFromInts,
         "BytesFromText" => Op::BytesFromText,
         "BytesJoin" => Op::BytesJoin,
@@ -447,11 +452,28 @@ fn parse_instruction(
         "JsonProjectColumns" => Op::JsonProjectColumns,
         "JsonTextCategoriesValues" => Op::JsonTextCategoriesValues,
         "Assert" => Op::Assert,
-        _ => {
-            return Err(format!(
-                "unsupported IR opcode `{op_name}` at instruction {pc}"
-            ))
-        }
+        other => match (
+            MathFunction::from_op_name(other),
+            CodecFunction::from_op_name(other),
+            FsFunction::from_op_name(other),
+            RegexFunction::from_op_name(other),
+            ProcessFunction::from_op_name(other),
+            NetFunction::from_op_name(other),
+            TlsFunction::from_op_name(other),
+        ) {
+            (Some(function), _, _, _, _, _, _) => Op::Math(function),
+            (None, Some(function), _, _, _, _, _) => Op::Codec(function),
+            (None, None, Some(function), _, _, _, _) => Op::Fs(function),
+            (None, None, None, Some(function), _, _, _) => Op::Regex(function),
+            (None, None, None, None, Some(function), _, _) => Op::Process(function),
+            (None, None, None, None, None, Some(function), _) => Op::Net(function),
+            (None, None, None, None, None, None, Some(function)) => Op::Tls(function),
+            (None, None, None, None, None, None, None) => {
+                return Err(format!(
+                    "unsupported IR opcode `{op_name}` at instruction {pc}"
+                ))
+            }
+        },
     };
     let span = match object.get("span") {
         Some(span) => {

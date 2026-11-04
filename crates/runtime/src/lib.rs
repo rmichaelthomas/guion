@@ -25,8 +25,11 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+mod fs_ops;
 mod json_projection;
 mod native_backend;
+mod net_ops;
+mod process_ops;
 #[cfg(feature = "python-interop")]
 pub mod python_bridge;
 pub mod stdlib_data;
@@ -2756,6 +2759,8 @@ pub enum EffectKind {
     PythonCall,
     EnvironmentRead,
     ClockRead,
+    ProcessSpawn,
+    NetworkSocket,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2808,6 +2813,16 @@ pub struct HostPolicy {
     pub max_http_request_bytes: usize,
     pub max_http_response_bytes: usize,
     pub max_http_redirects: usize,
+    /// Exact command names `process_run` may start; empty denies every command.
+    pub allowed_commands: HashSet<String>,
+    pub process_timeout: Duration,
+    pub max_process_output_bytes: usize,
+    /// Exact `host:port` (or `host:*`) entries sockets may connect or send to.
+    pub allowed_connect: HashSet<String>,
+    /// Exact `host:port` (or `host:*`) entries sockets may bind.
+    pub allowed_bind: HashSet<String>,
+    pub max_socket_timeout: Duration,
+    pub max_socket_read_bytes: usize,
 }
 impl Default for HostPolicy {
     fn default() -> Self {
@@ -2842,6 +2857,13 @@ impl Default for HostPolicy {
             max_http_request_bytes: 1024 * 1024,
             max_http_response_bytes: 16 * 1024 * 1024,
             max_http_redirects: 5,
+            allowed_commands: HashSet::new(),
+            process_timeout: Duration::from_secs(30),
+            max_process_output_bytes: 16 * 1024 * 1024,
+            allowed_connect: HashSet::new(),
+            allowed_bind: HashSet::new(),
+            max_socket_timeout: Duration::from_secs(30),
+            max_socket_read_bytes: 1024 * 1024,
         }
     }
 }
@@ -3059,6 +3081,7 @@ impl Runtime {
                 policy.max_file_bytes,
                 policy.max_file_bytes,
             ),
+            sockets: net_ops::SocketTable::default(),
             databases: stdlib_services::DatabaseRegistry::with_roots(
                 database_roots,
                 policy.max_file_bytes,
@@ -3105,6 +3128,7 @@ pub struct Instance {
     policy: HostPolicy,
     readers: stdlib_data::FileReaderRegistry,
     databases: stdlib_services::DatabaseRegistry,
+    sockets: net_ops::SocketTable,
     http: Option<Arc<HostHttpClient>>,
     toml_documents: stdlib_services::TomlRegistry,
     output: String,
@@ -4942,6 +4966,184 @@ impl VmHost for Instance {
                         instruction.span
                     ))),
                 }
+            }
+            Op::Fs(function) => {
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    match pop!() {
+                        Value::Text(text) => operands.push(text.as_ref().to_owned()),
+                        _ => {
+                            return Err(RuntimeError::new(
+                                "R_TYPE_INVALID",
+                                "filesystem paths must be Text",
+                                instruction.span,
+                            ));
+                        }
+                    }
+                }
+                operands.reverse();
+                let effect = self.begin_effect(
+                    if function.writes() {
+                        EffectKind::FileWrite
+                    } else {
+                        EffectKind::FileRead
+                    },
+                    operands[0].as_str(),
+                );
+                let outcome = fs_ops::run(&self.policy, function, &operands, instruction.span);
+                self.finish_effect(
+                    effect,
+                    match &outcome {
+                        Ok(Value::ResultErr(_)) => EffectOutcome::ReturnedError,
+                        _ => EffectOutcome::Returned,
+                    },
+                );
+                let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::Tls(function) => {
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let target = match (function, operands.first()) {
+                    (guion_model::TlsFunction::Connect, Some(Value::Text(host))) => {
+                        host.as_ref().to_owned()
+                    }
+                    _ => function.op_name().to_owned(),
+                };
+                let effect = self.begin_effect(EffectKind::NetworkSocket, target.as_str());
+                let outcome = net_ops::run_tls(
+                    &self.policy,
+                    &mut self.sockets,
+                    function,
+                    operands,
+                    instruction.span,
+                );
+                self.finish_effect(
+                    effect,
+                    match &outcome {
+                        Ok(Value::ResultErr(_)) => EffectOutcome::ReturnedError,
+                        _ => EffectOutcome::Returned,
+                    },
+                );
+                let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::Net(function) => {
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let target = match operands.first() {
+                    Some(Value::Text(host)) => host.as_ref().to_owned(),
+                    _ => function.op_name().to_owned(),
+                };
+                let effect = self.begin_effect(EffectKind::NetworkSocket, target.as_str());
+                let outcome = net_ops::run(
+                    &self.policy,
+                    &mut self.sockets,
+                    function,
+                    operands,
+                    instruction.span,
+                );
+                self.finish_effect(
+                    effect,
+                    match &outcome {
+                        Ok(Value::ResultErr(_)) => EffectOutcome::ReturnedError,
+                        _ => EffectOutcome::Returned,
+                    },
+                );
+                let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
+            Op::Process(function) => {
+                let value = match function {
+                    guion_model::ProcessFunction::Run => {
+                        let stdin = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_run standard input must be Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let arguments = match pop!() {
+                            Value::List(items) => {
+                                let mut arguments = Vec::with_capacity(items.len());
+                                for item in items.iter() {
+                                    let Value::Text(text) = item else {
+                                        return Err(RuntimeError::new(
+                                            "R_TYPE_INVALID",
+                                            "process_run arguments must be Text",
+                                            instruction.span,
+                                        ));
+                                    };
+                                    arguments.push(text.as_ref().to_owned());
+                                }
+                                arguments
+                            }
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_run arguments must be a list",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let command = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_run command must be Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let effect = self.begin_effect(EffectKind::ProcessSpawn, command.as_str());
+                        let outcome = process_ops::run(&self.policy, &command, &arguments, &stdin);
+                        self.finish_effect(
+                            effect,
+                            match &outcome {
+                                Value::ResultErr(_) => EffectOutcome::ReturnedError,
+                                _ => EffectOutcome::Returned,
+                            },
+                        );
+                        outcome
+                    }
+                    guion_model::ProcessFunction::Pid => {
+                        Value::Int(BigInt::from_i64(i64::from(std::process::id())))
+                    }
+                    guion_model::ProcessFunction::SignalPoll => {
+                        Value::Text(SharedText::from(process_ops::signal_poll()))
+                    }
+                };
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
             }
             Op::FsWalk => {
                 let path = match pop!() {
@@ -7329,7 +7531,10 @@ impl Instance {
 
     /// Number of native filesystem, database, and TOML handles owned by this instance.
     pub fn open_native_resource_count(&self) -> usize {
-        self.readers.open_count() + self.databases.open_count() + self.toml_documents.open_count()
+        self.readers.open_count()
+            + self.databases.open_count()
+            + self.sockets.open_count()
+            + self.toml_documents.open_count()
     }
 
     fn shared_http_client(&mut self, span: Span) -> Result<Arc<HostHttpClient>, RuntimeError> {
@@ -7414,6 +7619,7 @@ impl Instance {
         self.worker_threads.clear();
         self.readers.close_all();
         self.databases.close_all();
+        self.sockets.close_all();
         self.toml_documents.close_all();
         if args.len() != self.artifact.functions[index].parameters.len() {
             return Err(RuntimeError::new(
@@ -7463,6 +7669,7 @@ impl Instance {
                     charge_record: native_charge_record as *const () as *const u8,
                     charge_value_clone: native_charge_value_clone as *const () as *const u8,
                     make_tagged_value: native_make_tagged_value as *const () as *const u8,
+                    math: native_math as *const () as *const u8,
                     print: native_print as *const () as *const u8,
                     direct_operations: [
                         native_direct_json_parse as *const () as *const u8,
@@ -7542,6 +7749,7 @@ impl Instance {
         let result = self.invoke_inner(index, args, 0, budget);
         self.readers.close_all();
         self.databases.close_all();
+        self.sockets.close_all();
         self.toml_documents.close_all();
         result
     }
@@ -7558,6 +7766,7 @@ impl Instance {
         }
         self.readers.close_all();
         self.databases.close_all();
+        self.sockets.close_all();
         self.toml_documents.close_all();
         self.http = None;
         self.output.clear();
@@ -8692,6 +8901,7 @@ impl Instance {
             let native_compilations = native_compilations.clone();
             let native_code = native_code.clone();
             let http = self.http.clone();
+            let sockets = self.sockets.share();
             let sender = sender.clone();
             handles.push(thread::spawn(move || {
                 let mut assigned_index = Some(initial_index);
@@ -8736,6 +8946,7 @@ impl Instance {
                             policy.max_file_bytes,
                             policy.max_file_bytes,
                         ),
+                        sockets: sockets.share(),
                         databases: stdlib_services::DatabaseRegistry::with_roots(
                             database_roots,
                             policy.max_file_bytes,
@@ -9394,6 +9605,15 @@ unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i6
         arena.record_record_charge(bytes);
     }
     i32::from(ok)
+}
+
+extern "C" fn native_math(code: i64, a: f64, b: f64) -> f64 {
+    u8::try_from(code)
+        .ok()
+        .and_then(guion_model::MathFunction::from_code)
+        .map_or(f64::NAN, |function| {
+            guion_vm_core::math_or_nan(function, a, b)
+        })
 }
 
 unsafe extern "C" fn native_make_tagged_value(

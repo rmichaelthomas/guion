@@ -1,0 +1,4 @@
+# raw wall-clock seconds, 5 runs each, 2,000,000-iteration loop (bench.gu / bench.py)
+guion-before-native-math: 1.06 1.15 1.15 1.06 1.15
+guion-after-native-math: 0.11 0.10 0.10 0.10 0.10 
+cpython: 0.45 0.43 0.43 0.42 0.42 

@@ -1,0 +1,244 @@
+import "std:types"
+import "std:net"
+import "std:http_server"
+import "std:text"
+import "std:encoding"
+import "std:crypto"
+import "std:random"
+
+pub record WsConn:
+    conn: TcpConn
+    is_client: Bool
+    seed: Int
+
+pub record WsMessage:
+    kind: Text
+    data: Bytes
+    text: Text
+    code: Int
+
+fn ws_guid() -> Text:
+    return "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+pub fn ws_accept_key(key: Text) -> Text:
+    return base64_encode(crypto_sha1(bytes_from_text(key + ws_guid())))
+
+fn ws_read_exact(conn: TcpConn, count: Int, timeout_ms: Int) -> Result[Bytes, StdError]:
+    var collected = bytes_from_ints([])
+    while len(collected) < count:
+        match tcp_recv(conn, count - len(collected), timeout_ms):
+            Ok(chunk):
+                if len(chunk) == 0:
+                    return Err(std_error("E_WS_CLOSED", "connection closed in the middle of a frame"))
+                set collected = bytes_join([collected, chunk])
+            Err(problem):
+                return Err(problem)
+    return Ok(collected)
+
+pub fn ws_server_accept(request: HttpServerRequest) -> Result[WsConn, StdError]:
+    let upgrade = http_server_header(request, "upgrade")
+    let key = http_server_header(request, "sec-websocket-key")
+    let version = http_server_header(request, "sec-websocket-version")
+    if request.method != "GET" or not is_some(upgrade) or not is_some(key) or not is_some(version):
+        let sent = http_server_respond_text(request, 400, "WebSocket upgrade required\n")
+        return Err(std_error("E_WS_HANDSHAKE", "request is not a WebSocket upgrade"))
+    if text_casefold(unwrap(upgrade)) != "websocket" or unwrap(version) != "13":
+        let sent = http_server_respond_text(request, 426, "WebSocket version 13 required\n")
+        return Err(std_error("E_WS_HANDSHAKE", "unsupported WebSocket upgrade or version"))
+    let response = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + ws_accept_key(unwrap(key)) + "\r\n\r\n"
+    match tcp_send(request.conn, bytes_from_text(response)):
+        Ok(sent):
+            return Ok(WsConn(request.conn, false, 0))
+        Err(problem):
+            return Err(problem)
+
+pub fn ws_client_handshake(conn: TcpConn, host: Text, path: Text, timeout_ms: Int, seed: Int) -> Result[WsConn, StdError]:
+    var rng = random_new(seed)
+    var key_bytes: List[Int] = []
+    var count = 0
+    while count < 16:
+        let draw = random_next_range(rng, 0, 255)
+        set rng = draw.rng
+        set key_bytes = list_push(key_bytes, draw.value)
+        set count = count + 1
+    let key = base64_encode(bytes_from_ints(key_bytes))
+    let request = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + key + "\r\nSec-WebSocket-Version: 13\r\n\r\n"
+    match tcp_send(conn, bytes_from_text(request)):
+        Ok(sent):
+            set count = 0
+        Err(problem):
+            return Err(problem)
+    var head = bytes_from_ints([])
+    var finished = false
+    while not finished:
+        if len(head) > 8192:
+            return Err(std_error("E_WS_HANDSHAKE", "handshake response is too large"))
+        match tcp_recv(conn, 1, timeout_ms):
+            Ok(byte):
+                if len(byte) == 0:
+                    return Err(std_error("E_WS_HANDSHAKE", "connection closed during the handshake"))
+                set head = bytes_join([head, byte])
+            Err(problem):
+                return Err(problem)
+        if len(head) >= 4:
+            let tail = bytes_to_ints(bytes_slice(head, len(head) - 4, len(head)))
+            if tail[0] == 13 and tail[1] == 10 and tail[2] == 13 and tail[3] == 10:
+                set finished = true
+    let lowered = text_casefold(text_from_bytes_lossy(head))
+    let wanted = text_casefold("sec-websocket-accept: " + ws_accept_key(key))
+    if text_find(lowered, " 101 ", 0) < 0 or text_find(lowered, wanted, 0) < 0:
+        return Err(std_error("E_WS_HANDSHAKE", "server did not accept the WebSocket upgrade"))
+    return Ok(WsConn(conn, true, seed))
+
+fn ws_frame(ws: WsConn, opcode: Int, payload: Bytes) -> Bytes:
+    let size = len(payload)
+    var header: List[Int] = [128 + opcode]
+    let mask_flag = if_client_flag(ws)
+    if size < 126:
+        set header = list_push(header, mask_flag + size)
+    else:
+        if size < 65536:
+            set header = list_push(header, mask_flag + 126)
+            set header = list_push(header, size // 256)
+            set header = list_push(header, size % 256)
+        else:
+            set header = list_push(header, mask_flag + 127)
+            var shift = 7
+            while shift >= 0:
+                var divisor = 1
+                var power = 0
+                while power < shift:
+                    set divisor = divisor * 256
+                    set power = power + 1
+                set header = list_push(header, (size // divisor) % 256)
+                set shift = shift - 1
+    if ws.is_client:
+        let mask = bytes_slice(crypto_sha1(bytes_join([bytes_from_text(int_to_text(ws.seed)), payload])), 0, 4)
+        return bytes_join([bytes_from_ints(header), mask, bytes_xor_key(payload, mask)])
+    return bytes_join([bytes_from_ints(header), payload])
+
+fn if_client_flag(ws: WsConn) -> Int:
+    if ws.is_client:
+        return 128
+    return 0
+
+fn ws_send_frame(ws: WsConn, opcode: Int, payload: Bytes) -> Result[Int, StdError]:
+    return tcp_send(ws.conn, ws_frame(ws, opcode, payload))
+
+pub fn ws_send_text(ws: WsConn, text: Text) -> Result[Int, StdError]:
+    return ws_send_frame(ws, 1, bytes_from_text(text))
+
+pub fn ws_send_binary(ws: WsConn, data: Bytes) -> Result[Int, StdError]:
+    return ws_send_frame(ws, 2, data)
+
+pub fn ws_send_ping(ws: WsConn, data: Bytes) -> Result[Int, StdError]:
+    return ws_send_frame(ws, 9, data)
+
+pub fn ws_send_close(ws: WsConn, code: Int) -> Result[Int, StdError]:
+    return ws_send_frame(ws, 8, bytes_from_ints([code // 256, code % 256]))
+
+pub fn ws_close(ws: WsConn) -> Result[Unit, StdError]:
+    return tcp_close(ws.conn)
+
+fn ws_protocol_error(ws: WsConn, code: Int) -> Unit:
+    let sent = ws_send_close(ws, code)
+
+# Reads the next message. Pings are answered with pongs and skipped; a close frame is echoed and
+# returned with kind "close"; fragmented messages are reassembled up to max_message_bytes.
+pub fn ws_receive(ws: WsConn, timeout_ms: Int, max_message_bytes: Int) -> Result[WsMessage, StdError]:
+    var message = bytes_from_ints([])
+    var message_kind = ""
+    while true:
+        var head_bytes = bytes_from_ints([])
+        match ws_read_exact(ws.conn, 2, timeout_ms):
+            Ok(read):
+                set head_bytes = read
+            Err(problem):
+                return Err(problem)
+        let head = bytes_to_ints(head_bytes)
+        let fin = head[0] // 128
+        let opcode = head[0] % 16
+        let masked = head[1] // 128
+        var size = head[1] % 128
+        if head[0] % 128 >= 16:
+            ws_protocol_error(ws, 1002)
+            return Err(std_error("E_WS_PROTOCOL", "reserved bits are set"))
+        if (masked == 1) == ws.is_client:
+            ws_protocol_error(ws, 1002)
+            return Err(std_error("E_WS_PROTOCOL", "frame masking does not match the connection role"))
+        if size == 126:
+            match ws_read_exact(ws.conn, 2, timeout_ms):
+                Ok(read):
+                    let parts = bytes_to_ints(read)
+                    set size = parts[0] * 256 + parts[1]
+                Err(problem):
+                    return Err(problem)
+        else:
+            if size == 127:
+                match ws_read_exact(ws.conn, 8, timeout_ms):
+                    Ok(read):
+                        let parts = bytes_to_ints(read)
+                        set size = 0
+                        var at = 0
+                        while at < 8:
+                            set size = size * 256 + parts[at]
+                            set at = at + 1
+                    Err(problem):
+                        return Err(problem)
+        if size > max_message_bytes or len(message) + size > max_message_bytes:
+            ws_protocol_error(ws, 1009)
+            return Err(std_error("E_WS_TOO_LARGE", "message is larger than the limit"))
+        if opcode >= 8 and (fin == 0 or size > 125):
+            ws_protocol_error(ws, 1002)
+            return Err(std_error("E_WS_PROTOCOL", "control frames must be final and at most 125 bytes"))
+        var mask = bytes_from_ints([])
+        if masked == 1:
+            match ws_read_exact(ws.conn, 4, timeout_ms):
+                Ok(read):
+                    set mask = read
+                Err(problem):
+                    return Err(problem)
+        var payload = bytes_from_ints([])
+        if size > 0:
+            match ws_read_exact(ws.conn, size, timeout_ms):
+                Ok(read):
+                    set payload = read
+                Err(problem):
+                    return Err(problem)
+        if masked == 1 and size > 0:
+            set payload = bytes_xor_key(payload, mask)
+        if opcode == 9:
+            let sent = ws_send_frame(ws, 10, payload)
+        else:
+            if opcode == 10:
+                return Ok(WsMessage("pong", payload, "", 0))
+            else:
+                if opcode == 8:
+                    var code = 1005
+                    if len(payload) >= 2:
+                        let numbers = bytes_to_ints(payload)
+                        set code = numbers[0] * 256 + numbers[1]
+                    let echoed = ws_send_frame(ws, 8, payload)
+                    return Ok(WsMessage("close", payload, "", code))
+                else:
+                    if opcode == 1 or opcode == 2:
+                        if message_kind != "":
+                            ws_protocol_error(ws, 1002)
+                            return Err(std_error("E_WS_PROTOCOL", "new message started before the previous one ended"))
+                        set message_kind = "binary"
+                        if opcode == 1:
+                            set message_kind = "text"
+                    else:
+                        if opcode != 0 or message_kind == "":
+                            ws_protocol_error(ws, 1002)
+                            return Err(std_error("E_WS_PROTOCOL", "unexpected frame opcode"))
+                    set message = bytes_join([message, payload])
+                    if fin == 1:
+                        if message_kind == "text":
+                            let decoded = text_from_bytes(message)
+                            if not is_some(decoded):
+                                ws_protocol_error(ws, 1007)
+                                return Err(std_error("E_WS_PROTOCOL", "text message is not valid UTF-8"))
+                            return Ok(WsMessage("text", message, unwrap(decoded), 0))
+                        return Ok(WsMessage("binary", message, "", 0))
+    return Err(std_error("E_WS_PROTOCOL", "unreachable"))

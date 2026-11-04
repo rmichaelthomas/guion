@@ -124,8 +124,9 @@ mod shared_text_tests {
 mod tests {
     use super::Shared;
     use super::{
-        Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
-        JsonErrorValue, Op, ResourceLimits, SharedJson, Span, Type, Value,
+        Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue, Function,
+        Instruction, JsonErrorValue, NetFunction, Op, ProcessFunction, RegexFunction,
+        ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1234,6 +1235,206 @@ mod tests {
         assert_eq!(
             Artifact::from_bytes(&corrupted).unwrap_err().code,
             "E_ARTIFACT_MAGIC"
+        );
+    }
+
+    #[test]
+    fn regex_instructions_are_gated_on_format_55() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Regex(RegexFunction::Split),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 54;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&54u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn process_instructions_are_gated_on_format_56() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Process(ProcessFunction::Pid),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 55;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&55u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn socket_instructions_are_gated_on_format_57() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Net(NetFunction::Close),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 56;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&56u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn tls_instructions_are_gated_on_format_58() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Tls(TlsFunction::Connect),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 57;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&57u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn sha1_and_xor_instructions_are_gated_on_format_59() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Codec(CodecFunction::Sha1),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 58;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&58u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
         );
     }
 
@@ -2868,6 +3069,525 @@ pub enum Type {
     Unit,
 }
 
+/// Pure `Float64` math functions behind `Op::Math`. Codes are part of artifact format 52.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MathFunction {
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Sinh,
+    Cosh,
+    Tanh,
+    Exp,
+    Ln,
+    Log10,
+    Log2,
+    Floor,
+    Ceil,
+    Round,
+    Abs,
+    Pow,
+    Atan2,
+    Hypot,
+}
+
+impl MathFunction {
+    const ALL: [MathFunction; 20] = [
+        MathFunction::Sin,
+        MathFunction::Cos,
+        MathFunction::Tan,
+        MathFunction::Asin,
+        MathFunction::Acos,
+        MathFunction::Atan,
+        MathFunction::Sinh,
+        MathFunction::Cosh,
+        MathFunction::Tanh,
+        MathFunction::Exp,
+        MathFunction::Ln,
+        MathFunction::Log10,
+        MathFunction::Log2,
+        MathFunction::Floor,
+        MathFunction::Ceil,
+        MathFunction::Round,
+        MathFunction::Abs,
+        MathFunction::Pow,
+        MathFunction::Atan2,
+        MathFunction::Hypot,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every math function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            MathFunction::Sin => "MathSin",
+            MathFunction::Cos => "MathCos",
+            MathFunction::Tan => "MathTan",
+            MathFunction::Asin => "MathAsin",
+            MathFunction::Acos => "MathAcos",
+            MathFunction::Atan => "MathAtan",
+            MathFunction::Sinh => "MathSinh",
+            MathFunction::Cosh => "MathCosh",
+            MathFunction::Tanh => "MathTanh",
+            MathFunction::Exp => "MathExp",
+            MathFunction::Ln => "MathLn",
+            MathFunction::Log10 => "MathLog10",
+            MathFunction::Log2 => "MathLog2",
+            MathFunction::Floor => "MathFloor",
+            MathFunction::Ceil => "MathCeil",
+            MathFunction::Round => "MathRound",
+            MathFunction::Abs => "MathAbs",
+            MathFunction::Pow => "MathPow",
+            MathFunction::Atan2 => "MathAtan2",
+            MathFunction::Hypot => "MathHypot",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of `Float64` operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            MathFunction::Pow | MathFunction::Atan2 | MathFunction::Hypot => 2,
+            _ => 1,
+        }
+    }
+}
+
+/// Pure byte, text-encoding and percent-encoding functions behind `Op::Codec`. Codes are part of
+/// artifact format 53.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodecFunction {
+    Base64Encode,
+    Base64UrlEncode,
+    Base64Decode,
+    Base64UrlDecode,
+    HexEncode,
+    HexDecode,
+    BytesToInts,
+    BytesSlice,
+    TextFromBytes,
+    TextFromBytesLossy,
+    PercentEncode,
+    PercentDecode,
+    /// SHA-1 digest (format 59); needed by the WebSocket handshake, not for new security uses.
+    Sha1,
+    /// XOR of a byte string with a repeating key (format 59); used for WebSocket masking.
+    BytesXor,
+}
+
+impl CodecFunction {
+    const ALL: [CodecFunction; 14] = [
+        CodecFunction::Base64Encode,
+        CodecFunction::Base64UrlEncode,
+        CodecFunction::Base64Decode,
+        CodecFunction::Base64UrlDecode,
+        CodecFunction::HexEncode,
+        CodecFunction::HexDecode,
+        CodecFunction::BytesToInts,
+        CodecFunction::BytesSlice,
+        CodecFunction::TextFromBytes,
+        CodecFunction::TextFromBytesLossy,
+        CodecFunction::PercentEncode,
+        CodecFunction::PercentDecode,
+        CodecFunction::Sha1,
+        CodecFunction::BytesXor,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every codec function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            CodecFunction::Base64Encode => "CodecBase64Encode",
+            CodecFunction::Base64UrlEncode => "CodecBase64UrlEncode",
+            CodecFunction::Base64Decode => "CodecBase64Decode",
+            CodecFunction::Base64UrlDecode => "CodecBase64UrlDecode",
+            CodecFunction::HexEncode => "CodecHexEncode",
+            CodecFunction::HexDecode => "CodecHexDecode",
+            CodecFunction::BytesToInts => "CodecBytesToInts",
+            CodecFunction::BytesSlice => "CodecBytesSlice",
+            CodecFunction::TextFromBytes => "CodecTextFromBytes",
+            CodecFunction::TextFromBytesLossy => "CodecTextFromBytesLossy",
+            CodecFunction::PercentEncode => "CodecPercentEncode",
+            CodecFunction::PercentDecode => "CodecPercentDecode",
+            CodecFunction::Sha1 => "CodecSha1",
+            CodecFunction::BytesXor => "CodecBytesXor",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            CodecFunction::BytesSlice => 3,
+            CodecFunction::BytesXor => 2,
+            _ => 1,
+        }
+    }
+}
+
+/// Filesystem operations behind `Op::Fs`. Every path is checked against the host's file grants.
+/// Codes are part of artifact format 54.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FsFunction {
+    Exists,
+    Kind,
+    Size,
+    ModifiedMs,
+    ListDir,
+    MakeDir,
+    Remove,
+    RemoveAll,
+    Rename,
+    Copy,
+    TempDir,
+    TempFile,
+}
+
+impl FsFunction {
+    const ALL: [FsFunction; 12] = [
+        FsFunction::Exists,
+        FsFunction::Kind,
+        FsFunction::Size,
+        FsFunction::ModifiedMs,
+        FsFunction::ListDir,
+        FsFunction::MakeDir,
+        FsFunction::Remove,
+        FsFunction::RemoveAll,
+        FsFunction::Rename,
+        FsFunction::Copy,
+        FsFunction::TempDir,
+        FsFunction::TempFile,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every filesystem function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            FsFunction::Exists => "FsOpExists",
+            FsFunction::Kind => "FsOpKind",
+            FsFunction::Size => "FsOpSize",
+            FsFunction::ModifiedMs => "FsOpModifiedMs",
+            FsFunction::ListDir => "FsOpListDir",
+            FsFunction::MakeDir => "FsOpMakeDir",
+            FsFunction::Remove => "FsOpRemove",
+            FsFunction::RemoveAll => "FsOpRemoveAll",
+            FsFunction::Rename => "FsOpRename",
+            FsFunction::Copy => "FsOpCopy",
+            FsFunction::TempDir => "FsOpTempDir",
+            FsFunction::TempFile => "FsOpTempFile",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of `Text` operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            FsFunction::Rename | FsFunction::Copy => 2,
+            _ => 1,
+        }
+    }
+
+    /// Whether the function needs the host's file-write grant (otherwise file-read).
+    pub fn writes(self) -> bool {
+        !matches!(
+            self,
+            FsFunction::Exists
+                | FsFunction::Kind
+                | FsFunction::Size
+                | FsFunction::ModifiedMs
+                | FsFunction::ListDir
+        )
+    }
+}
+
+/// Regular-expression functions behind `Op::Regex`. Patterns use the linear-time RE2-style
+/// syntax of the Rust `regex` crate (no backreferences or lookaround). Codes are part of
+/// artifact format 55.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RegexFunction {
+    IsMatch,
+    Find,
+    FindAll,
+    Replace,
+    ReplaceFirst,
+    Split,
+    Escape,
+}
+
+impl RegexFunction {
+    const ALL: [RegexFunction; 7] = [
+        RegexFunction::IsMatch,
+        RegexFunction::Find,
+        RegexFunction::FindAll,
+        RegexFunction::Replace,
+        RegexFunction::ReplaceFirst,
+        RegexFunction::Split,
+        RegexFunction::Escape,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every regex function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            RegexFunction::IsMatch => "RegexIsMatch",
+            RegexFunction::Find => "RegexFind",
+            RegexFunction::FindAll => "RegexFindAll",
+            RegexFunction::Replace => "RegexReplace",
+            RegexFunction::ReplaceFirst => "RegexReplaceFirst",
+            RegexFunction::Split => "RegexSplit",
+            RegexFunction::Escape => "RegexEscape",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of `Text` operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            RegexFunction::Replace | RegexFunction::ReplaceFirst => 3,
+            RegexFunction::Escape => 1,
+            _ => 2,
+        }
+    }
+}
+
+/// Subprocess and signal operations behind `Op::Process`. `run` needs the host's command grant;
+/// codes are part of artifact format 56.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProcessFunction {
+    Run,
+    Pid,
+    SignalPoll,
+}
+
+impl ProcessFunction {
+    const ALL: [ProcessFunction; 3] = [
+        ProcessFunction::Run,
+        ProcessFunction::Pid,
+        ProcessFunction::SignalPoll,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every process function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            ProcessFunction::Run => "ProcessRun",
+            ProcessFunction::Pid => "ProcessPid",
+            ProcessFunction::SignalPoll => "ProcessSignalPoll",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops (`run` takes command, arguments, standard input).
+    pub fn arity(self) -> usize {
+        match self {
+            ProcessFunction::Run => 3,
+            ProcessFunction::Pid | ProcessFunction::SignalPoll => 0,
+        }
+    }
+}
+
+/// TCP and UDP socket operations behind `Op::Net`. Sockets are integer handles; every call is
+/// bounded by a timeout and checked against the host's `host:port` grants. Codes are part of
+/// artifact format 57.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NetFunction {
+    TcpConnect,
+    TcpListen,
+    TcpAccept,
+    LocalPort,
+    Send,
+    Recv,
+    Close,
+    UdpBind,
+    UdpSendTo,
+    UdpRecvFrom,
+}
+
+impl NetFunction {
+    const ALL: [NetFunction; 10] = [
+        NetFunction::TcpConnect,
+        NetFunction::TcpListen,
+        NetFunction::TcpAccept,
+        NetFunction::LocalPort,
+        NetFunction::Send,
+        NetFunction::Recv,
+        NetFunction::Close,
+        NetFunction::UdpBind,
+        NetFunction::UdpSendTo,
+        NetFunction::UdpRecvFrom,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every socket function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            NetFunction::TcpConnect => "NetTcpConnect",
+            NetFunction::TcpListen => "NetTcpListen",
+            NetFunction::TcpAccept => "NetTcpAccept",
+            NetFunction::LocalPort => "NetLocalPort",
+            NetFunction::Send => "NetSend",
+            NetFunction::Recv => "NetRecv",
+            NetFunction::Close => "NetClose",
+            NetFunction::UdpBind => "NetUdpBind",
+            NetFunction::UdpSendTo => "NetUdpSendTo",
+            NetFunction::UdpRecvFrom => "NetUdpRecvFrom",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            NetFunction::LocalPort | NetFunction::Close => 1,
+            NetFunction::TcpListen | NetFunction::TcpAccept | NetFunction::UdpBind => 2,
+            NetFunction::Send => 2,
+            NetFunction::TcpConnect | NetFunction::Recv | NetFunction::UdpRecvFrom => 3,
+            NetFunction::UdpSendTo => 4,
+        }
+    }
+}
+
+/// TLS handshakes behind `Op::Tls`. Both return a socket handle that the `Op::Net` send, receive,
+/// port and close functions then accept. Codes are part of artifact format 58.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TlsFunction {
+    Connect,
+    Accept,
+}
+
+impl TlsFunction {
+    const ALL: [TlsFunction; 2] = [TlsFunction::Connect, TlsFunction::Accept];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every TLS function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            TlsFunction::Connect => "TlsConnect",
+            TlsFunction::Accept => "TlsAccept",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops (four for both).
+    pub fn arity(self) -> usize {
+        4
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -2986,6 +3706,17 @@ pub enum Op {
     TextSplit,
     TextReplace,
     TextTrim,
+    Math(MathFunction),
+    Codec(CodecFunction),
+    Fs(FsFunction),
+    Regex(RegexFunction),
+    Process(ProcessFunction),
+    Net(NetFunction),
+    Tls(TlsFunction),
+    IntToFloat,
+    FloatToInt,
+    NumberToText,
+    RandomMix,
     BytesFromInts,
     BytesFromText,
     BytesJoin,
@@ -3124,7 +3855,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 51;
+    pub const CURRENT_VERSION: u32 = 59;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3352,6 +4083,54 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "native text search, split, replace and trim require artifact format 51",
+            ));
+        }
+        if self.format_version < 52 && artifact_uses_math_and_conversions(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "math, numeric conversion and random instructions require artifact format 52",
+            ));
+        }
+        if self.format_version < 53 && artifact_uses_codecs(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "byte, encoding and percent-encoding instructions require artifact format 53",
+            ));
+        }
+        if self.format_version < 54 && artifact_uses_fs(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "filesystem instructions require artifact format 54",
+            ));
+        }
+        if self.format_version < 55 && artifact_uses_regex(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "regular-expression instructions require artifact format 55",
+            ));
+        }
+        if self.format_version < 56 && artifact_uses_process(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "subprocess and signal instructions require artifact format 56",
+            ));
+        }
+        if self.format_version < 57 && artifact_uses_net(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "socket instructions require artifact format 57",
+            ));
+        }
+        if self.format_version < 59 && artifact_uses_sha1_or_xor(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "SHA-1 and byte XOR instructions require artifact format 59",
+            ));
+        }
+        if self.format_version < 58 && artifact_uses_tls(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "TLS instructions require artifact format 58",
             ));
         }
         validate_sort_comparator_effects(self)
@@ -3589,6 +4368,38 @@ impl Artifact {
                     Op::TextSplit => w.u8(174),
                     Op::TextReplace => w.u8(175),
                     Op::TextTrim => w.u8(176),
+                    Op::Math(function) => {
+                        w.u8(177);
+                        w.u8(function.code());
+                    }
+                    Op::Codec(function) => {
+                        w.u8(182);
+                        w.u8(function.code());
+                    }
+                    Op::Fs(function) => {
+                        w.u8(183);
+                        w.u8(function.code());
+                    }
+                    Op::Regex(function) => {
+                        w.u8(184);
+                        w.u8(function.code());
+                    }
+                    Op::Process(function) => {
+                        w.u8(185);
+                        w.u8(function.code());
+                    }
+                    Op::Net(function) => {
+                        w.u8(186);
+                        w.u8(function.code());
+                    }
+                    Op::Tls(function) => {
+                        w.u8(187);
+                        w.u8(function.code());
+                    }
+                    Op::IntToFloat => w.u8(178),
+                    Op::FloatToInt => w.u8(179),
+                    Op::NumberToText => w.u8(180),
+                    Op::RandomMix => w.u8(181),
                     Op::ListPushLocal(slot) => {
                         w.u8(103);
                         w.count(*slot)?;
@@ -3956,6 +4767,121 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    187 if format_version >= 58 => {
+                        let code = r.u8()?;
+                        Op::Tls(TlsFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("TLS instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    187 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "TLS instructions require artifact format 58",
+                        ));
+                    }
+                    186 if format_version >= 57 => {
+                        let code = r.u8()?;
+                        Op::Net(NetFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("socket instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    186 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "socket instructions require artifact format 57",
+                        ));
+                    }
+                    185 if format_version >= 56 => {
+                        let code = r.u8()?;
+                        Op::Process(ProcessFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("process instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    185 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "subprocess and signal instructions require artifact format 56",
+                        ));
+                    }
+                    184 if format_version >= 55 => {
+                        let code = r.u8()?;
+                        Op::Regex(RegexFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("regex instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    184 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "regular-expression instructions require artifact format 55",
+                        ));
+                    }
+                    183 if format_version >= 54 => {
+                        let code = r.u8()?;
+                        Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("filesystem instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    183 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "filesystem instructions require artifact format 54",
+                        ));
+                    }
+                    182 if format_version >= 53 => {
+                        let code = r.u8()?;
+                        if code >= 12 && format_version < 59 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "SHA-1 and byte XOR instructions require artifact format 59",
+                            ));
+                        }
+                        Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("codec instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    182 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "byte, encoding and percent-encoding instructions require artifact format 53",
+                        ));
+                    }
+                    177 if format_version >= 52 => {
+                        let code = r.u8()?;
+                        Op::Math(MathFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("math instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    178 if format_version >= 52 => Op::IntToFloat,
+                    179 if format_version >= 52 => Op::FloatToInt,
+                    180 if format_version >= 52 => Op::NumberToText,
+                    181 if format_version >= 52 => Op::RandomMix,
+                    177..=181 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "math, numeric conversion and random instructions require artifact format 52",
                         ));
                     }
                     173 if format_version >= 51 => Op::TextFind,
@@ -4526,6 +5452,82 @@ fn artifact_uses_map_record_update(artifact: &Artifact) -> bool {
                 Op::MapRecordGet(_, _, _) | Op::MapRecordSet(_, _, _)
             )
         })
+    })
+}
+
+fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Math(_) | Op::IntToFloat | Op::FloatToInt | Op::NumberToText | Op::RandomMix
+            )
+        })
+    })
+}
+
+fn artifact_uses_sha1_or_xor(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Codec(CodecFunction::Sha1 | CodecFunction::BytesXor)
+            )
+        })
+    })
+}
+
+fn artifact_uses_codecs(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Codec(_)))
+    })
+}
+
+fn artifact_uses_tls(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Tls(_)))
+    })
+}
+
+fn artifact_uses_net(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Net(_)))
+    })
+}
+
+fn artifact_uses_process(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Process(_)))
+    })
+}
+
+fn artifact_uses_regex(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Regex(_)))
+    })
+}
+
+fn artifact_uses_fs(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Fs(_)))
     })
 }
 

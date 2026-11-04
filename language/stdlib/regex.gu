@@ -1,0 +1,46 @@
+import "std:types"
+
+pub fn regex_is_match(pattern: Text, text: Text) -> Result[Bool, StdError]:
+    match native_regex_is_match(pattern, text):
+        Ok(found):
+            return Ok(found)
+        Err(message):
+            return Err(std_error("E_REGEX_INVALID", message))
+
+pub fn regex_find(pattern: Text, text: Text) -> Result[Option[List[Text]], StdError]:
+    match native_regex_find(pattern, text):
+        Ok(groups):
+            return Ok(groups)
+        Err(message):
+            return Err(std_error("E_REGEX_INVALID", message))
+
+pub fn regex_find_all(pattern: Text, text: Text) -> Result[List[Text], StdError]:
+    match native_regex_find_all(pattern, text):
+        Ok(matches):
+            return Ok(matches)
+        Err(message):
+            return Err(std_error("E_REGEX_INVALID", message))
+
+pub fn regex_replace(pattern: Text, text: Text, replacement: Text) -> Result[Text, StdError]:
+    match native_regex_replace(pattern, text, replacement):
+        Ok(replaced):
+            return Ok(replaced)
+        Err(message):
+            return Err(std_error("E_REGEX_INVALID", message))
+
+pub fn regex_replace_first(pattern: Text, text: Text, replacement: Text) -> Result[Text, StdError]:
+    match native_regex_replace_first(pattern, text, replacement):
+        Ok(replaced):
+            return Ok(replaced)
+        Err(message):
+            return Err(std_error("E_REGEX_INVALID", message))
+
+pub fn regex_split(pattern: Text, text: Text) -> Result[List[Text], StdError]:
+    match native_regex_split(pattern, text):
+        Ok(parts):
+            return Ok(parts)
+        Err(message):
+            return Err(std_error("E_REGEX_INVALID", message))
+
+pub fn regex_escape(text: Text) -> Text:
+    return native_regex_escape(text)

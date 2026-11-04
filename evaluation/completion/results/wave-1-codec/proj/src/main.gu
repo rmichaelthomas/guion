@@ -1,0 +1,15 @@
+import "std:encoding"
+import "std:crypto"
+
+fn main() -> Int:
+    var i = 0
+    var total = 0
+    let data = bytes_from_text("The quick brown fox jumps over the lazy dog 0123456789")
+    while i < 100000:
+        let encoded = base64_encode(data)
+        let decoded = unwrap(base64_decode(encoded))
+        let hex = hex_encode(decoded)
+        set total = total + len(hex) + len(encoded)
+        set i = i + 1
+    print(total)
+    return 0

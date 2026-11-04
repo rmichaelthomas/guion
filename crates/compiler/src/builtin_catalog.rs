@@ -1,4 +1,7 @@
-use guion_model::{Op, Type};
+use guion_model::{
+    CodecFunction, FsFunction, MathFunction, NetFunction, Op, ProcessFunction, RegexFunction,
+    TlsFunction, Type,
+};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -210,6 +213,10 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "TextSplit" => Op::TextSplit,
         "TextReplace" => Op::TextReplace,
         "TextTrim" => Op::TextTrim,
+        "IntToFloat" => Op::IntToFloat,
+        "FloatToInt" => Op::FloatToInt,
+        "NumberToText" => Op::NumberToText,
+        "RandomMix" => Op::RandomMix,
         "BytesFromInts" => Op::BytesFromInts,
         "BytesFromText" => Op::BytesFromText,
         "BytesJoin" => Op::BytesJoin,
@@ -270,7 +277,25 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "Print" => Op::Print,
         "PrintErr" => Op::PrintErr,
         "ParallelMap" => return None,
-        _ => return None,
+        other => match MathFunction::from_op_name(other) {
+            Some(function) => Op::Math(function),
+            None => match CodecFunction::from_op_name(other) {
+                Some(function) => Op::Codec(function),
+                None => match FsFunction::from_op_name(other) {
+                    Some(function) => Op::Fs(function),
+                    None => match RegexFunction::from_op_name(other) {
+                        Some(function) => Op::Regex(function),
+                        None => match ProcessFunction::from_op_name(other) {
+                            Some(function) => Op::Process(function),
+                            None => match NetFunction::from_op_name(other) {
+                                Some(function) => Op::Net(function),
+                                None => Op::Tls(TlsFunction::from_op_name(other)?),
+                            },
+                        },
+                    },
+                },
+            },
+        },
     })
 }
 

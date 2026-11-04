@@ -1146,6 +1146,623 @@
       ],
       "result": "Result[Unit, FileError]",
       "operation": "WriteTextAtomic"
+    },
+    {
+      "name": "native_math_sin",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathSin"
+    },
+    {
+      "name": "native_math_cos",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathCos"
+    },
+    {
+      "name": "native_math_tan",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathTan"
+    },
+    {
+      "name": "native_math_asin",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAsin"
+    },
+    {
+      "name": "native_math_acos",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAcos"
+    },
+    {
+      "name": "native_math_atan",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAtan"
+    },
+    {
+      "name": "native_math_sinh",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathSinh"
+    },
+    {
+      "name": "native_math_cosh",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathCosh"
+    },
+    {
+      "name": "native_math_tanh",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathTanh"
+    },
+    {
+      "name": "native_math_exp",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathExp"
+    },
+    {
+      "name": "native_math_ln",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathLn"
+    },
+    {
+      "name": "native_math_log10",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathLog10"
+    },
+    {
+      "name": "native_math_log2",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathLog2"
+    },
+    {
+      "name": "native_math_floor",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathFloor"
+    },
+    {
+      "name": "native_math_ceil",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathCeil"
+    },
+    {
+      "name": "native_math_round",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathRound"
+    },
+    {
+      "name": "native_math_abs",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAbs"
+    },
+    {
+      "name": "native_math_pow",
+      "parameters": [
+        "Float64",
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathPow"
+    },
+    {
+      "name": "native_math_atan2",
+      "parameters": [
+        "Float64",
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathAtan2"
+    },
+    {
+      "name": "native_math_hypot",
+      "parameters": [
+        "Float64",
+        "Float64"
+      ],
+      "result": "Float64",
+      "operation": "MathHypot"
+    },
+    {
+      "name": "int_to_float",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Float64",
+      "operation": "IntToFloat"
+    },
+    {
+      "name": "float_to_int",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Int",
+      "operation": "FloatToInt"
+    },
+    {
+      "name": "int_to_text",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "NumberToText"
+    },
+    {
+      "name": "float_to_text",
+      "parameters": [
+        "Float64"
+      ],
+      "result": "Text",
+      "operation": "NumberToText"
+    },
+    {
+      "name": "native_random_mix",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "RandomMix"
+    },
+    {
+      "name": "bytes_to_ints",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "List[Int]",
+      "operation": "CodecBytesToInts"
+    },
+    {
+      "name": "bytes_slice",
+      "parameters": [
+        "Bytes",
+        "Int",
+        "Int"
+      ],
+      "result": "Bytes",
+      "operation": "CodecBytesSlice"
+    },
+    {
+      "name": "text_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Option[Text]",
+      "operation": "CodecTextFromBytes"
+    },
+    {
+      "name": "text_from_bytes_lossy",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecTextFromBytesLossy"
+    },
+    {
+      "name": "native_base64_encode",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecBase64Encode"
+    },
+    {
+      "name": "native_base64url_encode",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecBase64UrlEncode"
+    },
+    {
+      "name": "native_base64_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Bytes]",
+      "operation": "CodecBase64Decode"
+    },
+    {
+      "name": "native_base64url_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Bytes]",
+      "operation": "CodecBase64UrlDecode"
+    },
+    {
+      "name": "native_hex_encode",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Text",
+      "operation": "CodecHexEncode"
+    },
+    {
+      "name": "native_hex_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Bytes]",
+      "operation": "CodecHexDecode"
+    },
+    {
+      "name": "native_percent_encode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "CodecPercentEncode"
+    },
+    {
+      "name": "native_percent_decode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Option[Text]",
+      "operation": "CodecPercentDecode"
+    },
+    {
+      "name": "native_sha1",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CodecSha1"
+    },
+    {
+      "name": "native_bytes_xor",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CodecBytesXor"
+    },
+    {
+      "name": "native_fs_exists",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bool, FileError]",
+      "operation": "FsOpExists"
+    },
+    {
+      "name": "native_fs_kind",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpKind"
+    },
+    {
+      "name": "native_fs_size",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpSize"
+    },
+    {
+      "name": "native_fs_modified_ms",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpModifiedMs"
+    },
+    {
+      "name": "native_fs_list_dir",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[List[Text], FileError]",
+      "operation": "FsOpListDir"
+    },
+    {
+      "name": "native_fs_make_dir",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpMakeDir"
+    },
+    {
+      "name": "native_fs_remove",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpRemove"
+    },
+    {
+      "name": "native_fs_remove_all",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpRemoveAll"
+    },
+    {
+      "name": "native_fs_rename",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpRename"
+    },
+    {
+      "name": "native_fs_copy",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpCopy"
+    },
+    {
+      "name": "native_fs_temp_dir",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpTempDir"
+    },
+    {
+      "name": "native_fs_temp_file",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpTempFile"
+    },
+    {
+      "name": "native_regex_is_match",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Bool, Text]",
+      "operation": "RegexIsMatch"
+    },
+    {
+      "name": "native_regex_find",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Option[List[Text]], Text]",
+      "operation": "RegexFind"
+    },
+    {
+      "name": "native_regex_find_all",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[List[Text], Text]",
+      "operation": "RegexFindAll"
+    },
+    {
+      "name": "native_regex_replace",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, Text]",
+      "operation": "RegexReplace"
+    },
+    {
+      "name": "native_regex_replace_first",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, Text]",
+      "operation": "RegexReplaceFirst"
+    },
+    {
+      "name": "native_regex_split",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[List[Text], Text]",
+      "operation": "RegexSplit"
+    },
+    {
+      "name": "native_regex_escape",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "RegexEscape"
+    },
+    {
+      "name": "native_process_run",
+      "parameters": [
+        "Text",
+        "List[Text]",
+        "Text"
+      ],
+      "result": "Result[List[Text], List[Text]]",
+      "operation": "ProcessRun"
+    },
+    {
+      "name": "native_process_pid",
+      "parameters": [],
+      "result": "Int",
+      "operation": "ProcessPid"
+    },
+    {
+      "name": "native_process_signal_poll",
+      "parameters": [],
+      "result": "Text",
+      "operation": "ProcessSignalPoll"
+    },
+    {
+      "name": "native_net_tcp_connect",
+      "parameters": [
+        "Text",
+        "Int",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetTcpConnect"
+    },
+    {
+      "name": "native_net_tcp_listen",
+      "parameters": [
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetTcpListen"
+    },
+    {
+      "name": "native_net_tcp_accept",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetTcpAccept"
+    },
+    {
+      "name": "native_net_local_port",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetLocalPort"
+    },
+    {
+      "name": "native_net_send",
+      "parameters": [
+        "Int",
+        "Bytes"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetSend"
+    },
+    {
+      "name": "native_net_recv",
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "result": "Result[Bytes, List[Text]]",
+      "operation": "NetRecv"
+    },
+    {
+      "name": "native_net_close",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Unit, List[Text]]",
+      "operation": "NetClose"
+    },
+    {
+      "name": "native_net_udp_bind",
+      "parameters": [
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetUdpBind"
+    },
+    {
+      "name": "native_net_udp_send_to",
+      "parameters": [
+        "Int",
+        "Text",
+        "Int",
+        "Bytes"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "NetUdpSendTo"
+    },
+    {
+      "name": "native_net_udp_recv_from",
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "result": "Result[List[Bytes], List[Text]]",
+      "operation": "NetUdpRecvFrom"
+    },
+    {
+      "name": "native_tls_connect",
+      "parameters": [
+        "Text",
+        "Int",
+        "Int",
+        "Text"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "TlsConnect"
+    },
+    {
+      "name": "native_tls_accept",
+      "parameters": [
+        "Int",
+        "Int",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "TlsAccept"
     }
   ]
 }

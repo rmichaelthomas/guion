@@ -9550,6 +9550,314 @@
       }
     },
     {
+      "id": "opcode-math",
+      "kind": "opcode",
+      "name": "Math",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-math.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-math.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-math.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-inttofloat",
+      "kind": "opcode",
+      "name": "IntToFloat",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-inttofloat.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-inttofloat.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-inttofloat.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-floattoint",
+      "kind": "opcode",
+      "name": "FloatToInt",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-floattoint.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-floattoint.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-floattoint.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-numbertotext",
+      "kind": "opcode",
+      "name": "NumberToText",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-numbertotext.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-numbertotext.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-numbertotext.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-randommix",
+      "kind": "opcode",
+      "name": "RandomMix",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-randommix.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-randommix.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-randommix.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-codec",
+      "kind": "opcode",
+      "name": "Codec",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-codec.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-codec.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-codec.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-fs",
+      "kind": "opcode",
+      "name": "Fs",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-fs.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-fs.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-fs.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-regex",
+      "kind": "opcode",
+      "name": "Regex",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-regex.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-regex.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-regex.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-process",
+      "kind": "opcode",
+      "name": "Process",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-process.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-process.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-process.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-net",
+      "kind": "opcode",
+      "name": "Net",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-net.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-net.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-net.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-tls",
+      "kind": "opcode",
+      "name": "Tls",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-tls.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-tls.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-tls.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
       "id": "opcode-jsontrygettext",
       "kind": "opcode",
       "name": "JsonTryGetText",

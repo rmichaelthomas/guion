@@ -294,6 +294,161 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "2:WriteText:Result[Unit, FileError]:Text;Text"
         if name == "write_text_atomic":
             return "2:WriteTextAtomic:Result[Unit, FileError]:Text;Text"
+    if name[0] == "n":
+        if name == "native_math_sin":
+            return "1:MathSin:Float64:Float64"
+        if name == "native_math_cos":
+            return "1:MathCos:Float64:Float64"
+        if name == "native_math_tan":
+            return "1:MathTan:Float64:Float64"
+        if name == "native_math_asin":
+            return "1:MathAsin:Float64:Float64"
+        if name == "native_math_acos":
+            return "1:MathAcos:Float64:Float64"
+        if name == "native_math_atan":
+            return "1:MathAtan:Float64:Float64"
+        if name == "native_math_sinh":
+            return "1:MathSinh:Float64:Float64"
+        if name == "native_math_cosh":
+            return "1:MathCosh:Float64:Float64"
+        if name == "native_math_tanh":
+            return "1:MathTanh:Float64:Float64"
+        if name == "native_math_exp":
+            return "1:MathExp:Float64:Float64"
+        if name == "native_math_ln":
+            return "1:MathLn:Float64:Float64"
+        if name == "native_math_log10":
+            return "1:MathLog10:Float64:Float64"
+        if name == "native_math_log2":
+            return "1:MathLog2:Float64:Float64"
+        if name == "native_math_floor":
+            return "1:MathFloor:Float64:Float64"
+        if name == "native_math_ceil":
+            return "1:MathCeil:Float64:Float64"
+        if name == "native_math_round":
+            return "1:MathRound:Float64:Float64"
+        if name == "native_math_abs":
+            return "1:MathAbs:Float64:Float64"
+        if name == "native_math_pow":
+            return "2:MathPow:Float64:Float64;Float64"
+        if name == "native_math_atan2":
+            return "2:MathAtan2:Float64:Float64;Float64"
+        if name == "native_math_hypot":
+            return "2:MathHypot:Float64:Float64;Float64"
+    if name[0] == "i":
+        if name == "int_to_float":
+            return "1:IntToFloat:Float64:Int"
+    if name[0] == "f":
+        if name == "float_to_int":
+            return "1:FloatToInt:Int:Float64"
+    if name[0] == "i":
+        if name == "int_to_text":
+            return "1:NumberToText:Text:Int"
+    if name[0] == "f":
+        if name == "float_to_text":
+            return "1:NumberToText:Text:Float64"
+    if name[0] == "n":
+        if name == "native_random_mix":
+            return "1:RandomMix:Int:Int"
+    if name[0] == "b":
+        if name == "bytes_to_ints":
+            return "1:CodecBytesToInts:List[Int]:Bytes"
+        if name == "bytes_slice":
+            return "3:CodecBytesSlice:Bytes:Bytes;Int;Int"
+    if name[0] == "t":
+        if name == "text_from_bytes":
+            return "1:CodecTextFromBytes:Option[Text]:Bytes"
+        if name == "text_from_bytes_lossy":
+            return "1:CodecTextFromBytesLossy:Text:Bytes"
+    if name[0] == "n":
+        if name == "native_base64_encode":
+            return "1:CodecBase64Encode:Text:Bytes"
+        if name == "native_base64url_encode":
+            return "1:CodecBase64UrlEncode:Text:Bytes"
+        if name == "native_base64_decode":
+            return "1:CodecBase64Decode:Option[Bytes]:Text"
+        if name == "native_base64url_decode":
+            return "1:CodecBase64UrlDecode:Option[Bytes]:Text"
+        if name == "native_hex_encode":
+            return "1:CodecHexEncode:Text:Bytes"
+        if name == "native_hex_decode":
+            return "1:CodecHexDecode:Option[Bytes]:Text"
+        if name == "native_percent_encode":
+            return "1:CodecPercentEncode:Text:Text"
+        if name == "native_percent_decode":
+            return "1:CodecPercentDecode:Option[Text]:Text"
+        if name == "native_sha1":
+            return "1:CodecSha1:Bytes:Bytes"
+        if name == "native_bytes_xor":
+            return "2:CodecBytesXor:Bytes:Bytes;Bytes"
+        if name == "native_fs_exists":
+            return "1:FsOpExists:Result[Bool, FileError]:Text"
+        if name == "native_fs_kind":
+            return "1:FsOpKind:Result[Text, FileError]:Text"
+        if name == "native_fs_size":
+            return "1:FsOpSize:Result[Int, FileError]:Text"
+        if name == "native_fs_modified_ms":
+            return "1:FsOpModifiedMs:Result[Int, FileError]:Text"
+        if name == "native_fs_list_dir":
+            return "1:FsOpListDir:Result[List[Text], FileError]:Text"
+        if name == "native_fs_make_dir":
+            return "1:FsOpMakeDir:Result[Unit, FileError]:Text"
+        if name == "native_fs_remove":
+            return "1:FsOpRemove:Result[Unit, FileError]:Text"
+        if name == "native_fs_remove_all":
+            return "1:FsOpRemoveAll:Result[Unit, FileError]:Text"
+        if name == "native_fs_rename":
+            return "2:FsOpRename:Result[Unit, FileError]:Text;Text"
+        if name == "native_fs_copy":
+            return "2:FsOpCopy:Result[Int, FileError]:Text;Text"
+        if name == "native_fs_temp_dir":
+            return "1:FsOpTempDir:Result[Text, FileError]:Text"
+        if name == "native_fs_temp_file":
+            return "1:FsOpTempFile:Result[Text, FileError]:Text"
+        if name == "native_regex_is_match":
+            return "2:RegexIsMatch:Result[Bool, Text]:Text;Text"
+        if name == "native_regex_find":
+            return "2:RegexFind:Result[Option[List[Text]], Text]:Text;Text"
+        if name == "native_regex_find_all":
+            return "2:RegexFindAll:Result[List[Text], Text]:Text;Text"
+        if name == "native_regex_replace":
+            return "3:RegexReplace:Result[Text, Text]:Text;Text;Text"
+        if name == "native_regex_replace_first":
+            return "3:RegexReplaceFirst:Result[Text, Text]:Text;Text;Text"
+        if name == "native_regex_split":
+            return "2:RegexSplit:Result[List[Text], Text]:Text;Text"
+        if name == "native_regex_escape":
+            return "1:RegexEscape:Text:Text"
+        if name == "native_process_run":
+            return "3:ProcessRun:Result[List[Text], List[Text]]:Text;List[Text];Text"
+        if name == "native_process_pid":
+            return "0:ProcessPid:Int:"
+        if name == "native_process_signal_poll":
+            return "0:ProcessSignalPoll:Text:"
+        if name == "native_net_tcp_connect":
+            return "3:NetTcpConnect:Result[Int, List[Text]]:Text;Int;Int"
+        if name == "native_net_tcp_listen":
+            return "2:NetTcpListen:Result[Int, List[Text]]:Text;Int"
+        if name == "native_net_tcp_accept":
+            return "2:NetTcpAccept:Result[Int, List[Text]]:Int;Int"
+        if name == "native_net_local_port":
+            return "1:NetLocalPort:Result[Int, List[Text]]:Int"
+        if name == "native_net_send":
+            return "2:NetSend:Result[Int, List[Text]]:Int;Bytes"
+        if name == "native_net_recv":
+            return "3:NetRecv:Result[Bytes, List[Text]]:Int;Int;Int"
+        if name == "native_net_close":
+            return "1:NetClose:Result[Unit, List[Text]]:Int"
+        if name == "native_net_udp_bind":
+            return "2:NetUdpBind:Result[Int, List[Text]]:Text;Int"
+        if name == "native_net_udp_send_to":
+            return "4:NetUdpSendTo:Result[Int, List[Text]]:Int;Text;Int;Bytes"
+        if name == "native_net_udp_recv_from":
+            return "3:NetUdpRecvFrom:Result[List[Bytes], List[Text]]:Int;Int;Int"
+        if name == "native_tls_connect":
+            return "4:TlsConnect:Result[Int, List[Text]]:Text;Int;Int;Text"
+        if name == "native_tls_accept":
+            return "4:TlsAccept:Result[Int, List[Text]]:Int;Int;Text;Text"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:

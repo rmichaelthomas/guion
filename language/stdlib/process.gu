@@ -1,0 +1,23 @@
+import "std:types"
+
+pub record ProcessResult:
+    exit_code: Int
+    stdout: Text
+    stderr: Text
+
+pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]:
+    match native_process_run(command, arguments, stdin):
+        Ok(fields):
+            match text_parse_int(fields[0]):
+                Ok(code):
+                    return Ok(ProcessResult(code, fields[1], fields[2]))
+                Err(problem):
+                    return Err(std_error("E_PROCESS_RESULT", "child exit status was not a number"))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn process_pid() -> Int:
+    return native_process_pid()
+
+pub fn process_signal_poll() -> Text:
+    return native_process_signal_poll()

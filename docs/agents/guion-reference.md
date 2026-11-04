@@ -31,6 +31,14 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - `http_request(method, url, headers, body) -> Result[Json, HttpError]` supports GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS with `Map[Text]` headers and a UTF-8 text body. Its JSON envelope contains integer `status`, text `body`, and lowercase response headers. `http_request_bytes(method, url, headers, body, timeout_ms) -> Result[HttpResponse, HttpError]` preserves arbitrary request and response bytes; `HttpResponse` has `status: Int`, `headers: Map[Text, Text]`, and `body: Bytes`. Importing `std:http` provides the response type and typed JSON helper; `std:types` re-exports the same type for compatibility. Non-2xx responses remain values. `http_response_text(response) -> Result[Text, HttpError]` checks the body's UTF-8 encoding and text-size limit; `std:http.http_response_json(response) -> Result[Json, StdError]` performs the same checks and parses JSON directly from the response bytes, without an intermediate `Text` allocation. It preserves the stable HTTP and JSON error codes and messages. A shared host client enforces one monotonic deadline through connection and body reads, bounds response accumulation, refuses cross-origin redirects, and interrupts in-flight reads on cancellation. Runtime URL hosts require exact grants in `[network].hosts` or `guion run --allow-http-host HOST`; network remains denied by default.
 - `unix_time_ms() -> Int` returns wall-clock milliseconds since the Unix epoch, and `today_local() -> Date` returns the current date in the host process time zone. `format_utc_date(instant) -> Text` formats an `Instant` as its `YYYY-MM-DD` UTC calendar date without formatting the time of day. Clock access is denied unless `[clock].enabled = true` or the caller uses `guion run --allow-clock` / an embedding `HostPolicy` grant. The host supplies local-time and daylight-saving rules; tests and embedders can pin the clock through `HostPolicy::with_clock_unix_time_ms`.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
+- Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64`, `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted.
+- Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
+- Filesystem and paths (artifact format 54): `std:fs` adds `fs_exists`, `fs_kind` (`"file"`, `"directory"`, `"other"` or `"missing"`), `fs_size`, `fs_modified_ms`, `fs_list_dir` (sorted names), `fs_make_dir` (creates missing parents; succeeds if the directory exists), `fs_remove` (a file or an empty directory), `fs_remove_all`, `fs_rename`, `fs_copy` (returns the bytes copied) and `fs_temp_dir`/`fs_temp_file` (a unique entry under `.guion-tmp/` in the granted root; the prefix is 1 to 64 ASCII letters, digits, `-` or `_`). All return `Result[T, FileError]`. Each path is relative to a granted file root, may not contain `..`, and is confined after symlink resolution, as for `read_text`; mutating operations need the file-write grant. Symlinks are followed, so removing or renaming a link acts on its confined target. The granted root itself cannot be removed. `std:path` provides POSIX path text functions that never touch the disk: `path_normalize`, `path_join`, `path_dirname`, `path_basename`, `path_extension`, `path_stem`, `path_with_extension`, `path_components` and `path_is_absolute`. Static inspection now reports `filesystem.read` for `fs_walk`, `file_open_lines` and CSV opening as well.
+- Regular expressions (artifact format 55): `std:regex` provides `regex_is_match`, `regex_find` (the first match as a list of capture groups, group 0 first, unmatched groups as `""`), `regex_find_all`, `regex_replace`, `regex_replace_first` (replacement text expands `$1`, `${name}`; `$$` is a literal `$`), `regex_split` and `regex_escape`. Patterns use the Rust `regex` crate syntax: Unicode-aware, RE2-style, matching time linear in the subject, with no backreferences and no lookaround. An invalid or unsupported pattern, a pattern over 4,096 bytes, or one that compiles to more than 1 MiB of program returns `Err` with code `E_REGEX_INVALID`; no grant is required. Compiled patterns are cached per thread.
+- Processes and signals (artifact format 56): `std:process` provides `process_run(command, arguments, stdin)` returning `Result[ProcessResult, StdError]` with `exit_code`, `stdout` and `stderr` (a child killed by signal N reports `128 + N`; output is decoded as lossy UTF-8), `process_pid()` and `process_signal_poll()`. Starting a program is denied by default: the command name must be listed exactly in `guion.toml` `[process].commands` or passed with `guion run --allow-command NAME`; a grant for one command never covers another. The command starts without a shell from an argument list, with a cleared environment holding only `PATH` and the variables granted in `[environment]`, the project file root as working directory, and its own process group. `[process].timeout_ms` (default 30,000) and `[process].max_output_bytes` (default 16 MiB per stream) bound each call; exceeding either kills the whole group and returns `E_PROCESS_TIMEOUT` or `E_PROCESS_OUTPUT_LIMIT`. Other error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT` and `E_PROCESS_SPAWN`. `process_signal_poll()` installs `INT`, `TERM` and `HUP` handlers on first use, so those signals no longer end the program by themselves; it returns and clears the pending signal name, or `""`. Calls are synchronous: there is no way to leave a child running after the call returns. Static inspection reports `process.spawn` and `process.signals`, with a `process_grant` section.
+- Sockets (artifact format 57): `std:net` provides blocking TCP and UDP over integer-handle records `TcpConn`, `TcpListener`, `UdpSock`: `tcp_connect`, `tcp_listen`, `tcp_listener_port`, `tcp_accept`, `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close`, `tcp_listener_close`, `udp_bind`, `udp_port`, `udp_send_to`, `udp_recv_from` (a `Datagram` with `data`, `host`, `port`) and `udp_close`. Everything is denied by default. Connecting and sending datagrams need an exact `host:port` (or `host:*`) entry in `guion.toml` `[sockets].connect` or `guion run --allow-connect`; listening and binding need one in `[sockets].bind` or `--allow-bind` (`127.0.0.1:0` allows an ephemeral port on loopback). The host name is matched as written, before resolution, so grant IP literals when the name could resolve elsewhere. Every connect, accept, receive and datagram receive takes a timeout of 1 ms up to `[sockets].timeout_ms` (default 30,000); reads are capped at `[sockets].max_read_bytes` (default 1 MiB) and at most 64 sockets may be open. A zero-length receive on TCP means the peer closed. Error codes: `E_NET_DENIED`, `E_NET_ARGUMENT`, `E_NET_RESOLVE`, `E_NET_REFUSED`, `E_NET_TIMEOUT`, `E_NET_IO`, `E_NET_HANDLE`, `E_NET_LIMIT`. Handles are shared between `parallel_map` workers: a handle opened by the program or by one worker can be used by another, several workers can wait in `tcp_accept` on one listener, and calls on the same socket from two workers take turns; sockets still open when the program ends are closed by it, not by a worker's end. Calls block the calling task until they finish or time out; a cancelled sibling task is noticed at the next call boundary, so cancellation latency is bounded by the timeout. Static inspection reports `network.socket` with a `socket_grant` section. TLS is not part of this module.
+- TLS (artifact format 58): `std:net` adds `tls_connect(host, port, timeout_ms, extra_ca_pem)` and `tls_accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`, which return a `TcpConn` that `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close` and the port functions accept. TLS 1.2 and 1.3 only, through rustls with the ring provider. The client always verifies the server certificate and name against the bundled Mozilla roots plus any PEM certificates passed as `extra_ca_pem`; there is no option to skip verification. A rejected certificate returns `E_TLS_CERTIFICATE`, other handshake failures `E_TLS_HANDSHAKE`, bad PEM or a key that does not match `E_TLS_ARGUMENT`; timeouts and grants behave as for TCP (`E_NET_TIMEOUT`, `E_NET_DENIED`). A peer that closes without a TLS close notification surfaces as `E_NET_IO` on receive. Client certificates, session resumption control and ALPN are not offered. Certificates and keys are PEM text, normally read with `read_text` under the file grant.
+- HTTP server and WebSockets (artifact format 59): `std:crypto` adds `crypto_sha1` (SHA-1, kept for the WebSocket handshake and legacy interchange, not for new security uses) and `bytes_xor_key(data, key)`. `std:http_server` is written in Guion over `std:net`: `http_server_listen`, `http_server_accept`, `http_server_read_request(conn, timeout_ms, max_body_bytes)` returning an `HttpServerRequest` (`conn`, `method`, `target`, `path`, `query`, lowercase-named `headers`, `body`), `http_server_header`, `http_server_respond`, `http_server_respond_text` and `http_server_send`. `http_server_read_request` reads the first request on a connection and `http_server_respond` answers it and closes (`Connection: close`). For keep-alive, answer with `http_server_reply` or `http_server_reply_text`, which keep the connection open when the client asked for that (HTTP/1.1 does by default; `Connection: close` or HTTP/1.0 without `keep-alive` closes), and read the next request with `http_server_read_next(previous, timeout_ms, max_body_bytes)` or `http_server_read_request_from(conn, pending, ...)`; bytes that arrived after a request (pipelined requests) are carried in its `pending` field. `Transfer-Encoding: chunked` request bodies are decoded (chunk extensions accepted, trailers read and ignored, the size limit applied to the decoded body); a request that names both `Content-Length` and chunked framing, or any other transfer encoding, is refused (`400`, `501`). A client that closes between requests returns `E_HTTP_CLOSED`. The request head is limited to 16,384 bytes and 100 headers, and the body to the caller's limit; a protocol fault sends 400, 413, 431 or 501 and returns `E_HTTP_REQUEST_INVALID`, `E_HTTP_BODY_TOO_LARGE`, `E_HTTP_HEADER_TOO_LARGE` or `E_HTTP_UNSUPPORTED`. A connection from `tls_accept` works the same way, which gives HTTPS. `std:websocket` implements RFC 6455: `ws_server_accept(request)`, `ws_client_handshake(conn, host, path, timeout_ms, seed)`, `ws_receive(ws, timeout_ms, max_message_bytes)` (reassembles fragments, answers pings, echoes close, validates UTF-8 text, enforces masking by role), `ws_send_text`, `ws_send_binary`, `ws_send_ping`, `ws_send_close` and `ws_close`, with errors `E_WS_HANDSHAKE`, `E_WS_PROTOCOL`, `E_WS_TOO_LARGE` and `E_WS_CLOSED`. Client masks are derived from the connection seed and the payload, so pass an unpredictable seed. Socket handles are shared between `parallel_map` workers, so several workers can accept on one listener and serve connections at the same time; the HTTP server has no HTTP/2 and no `Expect: 100-continue` handling.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -45,6 +53,8 @@ assert(Bool) -> Unit
 bytes_from_ints(List[Int]) -> Bytes
 bytes_from_text(Text) -> Bytes
 bytes_join(List[Bytes]) -> Bytes
+bytes_slice(Bytes, Int, Int) -> Bytes
+bytes_to_ints(Bytes) -> List[Int]
 cli_parse(List[Text], List[Record[CliOption]]) -> Result[Record[CliArgs], FileError]
 csv_encode(List[List[Text]]) -> Result[Text, FileError]
 csv_next(FileReader) -> Result[Option[Record[CsvRow]], FileError]
@@ -60,6 +70,8 @@ file_error_message(FileError) -> Text
 file_next_line(FileReader) -> Result[Option[Record[SourceLine]], FileError]
 file_open_lines(Text) -> Result[FileReader, FileError]
 float64_bits(Float64) -> Int
+float_to_int(Float64) -> Int
+float_to_text(Float64) -> Text
 fs_walk(Text) -> Result[List[Record[DirectoryEntry]], FileError]
 http_error_code(HttpError) -> Text
 http_error_message(HttpError) -> Text
@@ -69,6 +81,8 @@ http_request_bytes(Text, Text, Map[Text, Text], Bytes, Int) -> Result[Record[Htt
 http_request_with_timeout(Text, Text, Map[Text, Text], Text, Int) -> Result[Json, HttpError]
 http_response_json_bytes(Record[HttpResponse]) -> Result[Json, Record[StdError]]
 http_response_text(Record[HttpResponse]) -> Result[Text, HttpError]
+int_to_float(Int) -> Float64
+int_to_text(Int) -> Text
 is_ok(Result[$T, $E]) -> Bool
 is_some(Option[$T]) -> Bool
 json_array() -> Json
@@ -117,9 +131,72 @@ map_get(Map[Text, $T], Text) -> Option[$T]
 map_has(Map[$T], Text) -> Bool
 map_set(Map[$T], Text, $T) -> Map[$T]
 merge_sorted_by_int_key(List[List[$T]], NamedIntKey[$T]) -> List[$T]
+native_base64_decode(Text) -> Option[Bytes]
+native_base64_encode(Bytes) -> Text
+native_base64url_decode(Text) -> Option[Bytes]
+native_base64url_encode(Bytes) -> Text
+native_bytes_xor(Bytes, Bytes) -> Bytes
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
+native_fs_copy(Text, Text) -> Result[Int, FileError]
+native_fs_exists(Text) -> Result[Bool, FileError]
+native_fs_kind(Text) -> Result[Text, FileError]
+native_fs_list_dir(Text) -> Result[List[Text], FileError]
+native_fs_make_dir(Text) -> Result[Unit, FileError]
+native_fs_modified_ms(Text) -> Result[Int, FileError]
+native_fs_remove(Text) -> Result[Unit, FileError]
+native_fs_remove_all(Text) -> Result[Unit, FileError]
+native_fs_rename(Text, Text) -> Result[Unit, FileError]
+native_fs_size(Text) -> Result[Int, FileError]
+native_fs_temp_dir(Text) -> Result[Text, FileError]
+native_fs_temp_file(Text) -> Result[Text, FileError]
+native_hex_decode(Text) -> Option[Bytes]
+native_hex_encode(Bytes) -> Text
+native_math_abs(Float64) -> Float64
+native_math_acos(Float64) -> Float64
+native_math_asin(Float64) -> Float64
+native_math_atan(Float64) -> Float64
+native_math_atan2(Float64, Float64) -> Float64
+native_math_ceil(Float64) -> Float64
+native_math_cos(Float64) -> Float64
+native_math_cosh(Float64) -> Float64
+native_math_exp(Float64) -> Float64
+native_math_floor(Float64) -> Float64
+native_math_hypot(Float64, Float64) -> Float64
+native_math_ln(Float64) -> Float64
+native_math_log10(Float64) -> Float64
+native_math_log2(Float64) -> Float64
+native_math_pow(Float64, Float64) -> Float64
+native_math_round(Float64) -> Float64
+native_math_sin(Float64) -> Float64
+native_math_sinh(Float64) -> Float64
+native_math_tan(Float64) -> Float64
+native_math_tanh(Float64) -> Float64
+native_net_close(Int) -> Result[Unit, List[Text]]
+native_net_local_port(Int) -> Result[Int, List[Text]]
+native_net_recv(Int, Int, Int) -> Result[Bytes, List[Text]]
+native_net_send(Int, Bytes) -> Result[Int, List[Text]]
+native_net_tcp_accept(Int, Int) -> Result[Int, List[Text]]
+native_net_tcp_connect(Text, Int, Int) -> Result[Int, List[Text]]
+native_net_tcp_listen(Text, Int) -> Result[Int, List[Text]]
+native_net_udp_bind(Text, Int) -> Result[Int, List[Text]]
+native_net_udp_recv_from(Int, Int, Int) -> Result[List[Bytes], List[Text]]
+native_net_udp_send_to(Int, Text, Int, Bytes) -> Result[Int, List[Text]]
+native_percent_decode(Text) -> Option[Text]
+native_percent_encode(Text) -> Text
+native_process_pid() -> Int
+native_process_run(Text, List[Text], Text) -> Result[List[Text], List[Text]]
+native_process_signal_poll() -> Text
+native_random_mix(Int) -> Int
+native_regex_escape(Text) -> Text
+native_regex_find(Text, Text) -> Result[Option[List[Text]], Text]
+native_regex_find_all(Text, Text) -> Result[List[Text], Text]
+native_regex_is_match(Text, Text) -> Result[Bool, Text]
+native_regex_replace(Text, Text, Text) -> Result[Text, Text]
+native_regex_replace_first(Text, Text, Text) -> Result[Text, Text]
+native_regex_split(Text, Text) -> Result[List[Text], Text]
+native_sha1(Bytes) -> Bytes
 native_sqlite_begin(Db) -> Result[Transaction, Record[StdError]]
 native_sqlite_close(Db) -> Result[Unit, Record[StdError]]
 native_sqlite_commit(Transaction) -> Result[Unit, Record[StdError]]
@@ -130,6 +207,8 @@ native_sqlite_rollback(Transaction) -> Result[Unit, Record[StdError]]
 native_text_casefold(Text) -> Text
 native_text_collapse_whitespace(Text) -> Text
 native_text_normalize(Text, Text) -> Result[Text, Record[StdError]]
+native_tls_accept(Int, Int, Text, Text) -> Result[Int, List[Text]]
+native_tls_connect(Text, Int, Int, Text) -> Result[Int, List[Text]]
 native_toml_get_bool(TomlDocument, List[Text]) -> Result[Bool, Record[StdError]]
 native_toml_get_int(TomlDocument, List[Text]) -> Result[Int, Record[StdError]]
 native_toml_get_text(TomlDocument, List[Text]) -> Result[Text, Record[StdError]]
@@ -153,6 +232,8 @@ task_index(TaskError) -> Int
 task_message(TaskError) -> Text
 text_chars(Text) -> List[Text]
 text_find(Text, Text, Int) -> Int
+text_from_bytes(Bytes) -> Option[Text]
+text_from_bytes_lossy(Bytes) -> Text
 text_join_native(List[Text], Text) -> Text
 text_parse_float(Text) -> Result[Float64, FileError]
 text_parse_int(Text) -> Result[Int, FileError]
@@ -187,14 +268,48 @@ std:collections — pub fn map_get_text(values: Map[Text, Text], key: Text) -> O
 std:collections — pub fn map_get_int(values: Map[Text, Int], key: Text) -> Option[Int]
 std:crypto — pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes
 std:crypto — pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expected: Bytes) -> Bool
+std:crypto — pub fn crypto_sha1(data: Bytes) -> Bytes
+std:crypto — pub fn bytes_xor_key(data: Bytes, key: Bytes) -> Bytes
 std:csv — pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]
 std:csv — pub fn csv_next_row(reader: FileReader) -> Result[Option[CsvRow], FileError]
 std:csv — pub fn csv_encode_rows(rows: List[List[Text]]) -> Result[Text, FileError]
+std:encoding — pub fn base64_encode(data: Bytes) -> Text
+std:encoding — pub fn base64_decode(text: Text) -> Result[Bytes, StdError]
+std:encoding — pub fn base64url_encode(data: Bytes) -> Text
+std:encoding — pub fn base64url_decode(text: Text) -> Result[Bytes, StdError]
+std:encoding — pub fn hex_encode(data: Bytes) -> Text
+std:encoding — pub fn hex_decode(text: Text) -> Result[Bytes, StdError]
+std:encoding — pub fn encoding_utf8_decode(data: Bytes) -> Result[Text, StdError]
+std:encoding — pub fn encoding_utf8_decode_lossy(data: Bytes) -> Text
+std:encoding — pub fn encoding_utf8_encode(text: Text) -> Bytes
 std:fs — pub fn fs_read_text(path: Text) -> Result[Text, StdError]
 std:fs — pub fn fs_open_lines(path: Text) -> Result[FileReader, FileError]
 std:fs — pub fn fs_next_line(reader: FileReader) -> Result[Option[SourceLine], FileError]
 std:fs — pub fn fs_close_reader(reader: FileReader) -> Result[Unit, FileError]
+std:fs — pub fn fs_exists(path: Text) -> Result[Bool, FileError]
+std:fs — pub fn fs_kind(path: Text) -> Result[Text, FileError]
+std:fs — pub fn fs_size(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_modified_ms(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_list_dir(path: Text) -> Result[List[Text], FileError]
+std:fs — pub fn fs_make_dir(path: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_remove(path: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_remove_all(path: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]
+std:fs — pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]
+std:fs — pub fn fs_temp_file(prefix: Text) -> Result[Text, FileError]
 std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
+std:http_server — pub fn http_server_listen(host: Text, port: Int) -> Result[TcpListener, StdError]
+std:http_server — pub fn http_server_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]
+std:http_server — pub fn http_server_header(request: HttpServerRequest, name: Text) -> Option[Text]
+std:http_server — pub fn http_server_send(conn: TcpConn, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]
+std:http_server — pub fn http_server_respond(request: HttpServerRequest, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]
+std:http_server — pub fn http_server_respond_text(request: HttpServerRequest, status: Int, text: Text) -> Result[Int, StdError]
+std:http_server — pub fn http_server_reply(request: HttpServerRequest, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]
+std:http_server — pub fn http_server_reply_text(request: HttpServerRequest, status: Int, text: Text) -> Result[Int, StdError]
+std:http_server — pub fn http_server_read_request_from(conn: TcpConn, pending: Bytes, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]
+std:http_server — pub fn http_server_read_request(conn: TcpConn, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]
+std:http_server — pub fn http_server_read_next(previous: HttpServerRequest, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
 std:json — pub fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]
 std:json — pub fn json_get_int_safe(value: Json, key: Text) -> Result[Int, JsonError]
@@ -207,6 +322,74 @@ std:json — pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]
 std:jsonl — pub fn jsonl_open(path: Text) -> Result[FileReader, FileError]
 std:jsonl — pub fn jsonl_next(reader: FileReader) -> Result[Option[JsonlLine], FileError]
 std:jsonl — pub fn jsonl_close(reader: FileReader) -> Result[Unit, FileError]
+std:math — pub fn math_pi() -> Float64
+std:math — pub fn math_tau() -> Float64
+std:math — pub fn math_e() -> Float64
+std:math — pub fn math_sin(value: Float64) -> Float64
+std:math — pub fn math_cos(value: Float64) -> Float64
+std:math — pub fn math_tan(value: Float64) -> Float64
+std:math — pub fn math_asin(value: Float64) -> Float64
+std:math — pub fn math_acos(value: Float64) -> Float64
+std:math — pub fn math_atan(value: Float64) -> Float64
+std:math — pub fn math_atan2(y: Float64, x: Float64) -> Float64
+std:math — pub fn math_sinh(value: Float64) -> Float64
+std:math — pub fn math_cosh(value: Float64) -> Float64
+std:math — pub fn math_tanh(value: Float64) -> Float64
+std:math — pub fn math_exp(value: Float64) -> Float64
+std:math — pub fn math_ln(value: Float64) -> Float64
+std:math — pub fn math_log10(value: Float64) -> Float64
+std:math — pub fn math_log2(value: Float64) -> Float64
+std:math — pub fn math_log(value: Float64, base: Float64) -> Float64
+std:math — pub fn math_pow(base: Float64, exponent: Float64) -> Float64
+std:math — pub fn math_hypot(x: Float64, y: Float64) -> Float64
+std:math — pub fn math_abs(value: Float64) -> Float64
+std:math — pub fn math_floor(value: Float64) -> Float64
+std:math — pub fn math_ceil(value: Float64) -> Float64
+std:math — pub fn math_round(value: Float64) -> Float64
+std:math — pub fn math_floor_int(value: Float64) -> Int
+std:math — pub fn math_ceil_int(value: Float64) -> Int
+std:math — pub fn math_round_int(value: Float64) -> Int
+std:math — pub fn math_radians(degrees: Float64) -> Float64
+std:math — pub fn math_degrees(radians: Float64) -> Float64
+std:net — pub fn tcp_connect(host: Text, port: Int, timeout_ms: Int) -> Result[TcpConn, StdError]
+std:net — pub fn tcp_listen(host: Text, port: Int) -> Result[TcpListener, StdError]
+std:net — pub fn tcp_listener_port(listener: TcpListener) -> Result[Int, StdError]
+std:net — pub fn tcp_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]
+std:net — pub fn tcp_send(conn: TcpConn, data: Bytes) -> Result[Int, StdError]
+std:net — pub fn tcp_send_text(conn: TcpConn, text: Text) -> Result[Int, StdError]
+std:net — pub fn tcp_recv(conn: TcpConn, max_bytes: Int, timeout_ms: Int) -> Result[Bytes, StdError]
+std:net — pub fn tcp_close(conn: TcpConn) -> Result[Unit, StdError]
+std:net — pub fn tcp_listener_close(listener: TcpListener) -> Result[Unit, StdError]
+std:net — pub fn udp_bind(host: Text, port: Int) -> Result[UdpSock, StdError]
+std:net — pub fn udp_port(socket: UdpSock) -> Result[Int, StdError]
+std:net — pub fn udp_send_to(socket: UdpSock, host: Text, port: Int, data: Bytes) -> Result[Int, StdError]
+std:net — pub fn udp_recv_from(socket: UdpSock, max_bytes: Int, timeout_ms: Int) -> Result[Datagram, StdError]
+std:net — pub fn udp_close(socket: UdpSock) -> Result[Unit, StdError]
+std:net — pub fn tls_connect(host: Text, port: Int, timeout_ms: Int, extra_ca_pem: Text) -> Result[TcpConn, StdError]
+std:net — pub fn tls_accept(listener: TcpListener, timeout_ms: Int, certificate_chain_pem: Text, private_key_pem: Text) -> Result[TcpConn, StdError]
+std:path — pub fn path_is_absolute(path: Text) -> Bool
+std:path — pub fn path_normalize(path: Text) -> Text
+std:path — pub fn path_join(base: Text, child: Text) -> Text
+std:path — pub fn path_basename(path: Text) -> Text
+std:path — pub fn path_dirname(path: Text) -> Text
+std:path — pub fn path_extension(path: Text) -> Text
+std:path — pub fn path_stem(path: Text) -> Text
+std:path — pub fn path_with_extension(path: Text, extension: Text) -> Text
+std:path — pub fn path_components(path: Text) -> List[Text]
+std:process — pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]
+std:process — pub fn process_pid() -> Int
+std:process — pub fn process_signal_poll() -> Text
+std:random — pub fn random_new(seed: Int) -> Rng
+std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
+std:random — pub fn random_next_float(rng: Rng) -> RandomFloat
+std:random — pub fn random_next_range(rng: Rng, low: Int, high: Int) -> RandomInt
+std:regex — pub fn regex_is_match(pattern: Text, text: Text) -> Result[Bool, StdError]
+std:regex — pub fn regex_find(pattern: Text, text: Text) -> Result[Option[List[Text]], StdError]
+std:regex — pub fn regex_find_all(pattern: Text, text: Text) -> Result[List[Text], StdError]
+std:regex — pub fn regex_replace(pattern: Text, text: Text, replacement: Text) -> Result[Text, StdError]
+std:regex — pub fn regex_replace_first(pattern: Text, text: Text, replacement: Text) -> Result[Text, StdError]
+std:regex — pub fn regex_split(pattern: Text, text: Text) -> Result[List[Text], StdError]
+std:regex — pub fn regex_escape(text: Text) -> Text
 std:semver — pub fn parse_version(value: Text) -> Result[SemVer, FileError]
 std:semver — pub fn compare_versions(left: SemVer, right: SemVer) -> Int
 std:sqlite — pub fn sqlite_open(path: Text) -> Result[Db, StdError]
@@ -252,6 +435,21 @@ std:types — pub fn sql_blob(value: Bytes) -> SqlValue
 std:unicode — pub fn unicode_casefold(value: Text) -> Text
 std:unicode — pub fn unicode_collapse_whitespace(value: Text) -> Text
 std:unicode — pub fn unicode_normalize(value: Text, form: Text) -> Result[Text, StdError]
+std:url — pub fn url_encode_component(value: Text) -> Text
+std:url — pub fn url_decode_component(value: Text) -> Result[Text, StdError]
+std:url — pub fn url_parse(input: Text) -> Result[Url, StdError]
+std:url — pub fn url_to_text(url: Url) -> Text
+std:url — pub fn url_query_parse(query: Text) -> Result[List[QueryPair], StdError]
+std:url — pub fn url_query_build(pairs: List[QueryPair]) -> Text
+std:websocket — pub fn ws_accept_key(key: Text) -> Text
+std:websocket — pub fn ws_server_accept(request: HttpServerRequest) -> Result[WsConn, StdError]
+std:websocket — pub fn ws_client_handshake(conn: TcpConn, host: Text, path: Text, timeout_ms: Int, seed: Int) -> Result[WsConn, StdError]
+std:websocket — pub fn ws_send_text(ws: WsConn, text: Text) -> Result[Int, StdError]
+std:websocket — pub fn ws_send_binary(ws: WsConn, data: Bytes) -> Result[Int, StdError]
+std:websocket — pub fn ws_send_ping(ws: WsConn, data: Bytes) -> Result[Int, StdError]
+std:websocket — pub fn ws_send_close(ws: WsConn, code: Int) -> Result[Int, StdError]
+std:websocket — pub fn ws_close(ws: WsConn) -> Result[Unit, StdError]
+std:websocket — pub fn ws_receive(ws: WsConn, timeout_ms: Int, max_message_bytes: Int) -> Result[WsMessage, StdError]
 ```
 
 ## Effects and grants
@@ -388,6 +586,7 @@ E_ARTIFACT_UTF8
 E_ARTIFACT_VALUE
 E_ARTIFACT_VERSION
 E_ASSIGN_IMMUTABLE
+E_BASE64_INVALID
 E_BLOCK_EMPTY
 E_BLOCK_UNCLOSED
 E_BRIDGE_ARGS
@@ -462,6 +661,7 @@ E_DIR
 E_DIRECTORY
 E_DIRECT_OPERATION_NAMES
 E_DISABLE_FIND_PACKAGE_ICU
+E_ENTRIES
 E_ENTRY_MISSING
 E_ENTRY_SIGNATURE
 E_EXCL
@@ -478,7 +678,13 @@ E_FS_WALK
 E_FS_WALK_LIMIT
 E_FS_WALK_ROOT
 E_FS_WALK_UTF8
+E_HEX_INVALID
 E_HISTORY
+E_HTTP_BODY_TOO_LARGE
+E_HTTP_CLOSED
+E_HTTP_HEADER_TOO_LARGE
+E_HTTP_REQUEST_INVALID
+E_HTTP_UNSUPPORTED
 E_ICAL_DATE
 E_ICAL_EVENT
 E_ICAL_FLOATING
@@ -510,6 +716,7 @@ E_JSON_INDEX
 E_JSON_MISSING
 E_JSON_SHAPE
 E_JSON_TYPE
+E_LIMIT
 E_LIST_BOOL_KIND
 E_LIST_FLOAT_KIND
 E_LIST_HANDLE_KIND
@@ -536,6 +743,14 @@ E_MS
 E_NAME_AMBIGUOUS
 E_NAME_DUPLICATE
 E_NAME_UNKNOWN
+E_NET_ARGUMENT
+E_NET_DENIED
+E_NET_HANDLE
+E_NET_IO
+E_NET_LIMIT
+E_NET_REFUSED
+E_NET_RESOLVE
+E_NET_TIMEOUT
 E_NODES
 E_NOREPLACE
 E_NORMALIZATION_FORM
@@ -556,6 +771,13 @@ E_PACKAGE_VERIFY_FAILED
 E_PARALLEL_RESOURCE
 E_PARALLEL_WORKER
 E_PRINT_VALUE
+E_PROCESS_ARGUMENT
+E_PROCESS_DENIED
+E_PROCESS_OUTPUT_LIMIT
+E_PROCESS_RESULT
+E_PROCESS_SPAWN
+E_PROCESS_TIMEOUT
+E_PROCESS_WAIT
 E_PROFILE
 E_PROFILE_OUT
 E_PROJECT_ENTRY
@@ -577,6 +799,7 @@ E_RECORD_EMPTY
 E_RECORD_FIELD_DUPLICATE
 E_RECORD_NAME
 E_RECORD_UNCLOSED
+E_REGEX_INVALID
 E_RESOURCE_CLOSED
 E_RESOURCE_LIMIT
 E_RESOURCE_OWNER
@@ -647,6 +870,9 @@ E_TIMEZONE_UNKNOWN
 E_TIME_INPUT
 E_TIME_RANGE
 E_TIMINGS
+E_TLS_ARGUMENT
+E_TLS_CERTIFICATE
+E_TLS_HANDSHAKE
 E_TOML_EDIT
 E_TOML_INTEGER_RANGE
 E_TOML_KEY
@@ -668,10 +894,17 @@ E_TYPE_MAP_VALUE
 E_TYPE_OPERATOR
 E_TYPE_RETURN
 E_TYPE_UNKNOWN
+E_URL_INVALID
+E_UTF8_INVALID
 E_UV_NOT_FOUND
 E_UV_UNAVAILABLE
 E_UV_VERSION_MISMATCH
 E_VALUE_BYTES
+E_WS_CLOSED
+E_WS_HANDSHAKE
+E_WS_PROTOCOL
+E_WS_TOO_LARGE
+E_X
 R_ALLOCATION_BYTES
 R_ALLOCATION_LIMIT
 R_ARGUMENT_INDEX
@@ -760,6 +993,7 @@ R_RESOURCE_STALE
 R_RESULT_ERROR
 R_RESULT_UNWRAP
 R_RETURN_INVALID
+R_ROOTS
 R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
@@ -1006,4 +1240,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:cbf6b97dbc6b7e7405f3ba1ae1d5bd38aeb93ae54df7c5accee1b60e86bdb2b2. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:d7b7be82510103e3621c4cec0a1102704d8190ed4eea6f7b44e1572155a0e704. Validated by `cargo xtask agent-reference --check`. -->
