@@ -199,3 +199,51 @@ fn an_update_that_widens_capabilities_needs_explicit_approval() {
     assert!(widened.contains("git"), "{widened}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn built_artifacts_record_the_packages_they_link() {
+    let dir = scratch("lib-identity");
+    let library = dir.join("fetcher");
+    let project = dir.join("app");
+    write_library(
+        &library,
+        "",
+        "pub fn double(value: Int) -> Int:\n    return value * 2\n",
+    );
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/main.gu"),
+        "import \"pkg:fetcher/src/lib.gu\"\n\nfn main() -> Int:\n    return double(21)\n",
+    )
+    .unwrap();
+    let added = guion(
+        &project,
+        &["add", "fetcher", "--path", library.to_str().unwrap()],
+    );
+    assert!(added.status.success(), "{}", text(&added));
+    let built = guion(&project, &["build", "src/main.gu", "-o", "app.gub"]);
+    assert!(built.status.success(), "{}", text(&built));
+
+    let artifact =
+        guion_model::Artifact::from_bytes(&std::fs::read(project.join("app.gub")).unwrap())
+            .unwrap();
+    assert_eq!(
+        artifact.format_version,
+        guion_model::Artifact::CURRENT_VERSION
+    );
+    let packages = &artifact.build_metadata.expect("metadata").packages;
+    assert_eq!(packages.len(), 1, "{packages:?}");
+    assert_eq!(packages[0].name, "fetcher");
+    assert_eq!(packages[0].version, "1.0.0");
+    let lock = std::fs::read_to_string(project.join("guion.lock")).unwrap();
+    assert!(
+        lock.contains(&packages[0].sha256),
+        "the artifact hash must be the locked hash"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -740,7 +740,9 @@ E_MODULE_DEPTH
 E_MODULE_EMPTY
 E_MODULE_SIZE
 E_MS
+E_NAMES
 E_NAME_AMBIGUOUS
+E_NAME_BYTES
 E_NAME_DUPLICATE
 E_NAME_UNKNOWN
 E_NET_ARGUMENT
@@ -767,6 +769,7 @@ E_PACKAGE_LOCK
 E_PACKAGE_NOT_LOCKED
 E_PACKAGE_OUTPUT_EXISTS
 E_PACKAGE_PROJECT
+E_PACKAGE_SCOPE_RESERVED
 E_PACKAGE_VERIFY_FAILED
 E_PARALLEL_RESOURCE
 E_PARALLEL_WORKER
@@ -1240,4 +1243,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:d7b7be82510103e3621c4cec0a1102704d8190ed4eea6f7b44e1572155a0e704. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:c0115d7cf6049ec49b1096d289b6eb8ebb8b7a1456e544014a4b81551129567c. Validated by `cargo xtask agent-reference --check`. -->

@@ -2307,6 +2307,7 @@ fn build_metadata(
             max_parallelism: policy.max_parallelism,
             max_file_bytes: policy.max_file_bytes,
         },
+        packages: native_packages::locked_package_identities(project_root, &artifact.sources)?,
     })
 }
 

@@ -138,6 +138,43 @@ pub fn check_library_surface(root: &Path) -> Result<Option<String>, String> {
     )))
 }
 
+/// Name, version and content hash of every locked package that `sources` (an artifact's source
+/// identities) imports, sorted by name. A project without a lock links no packages.
+pub fn locked_package_identities(
+    project: &Path,
+    sources: &[String],
+) -> Result<Vec<guion_model::PackageIdentity>, String> {
+    let used: std::collections::BTreeSet<&str> = sources
+        .iter()
+        .filter_map(|identity| identity.strip_prefix("pkg:"))
+        .filter_map(|rest| rest.split_once('/').map(|(package, _)| package))
+        .collect();
+    if used.is_empty() {
+        return Ok(Vec::new());
+    }
+    let lock = read_lock(project)?;
+    used.into_iter()
+        .map(|name| {
+            let package = lock
+                .native
+                .get(name)
+                .ok_or_else(|| format!("package `{name}` is imported but not in the lock"))?;
+            let field = |key: &str| {
+                package
+                    .get(key)
+                    .and_then(toml::Value::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("locked package `{name}` has no {key}"))
+            };
+            Ok(guion_model::PackageIdentity {
+                name: name.to_owned(),
+                version: field("version")?,
+                sha256: field("sha256")?,
+            })
+        })
+        .collect()
+}
+
 /// A library's exported modules and declared capabilities, or `None` for an ordinary project.
 pub fn library_declaration(
     root: &Path,

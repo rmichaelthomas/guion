@@ -1,12 +1,12 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:0f52a678f4817b4551e31119f36756b3f84a7e389f626919b0c549b318d09148",
-    "compiler_seed": "sha256:a90b2543760ae2df9c6b2e8f274282d52ba45f736bb02aa3faf8fdb9166c58e6",
-    "compiler_seed_manifest": "sha256:3d04929955378f0842767e395f5ddfb904c1b65db9eca11084348b272cc2ce1b",
+    "artifact_schema": "sha256:7e64ab2c9a6df62e426380681117f12e6aaa87d0dee9b653785812d5e3e06f23",
+    "compiler_seed": "sha256:b37f8c20769419a948cb9bb1980d687d5cee002a37ca46abdad0ab51074a7b70",
+    "compiler_seed_manifest": "sha256:2de95bcf2188585bedd359e33b7cd8ac6d37e9da71929f1d6466b03ace037d54",
     "runtime": "sha256:319b198123ae7a7fd462567b7bcdfdbbdfe7c38871c074007770aab720a0a421",
     "stdlib": "sha256:dc203a1e694cf7ef4d05d413f2207ab1b3ad6b4f638998d7064821bd02360ac7"
   },
-  "changed_path_count": 8,
+  "changed_path_count": 10,
   "checks": [
     {
       "command": [
@@ -16,7 +16,7 @@
       ],
       "exit_status": 0,
       "id": "artifact-format-test-audit",
-      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (59)",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (60)",
       "status": "passed"
     },
     {
@@ -31,10 +31,10 @@
         "cli",
         "guion_source_compiler_compiles_itself_and_real_programs_with_parity"
       ],
-      "exit_status": 0,
+      "exit_status": 101,
       "id": "self-host-compiler-parity",
-      "output": "\nrunning 1 test\ntest guion_source_compiler_compiles_itself_and_real_programs_with_parity has been running for over 60 seconds\ntest guion_source_compiler_compiles_itself_and_real_programs_with_parity ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 255.87s\n\n\n   Compiling ring v0.17.14\n   Compiling guion-compiler v0.1.0 (/Users/rmichaelthomas/guion/crates/compiler)\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n   Compiling guion-bootstrap v0.1.0 (/Users/rmichaelthomas/guion/crates/bootstrap)\n   Compiling rustls v0.23.43\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling guion-runtime v0.1.0 (/Users/rmichaelthomas/guion/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 12.14s\n     Running tests/cli.rs (target/debug/deps/cli-2a1e30ad1124c67c)\n",
-      "status": "passed"
+      "output": "   Compiling ring v0.17.14\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\nerror: failed to run custom build command for `guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)`\n\nCaused by:\n  process didn't exit successfully: `/Users/rmichaelthomas/guion/target/debug/build/guion-cli-8e37bb5ed4cfab26/build-script-build` (exit status: 101)\n  --- stdout\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/compiler/src\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/model/src\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../Cargo.lock\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/compiler/Cargo.toml\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/compiler/src/builtin_catalog.rs\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/compiler/src/lib.rs\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/model/Cargo.toml\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/model/src/lib.rs\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../crates/model/src/shared.rs\n  cargo:rustc-env=GUION_COMPILER_BUILD_ID=0db209c4a038c02e4c86ae076eab74eba3d1acad8de0dd376786db23bdf63694\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/compiler.gub\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/compiler-seed.json\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/artifact-format.md\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/compiler.gu\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/lexer.gu\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/parser.gu\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/builtin_catalog.gu\n  cargo:rerun-if-changed=/Users/rmichaelthomas/guion/crates/cli/../../language/self_host/artifact.gu\n\n  --- stderr\n\n  thread 'main' (7985965) panicked at crates/cli/build.rs:83:9:\n  embedded compiler seed identity mismatch; regenerate it with `cargo run --locked --offline -p guion-bootstrap --bin guion-stage0 -- seed .`\n  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nwarning: build failed, waiting for other jobs to finish...\n",
+      "status": "failed"
     },
     {
       "command": [
@@ -52,7 +52,7 @@
       ],
       "exit_status": 0,
       "id": "compiler-seed-regeneration",
-      "output": "wrote /Users/rmichaelthomas/guion/language/self_host/compiler.gub (1092406 bytes); source sha256 4365b121bff877cdaf0efb8cefe5199c69aab6c5589003b8245ac3b60b85a5e8\n\n   Compiling guion-compiler v0.1.0 (/Users/rmichaelthomas/guion/crates/compiler)\n   Compiling guion-bootstrap v0.1.0 (/Users/rmichaelthomas/guion/crates/bootstrap)\n    Finished `dev` profile [optimized + debuginfo] target(s) in 3.69s\n     Running `target/debug/guion-stage0 seed .`\n",
+      "output": "wrote /Users/rmichaelthomas/guion/language/self_host/compiler.gub (1092410 bytes); source sha256 16da715b7cd97558d4535dbf506806f2f69b7021f779efdf91c0116cb0f396a6\n\n   Compiling guion-compiler v0.1.0 (/Users/rmichaelthomas/guion/crates/compiler)\n   Compiling guion-bootstrap v0.1.0 (/Users/rmichaelthomas/guion/crates/bootstrap)\n    Finished `dev` profile [optimized + debuginfo] target(s) in 3.12s\n     Running `target/debug/guion-stage0 seed .`\n",
       "status": "passed"
     },
     {
@@ -68,7 +68,7 @@
       ],
       "exit_status": 0,
       "id": "compiler-stage-equality",
-      "output": "\nrunning 1 test\ntest compiler_stage_equality has been running for over 60 seconds\ntest compiler_stage_equality ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 192.17s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.78s\n     Running tests/bootstrap.rs (target/debug/deps/bootstrap-0fc86632b748d674)\n",
+      "output": "\nrunning 1 test\ntest compiler_stage_equality has been running for over 60 seconds\ntest compiler_stage_equality ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 196.16s\n\n\n   Compiling ring v0.17.14\n   Compiling rustls v0.23.43\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling guion-runtime v0.1.0 (/Users/rmichaelthomas/guion/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 7.75s\n     Running tests/bootstrap.rs (target/debug/deps/bootstrap-0fc86632b748d674)\n",
       "status": "passed"
     },
     {
@@ -84,7 +84,7 @@
       ],
       "exit_status": 0,
       "id": "default-cli-embedded-selfhost",
-      "output": "\nrunning 3 tests\ntest default_cli_reports_rust_compiler_import_diagnostics ... ok\ntest default_cli_compiles_without_external_compiler_tools ... ok\ntest default_cli_resolves_standard_modules_through_their_virtual_grant ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.54s\n     Running tests/compiler_driver.rs (target/debug/deps/compiler_driver-2de25fcbd44f2c51)\n",
+      "output": "\nrunning 3 tests\ntest default_cli_compiles_without_external_compiler_tools ... ok\ntest default_cli_reports_rust_compiler_import_diagnostics ... ok\ntest default_cli_resolves_standard_modules_through_their_virtual_grant ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s\n\n\n   Compiling guion-cli v0.1.0 (/Users/rmichaelthomas/guion/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 1.26s\n     Running tests/compiler_driver.rs (target/debug/deps/compiler_driver-2de25fcbd44f2c51)\n",
       "status": "passed"
     },
     {
@@ -109,7 +109,7 @@
     "macos-aarch64"
   ],
   "exact_command": "cargo xtask bootstrap --stages 3",
-  "exit_status": 0,
+  "exit_status": 1,
   "message": null,
   "missing_checks": [],
   "missing_evidence": [],
@@ -119,12 +119,12 @@
   ],
   "runtime_hash": "sha256:319b198123ae7a7fd462567b7bcdfdbbdfe7c38871c074007770aab720a0a421",
   "schema_version": 1,
-  "seed_hash": "sha256:a90b2543760ae2df9c6b2e8f274282d52ba45f736bb02aa3faf8fdb9166c58e6",
+  "seed_hash": "sha256:b37f8c20769419a948cb9bb1980d687d5cee002a37ca46abdad0ab51074a7b70",
   "skipped_targets": [],
-  "source_revision": "39926d47b5eb2c08c16ecb3b22ef539be74af75c",
-  "status": "passed",
+  "source_revision": "dc6c8fb6fce9ecc62701358251094166d1005421",
+  "status": "failed",
   "stdlib_hash": "sha256:dc203a1e694cf7ef4d05d413f2207ab1b3ad6b4f638998d7064821bd02360ac7",
   "target": "macos-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:f86738e96ad2ed02a17be09492defec5b8c0b97aab849cc94cce0808193418ae"
+  "working_tree_digest": "sha256:306c9cffa0a70bb3b1361490812743807fdff0f8436dfc3ef0cabca5a017e933"
 }
