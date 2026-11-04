@@ -16,6 +16,7 @@ mod package_capabilities;
 mod package_name;
 mod package_version;
 mod pool_alloc;
+mod registry;
 mod source_run_cache;
 
 #[global_allocator]
@@ -281,9 +282,43 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             );
             return Ok(ExitCode::SUCCESS);
         }
+        if get_option("--url").is_none() && get_option("--sha256").is_none() {
+            println!(
+                "{}",
+                native_packages::add_from_registry(
+                    &project,
+                    name,
+                    get_option("--version").map(String::as_str)
+                )?
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
         return Err(
-            "usage: guion add NAME --path PATH | --url URL --version VERSION --sha256 HASH".into(),
+            "usage: guion add NAME [--version REQUIREMENT] | --path PATH | --url URL --version VERSION --sha256 HASH".into(),
         );
+    }
+    if command == "publish" {
+        let library = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        let library = args
+            .get(1)
+            .filter(|argument| !argument.starts_with("--"))
+            .map_or(library, |directory| std::path::PathBuf::from(directory));
+        println!("{}", native_packages::publish_library(&library)?);
+        return Ok(ExitCode::SUCCESS);
+    }
+    if command == "yank" {
+        let (Some(name), Some(version)) = (args.get(1), args.get(2)) else {
+            return Err("usage: guion yank NAME VERSION [--undo]".into());
+        };
+        let project = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        let undo = args.iter().any(|argument| argument == "--undo");
+        println!(
+            "{}",
+            registry::Registry::configured(&project)?.set_yanked(name, version, !undo)?
+        );
+        return Ok(ExitCode::SUCCESS);
     }
     if command == "update" {
         let project = std::env::current_dir()

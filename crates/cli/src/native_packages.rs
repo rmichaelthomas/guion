@@ -192,6 +192,110 @@ pub fn library_declaration(
     Ok(Some((manifest.exports, manifest.capabilities)))
 }
 
+/// `guion add NAME [--version REQUIREMENT]`: picks the highest non-yanked version that satisfies
+/// the requirement, checks the index against the hash log and the downloaded bytes, then installs
+/// it exactly like a pinned `--url` package.
+pub fn add_from_registry(
+    project: &Path,
+    name: &str,
+    requirement: Option<&str>,
+) -> Result<String, String> {
+    crate::package_name::validate_new_package_name(name)?;
+    let requirement = crate::package_version::VersionReq::parse(requirement.unwrap_or("*"))?;
+    let project = fs::canonicalize(project)
+        .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
+    let registry = crate::registry::Registry::configured(&project)?;
+    let mut pinned = BTreeMap::new();
+    if let Some(locked) = read_lock(&project)?.native.get(name) {
+        if let Some(version) = locked
+            .get("version")
+            .and_then(toml::Value::as_str)
+            .and_then(|version| crate::package_version::Version::parse(version).ok())
+        {
+            pinned.insert(name.to_owned(), version);
+        }
+    }
+    let chosen = registry.select(name, &requirement, &pinned)?;
+    let archive = registry.download(&chosen.sha256)?;
+    add_url_internal(
+        &project,
+        name,
+        &registry.object_url(&chosen.sha256),
+        &chosen.version,
+        &chosen.sha256,
+        false,
+        Some(archive),
+    )
+}
+
+/// `guion publish`: checks the library, packages its source and uploads it.
+pub fn publish_library(library: &Path) -> Result<String, String> {
+    let library = fs::canonicalize(library)
+        .map_err(|error| format!("cannot resolve library {}: {error}", library.display()))?;
+    let manifest = read_library_manifest(&library, None)?;
+    crate::package_name::validate_new_package_name(&manifest.name)?;
+    if manifest
+        .dependencies
+        .values()
+        .any(|dependency| dependency.path.is_some())
+    {
+        return Err("a library with `path` dependencies cannot be published: they only exist on your machine".into());
+    }
+    let registry = crate::registry::Registry::configured(&library)?;
+    // A clean `guion check` (which also compares capabilities with what the code uses) comes first.
+    check_before_publish(&library, &manifest)?;
+    let stage = temporary_path(&std::env::temp_dir(), "guion-publish")?;
+    fs::create_dir_all(&stage).map_err(|error| format!("cannot create publish stage: {error}"))?;
+    let result = (|| {
+        let packaged = stage.join("package");
+        package_library(&library, &packaged)?;
+        let archive = crate::registry::tar_directory(&packaged)?;
+        let meta = serde_json::json!({
+            "capabilities": manifest_capabilities_json(&manifest),
+            "dependencies": {},
+            "cache": [],
+        });
+        registry.publish(&manifest.name, &manifest.version, archive, meta)
+    })();
+    let _ = fs::remove_dir_all(&stage);
+    result
+}
+
+fn manifest_capabilities_json(manifest: &LibraryManifest) -> serde_json::Value {
+    serde_json::to_value(manifest.capabilities.to_toml()).unwrap_or_else(|_| serde_json::json!({}))
+}
+
+/// Runs this same executable's `check` over a throwaway program that imports every exported
+/// module, so a library with no `main` of its own can be checked before it is published.
+fn check_before_publish(library: &Path, manifest: &LibraryManifest) -> Result<(), String> {
+    let harness = library.join(".guion-publish-check.gu");
+    let mut source = String::new();
+    for export in &manifest.exports {
+        source.push_str(&format!("import \"{export}\"\n"));
+    }
+    source.push_str("\nfn main() -> Int:\n    return 0\n");
+    fs::write(&harness, source)
+        .map_err(|error| format!("cannot write the check program: {error}"))?;
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("cannot locate the guion executable: {error}"))?;
+    let output = std::process::Command::new(executable)
+        .arg("check")
+        .arg(&harness)
+        .current_dir(library)
+        .output();
+    let _ = fs::remove_file(&harness);
+    let output = output.map_err(|error| format!("cannot run guion check: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "guion check failed, so nothing was published:\n{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
+}
+
 pub fn package_library(source: &Path, output: &Path) -> Result<String, String> {
     let source = fs::canonicalize(source).map_err(|error| {
         format!(
@@ -248,6 +352,16 @@ pub fn add_path(project: &Path, expected_name: &str, source: &Path) -> Result<St
     )
 }
 
+/// HTTPS, or plain HTTP to the local machine (a registry run for development); never credentials.
+fn package_url_acceptable(url: &reqwest::Url) -> bool {
+    let local_http = url.scheme() == "http"
+        && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+    (url.scheme() == "https" || local_http)
+        && url.host_str().is_some()
+        && url.username().is_empty()
+        && url.password().is_none()
+}
+
 pub fn add_url(
     project: &Path,
     expected_name: &str,
@@ -255,7 +369,15 @@ pub fn add_url(
     version: &str,
     archive_sha256: &str,
 ) -> Result<String, String> {
-    add_url_internal(project, expected_name, url, version, archive_sha256, false)
+    add_url_internal(
+        project,
+        expected_name,
+        url,
+        version,
+        archive_sha256,
+        false,
+        None,
+    )
 }
 
 fn add_url_internal(
@@ -265,17 +387,14 @@ fn add_url_internal(
     version: &str,
     archive_sha256: &str,
     updating: bool,
+    prefetched: Option<Vec<u8>>,
 ) -> Result<String, String> {
     validate_package_name_for_add(expected_name, updating)?;
     validate_exact_version(version)?;
     validate_sha256(archive_sha256)?;
     let parsed =
         reqwest::Url::parse(url).map_err(|error| format!("invalid package URL: {error}"))?;
-    if parsed.scheme() != "https"
-        || parsed.host_str().is_none()
-        || !parsed.username().is_empty()
-        || parsed.password().is_some()
-    {
+    if !package_url_acceptable(&parsed) {
         return Err("native package URLs must use HTTPS and cannot contain credentials".into());
     }
     let project = fs::canonicalize(project)
@@ -289,7 +408,10 @@ fn add_url_internal(
         .map_err(|error| format!("cannot create package acquisition stage: {error}"))?;
     let source = transaction.join("package");
     let result = (|| {
-        let bytes = download_package_archive(url)?;
+        let bytes = match prefetched {
+            Some(bytes) => bytes,
+            None => download_package_archive(url)?,
+        };
         let actual = format!("{:x}", Sha256::digest(&bytes));
         if actual != archive_sha256.to_ascii_lowercase() {
             return Err(format!(
@@ -767,11 +889,7 @@ fn resolve_package_graph(
                 let parsed = reqwest::Url::parse(url).map_err(|error| {
                     format!("invalid URL for native dependency `{dependency_name}`: {error}")
                 })?;
-                if parsed.scheme() != "https"
-                    || parsed.host_str().is_none()
-                    || !parsed.username().is_empty()
-                    || parsed.password().is_some()
-                {
+                if !package_url_acceptable(&parsed) {
                     return Err(format!("URL dependency `{dependency_name}` must use HTTPS and cannot contain credentials"));
                 }
                 let expected_hash = dependency
@@ -1062,7 +1180,7 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
                     true,
                 )?
             } else if let Some((url, sha256)) = url {
-                add_url_internal(&project, name, url, version, sha256, true)?
+                add_url_internal(&project, name, url, version, sha256, true, None)?
             } else {
                 return Err(format!("dependency `{name}` has no update source"));
             };

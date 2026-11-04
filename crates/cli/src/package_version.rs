@@ -4,10 +4,6 @@
 //! exactly that version, as it always has. Ranges use explicit operators: `^1.2`, `~1.2.3`,
 //! `>=1.0, <2.0`, `=1.4`, or `*`. The resolver picks the highest version that satisfies every
 //! requirement, deterministically, and explains a failure in plain words.
-//!
-//! Nothing outside the tests calls the resolver until the registry client (A7) supplies the
-//! candidate lists; the exact-version install path does not need it.
-#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 use std::fmt;
