@@ -1,0 +1,18 @@
+import "std:crypto"
+import "std:encoding"
+import "std:url"
+
+fn main() -> Int:
+    var i = 0
+    var total = 0
+    let data = bytes_from_text("The quick brown fox jumps over the lazy dog 0123456789")
+    let key = bytes_from_text("key!")
+    while i < 100000:
+        let digest = crypto_sha1(data)
+        let masked = bytes_xor_key(data, key)
+        let pct = unwrap(url_decode_component(url_encode_component("a b&c=d/é?")))
+        let ints = bytes_to_ints(digest)
+        set total = total + len(masked) + len(pct) + len(ints)
+        set i = i + 1
+    print(total)
+    return 0

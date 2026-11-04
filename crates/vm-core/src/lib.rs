@@ -8242,12 +8242,14 @@ const REGEX_SIZE_LIMIT: usize = 1 << 20;
 const REGEX_CACHE_ENTRIES: usize = 64;
 
 thread_local! {
-    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, regex::Regex>> =
+    static REGEX_CACHE: std::cell::RefCell<std::collections::HashMap<String, std::rc::Rc<regex::Regex>>> =
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
-/// Compiles `pattern` with bounded program size, reusing a small per-thread cache.
-fn compile_regex(pattern: &str) -> Result<regex::Regex, String> {
+/// Compiles `pattern` with bounded program size, reusing a small per-thread cache. The cached
+/// `Regex` is shared rather than cloned: a clone starts with an empty matcher cache, which made
+/// every call rebuild its lazy DFA states.
+fn compile_regex(pattern: &str) -> Result<std::rc::Rc<regex::Regex>, String> {
     if pattern.len() > REGEX_MAX_PATTERN_BYTES {
         return Err(format!(
             "pattern is longer than {REGEX_MAX_PATTERN_BYTES} bytes"
@@ -8255,18 +8257,20 @@ fn compile_regex(pattern: &str) -> Result<regex::Regex, String> {
     }
     REGEX_CACHE.with(|cache| {
         if let Some(found) = cache.borrow().get(pattern) {
-            return Ok(found.clone());
+            return Ok(std::rc::Rc::clone(found));
         }
-        let compiled = regex::RegexBuilder::new(pattern)
-            .size_limit(REGEX_SIZE_LIMIT)
-            .dfa_size_limit(REGEX_SIZE_LIMIT)
-            .build()
-            .map_err(|error| error.to_string())?;
+        let compiled = std::rc::Rc::new(
+            regex::RegexBuilder::new(pattern)
+                .size_limit(REGEX_SIZE_LIMIT)
+                .dfa_size_limit(REGEX_SIZE_LIMIT)
+                .build()
+                .map_err(|error| error.to_string())?,
+        );
         let mut cache = cache.borrow_mut();
         if cache.len() >= REGEX_CACHE_ENTRIES {
             cache.clear();
         }
-        cache.insert(pattern.to_string(), compiled.clone());
+        cache.insert(pattern.to_string(), std::rc::Rc::clone(&compiled));
         Ok(compiled)
     })
 }
@@ -8432,7 +8436,9 @@ fn percent_encode(text: &str) -> String {
         if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
             out.push(byte as char);
         } else {
-            out.push_str(&format!("%{byte:02X}"));
+            out.push('%');
+            out.push(char::from(b"0123456789ABCDEF"[usize::from(byte >> 4)]));
+            out.push(char::from(b"0123456789ABCDEF"[usize::from(byte & 15)]));
         }
     }
     out
@@ -8575,7 +8581,8 @@ fn apply_codec(
         (CodecFunction::HexEncode, Value::Bytes(bytes)) => {
             let mut out = String::with_capacity(bytes.len() * 2);
             for byte in bytes.iter() {
-                out.push_str(&format!("{byte:02x}"));
+                out.push(char::from(b"0123456789abcdef"[usize::from(byte >> 4)]));
+                out.push(char::from(b"0123456789abcdef"[usize::from(byte & 15)]));
             }
             Ok(text_value(&out))
         }

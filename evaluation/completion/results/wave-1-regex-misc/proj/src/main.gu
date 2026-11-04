@@ -1,0 +1,13 @@
+import "std:regex"
+
+fn main() -> Int:
+    var i = 0
+    var total = 0
+    while i < 100000:
+        let found = unwrap(regex_is_match("[a-z]+[0-9]{2,4}", "the quick brown fox12345 jumps"))
+        let swapped = unwrap(regex_replace("[aeiou]", "the quick brown fox jumps", "_"))
+        if found:
+            set total = total + len(swapped)
+        set i = i + 1
+    print(total)
+    return 0

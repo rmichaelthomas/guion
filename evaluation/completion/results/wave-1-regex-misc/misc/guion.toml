@@ -1,0 +1,7 @@
+[project]
+name = "bench"
+version = "0.1.0"
+entry = "src/main.gu"
+
+[runtime]
+instruction_limit = 2000000000

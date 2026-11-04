@@ -34,9 +34,21 @@ The first version of this report listed several defects as accepted shortfalls. 
    The earlier "3.2 times slower" figure was an estimate; the measured gap was 2.5 times (1.1 s against 0.43 s). It is now about 4 times faster than CPython.
 3. **Sockets and HTTP server (fixed).** Socket handles are shared between `parallel_map` workers, so several workers accept on one listener and serve connections at once. The HTTP server has keep-alive replies, pipelined requests and chunked request bodies. Tests cover concurrent keep-alive connections and request-smuggling refusals.
 
+## Codec and regex speed (second follow-up)
+
+Profiling the VM showed the codec loop spent its time formatting each byte through `format!` (hex and percent encoding), and the regex loop spent its time rebuilding the matcher's internal tables on every call, because the pattern cache handed out a fresh copy each time. Both are fixed in `crates/vm-core/src/lib.rs`. Measured on this machine, three runs each, best of the warm runs (`wave-1-codec/`, `wave-1-regex-misc/`):
+
+| Benchmark (100,000 iterations) | Before | After | CPython |
+|---|---|---|---|
+| Base64 and hex round trip | 0.19 s | 0.07 s | 0.10 s |
+| Regex match plus replace | 0.30 s | 0.08 s | 0.18 s |
+| SHA-1, XOR, percent encode/decode, bytes to ints | not measured | 0.12 s | 0.70 s |
+
+The CPython SHA-1/XOR figure is inflated by a Python-level XOR loop; treat it as indicative only.
+
 ## Still open
 
-- **Codec, regex, file, process and socket operations are not compiled to machine code.** A function using one runs on the VM. The codec loop above is about 1.8 times slower than CPython. Fixing it needs a generic bridge plus `Bytes` and `Result` handling in the machine-code type system. Not started.
+- **Codec, regex, file, process and socket operations still run on the VM, and that is now the right place for them.** I tried routing codec and regex through the machine-code bridge: a hex-encode loop got slower (0.13 s to 0.18 s) because the bridge costs more per call than the VM's direct dispatch for operations that do real work. I dropped that change. The real slowness was elsewhere (see the follow-up section below).
 - **`random` runs on the VM.** It needs unsigned 64-bit arithmetic; the machine-code integer is signed 64-bit.
 - Floating-point results come from the platform libm and can differ in the last digit between targets. A Guion sum also associates differently from the equivalent Python expression (`a + b + c` against `a += b + c`), so printed totals differ in trailing digits.
 - `guion run` grants cwd read and write by default.
