@@ -8718,6 +8718,64 @@
       "declared_status": "implemented_current_cli"
     },
     {
+      "id": "cli-command-publish",
+      "kind": "cli_command",
+      "name": "publish",
+      "owner_task": 8,
+      "source": "crates/cli/src/main.rs::usage-and-dispatch",
+      "compiler_status": {
+        "bootstrap": "not_applicable",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "cli-command-publish.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "cli-command-publish.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "cli-command-publish.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      },
+      "declared_status": "implemented_current_cli"
+    },
+    {
+      "id": "cli-command-yank",
+      "kind": "cli_command",
+      "name": "yank",
+      "owner_task": 8,
+      "source": "crates/cli/src/main.rs::usage-and-dispatch",
+      "compiler_status": {
+        "bootstrap": "not_applicable",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "cli-command-yank.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "cli-command-yank.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "cli-command-yank.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      },
+      "declared_status": "implemented_current_cli"
+    },
+    {
       "id": "cli-command-lint",
       "kind": "cli_command",
       "name": "lint",

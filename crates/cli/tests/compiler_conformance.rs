@@ -2051,6 +2051,18 @@ fn self_host_resolver_uses_explicit_standard_and_locked_package_roots() {
     assert!(String::from_utf8_lossy(&missing_package.stdout).contains("E_PACKAGE_NOT_LOCKED"));
 
     project.write(
+        "scoped.gu",
+        "import \"pkg:@acme/widgets/module.gu\"\n\nfn main() -> Int:\n    return 0\n",
+    );
+    let scoped_package = run_self_host_args(&project, &["scoped.gu"]);
+    assert!(
+        scoped_package.status.success(),
+        "{}",
+        String::from_utf8_lossy(&scoped_package.stderr)
+    );
+    assert!(String::from_utf8_lossy(&scoped_package.stdout).contains("E_PACKAGE_SCOPE_RESERVED"));
+
+    project.write(
         "stdlib/csv.gu",
         "import \"../main.gu\"\n\npub fn csv_rows() -> Int:\n    return 3\n",
     );

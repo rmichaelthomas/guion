@@ -71,6 +71,7 @@ fn build_seed(repository: &Path) -> Result<(), String> {
             max_parallelism: 64,
             max_file_bytes: 64 * 1024 * 1024,
         },
+        packages: Vec::new(),
     });
     let bytes = artifact
         .to_bytes()

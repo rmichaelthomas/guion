@@ -969,7 +969,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(59), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(60), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

@@ -12,7 +12,11 @@ mod compiler_driver;
 mod dependencies;
 mod native_dependencies;
 mod native_packages;
+mod package_capabilities;
+mod package_name;
+mod package_version;
 mod pool_alloc;
+mod registry;
 mod source_run_cache;
 
 #[global_allocator]
@@ -43,7 +47,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         runtime_profile_setting.as_deref() == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
         return Err(
-            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"
+            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"
                 .into(),
         );
     };
@@ -192,9 +196,17 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             return Ok(ExitCode::SUCCESS);
         }
     }
+    if command == "new" && args.get(1).is_some_and(|argument| argument == "--lib") {
+        let Some(name) = args.get(2) else {
+            return Err("usage: guion new --lib <directory>".into());
+        };
+        let root = std::path::Path::new(name);
+        println!("{}", native_packages::create_library(root)?);
+        return Ok(ExitCode::SUCCESS);
+    }
     if command == "new" {
         let Some(name) = args.get(1) else {
-            return Err("usage: guion new <directory>".into());
+            return Err("usage: guion new <directory> | guion new --lib <directory>".into());
         };
         let root = std::path::Path::new(name);
         if root.exists() {
@@ -270,14 +282,55 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             );
             return Ok(ExitCode::SUCCESS);
         }
+        if get_option("--url").is_none() && get_option("--sha256").is_none() {
+            println!(
+                "{}",
+                native_packages::add_from_registry(
+                    &project,
+                    name,
+                    get_option("--version").map(String::as_str)
+                )?
+            );
+            return Ok(ExitCode::SUCCESS);
+        }
         return Err(
-            "usage: guion add NAME --path PATH | --url URL --version VERSION --sha256 HASH".into(),
+            "usage: guion add NAME [--version REQUIREMENT] | --path PATH | --url URL --version VERSION --sha256 HASH".into(),
         );
+    }
+    if command == "publish" {
+        let library = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        let library = args
+            .get(1)
+            .filter(|argument| !argument.starts_with("--"))
+            .map_or(library, std::path::PathBuf::from);
+        println!("{}", native_packages::publish_library(&library)?);
+        return Ok(ExitCode::SUCCESS);
+    }
+    if command == "yank" {
+        let (Some(name), Some(version)) = (args.get(1), args.get(2)) else {
+            return Err("usage: guion yank NAME VERSION [--undo]".into());
+        };
+        let project = std::env::current_dir()
+            .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+        let undo = args.iter().any(|argument| argument == "--undo");
+        println!(
+            "{}",
+            registry::Registry::configured(&project)?.set_yanked(name, version, !undo)?
+        );
+        return Ok(ExitCode::SUCCESS);
     }
     if command == "update" {
         let project = std::env::current_dir()
             .map_err(|error| format!("cannot inspect current directory: {error}"))?;
-        println!("{}", native_packages::update_paths(&project)?);
+        println!(
+            "{}",
+            native_packages::update_paths(
+                &project,
+                args.iter()
+                    .any(|argument| argument == "--approve-capabilities")
+            )?
+        );
         return Ok(ExitCode::SUCCESS);
     }
     if command == "package" {
@@ -435,7 +488,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     ]
     .contains(&command)
     {
-        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install> [path]"));
+        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank> [path]"));
     }
     let mut json_run = false;
     let mut no_source_cache = false;
@@ -678,6 +731,23 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 );
             } else {
                 println!("checked {} ({} functions)", path, artifact.functions.len());
+            }
+            if let Some(report) = native_packages::check_library_surface(&project_root)? {
+                if !json_check {
+                    println!("{report}");
+                }
+                if let Some((exports, declared)) =
+                    native_packages::library_declaration(&project_root)?
+                {
+                    let used = library_used_effects(&path, &artifact, &project_root, &exports);
+                    let (errors, warnings) = declared.compare_with_effects(&used);
+                    for warning in &warnings {
+                        eprintln!("warning: {warning}");
+                    }
+                    if !errors.is_empty() {
+                        return Err(errors.join("\n"));
+                    }
+                }
             }
         }
         "test" => {
@@ -2272,6 +2342,7 @@ fn build_metadata(
             max_parallelism: policy.max_parallelism,
             max_file_bytes: policy.max_file_bytes,
         },
+        packages: native_packages::locked_package_identities(project_root, &artifact.sources)?,
     })
 }
 
@@ -2320,6 +2391,47 @@ fn display_type(ty: &guion_model::Type) -> String {
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
     }
+}
+
+/// Effects (including those of callees) found in the library's own exported modules. A function
+/// belongs to the library when it is declared in an exported file; modules whose names clash get
+/// an `@module/N/` prefix that points back at their source.
+fn library_used_effects(
+    source: &str,
+    artifact: &Artifact,
+    project_root: &Path,
+    exports: &[String],
+) -> BTreeSet<String> {
+    let inspected = inspection_report(source, artifact, project_root, false);
+    let declared: BTreeSet<String> = exports
+        .iter()
+        .filter_map(|export| fs::read_to_string(project_root.join(export)).ok())
+        .flat_map(|text| function_declarations(&text))
+        .map(|(name, _, _)| name)
+        .collect();
+    let mut used = BTreeSet::new();
+    for function in &artifact.functions {
+        let belongs = match function.name.strip_prefix("@module/") {
+            Some(rest) => {
+                let (module_id, name) = rest.split_once('/').unwrap_or(("", rest));
+                module_id
+                    .parse::<usize>()
+                    .ok()
+                    .and_then(|index| artifact.sources.get(index))
+                    .is_some_and(|identity| exports.iter().any(|export| export == identity))
+                    && declared.contains(name)
+            }
+            None => declared.contains(function.name.as_str()),
+        };
+        if !belongs {
+            continue;
+        }
+        if let Some(effects) = inspected["functions"][function.name.as_str()]["effects"].as_array()
+        {
+            used.extend(effects.iter().filter_map(|e| e.as_str().map(str::to_owned)));
+        }
+    }
+    used
 }
 
 fn inspection_report(

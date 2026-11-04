@@ -1,11 +1,11 @@
 {
   "command": "guion inspect --json main.gu",
-  "guionVersion": "guion 0.1.0 (artifact format 44, timezone data 2026c)",
+  "guionVersion": "guion 0.1.0 (artifact format 60, timezone data 2026c)",
   "program": "fn main() -> Int:\n    let args_list = args()\n    let headers: Map[Text, Text] = {}\n    match read_text(\"notes.txt\"):\n        Ok(text):\n            print(text)\n        Err(problem):\n            print(file_error_code(problem))\n    match http_request_bytes(\"GET\", args_list[0], headers, bytes_from_text(\"\"), 1000):\n        Ok(response):\n            print(\"fetched\")\n        Err(problem):\n            print(http_error_code(problem))\n    return 0\n",
   "manifest": "[project]\nname = \"notes\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = [\"api.example.test\"]\n",
   "report": {
     "analysis_scope": "reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations",
-    "artifact_format": 51,
+    "artifact_format": 60,
     "capability_claim": "static_bytecode_reachability_not_sandbox",
     "clock_grant": {
       "grant_model": "wall-clock reads are denied unless explicitly enabled",
@@ -46,7 +46,10 @@
       "network_hosts": [
         "api.example.test"
       ],
-      "provenance": "guion.toml"
+      "process_commands": [],
+      "provenance": "guion.toml",
+      "socket_bind": [],
+      "socket_connect": []
     },
     "network_grant": {
       "grant_model": "exact hostname; network access is denied when no grant is present",
@@ -54,6 +57,12 @@
       "required_for_entry": true,
       "run_option": "guion run --allow-http-host HOST",
       "runtime_supplied_urls_require_an_explicit_hostname_grant": true
+    },
+    "process_grant": {
+      "grant_model": "exact command name; every command is denied when no grant is present; no shell, cleared environment, timeout and output caps apply",
+      "manifest_key": "[process].commands",
+      "required_for_entry": false,
+      "run_option": "guion run --allow-command NAME"
     },
     "python_calls": [],
     "required_effects": [
@@ -63,6 +72,12 @@
       "process.arguments"
     ],
     "schema_version": 1,
+    "socket_grant": {
+      "grant_model": "exact host and port (or host:*); connecting, sending datagrams and binding are denied without a matching entry; every call has a timeout and size cap",
+      "manifest_key": "[sockets].connect / [sockets].bind",
+      "required_for_entry": false,
+      "run_option": "guion run --allow-connect HOST:PORT --allow-bind HOST:PORT"
+    },
     "source": "main.gu"
   }
 }

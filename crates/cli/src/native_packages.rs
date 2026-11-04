@@ -47,11 +47,15 @@ struct LibraryManifest {
     exports: Vec<String>,
     dependencies: BTreeMap<String, PackageDependency>,
     declared_sha256: Option<String>,
+    capabilities: crate::package_capabilities::Capabilities,
 }
 
 #[derive(Clone, Debug)]
 struct PackageDependency {
     version: String,
+    /// A dependency with no `path` or `url` is a registry dependency: `version` is a range that
+    /// `guion publish` resolves and pins to an exact archive before the library is uploaded.
+    registry: bool,
     path: Option<String>,
     url: Option<String>,
     sha256: Option<String>,
@@ -70,6 +74,244 @@ struct ResolvedPackage {
 struct LockState {
     native: BTreeMap<String, toml::Value>,
     python: Option<toml::Value>,
+}
+
+/// `guion new --lib DIRECTORY`: a library skeleton whose name is the directory name, checked
+/// against the full package-name rules.
+pub fn create_library(root: &Path) -> Result<String, String> {
+    let name = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("cannot read a library name from that directory")?
+        .to_owned();
+    crate::package_name::validate_new_package_name(&name)?;
+    if root.exists() {
+        return Err(format!("project path already exists: {}", root.display()));
+    }
+    fs::create_dir_all(root.join("src"))
+        .map_err(|error| format!("cannot create library: {error}"))?;
+    let source = "# The public surface of this library: only `pub` items can be used by other packages.\npub fn greet(who: Text) -> Text:\n    return \"Hello, \" + who + \"!\"\n";
+    fs::write(root.join("src/lib.gu"), source)
+        .map_err(|error| format!("cannot write library source: {error}"))?;
+    // A library has no `main`, so its checks and tests live in a small program beside it.
+    let tests = "import \"src/lib.gu\"\n\nfn main() -> Int:\n    return 0\n\nfn test_greet() -> Unit:\n    assert(greet(\"Guion\") == \"Hello, Guion!\")\n";
+    fs::write(root.join("tests.gu"), tests)
+        .map_err(|error| format!("cannot write library tests: {error}"))?;
+    fs::write(
+        root.join("guion.toml"),
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n"),
+    )
+    .map_err(|error| format!("cannot write library manifest: {error}"))?;
+    fs::write(
+        root.join("README.md"),
+        format!("# {name}\n\nA Guion library. Check it with `guion check tests.gu` (this also checks the public surface), test it with `guion test tests.gu`, and document its public surface with `guion doc tests.gu`. Other projects use it with `import \"pkg:{name}/src/lib.gu\"`.\n"),
+    )
+    .map_err(|error| format!("cannot write library guide: {error}"))?;
+    Ok(format!("created library {}", root.display()))
+}
+
+/// For a library (a manifest with a `[package]` table), checks the manifest and that every exported
+/// module exposes at least one `pub` item. Returns `None` for an ordinary project.
+pub fn check_library_surface(root: &Path) -> Result<Option<String>, String> {
+    let manifest_path = project_manifest_path(root);
+    let Ok(text) = fs::read_to_string(&manifest_path) else {
+        return Ok(None);
+    };
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
+        return Ok(None);
+    };
+    if value.get("package").is_none() {
+        return Ok(None);
+    }
+    let manifest = read_library_manifest(root, None)?;
+    for export in &manifest.exports {
+        let source = fs::read_to_string(root.join(export))
+            .map_err(|error| format!("cannot read exported module {export}: {error}"))?;
+        if !source.lines().any(|line| line.starts_with("pub ")) {
+            return Err(format!(
+                "exported module {export} has no `pub` items, so other packages could not use it"
+            ));
+        }
+    }
+    Ok(Some(format!(
+        "library {} {}: {} exported module(s) with public items",
+        manifest.name,
+        manifest.version,
+        manifest.exports.len()
+    )))
+}
+
+/// Name, version and content hash of every locked package that `sources` (an artifact's source
+/// identities) imports, sorted by name. A project without a lock links no packages.
+pub fn locked_package_identities(
+    project: &Path,
+    sources: &[String],
+) -> Result<Vec<guion_model::PackageIdentity>, String> {
+    let used: std::collections::BTreeSet<&str> = sources
+        .iter()
+        .filter_map(|identity| identity.strip_prefix("pkg:"))
+        .filter_map(|rest| rest.split_once('/').map(|(package, _)| package))
+        .collect();
+    if used.is_empty() {
+        return Ok(Vec::new());
+    }
+    let lock = read_lock(project)?;
+    used.into_iter()
+        .map(|name| {
+            let package = lock
+                .native
+                .get(name)
+                .ok_or_else(|| format!("package `{name}` is imported but not in the lock"))?;
+            let field = |key: &str| {
+                package
+                    .get(key)
+                    .and_then(toml::Value::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("locked package `{name}` has no {key}"))
+            };
+            Ok(guion_model::PackageIdentity {
+                name: name.to_owned(),
+                version: field("version")?,
+                sha256: field("sha256")?,
+            })
+        })
+        .collect()
+}
+
+/// A library's exported modules and declared capabilities, or `None` for an ordinary project.
+pub fn library_declaration(
+    root: &Path,
+) -> Result<Option<(Vec<String>, crate::package_capabilities::Capabilities)>, String> {
+    let Ok(text) = fs::read_to_string(project_manifest_path(root)) else {
+        return Ok(None);
+    };
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
+        return Ok(None);
+    };
+    if value.get("package").is_none() {
+        return Ok(None);
+    }
+    let manifest = read_library_manifest(root, None)?;
+    Ok(Some((manifest.exports, manifest.capabilities)))
+}
+
+/// `guion add NAME [--version REQUIREMENT]`: picks the highest non-yanked version that satisfies
+/// the requirement, checks the index against the hash log and the downloaded bytes, then installs
+/// it exactly like a pinned `--url` package.
+pub fn add_from_registry(
+    project: &Path,
+    name: &str,
+    requirement: Option<&str>,
+) -> Result<String, String> {
+    crate::package_name::validate_new_package_name(name)?;
+    let requirement = crate::package_version::VersionReq::parse(requirement.unwrap_or("*"))?;
+    let project = fs::canonicalize(project)
+        .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
+    let registry = crate::registry::Registry::configured(&project)?;
+    let mut pinned = BTreeMap::new();
+    if let Some(locked) = read_lock(&project)?.native.get(name) {
+        if let Some(version) = locked
+            .get("version")
+            .and_then(toml::Value::as_str)
+            .and_then(|version| crate::package_version::Version::parse(version).ok())
+        {
+            pinned.insert(name.to_owned(), version);
+        }
+    }
+    let chosen = registry.select(name, &requirement, &pinned)?;
+    let archive = registry.download(&chosen.sha256)?;
+    add_url_internal(
+        &project,
+        name,
+        &registry.object_url(&chosen.sha256),
+        &chosen.version,
+        &chosen.sha256,
+        false,
+        Some(archive),
+    )
+}
+
+/// `guion publish`: checks the library, packages its source and uploads it.
+pub fn publish_library(library: &Path) -> Result<String, String> {
+    let library = fs::canonicalize(library)
+        .map_err(|error| format!("cannot resolve library {}: {error}", library.display()))?;
+    let manifest = read_library_manifest(&library, None)?;
+    crate::package_name::validate_new_package_name(&manifest.name)?;
+    if manifest
+        .dependencies
+        .values()
+        .any(|dependency| dependency.path.is_some())
+    {
+        return Err("a library with `path` dependencies cannot be published: they only exist on your machine".into());
+    }
+    let registry = crate::registry::Registry::configured(&library)?;
+    let stage = temporary_path(&std::env::temp_dir(), "guion-publish")?;
+    fs::create_dir_all(&stage).map_err(|error| format!("cannot create publish stage: {error}"))?;
+    let result = (|| {
+        let packaged = stage.join("package");
+        // Registry dependencies are acquired into a staged copy (which pins each to an exact
+        // version, URL and hash). That copy is what gets checked, and its manifest is what ships.
+        let checked = stage.join("checked");
+        copy_library_tree(&library, &checked)?;
+        for (name, dependency) in &manifest.dependencies {
+            if dependency.registry {
+                add_from_registry(&checked, name, Some(&dependency.version))
+                    .map_err(|error| format!("dependency `{name}`: {error}"))?;
+            }
+        }
+        let pinned = read_library_manifest(&checked, None)?;
+        // A clean `guion check` (which also compares capabilities with what the code uses).
+        check_before_publish(&checked, &pinned)?;
+        let source = stage.join("source");
+        copy_library_tree(&library, &source)?;
+        fs::copy(checked.join("guion.toml"), source.join("guion.toml"))
+            .map_err(|error| format!("cannot write the pinned manifest: {error}"))?;
+        package_library(&source, &packaged)?;
+        let archive = crate::registry::tar_directory(&packaged)?;
+        let meta = serde_json::json!({
+            "capabilities": manifest_capabilities_json(&manifest),
+            "dependencies": {},
+            "cache": [],
+        });
+        registry.publish(&manifest.name, &manifest.version, archive, meta)
+    })();
+    let _ = fs::remove_dir_all(&stage);
+    result
+}
+
+fn manifest_capabilities_json(manifest: &LibraryManifest) -> serde_json::Value {
+    serde_json::to_value(manifest.capabilities.to_toml()).unwrap_or_else(|_| serde_json::json!({}))
+}
+
+/// Runs this same executable's `check` over a throwaway program that imports every exported
+/// module, so a library with no `main` of its own can be checked before it is published.
+fn check_before_publish(library: &Path, manifest: &LibraryManifest) -> Result<(), String> {
+    let harness = library.join(".guion-publish-check.gu");
+    let mut source = String::new();
+    for export in &manifest.exports {
+        source.push_str(&format!("import \"{export}\"\n"));
+    }
+    source.push_str("\nfn main() -> Int:\n    return 0\n");
+    fs::write(&harness, source)
+        .map_err(|error| format!("cannot write the check program: {error}"))?;
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("cannot locate the guion executable: {error}"))?;
+    let output = std::process::Command::new(executable)
+        .arg("check")
+        .arg(&harness)
+        .current_dir(library)
+        .output();
+    let _ = fs::remove_file(&harness);
+    let output = output.map_err(|error| format!("cannot run guion check: {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "guion check failed, so nothing was published:\n{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ))
+    }
 }
 
 pub fn package_library(source: &Path, output: &Path) -> Result<String, String> {
@@ -128,6 +370,16 @@ pub fn add_path(project: &Path, expected_name: &str, source: &Path) -> Result<St
     )
 }
 
+/// HTTPS, or plain HTTP to the local machine (a registry run for development); never credentials.
+fn package_url_acceptable(url: &reqwest::Url) -> bool {
+    let local_http = url.scheme() == "http"
+        && matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+    (url.scheme() == "https" || local_http)
+        && url.host_str().is_some()
+        && url.username().is_empty()
+        && url.password().is_none()
+}
+
 pub fn add_url(
     project: &Path,
     expected_name: &str,
@@ -135,7 +387,15 @@ pub fn add_url(
     version: &str,
     archive_sha256: &str,
 ) -> Result<String, String> {
-    add_url_internal(project, expected_name, url, version, archive_sha256, false)
+    add_url_internal(
+        project,
+        expected_name,
+        url,
+        version,
+        archive_sha256,
+        false,
+        None,
+    )
 }
 
 fn add_url_internal(
@@ -145,17 +405,14 @@ fn add_url_internal(
     version: &str,
     archive_sha256: &str,
     updating: bool,
+    prefetched: Option<Vec<u8>>,
 ) -> Result<String, String> {
-    validate_package_name(expected_name)?;
+    validate_package_name_for_add(expected_name, updating)?;
     validate_exact_version(version)?;
     validate_sha256(archive_sha256)?;
     let parsed =
         reqwest::Url::parse(url).map_err(|error| format!("invalid package URL: {error}"))?;
-    if parsed.scheme() != "https"
-        || parsed.host_str().is_none()
-        || !parsed.username().is_empty()
-        || parsed.password().is_some()
-    {
+    if !package_url_acceptable(&parsed) {
         return Err("native package URLs must use HTTPS and cannot contain credentials".into());
     }
     let project = fs::canonicalize(project)
@@ -169,7 +426,10 @@ fn add_url_internal(
         .map_err(|error| format!("cannot create package acquisition stage: {error}"))?;
     let source = transaction.join("package");
     let result = (|| {
-        let bytes = download_package_archive(url)?;
+        let bytes = match prefetched {
+            Some(bytes) => bytes,
+            None => download_package_archive(url)?,
+        };
         let actual = format!("{:x}", Sha256::digest(&bytes));
         if actual != archive_sha256.to_ascii_lowercase() {
             return Err(format!(
@@ -421,7 +681,7 @@ fn install_package_graph(
     source_sha256: Option<&str>,
     updating: bool,
 ) -> Result<String, String> {
-    validate_package_name(expected_name)?;
+    validate_package_name_for_add(expected_name, updating)?;
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let source_root = fs::canonicalize(source_root).map_err(|error| {
@@ -640,6 +900,9 @@ fn resolve_package_graph(
                     archive_boundary.map(Path::to_path_buf),
                 )
             } else {
+                if dependency.registry {
+                    return Err(format!("dependency `{dependency_name}` is a registry range ({}); only a published package has it pinned, so install this one with `guion add`", dependency.version));
+                }
                 let url = dependency
                     .url
                     .as_deref()
@@ -647,11 +910,7 @@ fn resolve_package_graph(
                 let parsed = reqwest::Url::parse(url).map_err(|error| {
                     format!("invalid URL for native dependency `{dependency_name}`: {error}")
                 })?;
-                if parsed.scheme() != "https"
-                    || parsed.host_str().is_none()
-                    || !parsed.username().is_empty()
-                    || parsed.password().is_some()
-                {
+                if !package_url_acceptable(&parsed) {
                     return Err(format!("URL dependency `{dependency_name}` must use HTTPS and cannot contain credentials"));
                 }
                 let expected_hash = dependency
@@ -718,7 +977,7 @@ fn add_path_internal(
     source: &Path,
     updating: bool,
 ) -> Result<String, String> {
-    validate_package_name(expected_name)?;
+    validate_package_name_for_add(expected_name, updating)?;
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let source = fs::canonicalize(source).map_err(|error| {
@@ -760,8 +1019,10 @@ fn add_path_internal(
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let project_manifest: toml::Value = toml::from_str(&manifest_text)
         .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    // A library being published acquires its own registry dependencies the same way a project does.
     if project_manifest
         .get("project")
+        .or_else(|| project_manifest.get("package"))
         .and_then(toml::Value::as_table)
         .is_none()
     {
@@ -861,7 +1122,7 @@ fn add_path_internal(
     ))
 }
 
-pub fn update_paths(project: &Path) -> Result<String, String> {
+pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String, String> {
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let manifest_path = project_manifest_path(&project);
@@ -942,11 +1203,14 @@ pub fn update_paths(project: &Path) -> Result<String, String> {
                     true,
                 )?
             } else if let Some((url, sha256)) = url {
-                add_url_internal(&project, name, url, version, sha256, true)?
+                add_url_internal(&project, name, url, version, sha256, true, None)?
             } else {
                 return Err(format!("dependency `{name}` has no update source"));
             };
             updated.push(result);
+        }
+        if !approve_capabilities {
+            refuse_widened_capabilities(old_lock.as_deref(), &project)?;
         }
         Ok(updated)
     })();
@@ -979,6 +1243,61 @@ pub fn update_paths(project: &Path) -> Result<String, String> {
         updated.len(),
         updated.join(", ")
     ))
+}
+
+/// Capabilities a package declares in a lock, keyed by package name.
+fn locked_capabilities(
+    lock_text: &str,
+) -> BTreeMap<String, crate::package_capabilities::Capabilities> {
+    let Ok(value) = toml::from_str::<toml::Value>(lock_text) else {
+        return BTreeMap::new();
+    };
+    let Some(native) = value.get("native").and_then(toml::Value::as_table) else {
+        return BTreeMap::new();
+    };
+    native
+        .iter()
+        .filter_map(|(name, package)| {
+            let capabilities =
+                crate::package_capabilities::Capabilities::from_toml(package.get("capabilities"))
+                    .ok()?;
+            package.get("version")?;
+            Some((name.clone(), capabilities))
+        })
+        .collect()
+}
+
+/// An update that gives a package more access than the lock recorded stops here, naming what
+/// changed. `--approve-capabilities` is the explicit approval.
+fn refuse_widened_capabilities(old_lock: Option<&[u8]>, project: &Path) -> Result<(), String> {
+    let Some(old_lock) = old_lock else {
+        return Ok(());
+    };
+    let before = locked_capabilities(&String::from_utf8_lossy(old_lock));
+    let after_text = fs::read_to_string(project_lock_path(project)).unwrap_or_default();
+    let after = locked_capabilities(&after_text);
+    let mut problems = Vec::new();
+    for (name, capabilities) in &after {
+        let earlier = before.get(name).cloned().unwrap_or_default();
+        if !before.contains_key(name) {
+            continue;
+        }
+        let added = capabilities.widened_beyond(&earlier);
+        if !added.is_empty() {
+            problems.push(format!(
+                "  - `{name}` now also requests: {}",
+                added.join(", ")
+            ));
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "this update widens package capabilities:\n{}\nreview the change, then rerun with `--approve-capabilities`",
+            problems.join("\n")
+        ))
+    }
 }
 
 pub fn load_locked_roots(project: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
@@ -1228,7 +1547,6 @@ fn read_library_manifest(
             .ok_or_else(|| format!("{}: [dependencies] must be a table", path.display()))?;
         for (dependency_name, requirement) in table {
             validate_package_name(dependency_name)?;
-            let version = requirement_version(requirement)?;
             let path_source = requirement
                 .get("path")
                 .and_then(toml::Value::as_str)
@@ -1237,9 +1555,15 @@ fn read_library_manifest(
                 .get("url")
                 .and_then(toml::Value::as_str)
                 .map(str::to_owned);
-            if path_source.is_some() == url_source.is_some() {
+            if path_source.is_some() && url_source.is_some() {
                 return Err(format!("{}: dependency `{dependency_name}` must declare exactly one of `path` or `url`", path.display()));
             }
+            let registry = path_source.is_none() && url_source.is_none();
+            let version = if registry {
+                registry_requirement(requirement)?
+            } else {
+                requirement_version(requirement)?
+            };
             if let Some(path_source) = &path_source {
                 if path_source.is_empty() || Path::new(path_source).is_absolute() {
                     return Err(format!(
@@ -1265,6 +1589,7 @@ fn read_library_manifest(
                 dependency_name.clone(),
                 PackageDependency {
                     version,
+                    registry,
                     path: path_source,
                     url: url_source,
                     sha256,
@@ -1272,6 +1597,9 @@ fn read_library_manifest(
             );
         }
     }
+    let capabilities =
+        crate::package_capabilities::Capabilities::from_toml(value.get("capabilities"))
+            .map_err(|error| format!("{}: {error}", path.display()))?;
     Ok(LibraryManifest {
         name,
         version,
@@ -1279,6 +1607,7 @@ fn read_library_manifest(
         exports,
         dependencies,
         declared_sha256,
+        capabilities,
     })
 }
 
@@ -1314,6 +1643,9 @@ fn locked_library_value(manifest: &LibraryManifest, digest: &str, source: &Path)
         })
         .collect();
     value.insert("dependencies".into(), toml::Value::Table(dependencies));
+    if !manifest.capabilities.is_empty() {
+        value.insert("capabilities".into(), manifest.capabilities.to_toml());
+    }
     value.insert("source_kind".into(), toml::Value::String("path".into()));
     value.insert(
         "source".into(),
@@ -1596,6 +1928,17 @@ fn set_manifest_digest(path: &Path, digest: &str) -> Result<(), String> {
     fs::write(path, serialized).map_err(|error| format!("cannot write package manifest: {error}"))
 }
 
+/// The version range of a registry dependency, written `"^1.2"` or `{ version = "^1.2" }`.
+fn registry_requirement(requirement: &toml::Value) -> Result<String, String> {
+    let text = requirement
+        .as_str()
+        .or_else(|| requirement.get("version").and_then(toml::Value::as_str))
+        .ok_or("a registry dependency must specify a version range such as \"^1.0\"")?
+        .to_owned();
+    crate::package_version::VersionReq::parse(&text)?;
+    Ok(text)
+}
+
 fn requirement_version(requirement: &toml::Value) -> Result<String, String> {
     let version = requirement
         .as_str()
@@ -1606,15 +1949,20 @@ fn requirement_version(requirement: &toml::Value) -> Result<String, String> {
     Ok(version)
 }
 
+/// Names already present in a lock or manifest keep loading under the older rule (with a warning
+/// when they break the current one).
 fn validate_package_name(name: &str) -> Result<(), String> {
-    if name.is_empty()
-        || !name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-    {
-        return Err(format!("invalid native package name `{name}`"));
+    crate::package_name::check_existing_package_name(name)
+}
+
+/// A new `add` follows the full rule set; updating an existing dependency does not re-litigate its
+/// name.
+fn validate_package_name_for_add(name: &str, updating: bool) -> Result<(), String> {
+    if updating {
+        validate_package_name(name)
+    } else {
+        crate::package_name::validate_new_package_name(name)
     }
-    Ok(())
 }
 
 fn validate_sha256(value: &str) -> Result<(), String> {

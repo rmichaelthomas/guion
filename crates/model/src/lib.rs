@@ -125,8 +125,8 @@ mod tests {
     use super::Shared;
     use super::{
         Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue, Function,
-        Instruction, JsonErrorValue, NetFunction, Op, ProcessFunction, RegexFunction,
-        ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
+        Instruction, JsonErrorValue, NetFunction, Op, PackageIdentity, ProcessFunction,
+        RegexFunction, ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1035,6 +1035,7 @@ mod tests {
                     max_parallelism: 8,
                     max_file_bytes: 32 * 1024 * 1024,
                 },
+                packages: Vec::new(),
             }),
             compiled_source_sha256: Some("a".repeat(64)),
             source_name: "sum.gu".into(),
@@ -1436,6 +1437,78 @@ mod tests {
             Artifact::from_bytes(&old).unwrap_err().code,
             "E_ARTIFACT_VERSION"
         );
+    }
+
+    #[test]
+    fn package_identities_round_trip_and_are_gated_on_format_60() {
+        let limits = ResourceLimits {
+            instruction_limit: 1000,
+            allocation_limit_bytes: 1 << 20,
+            call_depth_limit: 32,
+            output_limit_bytes: 1000,
+            max_integer_digits: 4096,
+            max_text_bytes: 1 << 20,
+            max_collection_items: 1000,
+            max_parallelism: 4,
+            max_file_bytes: 1 << 20,
+        };
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: Some(BuildMetadata {
+                metadata_schema_version: 1,
+                compiler_version: "0.1.0".into(),
+                target: "test".into(),
+                source_sha256: Some("a".repeat(64)),
+                dependency_lock_sha256: None,
+                resource_limits: limits,
+                packages: vec![
+                    PackageIdentity {
+                        name: "alpha".into(),
+                        version: "1.2.3".into(),
+                        sha256: "c".repeat(64),
+                    },
+                    PackageIdentity {
+                        name: "beta".into(),
+                        version: "0.1.0".into(),
+                        sha256: "d".repeat(64),
+                    },
+                ],
+            }),
+            compiled_source_sha256: Some("a".repeat(64)),
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![Instruction {
+                    op: Op::Return,
+                    span: Span::default(),
+                }],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+
+        // An older format cannot carry identities, but an empty list still writes as before.
+        artifact.format_version = 59;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        artifact.build_metadata.as_mut().unwrap().packages.clear();
+        let old = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&old).unwrap(), artifact);
+
+        // A malformed digest is refused on write.
+        artifact.format_version = Artifact::CURRENT_VERSION;
+        artifact.build_metadata.as_mut().unwrap().packages = vec![PackageIdentity {
+            name: "alpha".into(),
+            version: "1.0.0".into(),
+            sha256: "not-a-digest".into(),
+        }];
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_METADATA");
     }
 
     #[test]
@@ -3830,6 +3903,14 @@ pub struct ResourceLimits {
     pub max_file_bytes: usize,
 }
 
+/// A package linked into a build: its name, exact version and content hash (artifact format 60).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PackageIdentity {
+    pub name: String,
+    pub version: String,
+    pub sha256: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildMetadata {
     pub metadata_schema_version: u32,
@@ -3838,6 +3919,8 @@ pub struct BuildMetadata {
     pub source_sha256: Option<String>,
     pub dependency_lock_sha256: Option<String>,
     pub resource_limits: ResourceLimits,
+    /// Packages the program links, recorded from format 60; empty before then.
+    pub packages: Vec<PackageIdentity>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3855,7 +3938,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 59;
+    pub const CURRENT_VERSION: u32 = 60;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4528,6 +4611,20 @@ impl Artifact {
                     ] {
                         w.u64(limit as u64);
                     }
+                    if self.format_version >= 60 {
+                        w.count(metadata.packages.len())?;
+                        for package in &metadata.packages {
+                            validate_digest(Some(&package.sha256), "package")?;
+                            w.string(&package.name)?;
+                            w.string(&package.version)?;
+                            w.string(&package.sha256)?;
+                        }
+                    } else if !metadata.packages.is_empty() {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "package identities require artifact format 60",
+                        ));
+                    }
                 }
                 None => w.u8(0),
             }
@@ -5057,23 +5154,39 @@ impl Artifact {
                         } else {
                             (0, None, None)
                         };
+                    let resource_limits = ResourceLimits {
+                        instruction_limit: r.u64()?,
+                        allocation_limit_bytes: r.limit()?,
+                        call_depth_limit: r.limit()?,
+                        output_limit_bytes: r.limit()?,
+                        max_integer_digits: r.limit()?,
+                        max_text_bytes: r.limit()?,
+                        max_collection_items: r.limit()?,
+                        max_parallelism: r.limit()?,
+                        max_file_bytes: r.limit()?,
+                    };
+                    let mut packages = Vec::new();
+                    if format_version >= 60 {
+                        for _ in 0..r.count()? {
+                            let name = r.string()?;
+                            let version = r.string()?;
+                            let sha256 = r.string()?;
+                            validate_digest(Some(&sha256), "package")?;
+                            packages.push(PackageIdentity {
+                                name,
+                                version,
+                                sha256,
+                            });
+                        }
+                    }
                     Some(BuildMetadata {
                         metadata_schema_version,
                         compiler_version,
                         target,
                         source_sha256,
                         dependency_lock_sha256,
-                        resource_limits: ResourceLimits {
-                            instruction_limit: r.u64()?,
-                            allocation_limit_bytes: r.limit()?,
-                            call_depth_limit: r.limit()?,
-                            output_limit_bytes: r.limit()?,
-                            max_integer_digits: r.limit()?,
-                            max_text_bytes: r.limit()?,
-                            max_collection_items: r.limit()?,
-                            max_parallelism: r.limit()?,
-                            max_file_bytes: r.limit()?,
-                        },
+                        resource_limits,
+                        packages,
                     })
                 }
                 tag => {

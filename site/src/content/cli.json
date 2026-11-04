@@ -1,6 +1,6 @@
 {
-  "version": "guion 0.1.0 (artifact format 51, timezone data 2026c)",
-  "artifactFormat": 44,
+  "version": "guion 0.1.0 (artifact format 60, timezone data 2026c)",
+  "artifactFormat": 60,
   "commands": [
     {
       "name": "new",
@@ -39,7 +39,7 @@
     },
     {
       "name": "run",
-      "args": "[--json] [--file-root DIR] TARGET [ARGS…]",
+      "args": "[--json] [--file-root DIR] TARGET [ARGS\u2026]",
       "plain": "Run a program, from source or from a built file.",
       "dev": "Compiles and executes source, runs a .gub without source, or resolves the entry from a project directory. Grants come from flags and guion.toml.",
       "report": "guion_run_report v1"
@@ -112,6 +112,20 @@
       "args": "PACKAGE_DIRECTORY [--prefix DIR]",
       "plain": "Install a packed app and make it launchable.",
       "dev": "Verifies the package, installs into share/guion/apps/NAME/VERSION and creates its launcher.",
+      "report": null
+    },
+    {
+      "name": "publish",
+      "args": "[DIRECTORY]",
+      "plain": "Share a library on the Guion package registry.",
+      "dev": "Checks the library (including its declared capabilities), packs it and uploads it with the publisher token in GUION_REGISTRY_TOKEN; a published version never changes.",
+      "report": null
+    },
+    {
+      "name": "yank",
+      "args": "NAME VERSION [--undo]",
+      "plain": "Stop new projects from picking a version of your library.",
+      "dev": "Marks a published version yanked so resolution skips it; existing locks keep working. --undo restores it.",
       "report": null
     }
   ]
