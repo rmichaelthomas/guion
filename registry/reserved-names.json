@@ -1,0 +1,39 @@
+{
+  "exact": [
+    "calendar",
+    "cli",
+    "collections",
+    "core",
+    "crypto",
+    "csv",
+    "encoding",
+    "fs",
+    "guion",
+    "http",
+    "http-server",
+    "http-types",
+    "json",
+    "jsonl",
+    "math",
+    "net",
+    "path",
+    "pkg",
+    "process",
+    "random",
+    "regex",
+    "semver",
+    "sqlite",
+    "std",
+    "text",
+    "time",
+    "tls",
+    "toml",
+    "types",
+    "unicode",
+    "url",
+    "websocket"
+  ],
+  "prefixes": [
+    "guion-"
+  ]
+}

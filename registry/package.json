@@ -1,0 +1,10 @@
+{
+  "name": "guion-registry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference implementation of the Guion package registry protocol (docs/registry-protocol.md) as a Cloudflare Worker over R2.",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

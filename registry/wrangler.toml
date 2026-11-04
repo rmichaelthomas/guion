@@ -1,0 +1,9 @@
+# Local development works with `wrangler dev --local`, which simulates R2 on this machine.
+# No account id, route or credential is set here: deploying is a separate, deliberate step.
+name = "guion-registry"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+[[r2_buckets]]
+binding = "REGISTRY"
+bucket_name = "guion-registry"
