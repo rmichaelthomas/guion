@@ -13,6 +13,7 @@ mod dependencies;
 mod native_dependencies;
 mod native_packages;
 mod package_name;
+mod package_version;
 mod pool_alloc;
 mod source_run_cache;
 
