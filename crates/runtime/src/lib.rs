@@ -7669,6 +7669,7 @@ impl Instance {
                     charge_record: native_charge_record as *const () as *const u8,
                     charge_value_clone: native_charge_value_clone as *const () as *const u8,
                     make_tagged_value: native_make_tagged_value as *const () as *const u8,
+                    math: native_math as *const () as *const u8,
                     print: native_print as *const () as *const u8,
                     direct_operations: [
                         native_direct_json_parse as *const () as *const u8,
@@ -9603,6 +9604,15 @@ unsafe extern "C" fn native_charge_record(arena: *mut NativeListArena, bytes: i6
         arena.record_record_charge(bytes);
     }
     i32::from(ok)
+}
+
+extern "C" fn native_math(code: i64, a: f64, b: f64) -> f64 {
+    u8::try_from(code)
+        .ok()
+        .and_then(guion_model::MathFunction::from_code)
+        .map_or(f64::NAN, |function| {
+            guion_vm_core::math_or_nan(function, a, b)
+        })
 }
 
 unsafe extern "C" fn native_make_tagged_value(

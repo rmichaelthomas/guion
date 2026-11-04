@@ -8146,6 +8146,13 @@ fn apply_math(
     ))
 }
 
+/// Applies a math function for native code. A domain error or non-finite result comes back as
+/// NaN, which a valid result never is, and the caller replays the call in the VM to raise the
+/// exact error.
+pub fn math_or_nan(function: MathFunction, a: f64, b: f64) -> f64 {
+    apply_math(function, a, b).map_or(f64::NAN, Float64::get)
+}
+
 /// Truncates toward zero. `Float64` values are always finite, so the result is exact.
 fn float_to_bigint(value: f64) -> BigInt {
     let truncated = value.trunc();

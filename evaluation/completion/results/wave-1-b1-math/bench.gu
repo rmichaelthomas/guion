@@ -1,0 +1,12 @@
+import "std:math"
+fn main() -> Int:
+    var i = 0
+    var total = 0.0
+    while i < 2000000:
+        let x = int_to_float(i) * 0.001
+        set total = total + math_sin(x) * math_cos(x) + math_sqrt_free(x)
+        set i = i + 1
+    print(total)
+    return 0
+fn math_sqrt_free(x: Float64) -> Float64:
+    return math_atan(x)

@@ -427,6 +427,7 @@ pub(crate) struct NativeSymbols {
     pub(crate) charge_record: *const u8,
     pub(crate) charge_value_clone: *const u8,
     pub(crate) make_tagged_value: *const u8,
+    pub(crate) math: *const u8,
     pub(crate) print: *const u8,
     pub(crate) direct_operations: [*const u8; NATIVE_DIRECT_OPERATION_NAMES.len()],
     pub(crate) make_record: *const u8,
@@ -488,6 +489,7 @@ pub(crate) struct NativeBackend {
     charge_record: FuncId,
     charge_value_clone: FuncId,
     make_tagged_value: FuncId,
+    math: FuncId,
     print: FuncId,
     direct_operations: Vec<FuncId>,
     make_record: FuncId,
@@ -628,6 +630,7 @@ impl NativeBackend {
         builder.symbol("guion_charge_record", symbols.charge_record);
         builder.symbol("guion_charge_value_clone", symbols.charge_value_clone);
         builder.symbol("guion_make_tagged_value", symbols.make_tagged_value);
+        builder.symbol("guion_math", symbols.math);
         builder.symbol("guion_print", symbols.print);
         for (name, address) in NATIVE_DIRECT_OPERATION_NAMES
             .into_iter()
@@ -787,6 +790,14 @@ impl NativeBackend {
                 Linkage::Import,
                 &make_tagged_value_signature,
             )
+            .ok()?;
+        let mut math_signature = Signature::new(module.target_config().default_call_conv);
+        math_signature.params.push(AbiParam::new(types::I64));
+        math_signature.params.push(AbiParam::new(types::F64));
+        math_signature.params.push(AbiParam::new(types::F64));
+        math_signature.returns.push(AbiParam::new(types::F64));
+        let math_id = module
+            .declare_function("guion_math", Linkage::Import, &math_signature)
             .ok()?;
         let mut print_signature = Signature::new(module.target_config().default_call_conv);
         print_signature.params.push(AbiParam::new(pointer_type));
@@ -963,6 +974,7 @@ impl NativeBackend {
             charge_record: charge_record_id,
             charge_value_clone: charge_value_clone_id,
             make_tagged_value: make_tagged_value_id,
+            math: math_id,
             print: print_id,
             direct_operations,
             make_record: make_record_id,
@@ -1395,6 +1407,9 @@ impl NativeBackend {
         let make_tagged_value = self
             .module
             .declare_func_in_func(self.make_tagged_value, &mut context.func);
+        let math_helper = self
+            .module
+            .declare_func_in_func(self.math, &mut context.func);
         let print = self
             .module
             .declare_func_in_func(self.print, &mut context.func);
@@ -3294,6 +3309,82 @@ impl NativeBackend {
                             }
                         }
                     }
+                    Op::IntToFloat => {
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let converted = builder.ins().fcvt_from_sint(types::F64, value);
+                        stack.push(builder.ins().bitcast(
+                            types::I64,
+                            MemFlagsData::new(),
+                            converted,
+                        ));
+                    }
+                    Op::FloatToInt => {
+                        // Beyond this bound the result is a big integer, which the VM builds.
+                        let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let value = builder
+                            .ins()
+                            .bitcast(types::F64, MemFlagsData::new(), value);
+                        let magnitude = builder.ins().fabs(value);
+                        let bound = builder.ins().f64const(9.0e18);
+                        let too_large =
+                            builder
+                                .ins()
+                                .fcmp(FloatCC::GreaterThanOrEqual, magnitude, bound);
+                        let convert = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip],
+                        );
+                        builder
+                            .ins()
+                            .brif(too_large, fallback, &exit_args, convert, &[]);
+                        builder.switch_to_block(convert);
+                        builder.seal_block(convert);
+                        let truncated = builder.ins().trunc(value);
+                        stack.push(builder.ins().fcvt_to_sint(types::I64, truncated));
+                    }
+                    Op::Math(function) => {
+                        let second = if function.arity() == 2 {
+                            Some(stack.pop().ok_or_else(|| "stack underflow".to_owned())?)
+                        } else {
+                            None
+                        };
+                        let first = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let first = builder
+                            .ins()
+                            .bitcast(types::F64, MemFlagsData::new(), first);
+                        let second = match second {
+                            Some(value) => {
+                                builder
+                                    .ins()
+                                    .bitcast(types::F64, MemFlagsData::new(), value)
+                            }
+                            None => builder.ins().f64const(0.0),
+                        };
+                        let code = builder.ins().iconst(types::I64, i64::from(function.code()));
+                        let call = builder.ins().call(math_helper, &[code, first, second]);
+                        let result = builder.inst_results(call)[0];
+                        // NaN marks a domain error or non-finite result; the VM replays the call
+                        // so the program fails with exactly the error the VM would raise.
+                        let invalid = builder.ins().fcmp(FloatCC::Unordered, result, result);
+                        let okay = builder.create_block();
+                        let exit_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip],
+                        );
+                        builder.ins().brif(invalid, fallback, &exit_args, okay, &[]);
+                        builder.switch_to_block(okay);
+                        builder.seal_block(okay);
+                        stack.push(
+                            builder
+                                .ins()
+                                .bitcast(types::I64, MemFlagsData::new(), result),
+                        );
+                    }
                     Op::FloatSqrt => {
                         let value = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
                         let value = builder
@@ -4979,6 +5070,26 @@ fn infer_native_types(
                 }
                 state.stack.push(left);
             }
+            Op::IntToFloat => {
+                if state.stack.pop()? != Type::Int {
+                    return None;
+                }
+                state.stack.push(Type::Float64);
+            }
+            Op::FloatToInt => {
+                if state.stack.pop()? != Type::Float64 {
+                    return None;
+                }
+                state.stack.push(Type::Int);
+            }
+            Op::Math(function) => {
+                for _ in 0..function.arity() {
+                    if state.stack.pop()? != Type::Float64 {
+                        return None;
+                    }
+                }
+                state.stack.push(Type::Float64);
+            }
             Op::FloatSqrt => {
                 if state.stack.pop()? != Type::Float64 {
                     return None;
@@ -6195,6 +6306,8 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             Op::Negate
             | Op::Not
             | Op::FloatSqrt
+            | Op::IntToFloat
+            | Op::FloatToInt
             | Op::TextChars
             | Op::JsonTryText
             | Op::JsonTryInt
@@ -6209,6 +6322,7 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             | Op::MakeErr
             | Op::MakeSome => (1, 1),
             Op::JsonTryGet => (2, 1),
+            Op::Math(function) => (function.arity(), 1),
             Op::MakeNone => (0, 1),
             Op::TextSlice | Op::TextFind | Op::TextReplace => (3, 1),
             Op::TextSplit | Op::TextJoin => (2, 1),
