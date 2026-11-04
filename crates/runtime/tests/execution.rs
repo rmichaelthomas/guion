@@ -224,21 +224,31 @@ fn main() -> Int:
     assert_eq!(output, vm.take_output());
     let compiled = native.native_function_names();
     for name in ["main", "point", "shift", "path"] {
-        assert!(compiled.iter().any(|compiled| compiled == name), "{name} did not compile: {compiled:?}");
+        assert!(
+            compiled.iter().any(|compiled| compiled == name),
+            "{name} did not compile: {compiled:?}"
+        );
     }
     assert_eq!(native.native_deoptimizations(), 0);
 
     // Nested records cross the boundary in both directions: a VM value becomes a native argument
     // and the native result comes back as the same value the VM computes.
     let seed = vec![Value::Int(BigInt::from_i64(7))];
-    let built = native.invoke("path", seed.clone()).expect("native path runs");
+    let built = native
+        .invoke("path", seed.clone())
+        .expect("native path runs");
     assert_eq!(built, vm.invoke("path", seed).expect("VM path runs"));
     let Value::Record(_, fields) = &built else {
         panic!("path returns a record: {built:?}");
     };
     let arguments = vec![fields[0].clone(), Value::Int(BigInt::from_i64(5))];
-    let shifted = native.invoke("shift", arguments.clone()).expect("native shift runs");
-    assert_eq!(shifted, vm.invoke("shift", arguments).expect("VM shift runs"));
+    let shifted = native
+        .invoke("shift", arguments.clone())
+        .expect("native shift runs");
+    assert_eq!(
+        shifted,
+        vm.invoke("shift", arguments).expect("VM shift runs")
+    );
     assert_eq!(native.native_deoptimizations(), 0);
 }
 

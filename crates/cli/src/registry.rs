@@ -26,15 +26,19 @@ const MAX_ARCHIVE_BYTES: usize = 32 * 1024 * 1024;
 
 pub struct Registry {
     base: String,
-    /// The ed25519 key every log entry must be signed with; `None` accepts unsigned entries.
-    public_key: Option<[u8; 32]>,
+    /// The ed25519 keys a log entry may be signed with; empty accepts unsigned entries.
+    public_keys: Vec<[u8; 32]>,
 }
 
 /// The Guion package registry (registry/ deployed as a Cloudflare Worker over R2).
 pub const DEFAULT_REGISTRY_URL: &str = "https://guion-registry.thomasbuild.workers.dev";
-/// The default registry's log-signing key (ed25519, hex). Its key id is 2cbb71082c5a7848.
-pub const DEFAULT_REGISTRY_PUBLIC_KEY: &str =
-    "4b40803cbc49c33eb741d031ed339abd73139ae95ce502ef48a3d3051ac25b11";
+/// The default registry's log-signing keys (ed25519, hex). To rotate, a release trusts the old
+/// and new keys before the registry switches to the new one; entries signed with the old key keep
+/// verifying for as long as it stays listed.
+pub const DEFAULT_REGISTRY_PUBLIC_KEYS: &[&str] = &[
+    // key id 2cbb71082c5a7848, in use since 2026-11-04
+    "4b40803cbc49c33eb741d031ed339abd73139ae95ce502ef48a3d3051ac25b11",
+];
 
 fn parse_public_key(text: &str) -> Result<[u8; 32], String> {
     let text = text.trim();
@@ -49,15 +53,28 @@ fn parse_public_key(text: &str) -> Result<[u8; 32], String> {
     Ok(key)
 }
 
+/// One or more keys separated by commas or whitespace.
+fn parse_public_keys(text: &str) -> Result<Vec<[u8; 32]>, String> {
+    let keys = text
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|key| !key.is_empty())
+        .map(parse_public_key)
+        .collect::<Result<Vec<_>, _>>()?;
+    if keys.is_empty() {
+        return Err("a registry public key must be 64 hexadecimal characters".to_owned());
+    }
+    Ok(keys)
+}
+
 fn is_loopback(host: &str) -> bool {
     matches!(host, "127.0.0.1" | "localhost" | "[::1]" | "::1")
 }
 
 impl Registry {
     /// The registry URL comes from `GUION_REGISTRY_URL`, then `[registry] url` in the project
-    /// manifest, then the built-in default. The log-signing key comes from
-    /// `GUION_REGISTRY_PUBLIC_KEY`, then `[registry] public_key`, then the key pinned for the
-    /// default registry.
+    /// manifest, then the built-in default. The log-signing keys come from
+    /// `GUION_REGISTRY_PUBLIC_KEY`, then `[registry] public_key` (either may list several, separated
+    /// by commas), then the keys pinned for the default registry.
     pub fn configured(project: &Path) -> Result<Registry, String> {
         let from_manifest = |field: &str| -> Option<String> {
             let text = std::fs::read_to_string(project.join("guion.toml")).ok()?;
@@ -77,7 +94,7 @@ impl Registry {
             .ok()
             .or_else(|| from_manifest("public_key"))
         {
-            registry.public_key = Some(parse_public_key(&key)?);
+            registry.public_keys = parse_public_keys(&key)?;
         }
         Ok(registry)
     }
@@ -96,10 +113,15 @@ impl Registry {
             return Err("the registry URL must use https (http is allowed only for localhost) and cannot contain credentials".into());
         }
         let base = url.trim_end_matches('/').to_owned();
-        let public_key = (base == DEFAULT_REGISTRY_URL)
-            .then(|| parse_public_key(DEFAULT_REGISTRY_PUBLIC_KEY))
-            .transpose()?;
-        Ok(Registry { base, public_key })
+        let public_keys = if base == DEFAULT_REGISTRY_URL {
+            DEFAULT_REGISTRY_PUBLIC_KEYS
+                .iter()
+                .map(|key| parse_public_key(key))
+                .collect::<Result<_, _>>()?
+        } else {
+            Vec::new()
+        };
+        Ok(Registry { base, public_keys })
     }
 
     pub fn object_url(&self, sha256: &str) -> String {
@@ -275,7 +297,7 @@ impl Registry {
         if entry["hash"] != expected.as_str() {
             return Err(format!("registry log entry {seq} fails its own hash check"));
         }
-        if let Some(key) = &self.public_key {
+        if !self.public_keys.is_empty() {
             // The signature covers the hash, which covers `prev`: a valid signature on an entry
             // vouches for every entry before it.
             let signature = entry["signature"]
@@ -283,9 +305,11 @@ impl Registry {
                 .and_then(|text| parse_signature(text).ok());
             let message = format!("guion-registry-log-v1:{seq}:{expected}");
             let valid = signature.is_some_and(|signature| {
-                ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
-                    .verify(message.as_bytes(), &signature)
-                    .is_ok()
+                self.public_keys.iter().any(|key| {
+                    ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
+                        .verify(message.as_bytes(), &signature)
+                        .is_ok()
+                })
             });
             if !valid {
                 return Err(format!(
@@ -297,8 +321,8 @@ impl Registry {
     }
 
     #[cfg(test)]
-    fn with_public_key(mut self, key: [u8; 32]) -> Registry {
-        self.public_key = Some(key);
+    fn with_public_keys(mut self, keys: &[[u8; 32]]) -> Registry {
+        self.public_keys = keys.to_vec();
         self
     }
 
@@ -636,13 +660,24 @@ mod tests {
         key.public_key().as_ref().try_into().unwrap()
     }
 
-    fn signed_log_entry_json(version: &str, sha: &str, key: &ring::signature::Ed25519KeyPair) -> String {
+    fn signed_log_entry_json(
+        version: &str,
+        sha: &str,
+        key: &ring::signature::Ed25519KeyPair,
+    ) -> String {
         let entry = log_entry_json(version, sha, None);
         let value: Value = serde_json::from_str(&entry).unwrap();
         let hash = value["hash"].as_str().unwrap();
         let signature = key.sign(format!("guion-registry-log-v1:1:{hash}").as_bytes());
-        let hex: String = signature.as_ref().iter().map(|byte| format!("{byte:02x}")).collect();
-        format!("{},\"key_id\":\"test\",\"signature\":\"{hex}\"}}", &entry[..entry.len() - 1])
+        let hex: String = signature
+            .as_ref()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        format!(
+            "{},\"key_id\":\"test\",\"signature\":\"{hex}\"}}",
+            &entry[..entry.len() - 1]
+        )
     }
 
     fn select_demo(registry: Registry) -> Result<VerifiedVersion, String> {
@@ -653,11 +688,17 @@ mod tests {
     fn the_default_registry_has_its_signing_key_pinned() {
         let registry = Registry::new(DEFAULT_REGISTRY_URL).unwrap();
         assert_eq!(
-            registry.public_key,
-            Some(parse_public_key(DEFAULT_REGISTRY_PUBLIC_KEY).unwrap())
+            registry.public_keys,
+            vec![parse_public_key(DEFAULT_REGISTRY_PUBLIC_KEYS[0]).unwrap()]
         );
-        assert!(Registry::new("https://registry.example").unwrap().public_key.is_none());
+        assert!(Registry::new("https://registry.example")
+            .unwrap()
+            .public_keys
+            .is_empty());
         assert!(parse_public_key("abc").is_err());
+        assert!(parse_public_keys(" , ").is_err());
+        let two = format!("{}, {}", "1".repeat(64), "2".repeat(64));
+        assert_eq!(parse_public_keys(&two).unwrap().len(), 2);
     }
 
     #[test]
@@ -666,10 +707,39 @@ mod tests {
         let sha = "a".repeat(64);
         let base = serve(vec![
             ("/index/demo.json", index_json(&sha)),
-            ("/log/0000000001.json", signed_log_entry_json("1.0.0", &sha, &key)),
+            (
+                "/log/0000000001.json",
+                signed_log_entry_json("1.0.0", &sha, &key),
+            ),
         ]);
-        let registry = Registry::new(&base).unwrap().with_public_key(public_key(&key));
+        let registry = Registry::new(&base)
+            .unwrap()
+            .with_public_keys(&[public_key(&key)]);
         assert_eq!(select_demo(registry).unwrap().sha256, sha);
+    }
+
+    #[test]
+    fn entries_signed_with_a_retired_key_verify_while_it_stays_trusted() {
+        // During a rotation the client trusts the new key and the old one, so entries the old key
+        // signed keep installing.
+        let old = test_key(7);
+        let new = test_key(9);
+        let sha = "a".repeat(64);
+        let base = serve(vec![
+            ("/index/demo.json", index_json(&sha)),
+            (
+                "/log/0000000001.json",
+                signed_log_entry_json("1.0.0", &sha, &old),
+            ),
+        ]);
+        let trusting_both = Registry::new(&base)
+            .unwrap()
+            .with_public_keys(&[public_key(&new), public_key(&old)]);
+        assert_eq!(select_demo(trusting_both).unwrap().sha256, sha);
+        let trusting_new_only = Registry::new(&base)
+            .unwrap()
+            .with_public_keys(&[public_key(&new)]);
+        assert!(select_demo(trusting_new_only).is_err());
     }
 
     #[test]
@@ -684,9 +754,14 @@ mod tests {
                 ("/index/demo.json", index_json(&sha)),
                 ("/log/0000000001.json", entry),
             ]);
-            let registry = Registry::new(&base).unwrap().with_public_key(public_key(&key));
+            let registry = Registry::new(&base)
+                .unwrap()
+                .with_public_keys(&[public_key(&key)]);
             let error = select_demo(registry).err().expect("must refuse");
-            assert!(error.contains("not signed by the registry's key"), "{error}");
+            assert!(
+                error.contains("not signed by the registry's key"),
+                "{error}"
+            );
         }
     }
 

@@ -848,14 +848,12 @@ fn tls_accept(
                     )
                 })?;
             }
-            let verifier = WebPkiClientVerifier::builder_with_provider(
-                Arc::new(roots),
-                crypto_provider(),
-            )
-            .build()
-            .map_err(|error| {
-                Failure::new("E_TLS_ARGUMENT", format!("bad client CA: {error}"))
-            })?;
+            let verifier =
+                WebPkiClientVerifier::builder_with_provider(Arc::new(roots), crypto_provider())
+                    .build()
+                    .map_err(|error| {
+                        Failure::new("E_TLS_ARGUMENT", format!("bad client CA: {error}"))
+                    })?;
             builder.with_client_cert_verifier(verifier)
         }
     };

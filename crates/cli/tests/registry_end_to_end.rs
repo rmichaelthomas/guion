@@ -605,7 +605,11 @@ fn token_rotate_and_revoke_retire_the_old_token() {
 
     let refused = guion(&library, &registry, Some(&first), &["publish"]);
     assert!(!refused.status.success());
-    assert!(text(&refused).contains("E_AUTH_INVALID"), "{}", text(&refused));
+    assert!(
+        text(&refused).contains("E_AUTH_INVALID"),
+        "{}",
+        text(&refused)
+    );
     assert!(!text(&refused).contains(&first));
     let published = guion(&library, &registry, Some(&second), &["publish"]);
     assert!(published.status.success(), "{}", text(&published));
@@ -621,7 +625,14 @@ fn token_rotate_and_revoke_retire_the_old_token() {
         "{}",
         text(&untrusted)
     );
-    let trusted = guion(&app, &registry, None, &["add", "token-lib"]);
+    // Trusting several keys (as during a key rotation) accepts an entry signed by any of them.
+    let trusted = guion_trusting(
+        &app,
+        &registry,
+        None,
+        &["add", "token-lib"],
+        &format!("{wrong_key}, {PUBLIC_KEY}"),
+    );
     assert!(trusted.status.success(), "{}", text(&trusted));
 
     let revoked = guion(&work, &registry, Some(&second), &["token", "revoke"]);

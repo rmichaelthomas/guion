@@ -147,10 +147,19 @@ fn main() -> Int:
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(!outside.join("created.txt").exists());
-    assert_eq!(std::fs::read_to_string(outside.join("kept.txt")).unwrap(), "outside");
-    assert_eq!(std::fs::read_to_string(root.join("target.txt")).unwrap(), "inside");
+    assert_eq!(
+        std::fs::read_to_string(outside.join("kept.txt")).unwrap(),
+        "outside"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("target.txt")).unwrap(),
+        "inside"
+    );
     for removed in ["inside_link", "outside_link", "dangling", "moving_link"] {
-        assert!(std::fs::symlink_metadata(root.join(removed)).is_err(), "{removed}");
+        assert!(
+            std::fs::symlink_metadata(root.join(removed)).is_err(),
+            "{removed}"
+        );
     }
     assert!(std::fs::symlink_metadata(root.join("sub/moved"))
         .unwrap()

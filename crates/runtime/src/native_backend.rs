@@ -13,8 +13,7 @@ use cranelift_codegen::{
     ir::{
         condcodes::{FloatCC, IntCC},
         types, AbiParam, BlockArg, FuncRef, InstBuilder, MemFlagsData, Signature, StackSlot,
-        StackSlotData,
-        StackSlotKind, UserFuncName,
+        StackSlotData, StackSlotKind, UserFuncName,
     },
     Context,
 };
@@ -355,7 +354,7 @@ fn native_bridge_tag(ty: &Type) -> i64 {
 // holds another record whose fields are all scalars (or such records, nested) is stored inline as
 // that record's words, so reading it needs no allocation and returning the outer record copies
 // the whole value. Lists are allowed only at the outer level.
-const NATIVE_RECORD_NESTING_LIMIT: usize = 8;
+const MAX_NESTED_RECORD_DEPTH: usize = 8;
 
 fn native_scalar(ty: &Type) -> bool {
     matches!(ty, Type::Int | Type::Float64 | Type::Bool)
@@ -366,7 +365,7 @@ fn native_record_words_at(
     records: &[guion_model::RecordDefinition],
     depth: usize,
 ) -> Option<usize> {
-    if depth > NATIVE_RECORD_NESTING_LIMIT {
+    if depth > MAX_NESTED_RECORD_DEPTH {
         return None;
     }
     record.fields.iter().try_fold(0_usize, |words, field| {
@@ -413,13 +412,17 @@ pub(crate) fn native_record_field_offset(
     field: usize,
     records: &[guion_model::RecordDefinition],
 ) -> Option<usize> {
-    record.fields.get(..field)?.iter().try_fold(0_usize, |offset, field| {
-        let words = match inline_record(&field.ty, records) {
-            Some(nested) => native_record_words_at(nested, records, 1)?,
-            None => 1,
-        };
-        offset.checked_add(words)
-    })
+    record
+        .fields
+        .get(..field)?
+        .iter()
+        .try_fold(0_usize, |offset, field| {
+            let words = match inline_record(&field.ty, records) {
+                Some(nested) => native_record_words_at(nested, records, 1)?,
+                None => 1,
+            };
+            offset.checked_add(words)
+        })
 }
 
 /// The record stored inline in a field of type `ty`, if any.
@@ -462,9 +465,12 @@ pub(crate) fn encode_inline_native_record(
             (Value::Int(value), Type::Int) => out.push(value.to_i64()?),
             (Value::Float64(value), Type::Float64) => out.push(value.get().to_bits() as i64),
             (Value::Bool(value), Type::Bool) => out.push(i64::from(*value)),
-            (value, ty) => {
-                encode_inline_native_record(value, native_inline_record(ty, records)?, records, out)?
-            }
+            (value, ty) => encode_inline_native_record(
+                value,
+                native_inline_record(ty, records)?,
+                records,
+                out,
+            )?,
         }
     }
     Some(())
@@ -483,7 +489,9 @@ pub(crate) fn decode_inline_native_record(
         let word = *words.get(offset)?;
         let value = match &field.ty {
             Type::Int => Value::Int(guion_model::BigInt::from_i64(word)),
-            Type::Float64 => Value::Float64(guion_model::Float64::new(f64::from_bits(word as u64))?),
+            Type::Float64 => {
+                Value::Float64(guion_model::Float64::new(f64::from_bits(word as u64))?)
+            }
             Type::Bool => Value::Bool(word != 0),
             ty => {
                 let nested = native_inline_record(ty, records)?;
@@ -501,7 +509,10 @@ pub(crate) fn decode_inline_native_record(
         offset += 1;
         fields.push(value);
     }
-    Some(Value::Record(record.name.clone(), guion_model::Shared::new(fields)))
+    Some(Value::Record(
+        record.name.clone(),
+        guion_model::Shared::new(fields),
+    ))
 }
 
 fn may_contain_map_handle(ty: &Type, records: &[guion_model::RecordDefinition]) -> bool {
@@ -2047,8 +2058,9 @@ impl NativeBackend {
                             let offset =
                                 native_record_field_offset(definition, *field_index, records)
                                     .ok_or_else(|| "native record field is missing".to_owned())?;
-                            let field_address =
-                                builder.ins().iadd_imm_s(fields, offset.saturating_mul(8) as i64);
+                            let field_address = builder
+                                .ins()
+                                .iadd_imm_s(fields, offset.saturating_mul(8) as i64);
                             let field_type =
                                 definition.fields.get(*field_index).map(|field| &field.ty);
                             let inline_words = field_type
@@ -2057,7 +2069,12 @@ impl NativeBackend {
                             let value = if let Some(words) = inline_words {
                                 // An inline record is read in place: its descriptor points into
                                 // the outer record's words. Anything that keeps it copies them.
-                                emit_native_record_descriptor(&mut builder, ptr, field_address, words)
+                                emit_native_record_descriptor(
+                                    &mut builder,
+                                    ptr,
+                                    field_address,
+                                    words,
+                                )
                             } else {
                                 builder.ins().load(
                                     types::I64,
@@ -2221,9 +2238,12 @@ impl NativeBackend {
                             for (value, field) in fields.iter().zip(&definition.fields) {
                                 if let Some(nested) = native_inline_record(&field.ty, records) {
                                     let nested_words = native_record_words(nested, records)
-                                        .ok_or_else(|| "native record layout is missing".to_owned())?;
-                                    let destination =
-                                        builder.ins().iadd_imm_s(fields_pointer, (offset * 8) as i64);
+                                        .ok_or_else(|| {
+                                            "native record layout is missing".to_owned()
+                                        })?;
+                                    let destination = builder
+                                        .ins()
+                                        .iadd_imm_s(fields_pointer, (offset * 8) as i64);
                                     emit_native_record_copy(
                                         &mut builder,
                                         ptr,
@@ -2242,8 +2262,12 @@ impl NativeBackend {
                                     offset += 1;
                                 }
                             }
-                            let descriptor =
-                                emit_native_record_descriptor(&mut builder, ptr, fields_pointer, words);
+                            let descriptor = emit_native_record_descriptor(
+                                &mut builder,
+                                ptr,
+                                fields_pointer,
+                                words,
+                            );
                             stack.push(descriptor);
                         }
                     }
@@ -2466,8 +2490,12 @@ impl NativeBackend {
                                 });
                             let destination = builder.ins().stack_addr(ptr, storage, 0);
                             emit_native_record_copy(&mut builder, ptr, value, destination, words);
-                            let descriptor =
-                                emit_native_record_descriptor(&mut builder, ptr, destination, words);
+                            let descriptor = emit_native_record_descriptor(
+                                &mut builder,
+                                ptr,
+                                destination,
+                                words,
+                            );
                             builder.def_var(local_vars[*slot], descriptor);
                         } else {
                             builder.def_var(local_vars[*slot], value);
@@ -2989,8 +3017,8 @@ impl NativeBackend {
                             ),
                             _ => None,
                         };
-                        let value = if let Some(definition) =
-                            callee_record.filter(|record| native_record_has_native_layout(record, records))
+                        let value = if let Some(definition) = callee_record
+                            .filter(|record| native_record_has_native_layout(record, records))
                         {
                             let fields = native_record_words(definition, records)
                                 .ok_or_else(|| "native record layout is missing".to_owned())?;
@@ -3582,9 +3610,7 @@ impl NativeBackend {
                             ip,
                             block_instruction_offsets[ip],
                         );
-                        builder
-                            .ins()
-                            .brif(invalid, fallback, &exit_args, draw, &[]);
+                        builder.ins().brif(invalid, fallback, &exit_args, draw, &[]);
                         builder.switch_to_block(draw);
                         builder.seal_block(draw);
                         let bits = emit_splitmix64_mix(&mut builder, value);
@@ -3594,9 +3620,10 @@ impl NativeBackend {
                         let next = builder.ins().iadd_imm_s(below_max, 1);
                         let tail = builder.ins().urem(next, span);
                         let limit = builder.ins().bnot(tail);
-                        let accept = builder
-                            .ins()
-                            .icmp(IntCC::UnsignedLessThanOrEqual, bits, limit);
+                        let accept =
+                            builder
+                                .ins()
+                                .icmp(IntCC::UnsignedLessThanOrEqual, bits, limit);
                         let reduced = builder.ins().urem(bits, span);
                         let rejected = builder.ins().iconst(types::I64, -1);
                         stack.push(builder.ins().select(accept, reduced, rejected));
@@ -5115,7 +5142,8 @@ fn emit_native_record_descriptor(
     fields: cranelift_codegen::ir::Value,
     words: usize,
 ) -> cranelift_codegen::ir::Value {
-    let slot = builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3));
+    let slot =
+        builder.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 16, 3));
     let descriptor = builder.ins().stack_addr(pointer_type, slot, 0);
     builder.ins().store(
         MemFlagsData::new(),
@@ -6203,12 +6231,11 @@ fn native_arena_allocation_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
                     let op = &instruction.op;
                     instruction_may_allocate_native_arena_value(op)
                         || match op {
-                            Op::MakeRecord(record_index, _) => artifact
-                                .records
-                                .get(*record_index)
-                                .is_some_and(|record| {
+                            Op::MakeRecord(record_index, _) => {
+                                artifact.records.get(*record_index).is_some_and(|record| {
                                     !native_record_has_native_layout(record, &artifact.records)
-                                }),
+                                })
+                            }
                             Op::MakeTypedMap(_) | Op::MapKeys | Op::MapSet => true,
                             Op::GetField(_, _) | Op::Add => result_is_handle(ip),
                             // Indexing a list hands back a handle the list already holds;
@@ -6219,7 +6246,9 @@ fn native_arena_allocation_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
                                         .as_ref()
                                         .and_then(|states| states.stack_at_ip.get(ip))
                                         .and_then(Option::as_ref)
-                                        .and_then(|stack| stack.len().checked_sub(2).map(|at| &stack[at]))
+                                        .and_then(|stack| {
+                                            stack.len().checked_sub(2).map(|at| &stack[at])
+                                        })
                                         .is_some_and(|ty| matches!(ty, Type::Map(_)))
                             }
                             _ => false,

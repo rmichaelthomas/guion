@@ -3411,14 +3411,27 @@ fn check_and_inspect_say_plainly_when_a_program_writes_files() {
     let writer = dir.join("writer.gu");
     let reader = dir.join("reader.gu");
     fs::write(&writer, "fn save() -> Unit:\n    let r = write_text(\"out.txt\", \"hi\")\n\nfn main() -> Int:\n    save()\n    return 0\n").unwrap();
-    fs::write(&reader, "fn main() -> Int:\n    let t = read_text(\"out.txt\")\n    return 0\n").unwrap();
+    fs::write(
+        &reader,
+        "fn main() -> Int:\n    let t = read_text(\"out.txt\")\n    return 0\n",
+    )
+    .unwrap();
     let guion = |args: &[&str]| {
-        let output = Command::new(env!("CARGO_BIN_EXE_guion")).args(args).output().unwrap();
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         String::from_utf8_lossy(&output.stdout).into_owned()
     };
     for command in ["check", "inspect"] {
-        assert!(guion(&[command, writer.to_str().unwrap()]).contains("writes files: `guion run` lets this program create, change and remove files under"));
+        assert!(guion(&[command, writer.to_str().unwrap()]).contains(
+            "writes files: `guion run` lets this program create, change and remove files under"
+        ));
         assert!(!guion(&[command, reader.to_str().unwrap()]).contains("writes files"));
     }
     let report: serde_json::Value =

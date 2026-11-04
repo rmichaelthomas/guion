@@ -241,7 +241,11 @@ pub fn add_from_registry(
 }
 
 /// Records on a dependency installed from the registry the version range it was asked for.
-fn set_dependency_registry_range(manifest_path: &Path, name: &str, range: &str) -> Result<(), String> {
+fn set_dependency_registry_range(
+    manifest_path: &Path,
+    name: &str,
+    range: &str,
+) -> Result<(), String> {
     let text = fs::read_to_string(manifest_path)
         .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
     let mut manifest: toml::Value = toml::from_str(&text)
@@ -1208,10 +1212,9 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
                     let range = dependency
                         .get("registry")
                         .map(|range| {
-                            range
-                                .as_str()
-                                .map(str::to_owned)
-                                .ok_or_else(|| format!("dependency `{name}`: `registry` must be a version range"))
+                            range.as_str().map(str::to_owned).ok_or_else(|| {
+                                format!("dependency `{name}`: `registry` must be a version range")
+                            })
                         })
                         .transpose()?;
                     sources.push((

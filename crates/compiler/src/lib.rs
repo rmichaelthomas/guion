@@ -682,7 +682,12 @@ fn regroup_local_text_append(value: &Expr, name: &str) -> Option<Expr> {
     while let Some(Expr::Binary(op, _, right, span)) = spine.pop() {
         rest = Expr::Binary(op.clone(), Box::new(rest), right.clone(), *span);
     }
-    Some(Expr::Binary(op.clone(), head.clone(), Box::new(rest), *span))
+    Some(Expr::Binary(
+        op.clone(),
+        head.clone(),
+        Box::new(rest),
+        *span,
+    ))
 }
 
 struct Parser {

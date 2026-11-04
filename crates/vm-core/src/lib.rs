@@ -6948,7 +6948,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if pop_type(&mut state.stack, pc)? != Type::Int
                     || pop_type(&mut state.stack, pc)? != Type::Int
                 {
-                    return Err(format!("random_below requires Int operands at instruction {pc}"));
+                    return Err(format!(
+                        "random_below requires Int operands at instruction {pc}"
+                    ));
                 }
                 state.stack.push(Type::Int);
             }

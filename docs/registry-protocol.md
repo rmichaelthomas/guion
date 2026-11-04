@@ -48,6 +48,8 @@ Each entry is `{ seq, time, action, name, version, sha256, publisher, prev, hash
 
 The registry signs every log entry and the head with its ed25519 key. `signature` is the hex ed25519 signature of the UTF-8 text `guion-registry-log-v1:<seq>:<hash>`; `key_id` is the first 16 hex characters of the SHA-256 of the 32-byte public key. Because `hash` covers `prev`, a valid signature on an entry vouches for the whole chain up to it. `GET /v1/signing-key` returns `{ algorithm: "ed25519", key_id, public_key }` for convenience, but a client must not learn the key from the registry it is checking: it is pinned in the client for the default registry and configured for any other. A registry without its key configured (the `SIGNING_KEY` deployment secret, the 32-byte seed in hex) refuses every write with 503 `E_SIGNING_UNAVAILABLE`, so its log never contains an unsigned entry.
 
+To rotate the key, clients first ship trusting both the old and the new public key; then the `SIGNING_KEY` secret changes to the new seed. Entries already in the log keep their old signatures and keep verifying for as long as clients list the old key. A client accepts an entry signed by any key it trusts, and `key_id` says which one was used.
+
 ## Archives
 
 A package archive is an uncompressed ustar tar of the library source tree: `guion.toml` with a `[package]` table at the root, plus its modules. Entries are regular files and directories only, with relative paths that stay inside the archive. The registry stores and hashes the bytes it is given; it does not unpack them. Clients apply the same extraction limits as for `guion add --url` (path traversal, links and oversized entries are refused) and check that the manifest's name and version match the index.
@@ -93,4 +95,4 @@ For every package it installs, a client checks that the same hash appears in all
 
 ## Not in this version
 
-Publisher signatures (the per-version field is reserved; trusted publishing from CI is the intended route), registry key rotation, namespaces and organisation ownership. Precompiled `.gub` attachments are deferred: the compiler links whole programs from source, so nothing could use them until libraries compile separately.
+Publisher signatures (the per-version field is reserved), namespaces and organisation ownership. Precompiled `.gub` attachments are deferred: the compiler links whole programs from source, so nothing could use them until libraries compile separately.

@@ -735,12 +735,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     };
     match command {
         "check" => {
-            let writes_files = entry_writes_files(&inspection_report(
-                &path,
-                &artifact,
-                &project_root,
-                false,
-            ));
+            let writes_files =
+                entry_writes_files(&inspection_report(&path, &artifact, &project_root, false));
             if json_check {
                 println!(
                     "{}",

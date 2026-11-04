@@ -4,7 +4,6 @@ use guion_model::{
     TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
-pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use guion_vm_core::{
     build_register_programs, charge_allocation, check_call_depth, cloned_value_allocation,
     encoded_json_string_len, finish_json_value, finish_shared_json, json_exact_integer,
@@ -12,6 +11,7 @@ use guion_vm_core::{
     shared_json_set_local_allocation, value_matches, verify, Budget, FrameStart, HostOpContext,
     OutputStream, RegisterPrograms, RuntimeProfileCounters, VmFrame, VmHost, VmLimits,
 };
+pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap, HashSet},
@@ -37,10 +37,11 @@ pub mod stdlib_data;
 pub mod stdlib_services;
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
-    native_record_has_native_layout, native_record_words, NativeBackend, NativeCode, NativeFloatList, NativeHandleList,
-    NativeIntList, NativeRecord, NativeSymbols, NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE,
-    NATIVE_INLINE_LIST_ITEMS, NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME,
-    NATIVE_TAGGED_RESULT_ERR, NATIVE_TAGGED_RESULT_OK,
+    native_record_has_native_layout, native_record_words, NativeBackend, NativeCode,
+    NativeFloatList, NativeHandleList, NativeIntList, NativeRecord, NativeSymbols,
+    NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE, NATIVE_INLINE_LIST_ITEMS,
+    NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_ERR,
+    NATIVE_TAGGED_RESULT_OK,
 };
 
 struct JsonTextPairRows<'a> {
@@ -8083,7 +8084,8 @@ impl Instance {
                     if fields.len() != definition.fields.len() {
                         return None;
                     }
-                    let Some(words) = native_record_words(definition, &self.artifact.records) else {
+                    let Some(words) = native_record_words(definition, &self.artifact.records)
+                    else {
                         return native_arena.store_value(value.clone());
                     };
                     let mut encoded_fields = Vec::with_capacity(words);
@@ -8333,7 +8335,9 @@ impl Instance {
                                         continue;
                                     }
                                     let Some(encoded) = outcome.result_values.get(word) else {
-                                        unreachable!("native result words are sized at compile time")
+                                        unreachable!(
+                                            "native result words are sized at compile time"
+                                        )
                                     };
                                     word += 1;
                                     let field = match field_type {
