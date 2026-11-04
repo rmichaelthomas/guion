@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **57**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **58**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 57. The current writer emits 57. |
+| Format version | `u32` | Reader accepts versions 14 through 58. The current writer emits 58. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -266,6 +266,7 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 184 | `Regex` | function code (`u8`; format 55): 0 `is_match`, 1 `find`, 2 `find_all`, 3 `replace`, 4 `replace_first`, 5 `split`, 6 `escape`. Pops `Text` operands (pattern then subject, plus a replacement for codes 3 and 4; one operand for `escape`) and pushes `Result[T, Text]` where the error is the pattern's compile message: `Bool`, `Option[List[Text]]` (group 0 is the whole match, unmatched groups are empty), `List[Text]`, `Text`, `Text`, `List[Text]`. `escape` pushes `Text` directly. Pure: no host grant |
 | 185 | `Process` | function code (`u8`; format 56): 0 `run`, 1 `pid`, 2 `signal_poll`. `run` pops `Text` command, `List[Text]` arguments and `Text` standard input (pushed in that order) and pushes `Result[List[Text], List[Text]]`: on success `[exit_code, stdout, stderr]` as text, on failure `[code, message]`; it needs the command grant, and the error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT`, `E_PROCESS_SPAWN`, `E_PROCESS_TIMEOUT`, `E_PROCESS_OUTPUT_LIMIT` and `E_PROCESS_WAIT`. `pid` pushes the `Int` process id. `signal_poll` pushes `Text`: `"INT"`, `"TERM"`, `"HUP"` or `""`, and clears the pending signal |
 | 186 | `Net` | function code (`u8`; format 57): 0 `tcp_connect(host, port, timeout_ms)`, 1 `tcp_listen(host, port)`, 2 `tcp_accept(handle, timeout_ms)`, 3 `local_port(handle)`, 4 `send(handle, bytes)`, 5 `recv(handle, max, timeout_ms)`, 6 `close(handle)`, 7 `udp_bind(host, port)`, 8 `udp_send_to(handle, host, port, bytes)`, 9 `udp_recv_from(handle, max, timeout_ms)`. Operands are pushed in that order. Pushes `Result[T, List[Text]]` where a failure is `[code, message]` and `T` is `Int` (a handle, port or byte count), `Bytes`, `Unit`, or `List[Bytes]` (`[datagram, sender "host:port"]`). Connecting and datagram sends need a matching `connect` grant, binding a matching `bind` grant |
+| 187 | `Tls` | function code (`u8`; format 58): 0 `connect(host, port, timeout_ms, extra_ca_pem)`, 1 `accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`. Pops four operands and pushes `Result[Int, List[Text]]`: a socket handle usable with the `Net` send, receive, port and close functions, or `[code, message]`. Connecting needs the same `connect` grant as TCP |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 

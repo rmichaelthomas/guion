@@ -37,6 +37,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Regular expressions (artifact format 55): `std:regex` provides `regex_is_match`, `regex_find` (the first match as a list of capture groups, group 0 first, unmatched groups as `""`), `regex_find_all`, `regex_replace`, `regex_replace_first` (replacement text expands `$1`, `${name}`; `$$` is a literal `$`), `regex_split` and `regex_escape`. Patterns use the Rust `regex` crate syntax: Unicode-aware, RE2-style, matching time linear in the subject, with no backreferences and no lookaround. An invalid or unsupported pattern, a pattern over 4,096 bytes, or one that compiles to more than 1 MiB of program returns `Err` with code `E_REGEX_INVALID`; no grant is required. Compiled patterns are cached per thread.
 - Processes and signals (artifact format 56): `std:process` provides `process_run(command, arguments, stdin)` returning `Result[ProcessResult, StdError]` with `exit_code`, `stdout` and `stderr` (a child killed by signal N reports `128 + N`; output is decoded as lossy UTF-8), `process_pid()` and `process_signal_poll()`. Starting a program is denied by default: the command name must be listed exactly in `guion.toml` `[process].commands` or passed with `guion run --allow-command NAME`; a grant for one command never covers another. The command starts without a shell from an argument list, with a cleared environment holding only `PATH` and the variables granted in `[environment]`, the project file root as working directory, and its own process group. `[process].timeout_ms` (default 30,000) and `[process].max_output_bytes` (default 16 MiB per stream) bound each call; exceeding either kills the whole group and returns `E_PROCESS_TIMEOUT` or `E_PROCESS_OUTPUT_LIMIT`. Other error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT` and `E_PROCESS_SPAWN`. `process_signal_poll()` installs `INT`, `TERM` and `HUP` handlers on first use, so those signals no longer end the program by themselves; it returns and clears the pending signal name, or `""`. Calls are synchronous: there is no way to leave a child running after the call returns. Static inspection reports `process.spawn` and `process.signals`, with a `process_grant` section.
 - Sockets (artifact format 57): `std:net` provides blocking TCP and UDP over integer-handle records `TcpConn`, `TcpListener`, `UdpSock`: `tcp_connect`, `tcp_listen`, `tcp_listener_port`, `tcp_accept`, `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close`, `tcp_listener_close`, `udp_bind`, `udp_port`, `udp_send_to`, `udp_recv_from` (a `Datagram` with `data`, `host`, `port`) and `udp_close`. Everything is denied by default. Connecting and sending datagrams need an exact `host:port` (or `host:*`) entry in `guion.toml` `[sockets].connect` or `guion run --allow-connect`; listening and binding need one in `[sockets].bind` or `--allow-bind` (`127.0.0.1:0` allows an ephemeral port on loopback). The host name is matched as written, before resolution, so grant IP literals when the name could resolve elsewhere. Every connect, accept, receive and datagram receive takes a timeout of 1 ms up to `[sockets].timeout_ms` (default 30,000); reads are capped at `[sockets].max_read_bytes` (default 1 MiB) and at most 64 sockets may be open. A zero-length receive on TCP means the peer closed. Error codes: `E_NET_DENIED`, `E_NET_ARGUMENT`, `E_NET_RESOLVE`, `E_NET_REFUSED`, `E_NET_TIMEOUT`, `E_NET_IO`, `E_NET_HANDLE`, `E_NET_LIMIT`. Calls block the calling task until they finish or time out; a cancelled sibling task is noticed at the next call boundary, so cancellation latency is bounded by the timeout. Static inspection reports `network.socket` with a `socket_grant` section. TLS is not part of this module.
+- TLS (artifact format 58): `std:net` adds `tls_connect(host, port, timeout_ms, extra_ca_pem)` and `tls_accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`, which return a `TcpConn` that `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close` and the port functions accept. TLS 1.2 and 1.3 only, through rustls with the ring provider. The client always verifies the server certificate and name against the bundled Mozilla roots plus any PEM certificates passed as `extra_ca_pem`; there is no option to skip verification. A rejected certificate returns `E_TLS_CERTIFICATE`, other handshake failures `E_TLS_HANDSHAKE`, bad PEM or a key that does not match `E_TLS_ARGUMENT`; timeouts and grants behave as for TCP (`E_NET_TIMEOUT`, `E_NET_DENIED`). A peer that closes without a TLS close notification surfaces as `E_NET_IO` on receive. Client certificates, session resumption control and ALPN are not offered. Certificates and keys are PEM text, normally read with `read_text` under the file grant.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -203,6 +204,8 @@ native_sqlite_rollback(Transaction) -> Result[Unit, Record[StdError]]
 native_text_casefold(Text) -> Text
 native_text_collapse_whitespace(Text) -> Text
 native_text_normalize(Text, Text) -> Result[Text, Record[StdError]]
+native_tls_accept(Int, Int, Text, Text) -> Result[Int, List[Text]]
+native_tls_connect(Text, Int, Int, Text) -> Result[Int, List[Text]]
 native_toml_get_bool(TomlDocument, List[Text]) -> Result[Bool, Record[StdError]]
 native_toml_get_int(TomlDocument, List[Text]) -> Result[Int, Record[StdError]]
 native_toml_get_text(TomlDocument, List[Text]) -> Result[Text, Record[StdError]]
@@ -346,6 +349,8 @@ std:net — pub fn udp_port(socket: UdpSock) -> Result[Int, StdError]
 std:net — pub fn udp_send_to(socket: UdpSock, host: Text, port: Int, data: Bytes) -> Result[Int, StdError]
 std:net — pub fn udp_recv_from(socket: UdpSock, max_bytes: Int, timeout_ms: Int) -> Result[Datagram, StdError]
 std:net — pub fn udp_close(socket: UdpSock) -> Result[Unit, StdError]
+std:net — pub fn tls_connect(host: Text, port: Int, timeout_ms: Int, extra_ca_pem: Text) -> Result[TcpConn, StdError]
+std:net — pub fn tls_accept(listener: TcpListener, timeout_ms: Int, certificate_chain_pem: Text, private_key_pem: Text) -> Result[TcpConn, StdError]
 std:path — pub fn path_is_absolute(path: Text) -> Bool
 std:path — pub fn path_normalize(path: Text) -> Text
 std:path — pub fn path_join(base: Text, child: Text) -> Text
@@ -835,6 +840,9 @@ E_TIMEZONE_UNKNOWN
 E_TIME_INPUT
 E_TIME_RANGE
 E_TIMINGS
+E_TLS_ARGUMENT
+E_TLS_CERTIFICATE
+E_TLS_HANDSHAKE
 E_TOML_EDIT
 E_TOML_INTEGER_RANGE
 E_TOML_KEY
@@ -950,6 +958,7 @@ R_RESOURCE_STALE
 R_RESULT_ERROR
 R_RESULT_UNWRAP
 R_RETURN_INVALID
+R_ROOTS
 R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
@@ -1196,4 +1205,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:32e88e11282cc9903fc5e2508ab3aa8e7ec91cc65265d42e8cba4e96e18fb1bd. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:badca94eaeda81685dc1b0db7ee7aa86787ee7c736a5d4f7453bf624e29f7061. Validated by `cargo xtask agent-reference --check`. -->

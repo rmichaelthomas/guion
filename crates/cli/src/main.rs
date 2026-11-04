@@ -2363,7 +2363,7 @@ fn inspection_report(
                 Op::WriteText | Op::WriteTextAtomic | Op::WriteBytes => {
                     direct_effects[function_index].insert("filesystem.write".into());
                 }
-                Op::Net(_) => {
+                Op::Net(_) | Op::Tls(_) => {
                     direct_effects[function_index].insert("network.socket".into());
                 }
                 Op::Process(function) => match function {

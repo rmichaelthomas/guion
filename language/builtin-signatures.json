@@ -1724,6 +1724,28 @@
       ],
       "result": "Result[List[Bytes], List[Text]]",
       "operation": "NetUdpRecvFrom"
+    },
+    {
+      "name": "native_tls_connect",
+      "parameters": [
+        "Text",
+        "Int",
+        "Int",
+        "Text"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "TlsConnect"
+    },
+    {
+      "name": "native_tls_accept",
+      "parameters": [
+        "Int",
+        "Int",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "TlsAccept"
     }
   ]
 }

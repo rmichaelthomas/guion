@@ -1,5 +1,6 @@
 use guion_model::{
-    CodecFunction, FsFunction, MathFunction, NetFunction, Op, ProcessFunction, RegexFunction, Type,
+    CodecFunction, FsFunction, MathFunction, NetFunction, Op, ProcessFunction, RegexFunction,
+    TlsFunction, Type,
 };
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -286,7 +287,10 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
                         Some(function) => Op::Regex(function),
                         None => match ProcessFunction::from_op_name(other) {
                             Some(function) => Op::Process(function),
-                            None => Op::Net(NetFunction::from_op_name(other)?),
+                            None => match NetFunction::from_op_name(other) {
+                                Some(function) => Op::Net(function),
+                                None => Op::Tls(TlsFunction::from_op_name(other)?),
+                            },
                         },
                     },
                 },

@@ -5,10 +5,16 @@
 //! table holds a fixed number of sockets. Connecting, sending datagrams and binding are checked
 //! against exact `host:port` grants (`*` matches any port); nothing is allowed by default.
 use super::{HostPolicy, RuntimeError, Shared, SharedText, Span, Value};
-use guion_model::{BigInt, NetFunction};
+use guion_model::{BigInt, NetFunction, TlsFunction};
+use rustls::pki_types::pem::PemObject;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+use rustls::{
+    ClientConfig, ClientConnection, RootCertStore, ServerConfig, ServerConnection, StreamOwned,
+};
 use std::collections::HashMap;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const MAX_OPEN_SOCKETS: usize = 64;
@@ -18,6 +24,41 @@ enum Socket {
     Listener(TcpListener),
     Stream(TcpStream),
     Datagram(UdpSocket),
+    Tls(TlsStream),
+}
+
+enum TlsStream {
+    Client(Box<StreamOwned<ClientConnection, TcpStream>>),
+    Server(Box<StreamOwned<ServerConnection, TcpStream>>),
+}
+
+impl std::fmt::Debug for TlsStream {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("TlsStream")
+    }
+}
+
+impl TlsStream {
+    fn tcp(&self) -> &TcpStream {
+        match self {
+            TlsStream::Client(stream) => &stream.sock,
+            TlsStream::Server(stream) => &stream.sock,
+        }
+    }
+
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            TlsStream::Client(stream) => stream.read(buffer),
+            TlsStream::Server(stream) => stream.read(buffer),
+        }
+    }
+
+    fn write_all(&mut self, data: &[u8]) -> std::io::Result<()> {
+        match self {
+            TlsStream::Client(stream) => stream.write_all(data).and_then(|()| stream.flush()),
+            TlsStream::Server(stream) => stream.write_all(data).and_then(|()| stream.flush()),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -299,6 +340,16 @@ fn tcp_accept(
     handle: i64,
     timeout: i64,
 ) -> Result<Value, Failure> {
+    let accepted = accept_stream(policy, table, handle, timeout)?;
+    Ok(int(table.insert(Socket::Stream(accepted))?))
+}
+
+fn accept_stream(
+    policy: &HostPolicy,
+    table: &mut SocketTable,
+    handle: i64,
+    timeout: i64,
+) -> Result<TcpStream, Failure> {
     let timeout = timeout_of(policy, timeout)?;
     let accepted = {
         let Some(Socket::Listener(listener)) = table.sockets.get(&handle) else {
@@ -331,7 +382,7 @@ fn tcp_accept(
         .set_nonblocking(false)
         .map_err(|error| Failure::io(&error, "cannot configure connection"))?;
     let _ = accepted.set_nodelay(true);
-    Ok(int(table.insert(Socket::Stream(accepted))?))
+    Ok(accepted)
 }
 
 fn local_port(table: &SocketTable, handle: i64) -> Result<Value, Failure> {
@@ -339,6 +390,7 @@ fn local_port(table: &SocketTable, handle: i64) -> Result<Value, Failure> {
         Some(Socket::Listener(socket)) => socket.local_addr(),
         Some(Socket::Stream(socket)) => socket.local_addr(),
         Some(Socket::Datagram(socket)) => socket.local_addr(),
+        Some(Socket::Tls(stream)) => stream.tcp().local_addr(),
         None => return Err(Failure::new("E_NET_HANDLE", "socket handle is not open")),
     }
     .map_err(|error| Failure::io(&error, "cannot read local address"))?;
@@ -351,18 +403,31 @@ fn send(
     handle: i64,
     data: &[u8],
 ) -> Result<Value, Failure> {
-    let Some(Socket::Stream(stream)) = table.sockets.get_mut(&handle) else {
-        return Err(Failure::new(
-            "E_NET_HANDLE",
-            "handle is not a connected TCP socket",
-        ));
-    };
-    stream
-        .set_write_timeout(Some(policy.max_socket_timeout))
-        .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
-    stream
-        .write_all(data)
-        .map_err(|error| Failure::io(&error, "send failed"))?;
+    match table.sockets.get_mut(&handle) {
+        Some(Socket::Stream(stream)) => {
+            stream
+                .set_write_timeout(Some(policy.max_socket_timeout))
+                .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
+            stream
+                .write_all(data)
+                .map_err(|error| Failure::io(&error, "send failed"))?;
+        }
+        Some(Socket::Tls(stream)) => {
+            stream
+                .tcp()
+                .set_write_timeout(Some(policy.max_socket_timeout))
+                .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
+            stream
+                .write_all(data)
+                .map_err(|error| Failure::io(&error, "send failed"))?;
+        }
+        _ => {
+            return Err(Failure::new(
+                "E_NET_HANDLE",
+                "handle is not a connected TCP or TLS socket",
+            ))
+        }
+    }
     Ok(int(data.len() as i64))
 }
 
@@ -386,19 +451,29 @@ fn recv(
 ) -> Result<Value, Failure> {
     let max = read_limit(policy, max)?;
     let timeout = timeout_of(policy, timeout)?;
-    let Some(Socket::Stream(stream)) = table.sockets.get_mut(&handle) else {
-        return Err(Failure::new(
-            "E_NET_HANDLE",
-            "handle is not a connected TCP socket",
-        ));
-    };
-    stream
-        .set_read_timeout(Some(timeout))
-        .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
     let mut buffer = vec![0u8; max];
-    let count = stream
-        .read(&mut buffer)
-        .map_err(|error| Failure::io(&error, "receive failed"))?;
+    let count = match table.sockets.get_mut(&handle) {
+        Some(Socket::Stream(stream)) => {
+            stream
+                .set_read_timeout(Some(timeout))
+                .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
+            stream.read(&mut buffer)
+        }
+        Some(Socket::Tls(stream)) => {
+            stream
+                .tcp()
+                .set_read_timeout(Some(timeout))
+                .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
+            stream.read(&mut buffer)
+        }
+        _ => {
+            return Err(Failure::new(
+                "E_NET_HANDLE",
+                "handle is not a connected TCP or TLS socket",
+            ))
+        }
+    }
+    .map_err(|error| Failure::io(&error, "receive failed"))?;
     buffer.truncate(count);
     Ok(Value::Bytes(Shared::new(buffer)))
 }
@@ -455,4 +530,208 @@ fn udp_recv_from(
         Value::Bytes(Shared::new(buffer)),
         Value::Bytes(Shared::new(sender.to_string().into_bytes())),
     ])))
+}
+
+const MAX_PEM_BYTES: usize = 256 * 1024;
+
+fn crypto_provider() -> Arc<rustls::crypto::CryptoProvider> {
+    Arc::new(rustls::crypto::ring::default_provider())
+}
+
+fn tls_io(error: &std::io::Error, what: &str) -> Failure {
+    let tls = error
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<rustls::Error>());
+    match tls {
+        Some(rustls::Error::InvalidCertificate(reason)) => Failure::new(
+            "E_TLS_CERTIFICATE",
+            format!("{what}: certificate rejected: {reason:?}"),
+        ),
+        Some(other) => Failure::new("E_TLS_HANDSHAKE", format!("{what}: {other}")),
+        None => {
+            let failure = Failure::io(error, what);
+            if failure.code == "E_NET_IO" {
+                Failure::new("E_TLS_HANDSHAKE", failure.message)
+            } else {
+                failure
+            }
+        }
+    }
+}
+
+fn parse_certificates(pem: &str) -> Result<Vec<CertificateDer<'static>>, Failure> {
+    if pem.len() > MAX_PEM_BYTES {
+        return Err(Failure::new("E_TLS_ARGUMENT", "PEM text is too large"));
+    }
+    CertificateDer::pem_slice_iter(pem.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| {
+            Failure::new(
+                "E_TLS_ARGUMENT",
+                format!("invalid certificate PEM: {error}"),
+            )
+        })
+}
+
+fn complete_handshake<D>(
+    connection: &mut rustls::ConnectionCommon<D>,
+    tcp: &mut TcpStream,
+    timeout: Duration,
+) -> Result<(), Failure> {
+    tcp.set_read_timeout(Some(timeout))
+        .and_then(|()| tcp.set_write_timeout(Some(timeout)))
+        .map_err(|error| Failure::io(&error, "cannot configure socket"))?;
+    let started = Instant::now();
+    while connection.is_handshaking() {
+        if started.elapsed() >= timeout {
+            return Err(Failure::new("E_NET_TIMEOUT", "TLS handshake timed out"));
+        }
+        connection
+            .complete_io(tcp)
+            .map_err(|error| tls_io(&error, "TLS handshake failed"))?;
+    }
+    Ok(())
+}
+
+/// `tls_connect(host, port, timeout_ms, extra_ca_pem)` and
+/// `tls_accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`.
+pub(crate) fn run_tls(
+    policy: &HostPolicy,
+    table: &mut SocketTable,
+    function: TlsFunction,
+    mut operands: Vec<Value>,
+    span: Span,
+) -> Result<Value, RuntimeError> {
+    operands.reverse();
+    let mut next = || operands.pop().ok_or_else(|| type_error(span));
+    let outcome = match function {
+        TlsFunction::Connect => {
+            let (Value::Text(host), Value::Int(port), Value::Int(timeout), Value::Text(ca)) =
+                (next()?, next()?, next()?, next()?)
+            else {
+                return Err(type_error(span));
+            };
+            tls_connect(
+                policy,
+                table,
+                host.as_ref(),
+                port.to_i64().unwrap_or(-1),
+                timeout.to_i64().unwrap_or(-1),
+                ca.as_ref(),
+            )
+        }
+        TlsFunction::Accept => {
+            let (Value::Int(handle), Value::Int(timeout), Value::Text(chain), Value::Text(key)) =
+                (next()?, next()?, next()?, next()?)
+            else {
+                return Err(type_error(span));
+            };
+            tls_accept(
+                policy,
+                table,
+                handle.to_i64().unwrap_or(-1),
+                timeout.to_i64().unwrap_or(-1),
+                chain.as_ref(),
+                key.as_ref(),
+            )
+        }
+    };
+    Ok(match outcome {
+        Ok(value) => Value::ResultOk(Box::new(value)),
+        Err(failure) => Value::ResultErr(Box::new(Value::List(Shared::new(vec![
+            text(failure.code),
+            text(&failure.message),
+        ])))),
+    })
+}
+
+fn tls_connect(
+    policy: &HostPolicy,
+    table: &mut SocketTable,
+    host: &str,
+    port: i64,
+    timeout: i64,
+    extra_ca: &str,
+) -> Result<Value, Failure> {
+    let port = port_of(port)?;
+    let timeout_value = timeout_of(policy, timeout)?;
+    if !granted(&policy.allowed_connect, host, port) {
+        return Err(denied("connect", host, port, "--allow-connect"));
+    }
+    let server_name = ServerName::try_from(host.to_owned()).map_err(|_| {
+        Failure::new(
+            "E_TLS_ARGUMENT",
+            format!("`{host}` is not a valid server name"),
+        )
+    })?;
+    let mut roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    if !extra_ca.is_empty() {
+        for certificate in parse_certificates(extra_ca)? {
+            roots.add(certificate).map_err(|error| {
+                Failure::new("E_TLS_ARGUMENT", format!("bad CA certificate: {error}"))
+            })?;
+        }
+    }
+    let config = ClientConfig::builder_with_provider(crypto_provider())
+        .with_safe_default_protocol_versions()
+        .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    let mut connection = ClientConnection::new(Arc::new(config), server_name)
+        .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?;
+    let mut last = Failure::new("E_NET_RESOLVE", format!("`{host}` has no addresses"));
+    for address in resolve(host, port)? {
+        match TcpStream::connect_timeout(&address, timeout_value) {
+            Ok(mut tcp) => {
+                let _ = tcp.set_nodelay(true);
+                complete_handshake(&mut connection, &mut tcp, timeout_value)?;
+                let stream = StreamOwned::new(connection, tcp);
+                return Ok(int(
+                    table.insert(Socket::Tls(TlsStream::Client(Box::new(stream))))?
+                ));
+            }
+            Err(error) => last = Failure::io(&error, &format!("cannot connect to {host}:{port}")),
+        }
+    }
+    Err(last)
+}
+
+fn tls_accept(
+    policy: &HostPolicy,
+    table: &mut SocketTable,
+    handle: i64,
+    timeout: i64,
+    chain: &str,
+    key: &str,
+) -> Result<Value, Failure> {
+    let timeout_value = timeout_of(policy, timeout)?;
+    let certificates = parse_certificates(chain)?;
+    if key.len() > MAX_PEM_BYTES {
+        return Err(Failure::new("E_TLS_ARGUMENT", "PEM text is too large"));
+    }
+    let key = PrivateKeyDer::from_pem_slice(key.as_bytes()).map_err(|error| {
+        Failure::new(
+            "E_TLS_ARGUMENT",
+            format!("invalid private key PEM: {error}"),
+        )
+    })?;
+    let config = ServerConfig::builder_with_provider(crypto_provider())
+        .with_safe_default_protocol_versions()
+        .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?
+        .with_no_client_auth()
+        .with_single_cert(certificates, key)
+        .map_err(|error| {
+            Failure::new(
+                "E_TLS_ARGUMENT",
+                format!("certificate and key do not match: {error}"),
+            )
+        })?;
+    let mut tcp = accept_stream(policy, table, handle, timeout)?;
+    let mut connection = ServerConnection::new(Arc::new(config))
+        .map_err(|error| Failure::new("E_TLS_HANDSHAKE", error.to_string()))?;
+    complete_handshake(&mut connection, &mut tcp, timeout_value)?;
+    let stream = StreamOwned::new(connection, tcp);
+    Ok(int(table.insert(Socket::Tls(TlsStream::Server(
+        Box::new(stream),
+    )))?))
 }

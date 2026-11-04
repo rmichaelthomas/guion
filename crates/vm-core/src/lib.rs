@@ -4748,6 +4748,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::Regex(function) => function.op_name(),
         Op::Process(function) => function.op_name(),
         Op::Net(function) => function.op_name(),
+        Op::Tls(function) => function.op_name(),
         Op::IntToFloat => "IntToFloat",
         Op::FloatToInt => "FloatToInt",
         Op::NumberToText => "NumberToText",
@@ -6734,6 +6735,28 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     }
                 }
                 state.stack.push(result);
+            }
+            Op::Tls(function) => {
+                let expected = match function {
+                    guion_model::TlsFunction::Connect => {
+                        [Type::Text, Type::Int, Type::Int, Type::Text]
+                    }
+                    guion_model::TlsFunction::Accept => {
+                        [Type::Int, Type::Int, Type::Text, Type::Text]
+                    }
+                };
+                for expected in expected.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Int),
+                    Box::new(Type::List(Box::new(Type::Text))),
+                ));
             }
             Op::Net(function) => {
                 let (parameters, ok) = net_signature(*function);

@@ -5006,6 +5006,41 @@ impl VmHost for Instance {
                 )?;
                 push_stack!(value);
             }
+            Op::Tls(function) => {
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let target = match (function, operands.first()) {
+                    (guion_model::TlsFunction::Connect, Some(Value::Text(host))) => {
+                        host.as_ref().to_owned()
+                    }
+                    _ => function.op_name().to_owned(),
+                };
+                let effect = self.begin_effect(EffectKind::NetworkSocket, target.as_str());
+                let outcome = net_ops::run_tls(
+                    &self.policy,
+                    &mut self.sockets,
+                    function,
+                    operands,
+                    instruction.span,
+                );
+                self.finish_effect(
+                    effect,
+                    match &outcome {
+                        Ok(Value::ResultErr(_)) => EffectOutcome::ReturnedError,
+                        _ => EffectOutcome::Returned,
+                    },
+                );
+                let value = outcome?;
+                charge_allocation(
+                    budget.as_ref(),
+                    guion_vm_core::cloned_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::Net(function) => {
                 let mut operands = Vec::with_capacity(function.arity());
                 for _ in 0..function.arity() {

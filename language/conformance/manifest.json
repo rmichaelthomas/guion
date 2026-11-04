@@ -9830,6 +9830,34 @@
       }
     },
     {
+      "id": "opcode-tls",
+      "kind": "opcode",
+      "name": "Tls",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-tls.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-tls.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-tls.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
       "id": "opcode-jsontrygettext",
       "kind": "opcode",
       "name": "JsonTryGetText",

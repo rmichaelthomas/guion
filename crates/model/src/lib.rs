@@ -126,7 +126,7 @@ mod tests {
     use super::{
         Artifact, BigInt, BuildMetadata, ExternalFunction, FileErrorValue, Function, Instruction,
         JsonErrorValue, NetFunction, Op, ProcessFunction, RegexFunction, ResourceLimits,
-        SharedJson, Span, Type, Value,
+        SharedJson, Span, TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1352,6 +1352,46 @@ mod tests {
         assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
         let mut old = bytes;
         old[4..8].copy_from_slice(&56u32.to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn tls_instructions_are_gated_on_format_58() {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::Tls(TlsFunction::Connect),
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 57;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&57u32.to_le_bytes());
         assert_eq!(
             Artifact::from_bytes(&old).unwrap_err().code,
             "E_ARTIFACT_VERSION"
@@ -3456,6 +3496,49 @@ impl NetFunction {
     }
 }
 
+/// TLS handshakes behind `Op::Tls`. Both return a socket handle that the `Op::Net` send, receive,
+/// port and close functions then accept. Codes are part of artifact format 58.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TlsFunction {
+    Connect,
+    Accept,
+}
+
+impl TlsFunction {
+    const ALL: [TlsFunction; 2] = [TlsFunction::Connect, TlsFunction::Accept];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every TLS function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            TlsFunction::Connect => "TlsConnect",
+            TlsFunction::Accept => "TlsAccept",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops (four for both).
+    pub fn arity(self) -> usize {
+        4
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Op {
     Const(Value),
@@ -3580,6 +3663,7 @@ pub enum Op {
     Regex(RegexFunction),
     Process(ProcessFunction),
     Net(NetFunction),
+    Tls(TlsFunction),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3722,7 +3806,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 57;
+    pub const CURRENT_VERSION: u32 = 58;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -3988,6 +4072,12 @@ impl Artifact {
                 "socket instructions require artifact format 57",
             ));
         }
+        if self.format_version < 58 && artifact_uses_tls(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "TLS instructions require artifact format 58",
+            ));
+        }
         validate_sort_comparator_effects(self)
             .map_err(|message| ArtifactError::new("E_SORT_EFFECT", message))?;
         let mut w = Writer(Vec::new());
@@ -4245,6 +4335,10 @@ impl Artifact {
                     }
                     Op::Net(function) => {
                         w.u8(186);
+                        w.u8(function.code());
+                    }
+                    Op::Tls(function) => {
+                        w.u8(187);
                         w.u8(function.code());
                     }
                     Op::IntToFloat => w.u8(178),
@@ -4618,6 +4712,21 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "fused JSON field accessors require artifact format 50",
+                        ));
+                    }
+                    187 if format_version >= 58 => {
+                        let code = r.u8()?;
+                        Op::Tls(TlsFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("TLS instruction has unknown function code {code}"),
+                            )
+                        })?)
+                    }
+                    187 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "TLS instructions require artifact format 58",
                         ));
                     }
                     186 if format_version >= 57 => {
@@ -5302,6 +5411,15 @@ fn artifact_uses_codecs(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Codec(_)))
+    })
+}
+
+fn artifact_uses_tls(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Tls(_)))
     })
 }
 

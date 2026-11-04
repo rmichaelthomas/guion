@@ -441,6 +441,10 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "4:NetUdpSendTo:Result[Int, List[Text]]:Int;Text;Int;Bytes"
         if name == "native_net_udp_recv_from":
             return "3:NetUdpRecvFrom:Result[List[Bytes], List[Text]]:Int;Int;Int"
+        if name == "native_tls_connect":
+            return "4:TlsConnect:Result[Int, List[Text]]:Text;Int;Int;Text"
+        if name == "native_tls_accept":
+            return "4:TlsAccept:Result[Int, List[Text]]:Int;Int;Text;Text"
     return ""
 
 fn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:
