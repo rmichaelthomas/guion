@@ -194,9 +194,17 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             return Ok(ExitCode::SUCCESS);
         }
     }
+    if command == "new" && args.get(1).is_some_and(|argument| argument == "--lib") {
+        let Some(name) = args.get(2) else {
+            return Err("usage: guion new --lib <directory>".into());
+        };
+        let root = std::path::Path::new(name);
+        println!("{}", native_packages::create_library(root)?);
+        return Ok(ExitCode::SUCCESS);
+    }
     if command == "new" {
         let Some(name) = args.get(1) else {
-            return Err("usage: guion new <directory>".into());
+            return Err("usage: guion new <directory> | guion new --lib <directory>".into());
         };
         let root = std::path::Path::new(name);
         if root.exists() {
@@ -680,6 +688,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 );
             } else {
                 println!("checked {} ({} functions)", path, artifact.functions.len());
+            }
+            if let Some(report) = native_packages::check_library_surface(&project_root)? {
+                if !json_check {
+                    println!("{report}");
+                }
             }
         }
         "test" => {

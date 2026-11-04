@@ -72,6 +72,71 @@ struct LockState {
     python: Option<toml::Value>,
 }
 
+/// `guion new --lib DIRECTORY`: a library skeleton whose name is the directory name, checked
+/// against the full package-name rules.
+pub fn create_library(root: &Path) -> Result<String, String> {
+    let name = root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or("cannot read a library name from that directory")?
+        .to_owned();
+    crate::package_name::validate_new_package_name(&name)?;
+    if root.exists() {
+        return Err(format!("project path already exists: {}", root.display()));
+    }
+    fs::create_dir_all(root.join("src"))
+        .map_err(|error| format!("cannot create library: {error}"))?;
+    let source = "# The public surface of this library: only `pub` items can be used by other packages.\npub fn greet(who: Text) -> Text:\n    return \"Hello, \" + who + \"!\"\n";
+    fs::write(root.join("src/lib.gu"), source)
+        .map_err(|error| format!("cannot write library source: {error}"))?;
+    // A library has no `main`, so its checks and tests live in a small program beside it.
+    let tests = "import \"src/lib.gu\"\n\nfn main() -> Int:\n    return 0\n\nfn test_greet() -> Unit:\n    assert(greet(\"Guion\") == \"Hello, Guion!\")\n";
+    fs::write(root.join("tests.gu"), tests)
+        .map_err(|error| format!("cannot write library tests: {error}"))?;
+    fs::write(
+        root.join("guion.toml"),
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n"),
+    )
+    .map_err(|error| format!("cannot write library manifest: {error}"))?;
+    fs::write(
+        root.join("README.md"),
+        format!("# {name}\n\nA Guion library. Check it with `guion check tests.gu` (this also checks the public surface), test it with `guion test tests.gu`, and document its public surface with `guion doc tests.gu`. Other projects use it with `import \"pkg:{name}/src/lib.gu\"`.\n"),
+    )
+    .map_err(|error| format!("cannot write library guide: {error}"))?;
+    Ok(format!("created library {}", root.display()))
+}
+
+/// For a library (a manifest with a `[package]` table), checks the manifest and that every exported
+/// module exposes at least one `pub` item. Returns `None` for an ordinary project.
+pub fn check_library_surface(root: &Path) -> Result<Option<String>, String> {
+    let manifest_path = project_manifest_path(root);
+    let Ok(text) = fs::read_to_string(&manifest_path) else {
+        return Ok(None);
+    };
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
+        return Ok(None);
+    };
+    if value.get("package").is_none() {
+        return Ok(None);
+    }
+    let manifest = read_library_manifest(root, None)?;
+    for export in &manifest.exports {
+        let source = fs::read_to_string(root.join(export))
+            .map_err(|error| format!("cannot read exported module {export}: {error}"))?;
+        if !source.lines().any(|line| line.starts_with("pub ")) {
+            return Err(format!(
+                "exported module {export} has no `pub` items, so other packages could not use it"
+            ));
+        }
+    }
+    Ok(Some(format!(
+        "library {} {}: {} exported module(s) with public items",
+        manifest.name,
+        manifest.version,
+        manifest.exports.len()
+    )))
+}
+
 pub fn package_library(source: &Path, output: &Path) -> Result<String, String> {
     let source = fs::canonicalize(source).map_err(|error| {
         format!(
