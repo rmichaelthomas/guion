@@ -1074,7 +1074,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         // Releasing the local's reference first lets the append extend the
                         // text in place, so building text this way stays linear. Other
                         // concatenations produce ordinary single-allocation text.
-                        let appending = match f.code.get(ip).map(|next| &next.op) {
+                        let mut appending = match f.code.get(ip).map(|next| &next.op) {
                             Some(Op::Store(slot)) => matches!(
                                 &locals[*slot],
                                 Value::Text(local) if SharedText::ptr_eq(local, &x)
@@ -1082,8 +1082,23 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             .then_some(*slot),
                             _ => None,
                         };
+                        // `return s + piece` ends the function, so a local still holding the
+                        // text (usually the parameter) is dead and is released the same way.
+                        if appending.is_none()
+                            && matches!(f.code.get(ip).map(|next| &next.op), Some(Op::Return))
+                        {
+                            for local in locals.iter_mut() {
+                                if matches!(local, Value::Text(current) if SharedText::ptr_eq(current, &x))
+                                {
+                                    drop_value_fast(std::mem::replace(local, Value::Unit));
+                                }
+                            }
+                            appending = Some(usize::MAX);
+                        }
                         if let Some(slot) = appending {
-                            drop_value_fast(std::mem::replace(&mut locals[slot], Value::Unit));
+                            if slot != usize::MAX {
+                                drop_value_fast(std::mem::replace(&mut locals[slot], Value::Unit));
+                            }
                             // The budget counts the appended bytes, as a fresh concatenation
                             // counts its length, so it does not depend on how text grows.
                             if SharedText::try_append(&mut x, &y) {
@@ -1852,7 +1867,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                let values = match pop!() {
+                let mut values = match pop!() {
                     Value::Map(values) => values,
                     _ => {
                         return Err(RuntimeError::new(
@@ -1862,6 +1877,22 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
+                // `return map_set(counts, ...)` ends the function, so a local still holding
+                // this map (usually the parameter) is dead. Release it so the update below can
+                // run in place when nobody else shares the map.
+                if matches!(f.code.get(ip).map(|next| &next.op), Some(Op::Return))
+                    && Shared::strong_count(&values) > 1
+                {
+                    for local in locals.iter_mut() {
+                        if matches!(local, Value::Map(current) if Shared::ptr_eq(current, &values))
+                        {
+                            drop_value_fast(std::mem::replace(local, Value::Unit));
+                            if Shared::strong_count(&values) == 1 {
+                                break;
+                            }
+                        }
+                    }
+                }
                 let local_store_slot = match f.code.get(ip).map(|next| &next.op) {
                         Some(Op::Store(slot))
                             if locals.get(*slot).is_some_and(|local| {
@@ -2120,6 +2151,27 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         "map key exceeds the configured text limit",
                         instruction.span,
                     ));
+                }
+                if Shared::strong_count(&values) == 1 {
+                    // Sole owner: update in place, charging only what a unique map is charged.
+                    let contains_key = values.contains_key(key.as_ref());
+                    let allocation = if contains_key {
+                        0
+                    } else {
+                        size_of::<(String, Value)>().saturating_add(key.len())
+                    };
+                    charge_allocation(budget.as_ref(), allocation, instruction.span)?;
+                    if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                        return Err(error);
+                    }
+                    replace_map_value(Shared::make_mut(&mut values), &key, value);
+                    if PROFILED {
+                        if let Some(profile) = &budget.runtime_profile {
+                            profile.record_map_set(true, 0);
+                        }
+                    }
+                    push_stack!(Value::Map(values));
+                    continue;
                 }
                 let map_clone_bytes =
                     map_clone_allocation(values.as_ref(), Some(key.as_ref()), &value);
@@ -3092,7 +3144,66 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::ListPush => {
                 let value = pop!();
-                let list_value = pop!();
+                let mut list_value = pop!();
+                // `return list_push(xs, ...)` ends the function, so a local still holding this
+                // list (usually the parameter) is dead. Release it so a list nobody else shares
+                // is extended in place instead of copied.
+                if matches!(f.code.get(ip).map(|next| &next.op), Some(Op::Return)) {
+                    if let Value::List(shared) = &list_value {
+                        if Shared::strong_count(shared) > 1 {
+                            for local in locals.iter_mut() {
+                                if matches!(local, Value::List(current) if Shared::ptr_eq(current, shared))
+                                {
+                                    drop_value_fast(std::mem::replace(local, Value::Unit));
+                                    if Shared::strong_count(shared) == 1 {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } else if let Value::Float64List(shared) = &list_value {
+                        if Shared::strong_count(shared) > 1 {
+                            for local in locals.iter_mut() {
+                                if matches!(local, Value::Float64List(current) if Shared::ptr_eq(current, shared))
+                                {
+                                    drop_value_fast(std::mem::replace(local, Value::Unit));
+                                    if Shared::strong_count(shared) == 1 {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Value::List(shared) = &mut list_value {
+                    // Sole owner of a non-empty list: extend it in place. Items already in the
+                    // list were checked when they were created, so only the pushed value is.
+                    if !shared.is_empty()
+                        && shared.len() < limits.max_collection_items
+                        && Shared::strong_count(shared) == 1
+                    {
+                        charge_allocation(budget.as_ref(), size_of::<Value>(), instruction.span)?;
+                        if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                            return Err(error);
+                        }
+                        Shared::make_mut(shared).push(value);
+                        push_stack!(list_value);
+                        continue;
+                    }
+                }
+                if let (Value::Float64List(shared), Value::Float64(_)) = (&mut list_value, &value) {
+                    if shared.len() < limits.max_collection_items
+                        && Shared::strong_count(shared) == 1
+                    {
+                        charge_allocation(budget.as_ref(), size_of::<Float64>(), instruction.span)?;
+                        let Value::Float64(value) = value else {
+                            unreachable!()
+                        };
+                        Shared::make_mut(shared).push(value);
+                        push_stack!(list_value);
+                        continue;
+                    }
+                }
                 let items = match &list_value {
                     Value::List(items) => items.len(),
                     Value::Float64List(items) => items.len(),
@@ -3237,7 +3348,38 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         ));
                     }
                 };
-                let list_value = pop!();
+                let mut list_value = pop!();
+                // `return list_set(xs, ...)` ends the function, so a local still holding this
+                // list is dead. Release it so an unshared list is updated in place.
+                if matches!(f.code.get(ip).map(|next| &next.op), Some(Op::Return)) {
+                    let shared_count = match &list_value {
+                        Value::List(shared) => Some(Shared::strong_count(shared)),
+                        Value::Float64List(shared) => Some(Shared::strong_count(shared)),
+                        _ => None,
+                    };
+                    if shared_count.is_some_and(|count| count > 1) {
+                        for local in locals.iter_mut() {
+                            let same = match (&list_value, &*local) {
+                                (Value::List(a), Value::List(b)) => Shared::ptr_eq(a, b),
+                                (Value::Float64List(a), Value::Float64List(b)) => {
+                                    Shared::ptr_eq(a, b)
+                                }
+                                _ => false,
+                            };
+                            if same {
+                                drop_value_fast(std::mem::replace(local, Value::Unit));
+                                let count = match &list_value {
+                                    Value::List(shared) => Shared::strong_count(shared),
+                                    Value::Float64List(shared) => Shared::strong_count(shared),
+                                    _ => 1,
+                                };
+                                if count == 1 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 let len = match &list_value {
                     Value::List(items) => items.len(),
                     Value::Float64List(items) => items.len(),
@@ -3257,6 +3399,30 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     ));
                 }
                 budget.record_list_set_operation();
+                // Sole owner: replace the item in place. The other items were checked when
+                // they were created, so only the new value is.
+                match &mut list_value {
+                    Value::List(shared) if Shared::strong_count(shared) == 1 => {
+                        if let Some(error) = value_limit_error(&value, limits, instruction.span) {
+                            return Err(error);
+                        }
+                        Shared::make_mut(shared)[index] = value;
+                        push_stack!(list_value);
+                        continue;
+                    }
+                    Value::Float64List(shared)
+                        if Shared::strong_count(shared) == 1
+                            && matches!(value, Value::Float64(_)) =>
+                    {
+                        let Value::Float64(value) = value else {
+                            unreachable!()
+                        };
+                        Shared::make_mut(shared)[index] = value;
+                        push_stack!(list_value);
+                        continue;
+                    }
+                    _ => {}
+                }
                 let copy_bytes = match &list_value {
                     Value::Float64List(_) => size_of::<Vec<Float64>>()
                         .saturating_add(len.saturating_mul(size_of::<Float64>())),
@@ -3514,6 +3680,39 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         }
                     }
                 }
+                // A local whose value is dead once the call starts must not keep a second
+                // reference alive: it would force the callee to copy a collection it could
+                // update in place. The call's result is stored straight back into one local
+                // (`set m = f(m, ...)`), or the function returns it, which ends every local.
+                match f.code.get(ip).map(|next| &next.op) {
+                    Some(Op::Store(slot)) => {
+                        if let Some(local) = locals.get_mut(*slot) {
+                            if matches!(
+                                local,
+                                Value::Map(_)
+                                    | Value::List(_)
+                                    | Value::Float64List(_)
+                                    | Value::Text(_)
+                            ) {
+                                drop_value_fast(std::mem::replace(local, Value::Unit));
+                            }
+                        }
+                    }
+                    Some(Op::Return) => {
+                        for local in locals.iter_mut() {
+                            if matches!(
+                                local,
+                                Value::Map(_)
+                                    | Value::List(_)
+                                    | Value::Float64List(_)
+                                    | Value::Text(_)
+                            ) {
+                                drop_value_fast(std::mem::replace(local, Value::Unit));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
                 let local_count = artifact
                     .functions
                     .get(*target)
@@ -3678,15 +3877,30 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             }
             Op::Return => {
                 let result = pop!();
-                if !value_matches(&result, &f.result, &host.artifact().records) {
-                    return Err(RuntimeError::new(
-                        "R_RETURN_INVALID",
-                        "function returned a value with an invalid type",
-                        instruction.span,
-                    ));
-                }
-                if let Some(error) = value_limit_error(&result, limits, instruction.span) {
-                    return Err(error);
+                // Checking every item of a returned list or map on every return makes each call
+                // cost as much as the collection is large. The items were checked when they went
+                // in (the verifier types every operation, and each collection update and host
+                // result is limit-checked), so a collection is checked here by its own kind and
+                // size only.
+                let shallow = matches!(
+                    (&result, &f.result),
+                    (Value::List(_), Type::List(_)) | (Value::Map(_), Type::Map(_))
+                );
+                if shallow {
+                    if let Some(error) = collection_size_error(&result, limits, instruction.span) {
+                        return Err(error);
+                    }
+                } else {
+                    if !value_matches(&result, &f.result, &host.artifact().records) {
+                        return Err(RuntimeError::new(
+                            "R_RETURN_INVALID",
+                            "function returned a value with an invalid type",
+                            instruction.span,
+                        ));
+                    }
+                    if let Some(error) = value_limit_error(&result, limits, instruction.span) {
+                        return Err(error);
+                    }
                 }
                 pool.give(locals);
                 pool.give(stack);
@@ -5866,6 +6080,25 @@ pub fn value_limit_error_at_boundary(
         Value::Bool(_) | Value::Float64(_) | Value::Unit | Value::OptionNone => None,
         _ => value_limit_error_with_json(value, limits, span, true),
     }
+}
+
+/// The limit a list or map must satisfy on its own, without looking at its items.
+fn collection_size_error(value: &Value, limits: &VmLimits, span: Span) -> Option<RuntimeError> {
+    let (kind, length) = match value {
+        Value::List(items) => ("list", items.len()),
+        Value::Map(items) => ("map", items.len()),
+        _ => return None,
+    };
+    (length > limits.max_collection_items).then(|| {
+        RuntimeError::new(
+            "R_COLLECTION_LIMIT",
+            format!(
+                "{kind} has {length} items; configured limit is {}",
+                limits.max_collection_items
+            ),
+            span,
+        )
+    })
 }
 
 fn value_limit_error_with_json(

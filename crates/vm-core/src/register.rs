@@ -62,6 +62,9 @@ enum Kind {
     IsOk,
     IsSome,
     Add,
+    /// An addition whose result is returned: integers and floats as `Add`, but text leaves to
+    /// the stack interpreter, which appends in place once the function's own reference is gone.
+    AddBeforeReturn,
     Subtract,
     Multiply,
     IntegerDivide,
@@ -939,6 +942,9 @@ impl<'a> Translator<'a> {
                         return 0;
                     }
                 }
+                if matches!(self.op_at(ip + 1), Some(Op::Return)) {
+                    return self.emit_value(Kind::AddBeforeReturn, 2, ip);
+                }
                 self.emit_value(Kind::Add, 2, ip)
             }
             Op::Subtract => self.emit_value(Kind::Subtract, 2, ip),
@@ -1407,28 +1413,35 @@ pub(super) fn run_registers<H: VmHost>(
                 finish_bool!(value)
             }
             // Integers and floats first; text concatenation is the fallback.
-            Kind::Add => arithmetic!(i64::checked_add, |left, right| left + right, {
-                if let (Dest::Local(slot), Value::Text(left)) =
-                    (instruction.dest, read!(instruction.a))
-                {
-                    // `set s = s + piece`: the stack interpreter appends in place.
-                    if matches!(&locals[slot as usize], Value::Text(local) if SharedText::ptr_eq(local, left))
+            Kind::Add | Kind::AddBeforeReturn => {
+                arithmetic!(i64::checked_add, |left, right| left + right, {
+                    if instruction.kind == Kind::AddBeforeReturn
+                        && matches!(read!(instruction.a), Value::Text(_))
                     {
                         exit!();
                     }
-                }
-                let (Value::Text(left), Value::Text(right)) =
-                    (read!(instruction.a), read!(instruction.b))
-                else {
-                    exit!()
-                };
-                let Some((charge, value)) = concatenate_text(left, right, limits) else {
-                    exit!()
-                };
-                commit!(charge);
-                drop_operands!();
-                finish_value!(value)
-            }),
+                    if let (Dest::Local(slot), Value::Text(left)) =
+                        (instruction.dest, read!(instruction.a))
+                    {
+                        // `set s = s + piece`: the stack interpreter appends in place.
+                        if matches!(&locals[slot as usize], Value::Text(local) if SharedText::ptr_eq(local, left))
+                        {
+                            exit!();
+                        }
+                    }
+                    let (Value::Text(left), Value::Text(right)) =
+                        (read!(instruction.a), read!(instruction.b))
+                    else {
+                        exit!()
+                    };
+                    let Some((charge, value)) = concatenate_text(left, right, limits) else {
+                        exit!()
+                    };
+                    commit!(charge);
+                    drop_operands!();
+                    finish_value!(value)
+                })
+            }
             Kind::Subtract => arithmetic!(i64::checked_sub, |left, right| left - right),
             Kind::Multiply => arithmetic!(i64::checked_mul, |left, right| left * right),
             // A float operand gives a non-finite result here, which leaves, and the stack

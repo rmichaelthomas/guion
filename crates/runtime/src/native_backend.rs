@@ -5293,6 +5293,18 @@ fn recursive_functions(functions: &[Function]) -> Vec<bool> {
     recursive
 }
 
+/// A function that returns one of its own text parameters with a piece appended
+/// (`return s + piece`), which the VM can do in place when the caller gives up its copy.
+fn is_text_appender(function: &Function) -> bool {
+    function.code.windows(4).any(|window| {
+        matches!(
+            (&window[0].op, &window[1].op, &window[2].op, &window[3].op),
+            (Op::Load(slot), Op::Load(_) | Op::Const(_), Op::Add, Op::Return)
+                if function.parameters.get(*slot) == Some(&Type::Text)
+        )
+    })
+}
+
 fn infer_native_types(
     function: &Function,
     functions: &[Function],
@@ -5300,6 +5312,44 @@ fn infer_native_types(
     blocking_ip: &mut Option<usize>,
 ) -> Option<NativeTypeStates> {
     *blocking_ip = None;
+    // A list or map handed through a call, or updated and returned, is only updated in place
+    // when its owner is known exactly, and machine code passes collections as shared handles
+    // whose other holders it cannot see. Such functions run in the VM, where ownership is exact
+    // and the update is in place, instead of copying the whole collection on every call.
+    // Text built the same way, `set s = add(s, piece)` over `return s + piece`, is the same case.
+    let appends_text = is_text_appender(function)
+        && functions.iter().any(|caller| {
+            caller.code.windows(2).any(|pair| {
+                matches!(&pair[0].op, Op::Call(target, _)
+                        if functions.get(*target).is_some_and(|callee| callee.name == function.name))
+                    && matches!(pair[1].op, Op::Store(_) | Op::Return)
+            })
+        });
+    if appends_text {
+        *blocking_ip = Some(0);
+        return None;
+    }
+    for (ip, instruction) in function.code.iter().enumerate() {
+        let next = function.code.get(ip + 1).map(|next| &next.op);
+        let hands_collection_on = match &instruction.op {
+            Op::MapSet | Op::ListPush | Op::ListSet => matches!(next, Some(Op::Return)),
+            Op::Call(target, _) => {
+                matches!(next, Some(Op::Store(_) | Op::Return))
+                    && functions.get(*target).is_some_and(|callee| {
+                        is_text_appender(callee)
+                            || callee
+                                .parameters
+                                .iter()
+                                .any(|ty| matches!(ty, Type::List(_) | Type::Map(_)))
+                    })
+            }
+            _ => false,
+        };
+        if hands_collection_on {
+            *blocking_ip = Some(ip);
+            return None;
+        }
+    }
     if let Some(first_update) = function
         .code
         .iter()
