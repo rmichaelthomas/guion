@@ -8892,6 +8892,35 @@
       "declared_status": "implemented_current_cli"
     },
     {
+      "id": "cli_command-cache",
+      "kind": "cli_command",
+      "name": "cache",
+      "owner_task": 8,
+      "source": "crates/cli/src/main.rs::usage-and-dispatch",
+      "compiler_status": {
+        "bootstrap": "not_applicable",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "cli_command.cache.positive",
+          "state": "planned",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "cli_command.cache.negative",
+          "state": "planned",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "cli_command.cache.interaction",
+          "state": "planned",
+          "owner_task": 8
+        }
+      },
+      "declared_status": "implemented_current_cli"
+    },
+    {
       "id": "cli_command-check",
       "kind": "cli_command",
       "name": "check",

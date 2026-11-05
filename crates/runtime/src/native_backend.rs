@@ -5337,10 +5337,8 @@ fn infer_native_types(
                 matches!(next, Some(Op::Store(_) | Op::Return))
                     && functions.get(*target).is_some_and(|callee| {
                         is_text_appender(callee)
-                            || callee
-                                .parameters
-                                .iter()
-                                .any(|ty| matches!(ty, Type::List(_) | Type::Map(_)))
+                            || (matches!(callee.result, Type::List(_) | Type::Map(_))
+                                && callee.parameters.contains(&callee.result))
                     })
             }
             _ => false,
