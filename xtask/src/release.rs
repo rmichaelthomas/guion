@@ -546,6 +546,106 @@ fn release_output_path(root: &Path, slug: &str, cargo_target_directory: Option<&
         .join(slug)
 }
 
+/// Signs the packaged macOS binary with a Developer ID identity and, when a notarytool profile is
+/// named, has Apple notarize it. Both come from the environment (`GUION_CODESIGN_IDENTITY`,
+/// `GUION_NOTARY_PROFILE`) so builds without the certificate still work; the release report records
+/// what happened. This runs before the manifest hashes the binary, so the signed bytes are the ones
+/// the package verifies.
+fn sign_macos_binary(root: &Path, binary: &Path) -> Result<Option<String>, String> {
+    let Some(identity) = std::env::var("GUION_CODESIGN_IDENTITY")
+        .ok()
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+    let binary_text = binary.to_str().ok_or("binary path is not UTF-8")?;
+    let entitlements = root.join("distribution/macos/entitlements.plist");
+    let entitlements_text = entitlements
+        .to_str()
+        .ok_or("entitlements path is not UTF-8")?;
+    let failure = |what: &str, output: &Output| {
+        format!(
+            "{what}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    };
+    let signed = run(
+        root,
+        "codesign",
+        &[
+            "--force",
+            "--options",
+            "runtime",
+            "--timestamp",
+            "--entitlements",
+            entitlements_text,
+            "--sign",
+            &identity,
+            binary_text,
+        ],
+    )?;
+    if !signed.status.success() {
+        return Err(failure("codesign failed", &signed));
+    }
+    let verified = run(
+        root,
+        "codesign",
+        &["--verify", "--strict", "--verbose=2", binary_text],
+    )?;
+    if !verified.status.success() {
+        return Err(failure("codesign verification failed", &verified));
+    }
+    let Some(profile) = std::env::var("GUION_NOTARY_PROFILE")
+        .ok()
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(Some(
+            "signed with Developer ID and the hardened runtime; not notarized".into(),
+        ));
+    };
+    let zip = binary.with_extension("notarize.zip");
+    let zip_text = zip.to_str().ok_or("zip path is not UTF-8")?;
+    let zipped = run(
+        root,
+        "ditto",
+        &["-c", "-k", "--keepParent", binary_text, zip_text],
+    )?;
+    if !zipped.status.success() {
+        return Err(failure(
+            "could not zip the binary for notarization",
+            &zipped,
+        ));
+    }
+    eprintln!(
+        "submitting the macOS binary to Apple for notarization (this can take several minutes)"
+    );
+    let submitted = run(
+        root,
+        "xcrun",
+        &[
+            "notarytool",
+            "submit",
+            zip_text,
+            "--keychain-profile",
+            &profile,
+            "--wait",
+        ],
+    )?;
+    let _ = fs::remove_file(&zip);
+    let report = String::from_utf8_lossy(&submitted.stdout).into_owned();
+    if !submitted.status.success() || !report.contains("status: Accepted") {
+        return Err(failure("notarization was not accepted", &submitted));
+    }
+    let id = report
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("id: "))
+        .unwrap_or("unknown");
+    Ok(Some(format!(
+        "signed with Developer ID and the hardened runtime; notarized by Apple (submission {id})"
+    )))
+}
+
 fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, String> {
     let cargo_target_directory = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
     let build_args = if target == MAC_TARGET {
@@ -634,9 +734,13 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     fs::create_dir_all(stage.join("bin"))
         .map_err(|error| format!("create package stage: {error}"))?;
     let package_name = format!("guion-{slug}");
+    let mut signing_note: Option<String> = None;
     let result = (|| {
         fs::copy(&binary, stage.join("bin/guion"))
             .map_err(|error| format!("copy release binary: {error}"))?;
+        if target == MAC_TARGET {
+            signing_note = sign_macos_binary(root, &stage.join("bin/guion"))?;
+        }
         let share = stage.join("share/guion");
         fs::create_dir_all(share.join("stdlib"))
             .map_err(|error| format!("create package standard library: {error}"))?;
@@ -790,6 +894,15 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         check("release-package-contents", "passed", vec!["cargo xtask release".into()], Some(0), format!("compiler seed, standard library, docs, native component manifest, installer, {} dependency license sets; archive has {archive_entries} safe members", license_count)),
         check("release-archive-audit", "passed", vec!["Rust path/type audit + tar listing".into()], Some(0), format!("{} ({} bytes, sha256 {})", archive.display(), fs::metadata(&archive).map(|meta| meta.len()).unwrap_or(0), sha256(&archive)?)),
     ];
+    if let Some(note) = signing_note {
+        checks.push(check(
+            "release-macos-signing",
+            "passed",
+            vec!["codesign + notarytool".into()],
+            Some(0),
+            note,
+        ));
+    }
     let candidate = output.join("relocated ✓ package");
     if candidate.exists() {
         set_writable(&candidate)?;

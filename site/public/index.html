@@ -696,7 +696,7 @@
 <input type="radio" name="view" id="view-dev" class="sr-only">
 <header class="navwrap"><div class="shell nav">
 <a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span><span class="wm">guion</span></a>
-<nav class="navlinks" data-ahi="ahi.navigation-journeys.chapter-rail" aria-label="Page sections"><a href="#try">Try it</a><a href="#why">Why</a><a href="#lifecycle">One command</a><a href="#read">Read it</a><a href="#permissions">Permissions</a><a href="#receipts">Receipts</a><a href="#python">Python</a><a href="#agents">Agents</a><a href="#story">Story</a></nav>
+<nav class="navlinks" data-ahi="ahi.navigation-journeys.chapter-rail" aria-label="Page sections"><a href="#try">Try it</a><a href="#why">Why</a><a href="#lifecycle">One command</a><a href="#read">Read it</a><a href="#permissions">Permissions</a><a href="#receipts">Receipts</a><a href="#python">Python</a><a href="#agents">Agents</a><a href="#story">Story</a><a href="https://github.com/rmichaelthomas/guion" rel="noopener">GitHub</a></nav>
 <fieldset class="viewswitch"><legend class="sr-only">Reading view</legend><label for="view-plain">Plain English</label><label for="view-dev">Developer</label></fieldset>
 </div></header>
 
@@ -720,8 +720,10 @@
 <div class="cta-row">
 <a class="btn btn-primary" href="#try">Run a program <span aria-hidden="true">↓</span></a>
 <a class="btn btn-light" href="#receipts">See how we know <span aria-hidden="true">↓</span></a>
+<a class="btn btn-light" href="https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2" rel="noopener">Download the preview</a>
+<a class="btn btn-light" href="https://github.com/rmichaelthomas/guion" rel="noopener">GitHub</a>
 </div>
-<p class="fineprint">The first preview build, v0.1.0-preview, is out for Linux (Debian 12, ARM64 and x86_64); there is no macOS package yet. You can also run programs on this page and read the evidence behind every claim.</p>
+<p class="fineprint">The second preview build, v0.1.0-preview.2, is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon). The Mac build is signed and notarized by Apple. You can also run programs on this page and read the evidence behind every claim.</p>
 </div>
 <figure class="hero-art" data-ahi="ahi.visual-art-media.svg-illustration" aria-label="A four-line Guion program and the 342-byte artifact the compiler turns it into">
 <svg viewBox="0 0 640 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" class="orbit">
@@ -1384,9 +1386,9 @@ hosts = [&quot;api.example.test&quot;]
 </div>
 <div class="python-grid">
 <div class="python-says">
-<div class="ahi"><section id="slot-python-accordion-ecosystem" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Libraries and packages</summary><section class="accordion-content"><div><p>Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 17 standard-library modules and a package manager that installs from a local path or a checksummed URL. It has no public package registry yet.</p></div><p>The standard-library modules are listed in the language reference.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-ecosystem" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Libraries and packages</summary><section class="accordion-content"><div><p>Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 27 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. Nothing has been published to the registry yet.</p></div><p>The standard-library modules are listed in the language reference.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-arrays" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Arrays and data science</summary><section class="accordion-content"><div><p>NumPy and pandas make Python the default for numeric and data work. Guion does not have a native array type yet.</p></div><p>Earlier tests that reached NumPy through Python are retired and no longer cited.</p></section></details></section></div>
-<div class="ahi"><section id="slot-python-accordion-release" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>A release you can use</summary><section class="accordion-content"><div><p>Guion&#39;s first public build is a Linux pre-release, v0.1.0-preview, for Debian 12 on ARM64 and x86_64. There is no macOS package yet. Python is a released language with a long track record.</p></div><p>Each archive on the release page has a matching SHA-256 checksum file.</p></section></details></section></div>
+<div class="ahi"><section id="slot-python-accordion-release" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>A release you can use</summary><section class="accordion-content"><div><p>Guion&#39;s second public build is a pre-release, v0.1.0-preview.2, for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It was built on 5 November from the current code, including the package registry client. The Mac build is not notarized yet, so macOS asks for approval the first time it opens. Python is a released language with a long track record.</p></div><p>Each archive on the release page has a matching SHA-256 checksum file.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-learn" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Learning it</summary><section class="accordion-content"><div><p>Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested.</p></div><p>Learnability is listed as an open outcome on the project status page.</p></section></details></section></div>
 <div class="ahi"><section id="slot-python-accordion-compare" class="instrument family-reveals-discoveries renderer-accordion interaction-details" data-ahi="ahi.reveals-discoveries.accordion" data-ahi-renderer="accordion" data-ahi-element="details" data-ahi-version="1"><details data-ahi-semantic="details" class="accordion native-accordion"><summary>Beyond the tasks measured</summary><section class="accordion-content"><div><p>Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared.</p></div><p>Overall competitiveness remains open, in the project&#39;s own words.</p></section></details></section></div>
 </div>
@@ -1425,7 +1427,7 @@ hosts = [&quot;api.example.test&quot;]
 <p class="smallcaps">agents.json</p>
 <pre class="code"><code>{
   <span class="k">"product"</span>: "Guion",
-  <span class="k">"status"</span>: "Pre-release. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.",
+  <span class="k">"status"</span>: "Pre-release. The second preview build, v0.1.0-preview.2, is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon).",
   <span class="k">"claims"</span>: [
     { <span class="k">"id"</span>, <span class="k">"title"</span>, <span class="k">"say"</span>,
       <span class="k">"holdsWhen"</span>, <span class="k">"doesntTell"</span>,
@@ -1482,7 +1484,9 @@ hosts = [&quot;api.example.test&quot;]
 <li><time datetime="2026-10-25">25 Oct 2026</time><h3>It became Guion.</h3><p class="v-plain">The implementation and its tools were renamed. The earlier results stay on file under their original name.</p><p class="v-dev">Commit <code>6a4fab1</code>, “rename Veritas product surfaces to Guion.” Veritas-era results are preserved; selected legacy manifests and files remain readable.</p></li>
 <li><time datetime="2026-10-27">27 Oct 2026</time><h3>The application checkpoint.</h3><p class="v-plain">Most results on this page come from it, including the ones where Guion is still behind. It is a checkpoint, not a finish line.</p><p class="v-dev">Build at commit <code>6b5e5aba</code>, artifact format 44, macOS ARM64. Summary in <code>docs/status.md</code>.</p></li>
 <li><time datetime="2026-11-03">3 Nov 2026</time><h3>The server speed gate.</h3><p class="v-plain">On two kinds of server CPU, Guion took less time than Python on every text, JSON Lines and CSV run, at both sizes. A week earlier it was several times slower on the same kind of work.</p><p class="v-dev">Build <code>1746d10</code>, artifact format 51, Linux x86_64 and ARM64. Report in <code>evaluation/completion/results/real-task-sprint/2026-11-03-server-speed-gate.md</code>.</p></li>
-<li><time datetime="2026-11-04">4 Nov 2026</time><h3>A package registry, and more machine code.</h3><p class="v-plain">Libraries can now be published to and installed from a package registry whose history is signed, and more of a program runs as machine code. Nothing has been published to the registry yet, and the preview build does not include it.</p><p class="v-dev">Pull request #35, artifact format 61, the registry Worker deployed with its signing key. Report in <code>evaluation/completion/results/2026-11-04-follow-ups-report.md</code>.</p></li>
+<li><time datetime="2026-11-04">4 Nov 2026</time><h3>A package registry, and more machine code.</h3><p class="v-plain">Libraries can now be published to and installed from a package registry whose history is signed, and more of a program runs as machine code. Nothing has been published to the registry yet. The second preview build includes the client commands.</p><p class="v-dev">Pull request #35, artifact format 61, the registry Worker deployed with its signing key. Report in <code>evaluation/completion/results/2026-11-04-follow-ups-report.md</code>.</p></li>
+<li><time datetime="2026-11-05">5 Nov 2026</time><h3>Two fixes, and the numbers measured again.</h3><p class="v-plain">A change meant to speed up some programs slowed another one down, and a check was missing on the main branch. Both were fixed, and the Mac results on this page were measured again on the fixed build.</p><p class="v-dev">Pull requests 37, 39 and 40; main at commit <code>484cefd</code>, artifact format 61, macOS ARM64. Report in <code>evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md</code>.</p></li>
+<li><time datetime="2026-11-05">5 Nov 2026</time><h3>A second preview, with macOS.</h3><p class="v-plain">The second preview build is out for Linux and for Macs with Apple silicon. The Mac build is signed and notarized by Apple.</p><p class="v-dev">Release <code>v0.1.0-preview.2</code>. GitHub built the Linux archives; the macOS archive was built, signed and notarized on a Mac with <code>cargo xtask release</code>. Each archive has a SHA-256 file.</p></li>
 </ol>
 </div>
 </section>
@@ -1492,9 +1496,15 @@ hosts = [&quot;api.example.test&quot;]
 <div class="shell footer-grid">
 <div class="footer-brand">
 <a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span>guion</a>
-<p>Pre-release. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.</p>
+<p>Pre-release. The second preview build, v0.1.0-preview.2, is out for Linux and macOS (Apple Silicon).</p>
 <p class="made">Made with AllHereHTML</p>
 </div>
+<nav class="footer-links" aria-label="Project">
+<p class="smallcaps">The project</p>
+<a href="https://github.com/rmichaelthomas/guion" rel="noopener">Source on GitHub</a>
+<a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2" rel="noopener">Download v0.1.0-preview.2</a>
+<a href="https://github.com/rmichaelthomas/guion/issues" rel="noopener">Report an issue</a>
+</nav>
 <nav class="footer-links" aria-label="Files and views">
 <p class="smallcaps">On this site</p>
 <a href="evidence/">The evidence files</a>

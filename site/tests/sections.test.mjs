@@ -38,8 +38,11 @@ test('sections 1 to 5 each have a Plain English block and a Developer block', ()
   }
 });
 
-test('the hero names the preview build and the missing macOS package', () => {
-  assert.ok(section('top').includes('v0.1.0-preview') && section('top').includes('macOS'));
+test('the hero names the preview build for Linux and macOS and links the release and the repository', () => {
+  assert.ok(section('top').includes('v0.1.0-preview.2') && section('top').includes('macOS'));
+  assert.ok(!section('top').includes('no macOS package'));
+  assert.ok(section('top').includes('https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2'));
+  assert.ok(section('top').includes('https://github.com/rmichaelthomas/guion"'));
 });
 
 test('the hero art shows the real bytes of the compiled hello program', () => {
@@ -63,9 +66,11 @@ test('the playground states its limits in the Developer view', () => {
   assert.ok(markup.includes('R_HOST_UNSUPPORTED') && markup.includes('R_STEP_LIMIT'));
 });
 
-test('no call to action asks the visitor to download or install', () => {
-  for (const [, text] of html.matchAll(/<(?:a|button)\b[^>]*>([\s\S]*?)<\/(?:a|button)>/g)) {
-    assert.doesNotMatch(text.replace(/<[^>]+>/g, '').trim(), /^(download|install|get started)/i);
+test('the only download link goes to the project release page, and no button installs anything itself', () => {
+  for (const [open, text] of html.matchAll(/(<(?:a|button)\b[^>]*>)([\s\S]*?)<\/(?:a|button)>/g).map((m) => [m[1], m[2]])) {
+    if (/^(download|install|get started)/i.test(text.replace(/<[^>]+>/g, '').trim())) {
+      assert.match(open, /href="https:\/\/github\.com\/rmichaelthomas\/guion\/releases\//);
+    }
   }
 });
 

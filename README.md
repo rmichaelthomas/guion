@@ -27,7 +27,7 @@
 
 Guion (say GUY-on) is a programming language for everyday work: scripts, command-line tools, data processing, web requests, and full applications. It aims to be easy to read, hard to get wrong, and fast to run.
 
-Guion is early. The first preview build is out for Linux, and the language is changing quickly. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
+Guion is early. The second preview build is out for Linux and macOS, and the language is changing quickly. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
 
 ## A first look
 
@@ -77,7 +77,7 @@ You can try these examples and others [in your browser](https://rmichaelthomas.g
 
 ### Linux (preview)
 
-Download the archive for your machine from the [v0.1.0-preview release](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
+Download the archive for your machine from the [v0.1.0-preview.2 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
 
 ```sh
 tar -xzf guion-debian-x86_64.tar.gz     # or guion-debian-aarch64.tar.gz
@@ -87,9 +87,22 @@ sh install.sh                           # installs under ~/.local; pass a path t
 
 Each archive has a matching `.sha256` checksum file. You don't need Rust or Python installed.
 
-### macOS and other systems
+### macOS (preview, Apple Silicon)
 
-There's no macOS package yet. You can build from source with [Rust](https://rustup.rs):
+Download `guion-macos-aarch64.tar.gz` and its `.sha256` file from the [v0.1.0-preview.2 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2).
+
+```sh
+shasum -a 256 -c guion-macos-aarch64.tar.gz.sha256
+tar -xzf guion-macos-aarch64.tar.gz
+cd guion-macos-aarch64
+sh install.sh                           # installs under ~/.local; pass a path to choose another place
+```
+
+The Mac build is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning. The first launch checks with Apple, so it needs an internet connection.
+
+### Other systems
+
+There is no package for Intel Macs, Windows or other Linux distributions yet. You can build from source with [Rust](https://rustup.rs):
 
 ```sh
 git clone https://github.com/rmichaelthomas/guion.git
@@ -127,7 +140,7 @@ Python is mature and widely used. Here is where it's still ahead of Guion today:
 
 - **Libraries and packages.** Guion ships 27 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text, time, random and regex, plus a package manager and a package registry with a signed log. Nothing has been published to the registry yet.
 - **Arrays and data science.** Guion has no native array type yet, so NumPy and pandas have no Guion counterpart.
-- **A stable release.** The current build is a Linux preview, with no macOS package and no stability promise yet.
+- **A stable release.** The current build is a preview for Linux and Apple Silicon Macs, with no stability promise yet.
 
 ## Documentation
 

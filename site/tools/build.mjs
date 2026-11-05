@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { withoutProjectLinks } from './lib/project-links.mjs';
 import { REPO_ROOT, SITE_ROOT } from './lib/paths.mjs';
 import { loadClaims, renderCaseFiles, renderClaimCard } from './claims.mjs';
 import { publishEvidence } from './evidence.mjs';
@@ -31,7 +32,8 @@ const kb = (bytes) => `${Math.max(10, Math.ceil(bytes / 10240) * 10)} KB`;
 
 function countRemoteRequests(html) {
   const patterns = [/(?<!rel="canonical" )(?:href|src)="(?:https?:)?\/\//g, /url\(\s*['"]?https?:/g, /@import/g];
-  return patterns.reduce((total, pattern) => total + (html.match(pattern) ?? []).length, 0);
+  const links = withoutProjectLinks(html);
+  return patterns.reduce((total, pattern) => total + (links.match(pattern) ?? []).length, 0);
 }
 
 async function readStyles(srcDir, vendorDir) {

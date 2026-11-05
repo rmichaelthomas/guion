@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { withoutProjectLinks } from './lib/project-links.mjs';
 
 const MAX_PAGE_BYTES = 400 * 1024;
 const ALLOWED_SCRIPT = /^<script type="module" src="(?:\.\.\/)?playground\/loader\.mjs"><\/script>$/;
@@ -27,7 +28,7 @@ const isInternalPath = (value) => value !== '' && !value.startsWith('#') && !/^(
 
 /**
  * Check the deployed directory against the site's rules.
- * R1 every file is linked (or a declared asset) · R2 anchors resolve · R3 no absolute or remote URLs but the canonical link ·
+ * R1 every file is linked (or a declared asset) · R2 anchors resolve · R3 no absolute or remote URLs but the canonical link and links to the project's own GitHub ·
  * R4 the only scripts are the playground loader and structured data · R5 evidence hashes match · R6 page weight · R7 .nojekyll
  */
 export async function checkSite(publicDir) {
@@ -42,7 +43,7 @@ export async function checkSite(publicDir) {
   for (const file of pages) {
     const html = text.get(file);
     const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
-    for (const value of references(html)) {
+    for (const value of references(withoutProjectLinks(html))) {
       if (value.startsWith('#') && value.length > 1 && !ids.has(value.slice(1))) errors.push(`R2 ${file}: ${value} has no matching id`);
       if (!/^(?:mailto:|data:)/i.test(value) && REMOTE.test(value)) errors.push(`R3 ${file}: absolute or remote reference "${value}"`);
     }

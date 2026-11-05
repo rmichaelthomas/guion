@@ -1,6 +1,6 @@
 # Security policy
 
-Guion is a private pre-release project and has no published release support commitment. The default core CLI applies explicit limits and host permissions, but it is not an operating-system sandbox.
+Guion is a pre-release project and has no published release support commitment. The default core CLI applies explicit limits and host permissions, but it is not an operating-system sandbox.
 
 ## Reporting a vulnerability
 
