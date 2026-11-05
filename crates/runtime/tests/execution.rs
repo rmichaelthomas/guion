@@ -338,6 +338,45 @@ fn main() -> Int:
 }
 
 #[test]
+fn callers_of_list_taking_functions_stay_native_when_the_result_is_not_a_collection() {
+    // Only a function that hands a list, map or text back through a call is moved to the VM.
+    // One that reads a list and returns an Int or a record keeps its caller in machine code;
+    // Richards calls such a function in its inner loop.
+    let source = r#"fn total(xs: List[Int], n: Int) -> Int:
+    var i = 0
+    var sum = 0
+    while i < n:
+        set sum = sum + xs[i]
+        set i = i + 1
+    return sum
+
+fn run() -> Int:
+    let xs = [1, 2, 3]
+    var t = 0
+    var k = 0
+    while k < 100:
+        let s = total(xs, 3)
+        set t = t + s
+        set k = k + 1
+    return t
+
+fn main() -> Int:
+    return 0
+"#;
+    let artifact = compile("native-list-reader.gu", source).expect("program compiles");
+    let mut native = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("runtime loads the artifact");
+    assert_eq!(
+        native.invoke("run", vec![]).unwrap(),
+        Value::Int(BigInt::from_i64(600))
+    );
+    let names = native.native_function_names();
+    assert!(names.iter().any(|name| name == "total"), "{names:?}");
+    assert!(names.iter().any(|name| name == "run"), "{names:?}");
+}
+
+#[test]
 fn text_built_through_a_helper_is_appended_in_place_and_aliases_are_kept() {
     let source = r#"fn add(s: Text, piece: Text) -> Text:
     return s + piece
