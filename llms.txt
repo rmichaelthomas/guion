@@ -24,63 +24,73 @@ Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-03-server-spee
 
 ### Richards, a classic benchmark program
 
-Starting from source with no compile cache, Guion finished the Richards benchmark in 27.46 ms. CPython took 72.92 ms.
+Starting from source with no compile cache, Guion finished the Richards benchmark in 28.03 ms. CPython took 64.70 ms.
 
-Holds when: A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 44.
+Holds when: A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 61.
 
-Doesn't tell you: Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 24.2 MiB against 18.3 MiB. Free-threaded Python was not available to compare.
+Doesn't tell you: Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 23.4 MiB against 18.2 MiB. Free-threaded Python was not available to compare.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/20261027T233155909692Z.json
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-05-mac-remeasurement.md https://rmichaelthomas.github.io/guion/evidence/2026-11-05-richards-session-report.json
+
+### Three small loops after the machine-code work
+
+On three small loops, Guion took 0.058 s for 1,000,000 random draws against CPython's 0.282 s, 0.165 s for a 20,000,000-step integer loop against 1.593 s, and 0.031 s for 200,000 text appends against 0.057 s for the way Python programmers normally write that loop.
+
+Holds when: One Apple Silicon Mac, a release build of main at artifact format 61, against CPython 3.14.7, with 7 alternating runs per lane. The integer loop and the appends were checked for identical output before timing.
+
+Doesn't tell you: Anything about real programs. These are synthetic loops, there are no confidence intervals, and the random lane compares speed only because the two generators draw different numbers. The same append statement written the slow way in Python took 4.901 s; that is Python's copy-on-every-pass pattern, not its normal style, so it is not the headline. Other machines, Linux and other Python versions were not measured.
+
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-04-follow-ups-report.md https://rmichaelthomas.github.io/guion/evidence/run.py
 
 ### Five short programs, start to finish
 
-Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.
+Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.184 to 0.234 of Python's time on every one.
 
 Holds when: The same Mac and CPython 3.14.7 as the Richards run, in fresh processes, with outputs checked.
 
 Doesn't tell you: How Guion compares on long-running or heavily optimized programs. A ratio below 1 means Guion took less time. The operating system's file cache was not controlled.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-short-source.json
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-05-mac-remeasurement.md https://rmichaelthomas.github.io/guion/evidence/2026-11-05-short-source.json
 
 ### Nine everyday applications
 
-On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.137 to 0.845.
+On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.149 to 0.826.
 
 Holds when: The frozen application suite on one Mac with CPython 3.14.7, fresh processes, outputs checked against the expected results.
 
-Doesn't tell you: That Guion is faster at every kind of application. The smallest gain was service health, at 0.845 of Python's time. Broader task classes and carefully matched Python implementations are still needed.
+Doesn't tell you: That Guion is faster at every kind of application. The smallest gain was service health, at 0.826 of Python's time. Broader task classes and carefully matched Python implementations are still needed.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-nine-app-comparison.json
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-05-mac-remeasurement.md https://rmichaelthomas.github.io/guion/evidence/2026-11-05-nine-app-comparison.json
 
 ### Does it behave the same as Python?
 
 On the frozen application suite, Guion passed 127 of 127 cases and the independent Python version passed 127 of 127.
 
-Holds when: Current main at commit 6b5e5aba, artifact format 44, on macOS ARM64. Every measured program output matched its expected output.
+Holds when: Current main at commit 484cefd, artifact format 61, on macOS ARM64. Every measured program output matched its expected output.
 
 Doesn't tell you: Anything about other operating systems or CPU architectures. This checkpoint is macOS ARM64 only, and the earlier three-target cohort used an older artifact format.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-application-acceptance.json
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-05-mac-remeasurement.md https://rmichaelthomas.github.io/guion/evidence/2026-11-05-application-acceptance.json
 
 ### A lockfile auditor, up to 16,384 packages
 
-Auditing 16,384 packages took Guion 171.82 ms and 40.92 MiB. Python took 179.87 ms and 47.13 MiB. Output was exact through 32,768 diagnostics.
+Auditing 16,384 packages took Guion 77.71 ms and 29.7 MiB. Python took 162.23 ms and 46.7 MiB. Output was exact through 32,768 diagnostics.
 
 Holds when: Seven randomized fresh-process timing pairs per size, exact-output checks, Guion's source cache bypassed, one Apple Silicon host, Python 3.14.7.
 
-Doesn't tell you: That Guion is generally faster than Python. An earlier run of this same workload was slower than Python (1.416×); a native report serializer changed that to 0.948×. Other programs, hosts and cold-cache runs need their own measurements.
+Doesn't tell you: That Guion is generally faster than Python. An earlier run of this same workload was slower than Python (1.416×); a native report serializer changed that to 0.948×, and later speed-ups to 0.477×. Other programs, hosts and cold-cache runs need their own measurements.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-lockfile-scale-ram-package-limit.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-lockfile-native-pair-serialization.json https://rmichaelthomas.github.io/guion/evidence/2026-10-27-lockfile-native-pair-acceptance.json https://rmichaelthomas.github.io/guion/evidence/2026-10-27-current-main-outcome-checkpoint.md
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-05-mac-remeasurement.md https://rmichaelthomas.github.io/guion/evidence/2026-11-05-lockfile-scale.json https://rmichaelthomas.github.io/guion/evidence/2026-10-27-lockfile-scale-ram-package-limit.md
 
 ### A failing worker cancels its siblings
 
 When one parallel worker fails, a sibling still waiting on an HTTP response is interrupted and its connection is closed. The original failure is the one reported.
 
-Holds when: A local loopback test with two workers, on current main, artifact format 44, macOS ARM64. The focused test passed 1/1.
+Holds when: A local loopback test with two workers, on main at commit 484cefd, artifact format 61, macOS ARM64. The focused test passed 1/1.
 
 Doesn't tell you: That Guion has a general async runtime, that effects already received by a remote service are rolled back, or that this holds on Linux or other targets.
 
-Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-10-27-parallel-http-cancellation.md
+Evidence: https://rmichaelthomas.github.io/guion/evidence/2026-11-05-mac-remeasurement.md https://rmichaelthomas.github.io/guion/evidence/2026-10-27-parallel-http-cancellation.md
 
 ### Where it has been tested
 
@@ -111,4 +121,26 @@ Holds when: The naming is recorded from the project's architect. The record of h
 Doesn't tell you: How NASA says his name. NASA confirms he goes by “Guy”; “GUY-on” is the project's own pronunciation, not a NASA record.
 
 Evidence: https://rmichaelthomas.github.io/guion/evidence/namesake.md
+
+## Where Python still leads
+
+### Libraries and packages
+
+Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 27 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. Nothing has been published to the registry yet.
+
+### Arrays and data science
+
+NumPy and pandas make Python the default for numeric and data work. Guion does not have a native array type yet.
+
+### A release you can use
+
+Guion's first public build is a Linux pre-release, v0.1.0-preview, for Debian 12 on ARM64 and x86_64. There is no macOS package yet. The preview was built on 3 November; later work, including the package registry, is in the repository and not in that build. Python is a released language with a long track record.
+
+### Learning it
+
+Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested.
+
+### Beyond the tasks measured
+
+Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared.
 

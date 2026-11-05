@@ -4,7 +4,7 @@
   "baseline_commit": "ed06a82",
   "baseline_source_sha256": "aa859ff7f9d5e8423b6c9c6e6d3cfc44414e4a64334a403251edea7fb32af456",
   "candidate_source_sha256": "a2f25632dee7aa44b8e7ba1a364030593ec523b054aaa577e7197d7bae106548",
-  "guion_binary_sha256": "851851ff7cdf6c72882ef053ea9fb37e4da4b796b507b57444973690cf7154fe",
+  "guion_binary_sha256": "8a64e276d60d1eff16c16ac686168bf22e9124eb512a44e5e7b5bcbe59c04e06",
   "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
   "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
   "trials": 7,
@@ -17,53 +17,53 @@
       "preflight": {
         "baseline_source": {
           "passed": true,
-          "elapsed_seconds": 0.088524,
+          "elapsed_seconds": 0.033476,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.09109833295224234
+          "runner_wall_seconds": 0.03614737495081499
         },
         "candidate_source": {
           "passed": true,
-          "elapsed_seconds": 0.056497,
+          "elapsed_seconds": 0.029544,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.060207083995919675
+          "runner_wall_seconds": 0.032120332994963974
         },
         "python": {
           "passed": true,
-          "elapsed_seconds": 0.118315,
+          "elapsed_seconds": 0.104567,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.12200387503253296
+          "runner_wall_seconds": 0.10643787501612678
         }
       },
       "samples_seconds": {
         "baseline_source": [
-          0.073263,
-          0.074366,
-          0.074002,
-          0.073488,
-          0.07611,
-          0.075475,
-          0.076104
+          0.034264,
+          0.035705,
+          0.033715,
+          0.033175,
+          0.031653,
+          0.030819,
+          0.034877
         ],
         "candidate_source": [
-          0.056888,
-          0.058572,
-          0.054592,
-          0.055107,
-          0.056353,
-          0.060527,
-          0.055902
+          0.031096,
+          0.031124,
+          0.030508,
+          0.028295,
+          0.029311,
+          0.031422,
+          0.030961
         ],
         "python": [
-          0.119239,
-          0.115719,
-          0.114006,
-          0.117452,
-          0.120417,
-          0.123573,
-          0.116472
+          0.103248,
+          0.103943,
+          0.104486,
+          0.106952,
+          0.1025,
+          0.103162,
+          0.102836
         ]
       },
       "paired_order": [
@@ -104,23 +104,23 @@
         ]
       ],
       "median_seconds": {
-        "baseline_source": 0.074366,
-        "candidate_source": 0.056353,
-        "python": 0.117452
+        "baseline_source": 0.033715,
+        "candidate_source": 0.030961,
+        "python": 0.103248
       },
       "ratios": {
         "candidate_over_python": {
-          "median": 0.4788519902461274,
+          "median": 0.2994333432746794,
           "bootstrap_95_interval": [
-            0.4691874127303069,
-            0.48980764406464194
+            0.28596097560975614,
+            0.3011777467844413
           ]
         },
         "candidate_over_baseline": {
-          "median": 0.7498775310254736,
+          "median": 0.9048791339166543,
           "bootstrap_95_interval": [
-            0.7377097916272534,
-            0.7876179974719629
+            0.8716986416468281,
+            0.9260101728114238
           ]
         }
       },
@@ -130,41 +130,41 @@
         "runs_per_arm": 7,
         "peak_rss_bytes": {
           "baseline_source": [
-            20283392,
-            20152320,
-            20201472,
-            20037632,
-            20234240,
-            20217856,
-            20447232
+            17481728,
+            17465344,
+            17465344,
+            17448960,
+            17481728,
+            17481728,
+            17465344
           ],
           "candidate_source": [
-            19857408,
-            19382272,
-            19333120,
-            19546112,
-            19431424,
-            19742720,
-            19447808
+            16990208,
+            17235968,
+            17022976,
+            16990208,
+            16990208,
+            17006592,
+            16990208
           ],
           "python": [
-            37978112,
-            37896192,
-            37552128,
-            37748736,
-            38060032,
-            37781504,
-            37961728
+            36962304,
+            37306368,
+            37158912,
+            37158912,
+            37175296,
+            37601280,
+            37322752
           ]
         },
         "median_peak_rss_bytes": {
-          "baseline_source": 20217856,
-          "candidate_source": 19447808,
-          "python": 37896192
+          "baseline_source": 17465344,
+          "candidate_source": 16990208,
+          "python": 37175296
         },
         "ratios": {
-          "candidate_over_python": 0.5131863380890618,
-          "candidate_over_baseline": 0.9619124797406807
+          "candidate_over_python": 0.45702952842661965,
+          "candidate_over_baseline": 0.9727954971857411
         },
         "paired_order": [
           [
@@ -212,53 +212,53 @@
       "preflight": {
         "baseline_source": {
           "passed": true,
-          "elapsed_seconds": 0.135759,
+          "elapsed_seconds": 0.050359,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.13921504199970514
+          "runner_wall_seconds": 0.053032958996482193
         },
         "candidate_source": {
           "passed": true,
-          "elapsed_seconds": 0.097446,
+          "elapsed_seconds": 0.04639,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.10114666604204103
+          "runner_wall_seconds": 0.049196750042028725
         },
         "python": {
           "passed": true,
-          "elapsed_seconds": 0.141658,
+          "elapsed_seconds": 0.123083,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.14474495803005993
+          "runner_wall_seconds": 0.1251264169695787
         }
       },
       "samples_seconds": {
         "baseline_source": [
-          0.134581,
-          0.132726,
-          0.128476,
-          0.132709,
-          0.133366,
-          0.134374,
-          0.133796
+          0.051117,
+          0.052919,
+          0.051888,
+          0.052313,
+          0.050794,
+          0.052406,
+          0.049659
         ],
         "candidate_source": [
-          0.113242,
-          0.09494,
-          0.095742,
-          0.095183,
-          0.093596,
-          0.099192,
-          0.095294
+          0.047134,
+          0.051226,
+          0.0464,
+          0.046783,
+          0.045509,
+          0.04589,
+          0.046471
         ],
         "python": [
-          0.137878,
-          0.140505,
-          0.136697,
-          0.142643,
-          0.137347,
-          0.143442,
-          0.13766
+          0.122792,
+          0.124041,
+          0.12257,
+          0.121803,
+          0.124168,
+          0.124819,
+          0.123703
         ]
       },
       "paired_order": [
@@ -299,23 +299,23 @@
         ]
       ],
       "median_seconds": {
-        "baseline_source": 0.133366,
-        "candidate_source": 0.095294,
-        "python": 0.137878
+        "baseline_source": 0.051888,
+        "candidate_source": 0.046471,
+        "python": 0.123703
       },
       "ratios": {
         "candidate_over_python": {
-          "median": 0.6915129459990799,
+          "median": 0.37855919066655785,
           "bootstrap_95_interval": [
-            0.6757054909077969,
-            0.7003957658178306
+            0.36765236061817513,
+            0.3840874198500858
           ]
         },
         "candidate_over_baseline": {
-          "median": 0.7172309338477422,
+          "median": 0.89595227782809,
           "bootstrap_95_interval": [
-            0.7122335495829472,
-            0.7452131137333042
+            0.8942337341967315,
+            0.9358021708048893
           ]
         }
       },
@@ -325,41 +325,41 @@
         "runs_per_arm": 7,
         "peak_rss_bytes": {
           "baseline_source": [
-            29212672,
-            29425664,
-            31031296,
-            28884992,
-            29458432,
-            29245440,
-            29573120
+            22757376,
+            22740992,
+            22740992,
+            22970368,
+            22970368,
+            22757376,
+            22691840
           ],
           "candidate_source": [
-            27426816,
-            27361280,
-            29720576,
-            27246592,
-            27377664,
-            28098560,
-            28147712
+            21725184,
+            21725184,
+            21725184,
+            21725184,
+            21708800,
+            21741568,
+            21757952
           ],
           "python": [
-            42418176,
-            41828352,
-            42483712,
-            42287104,
-            42303488,
-            42401792,
-            42942464
+            41140224,
+            41222144,
+            41140224,
+            42614784,
+            41730048,
+            41009152,
+            41353216
           ]
         },
         "median_peak_rss_bytes": {
-          "baseline_source": 29425664,
-          "candidate_source": 27426816,
-          "python": 42401792
+          "baseline_source": 22757376,
+          "candidate_source": 21725184,
+          "python": 41222144
         },
         "ratios": {
-          "candidate_over_python": 0.6468315301391035,
-          "candidate_over_baseline": 0.9320712694877505
+          "candidate_over_python": 0.527027027027027,
+          "candidate_over_baseline": 0.9546436285097192
         },
         "paired_order": [
           [
@@ -407,61 +407,56 @@
       "preflight": {
         "baseline_source": {
           "passed": true,
-          "elapsed_seconds": 0.6148,
+          "elapsed_seconds": 0.086314,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.6178641670267098
+          "runner_wall_seconds": 0.0893445000401698
         },
         "candidate_source": {
           "passed": true,
-          "elapsed_seconds": 0.17429,
+          "elapsed_seconds": 0.075801,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.17876224999781698
+          "runner_wall_seconds": 0.07899895799346268
         },
         "python": {
           "passed": true,
-          "elapsed_seconds": 0.193917,
+          "elapsed_seconds": 0.165584,
           "failures": [],
           "stderr": "",
-          "runner_wall_seconds": 0.19762499997159466
+          "runner_wall_seconds": 0.16860162501689047
         }
       },
       "samples_seconds": {
         "baseline_source": [
-          0.252863,
-          0.24639,
-          0.249229,
-          0.243652,
-          0.247089,
-          0.249409,
-          0.242844
+          0.09073,
+          0.089377,
+          0.089861,
+          0.089767,
+          0.089474,
+          0.087349,
+          0.088672
         ],
         "candidate_source": [
-          0.176689,
-          0.175426,
-          0.169461,
-          0.169141,
-          0.171822,
-          0.175951,
-          0.169821
+          0.07883,
+          0.079975,
+          0.07771,
+          0.077329,
+          0.078015,
+          0.077556,
+          0.076962
         ],
         "python": [
-          0.190987,
-          0.179868,
-          0.179952,
-          0.178482,
-          0.181252,
-          0.179861,
-          0.174834
+          0.164604,
+          0.172542,
+          0.161988,
+          0.162231,
+          0.165694,
+          0.161893,
+          0.161835
         ]
       },
       "paired_order": [
-        [
-          "candidate_source",
-          "python",
-          "baseline_source"
-        ],
         [
           "candidate_source",
           "python",
@@ -483,34 +478,39 @@
           "baseline_source"
         ],
         [
-          "python",
-          "candidate_source",
-          "baseline_source"
-        ],
-        [
           "baseline_source",
           "python",
           "candidate_source"
+        ],
+        [
+          "baseline_source",
+          "candidate_source",
+          "python"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
         ]
       ],
       "median_seconds": {
-        "baseline_source": 0.247089,
-        "candidate_source": 0.171822,
-        "python": 0.179868
+        "baseline_source": 0.089474,
+        "candidate_source": 0.07771,
+        "python": 0.162231
       },
       "ratios": {
         "candidate_over_python": {
-          "median": 0.9479729878842716,
+          "median": 0.4766598245711362,
           "bootstrap_95_interval": [
-            0.9417011202987463,
-            0.9753041119042853
+            0.47083780945598513,
+            0.4790571550344981
           ]
         },
         "candidate_over_baseline": {
-          "median": 0.6987538706730523,
+          "median": 0.8688416179874352,
           "bootstrap_95_interval": [
-            0.6941908952112029,
-            0.7054717351819701
+            0.8647800491870778,
+            0.8878865241731445
           ]
         }
       },
@@ -520,67 +520,62 @@
         "runs_per_arm": 7,
         "peak_rss_bytes": {
           "baseline_source": [
-            46874624,
-            47005696,
-            46546944,
-            48594944,
-            46874624,
-            46907392,
-            45105152
+            33144832,
+            33128448,
+            33144832,
+            33144832,
+            33161216,
+            33112064,
+            33144832
           ],
           "candidate_source": [
-            42893312,
-            44367872,
-            43122688,
-            45907968,
-            42729472,
-            42909696,
-            42844160
+            31129600,
+            31129600,
+            31342592,
+            31113216,
+            31129600,
+            31113216,
+            31129600
           ],
           "python": [
-            49102848,
-            50561024,
-            48906240,
-            50479104,
-            49414144,
-            49152000,
-            51511296
+            48971776,
+            50135040,
+            50315264,
+            48496640,
+            48562176,
+            48922624,
+            49135616
           ]
         },
         "median_peak_rss_bytes": {
-          "baseline_source": 46874624,
-          "candidate_source": 42909696,
-          "python": 49414144
+          "baseline_source": 33144832,
+          "candidate_source": 31129600,
+          "python": 48971776
         },
         "ratios": {
-          "candidate_over_python": 0.868368700265252,
-          "candidate_over_baseline": 0.9154141908423629
+          "candidate_over_python": 0.6356641017062563,
+          "candidate_over_baseline": 0.9391992090954029
         },
         "paired_order": [
           [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
             "baseline_source",
             "python",
             "candidate_source"
           ],
           [
-            "candidate_source",
-            "python",
-            "baseline_source"
-          ],
-          [
-            "candidate_source",
-            "python",
-            "baseline_source"
-          ],
-          [
             "baseline_source",
-            "candidate_source",
-            "python"
-          ],
-          [
             "python",
-            "candidate_source",
-            "baseline_source"
+            "candidate_source"
           ],
           [
             "python",
@@ -588,8 +583,13 @@
             "candidate_source"
           ],
           [
-            "candidate_source",
             "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "python",
+            "candidate_source",
             "baseline_source"
           ]
         ],

@@ -27,45 +27,10 @@ code{font:.78rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <thead><tr><th scope="col">File</th><th scope="col">Bytes</th><th scope="col">SHA-256</th><th scope="col">Cited by</th><th scope="col">Reproduce with</th></tr></thead>
 <tbody>
 <tr>
-<td><a href="2026-10-27-current-main-application-acceptance.json">2026-10-27-current-main-application-acceptance.json</a></td>
-<td class="num">249,774</td>
-<td><code>907fee49f7acf3d24d3ad96b4827c9201b11ca0181180861142fefb689297d66</code></td>
-<td>Does it behave the same as Python?</td>
-<td><span class="muted">see the report</span></td>
-</tr>
-<tr>
-<td><a href="2026-10-27-current-main-nine-app-comparison.json">2026-10-27-current-main-nine-app-comparison.json</a></td>
-<td class="num">10,913</td>
-<td><code>56638d271e10d1bbe8118a3a65acaae78c519fbc27b75fd79da9c4015f8d1dde</code></td>
-<td>Nine everyday applications</td>
-<td><span class="muted">see the report</span></td>
-</tr>
-<tr>
 <td><a href="2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a></td>
 <td class="num">5,828</td>
 <td><code>566d913d74a6c181dc74f07d75b31b54ab48cf81261b3b6cc6180eb6830214e6</code></td>
-<td>Richards, a classic benchmark program; Five short programs, start to finish; Nine everyday applications; Does it behave the same as Python?; A lockfile auditor, up to 16,384 packages; Where it has been tested</td>
-<td><span class="muted">see the report</span></td>
-</tr>
-<tr>
-<td><a href="2026-10-27-current-main-short-source.json">2026-10-27-current-main-short-source.json</a></td>
-<td class="num">121,580</td>
-<td><code>728bf335cc9aa324fa0a1decf64a61619767a213488231b6f85ba60a2df23305</code></td>
-<td>Five short programs, start to finish</td>
-<td><span class="muted">see the report</span></td>
-</tr>
-<tr>
-<td><a href="2026-10-27-lockfile-native-pair-acceptance.json">2026-10-27-lockfile-native-pair-acceptance.json</a></td>
-<td class="num">27,700</td>
-<td><code>4ff7820e9b7491994c2008c4aa9ed821297768ab2154c1de58cafe746e26d57c</code></td>
-<td>A lockfile auditor, up to 16,384 packages</td>
-<td><span class="muted">see the report</span></td>
-</tr>
-<tr>
-<td><a href="2026-10-27-lockfile-native-pair-serialization.json">2026-10-27-lockfile-native-pair-serialization.json</a></td>
-<td class="num">14,220</td>
-<td><code>4237f2510c0bd279b8392a127452f2cde2dbc0994ca0d262b2ba04d6b197bda4</code></td>
-<td>A lockfile auditor, up to 16,384 packages</td>
+<td>Where it has been tested</td>
 <td><span class="muted">see the report</span></td>
 </tr>
 <tr>
@@ -104,10 +69,52 @@ code{font:.78rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <td><span class="muted">see the report</span></td>
 </tr>
 <tr>
-<td><a href="20261027T233155909692Z.json">20261027T233155909692Z.json</a></td>
-<td class="num">179,109</td>
-<td><code>6d9a9b72c309a9a744e2a44c15d7fd01399415496a7c3086702cbdba1a79e366</code></td>
+<td><a href="2026-11-04-follow-ups-report.md">2026-11-04-follow-ups-report.md</a></td>
+<td class="num">11,242</td>
+<td><code>e521171f2904dd2f08f2a1ad9416e14b8357ba03693f11c0f45f823f05b74d03</code></td>
+<td>Three small loops after the machine-code work</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-11-05-application-acceptance.json">2026-11-05-application-acceptance.json</a></td>
+<td class="num">249,771</td>
+<td><code>8c573589aa1482f9cc7fa21301882497c6e9d539ac65fb63fb7b2f806b617e0f</code></td>
+<td>Does it behave the same as Python?</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-11-05-lockfile-scale.json">2026-11-05-lockfile-scale.json</a></td>
+<td class="num">14,219</td>
+<td><code>1b999b8921d9b358258c2f78b46ff3af8bc5c75f3888bb9d202a92b78fb3d196</code></td>
+<td>A lockfile auditor, up to 16,384 packages</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-11-05-mac-remeasurement.md">2026-11-05-mac-remeasurement.md</a></td>
+<td class="num">4,326</td>
+<td><code>e99453bcb6513d335c42a40921de956c20c91c583d519490d8ae91f0bf277cc0</code></td>
+<td>Richards, a classic benchmark program; Five short programs, start to finish; Nine everyday applications; Does it behave the same as Python?; A lockfile auditor, up to 16,384 packages; A failing worker cancels its siblings</td>
+<td><code>cargo test --locked --offline --jobs 2 -p guion-runtime --test http parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket -- --exact</code></td>
+</tr>
+<tr>
+<td><a href="2026-11-05-nine-app-comparison.json">2026-11-05-nine-app-comparison.json</a></td>
+<td class="num">10,924</td>
+<td><code>14fcc052d5b4c7db9d2a2ca2fd75b2c6b9343eb5c0cf3d9568df9f4d5e9d45fd</code></td>
+<td>Nine everyday applications</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-11-05-richards-session-report.json">2026-11-05-richards-session-report.json</a></td>
+<td class="num">549,745</td>
+<td><code>3197d05323d3edf3bb4b46c5d29c94dc7b23beea1241ff41051db9f4149c30c4</code></td>
 <td>Richards, a classic benchmark program</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
+<td><a href="2026-11-05-short-source.json">2026-11-05-short-source.json</a></td>
+<td class="num">115,998</td>
+<td><code>c4067d75bb93b0736bb1430368fdaef2dd622b43576f942ed775f10e038b2598</code></td>
+<td>Five short programs, start to finish</td>
 <td><span class="muted">see the report</span></td>
 </tr>
 <tr>
@@ -118,9 +125,16 @@ code{font:.78rem ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-w
 <td><span class="muted">see the report</span></td>
 </tr>
 <tr>
+<td><a href="run.py">run.py</a></td>
+<td class="num">1,993</td>
+<td><code>5195dbc58d900bd6dd71c8eaf0b2cb00e302f6deabfec3124383f47c0774810e</code></td>
+<td>Three small loops after the machine-code work</td>
+<td><span class="muted">see the report</span></td>
+</tr>
+<tr>
 <td><a href="status.md">status.md</a></td>
-<td class="num">26,572</td>
-<td><code>2072ab94b1caa703fe2bc2bf281978e4213a329bfa3f00231ca54d6956faaaaa</code></td>
+<td class="num">29,123</td>
+<td><code>defb3065c904ef0867539a0395aa1831be99514f20f52fdbb7ed3a9a47d5907f</code></td>
 <td>Where it has been tested; When an assistant was asked to choose</td>
 <td><span class="muted">see the report</span></td>
 </tr>
