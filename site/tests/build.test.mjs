@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildSite } from '../tools/build.mjs';
 import { REPO_ROOT, SITE_ROOT } from '../tools/lib/paths.mjs';
+import { withoutProjectLinks } from '../tools/lib/project-links.mjs';
 
 const real = {
   srcDir: path.join(SITE_ROOT, 'src'),
@@ -87,8 +88,8 @@ test('the page states no goal of replacing Python', () => {
 
 test('nothing in the page asks the network for anything', () => {
   for (const page of [html, devHtml]) {
-    // The SVG namespace and the canonical link name addresses; neither is fetched.
-    const scrubbed = page.replaceAll('xmlns="http://www.w3.org/2000/svg"', '').replace('<link rel="canonical" href="https://rmichaelthomas.github.io/guion/">', '');
+    // The SVG namespace, the canonical link and links to the project's own GitHub name addresses; none is fetched.
+    const scrubbed = withoutProjectLinks(page).replaceAll('xmlns="http://www.w3.org/2000/svg"', '').replace('<link rel="canonical" href="https://rmichaelthomas.github.io/guion/">', '');
     assert.doesNotMatch(scrubbed, /(?:href|src)="(?:https?:)?\/\//);
     assert.doesNotMatch(scrubbed, /url\(\s*['"]?https?:/);
     assert.doesNotMatch(scrubbed, /@import/);
@@ -107,4 +108,14 @@ test('the report counts real bytes', () => {
   assert.ok(report.htmlBytes > 1000 && report.cssBytes > 1000);
   assert.equal(report.jsBytes, Buffer.byteLength(readFileSync(path.join(SITE_ROOT, 'src', 'playground', 'loader.mjs'), 'utf8')));
   assert.ok(report.wasmBytes > 1_000_000);
+});
+
+test('only anchors to the project GitHub are exempt from the no-remote-address rule', () => {
+  assert.equal(withoutProjectLinks('<a class="btn" href="https://github.com/rmichaelthomas/guion/releases/tag/v1">x</a>'), '<a>x</a>');
+  for (const bad of [
+    '<img src="https://github.com/rmichaelthomas/guion/logo.png">',
+    '<script src="https://github.com/rmichaelthomas/guion/a.js"></script>',
+    '<a href="https://github.com/someone-else/guion">x</a>',
+    '<a href="https://example.com/">x</a>',
+  ]) assert.equal(withoutProjectLinks(bad), bad);
 });

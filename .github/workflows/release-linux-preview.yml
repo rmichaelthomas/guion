@@ -3,7 +3,7 @@ name: Linux preview release
 # Builds the profile-guided Linux packages (Debian 12 ARM64 and x86_64) with `cargo xtask release`,
 # which also verifies each package's manifest, tamper rejection, relocation and installer. A
 # `v*-preview*` tag attaches both archives to a GitHub pre-release. The macOS package is not built
-# here: it would bill macOS runner minutes, and it can be built on a Mac with the same command.
+# here: it would bill macOS runner minutes, and it is built on a Mac with the same command, signed and notarized by setting GUION_CODESIGN_IDENTITY and GUION_NOTARY_PROFILE (see sign_macos_binary in xtask/src/release.rs).
 on:
   push:
     tags: ["v*-preview*"]
@@ -97,5 +97,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --prerelease \
-            --title "Guion $GITHUB_REF_NAME (Linux preview)" \
-            --notes "Profile-guided Linux packages for Debian 12-compatible ARM64 and x86_64. Extract an archive and run \`sh install.sh\` (installs under ~/.local, or pass a prefix); no Rust, Python or uv is needed. Each \`.sha256\` file holds the archive's checksum. No macOS package is attached."
+            --title "Guion $GITHUB_REF_NAME (preview)" \
+            --notes "Profile-guided Linux packages for Debian 12-compatible ARM64 and x86_64. Extract an archive and run \`sh install.sh\` (installs under ~/.local, or pass a prefix); no Rust, Python or uv is needed. Each \`.sha256\` file holds the archive's checksum. The macOS (Apple Silicon) package is built on a Mac and attached after this release is created; if it is missing, it has not been added yet."

@@ -1,6 +1,6 @@
 # Guion core
 
-This archive contains the Guion command-line tool and its self-hosted compiler for the listed ARM64 release target. The core commands do not require Python. Guion is in private pre-release development; this archive is not a public release.
+This archive contains the Guion command-line tool and its self-hosted compiler for the listed ARM64 release target. The core commands do not require Python. Guion is in pre-release development; this archive is a preview build, not a stable release.
 
 ## Install
 

@@ -1,10 +1,10 @@
 # Getting started
 
-Guion is in private pre-release development. There is no public download yet.
+Guion is in pre-release development. The second preview build, v0.1.0-preview.2, is downloadable from the project's GitHub releases.
 
-## Install a prebuilt package (Linux)
+## Install a prebuilt package
 
-People with access to the repository can download a prebuilt package from its GitHub releases. The `v0.1.0-preview` release has packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
+Prebuilt packages are on the project's [GitHub releases](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2). The `v0.1.0-preview.2` release has packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`), and for macOS on Apple Silicon (`guion-macos-aarch64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
 
 ```sh
 sha256sum -c guion-debian-aarch64.tar.gz.sha256
@@ -13,7 +13,7 @@ sh guion-debian-aarch64/install.sh        # installs under ~/.local; pass a pref
 ~/.local/bin/guion --version
 ```
 
-There is no prebuilt macOS package yet; on macOS, build from source.
+On macOS, use `shasum -a 256 -c guion-macos-aarch64.tar.gz.sha256` and the `guion-macos-aarch64` directory instead. The Mac build is signed and notarized by Apple, so it opens without a warning; the first launch checks with Apple and needs an internet connection. For other systems, build from source.
 
 ## Build from source
 
@@ -71,4 +71,4 @@ For the optional Python bridge, the CLI must be built with the `python-interop` 
 - `guion doctor` reports the current host and enabled profile in human-readable form. `guion doctor --json` emits the versioned report for the active build profile; the [agent index](agents/index.json) lists both report shapes.
 - Use `guion package PROJECT --output DIRECTORY` to create a current-host application bundle.
 
-The CLI command list and behavior are in the [reference](reference.md). Release packaging is still a pre-release gate; do not treat these development commands as a public download or support promise.
+The CLI command list and behavior are in the [reference](reference.md). Releases are still previews, so these commands may change before a stable release.

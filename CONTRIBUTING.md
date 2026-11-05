@@ -1,6 +1,6 @@
 # Contributing
 
-Guion is a private pre-release project. Contributions should keep the implemented language contract clear and preserve the evidence behind compatibility and performance claims.
+Guion is a pre-release project. Contributions should keep the implemented language contract clear and preserve the evidence behind compatibility and performance claims.
 
 ## Development setup
 
