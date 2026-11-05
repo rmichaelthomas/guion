@@ -5,6 +5,28 @@
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",
   "howToUse": "Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.",
+  "whereGuionIsBehind": [
+    {
+      "heading": "Libraries and packages",
+      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 27 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. Nothing has been published to the registry yet."
+    },
+    {
+      "heading": "Arrays and data science",
+      "body": "NumPy and pandas make Python the default for numeric and data work. Guion does not have a native array type yet."
+    },
+    {
+      "heading": "A release you can use",
+      "body": "Guion's first public build is a Linux pre-release, v0.1.0-preview, for Debian 12 on ARM64 and x86_64. There is no macOS package yet. The preview was built on 3 November; later work, including the package registry, is in the repository and not in that build. Python is a released language with a long track record."
+    },
+    {
+      "heading": "Learning it",
+      "body": "Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested."
+    },
+    {
+      "heading": "Beyond the tasks measured",
+      "body": "Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared."
+    }
+  ],
   "cli": {
     "version": "guion 0.1.0 (artifact format 61, timezone data 2026c)",
     "commands": [
@@ -26,7 +48,8 @@
       "install",
       "publish",
       "yank",
-      "token"
+      "token",
+      "cache"
     ]
   },
   "claims": [

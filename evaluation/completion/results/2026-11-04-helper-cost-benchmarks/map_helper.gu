@@ -1,0 +1,12 @@
+fn bump(counts: Map[Text, Int], key: Text) -> Map[Text, Int]:
+    if map_has(counts, key):
+        return map_set(counts, key, counts[key] + 1)
+    return map_set(counts, key, 1)
+fn main() -> Unit:
+    var m: Map[Text, Int] = {}
+    var i = 0
+    while i < 100000:
+        let k = "k" + int_to_text(i % 10000)
+        set m = bump(m, k)
+        set i = i + 1
+    print(len(m))

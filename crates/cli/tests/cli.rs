@@ -67,6 +67,39 @@ fn version_reports_artifact_and_pinned_timezone_data_versions() {
 }
 
 #[test]
+fn help_lists_every_command_and_exits_successfully() {
+    for flag in ["--help", "-h", "help"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+            .arg(flag)
+            .output()
+            .expect("start Guion help command");
+        assert!(output.status.success(), "{flag}");
+        let text = String::from_utf8(output.stdout).unwrap();
+        let usage = text.lines().next().unwrap();
+        for command in usage
+            .trim_start_matches("usage: guion <")
+            .split(['|', '>'])
+            .take_while(|name| !name.contains(' '))
+        {
+            assert!(
+                text.lines()
+                    .skip(1)
+                    .any(|line| line.split_whitespace().next() == Some(command)
+                        || line.contains(command)),
+                "{flag} does not describe `{command}`"
+            );
+        }
+        assert!(usage.contains("|cache>"), "usage names the cache command");
+    }
+    let unknown = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("no-such-command")
+        .output()
+        .expect("start Guion with an unknown command");
+    assert!(!unknown.status.success());
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("|cache>"));
+}
+
+#[test]
 fn temporal_resolver_api_and_example_are_discoverable_to_agents() {
     let repository = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let time = fs::read_to_string(repository.join("language/stdlib/time.gu")).unwrap();

@@ -1,0 +1,9 @@
+fn push(xs: List[Int], v: Int) -> List[Int]:
+    return list_push(xs, v)
+fn main() -> Unit:
+    var xs: List[Int] = []
+    var i = 0
+    while i < 40000:
+        set xs = push(xs, i)
+        set i = i + 1
+    print(len(xs))

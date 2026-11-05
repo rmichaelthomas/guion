@@ -38,6 +38,29 @@ fn main() -> ExitCode {
     }
 }
 
+const USAGE: &str = "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token|cache> [path]";
+
+const HELP: &str = "\
+new        create a project (guion new <dir>, or --lib for a library)
+check      compile a source file or project and report problems without running it
+fmt        format source (--check reports unformatted files)
+lint       report unused imports and locals and unreachable statements
+test       run the test_* functions of a file or project
+run        run a source file, artifact or project; permissions such as --file-root,
+           --allow-http-host and --allow-clock are granted with flags
+build      compile to an artifact
+package    produce a distributable package; verify-package checks one
+add        add a dependency; sync and update resolve and refresh them
+inspect    print artifact and function metadata and the effects a program can have
+doc        print function, record and external signatures
+doctor     report the current host and enabled profile
+install    install a library package
+publish    publish a package to a registry; yank withdraws a version; token manages publisher tokens
+cache      guion cache clean [project] removes the compiled-source cache
+--version  print the version
+
+Programs run with no permissions until you grant them. See docs/getting-started.md.";
+
 fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if args.first().is_some_and(|command| command == "cache") {
         return execute_cache_command(&args);
@@ -49,11 +72,12 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let runtime_profile_sampled =
         runtime_profile_setting.as_deref() == Some(std::ffi::OsStr::new("sampled"));
     let Some(command) = args.first().map(String::as_str) else {
-        return Err(
-            "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token> [path]"
-                .into(),
-        );
+        return Err(USAGE.into());
     };
+    if matches!(command, "--help" | "-h" | "help") {
+        println!("{USAGE}\n\n{HELP}");
+        return Ok(ExitCode::SUCCESS);
+    }
     if command == "--version" || command == "version" {
         println!(
             "guion {} (artifact format {}, timezone data {})",
@@ -505,7 +529,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     ]
     .contains(&command)
     {
-        return Err(format!("unknown command `{command}`\nusage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token> [path]"));
+        return Err(format!("unknown command `{command}`\n{USAGE}"));
     }
     let mut json_run = false;
     let mut no_source_cache = false;
