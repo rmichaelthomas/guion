@@ -164,6 +164,219 @@ fn main() -> Unit:
 }
 
 #[test]
+fn collections_updated_through_helpers_keep_every_alias_intact() {
+    // A helper that returns an updated map or list may update it in place only when the caller
+    // gives up its own copy. Every case below keeps the old value alive somewhere, and each must
+    // still read as it did before the call.
+    let source = r#"fn bump(counts: Map[Text, Int], key: Text) -> Map[Text, Int]:
+    if map_has(counts, key):
+        return map_set(counts, key, counts[key] + 1)
+    return map_set(counts, key, 1)
+
+fn push(xs: List[Int], value: Int) -> List[Int]:
+    return list_push(xs, value)
+
+fn pass_through(counts: Map[Text, Int]) -> Map[Text, Int]:
+    return bump(counts, "z")
+
+fn twice(counts: Map[Text, Int]) -> Map[Text, Int]:
+    return bump(bump(counts, "a"), "a")
+
+fn second(a: List[Int], b: List[Int]) -> List[Int]:
+    return b
+
+fn main() -> Int:
+    var m: Map[Text, Int] = {}
+    set m = bump(m, "a")
+    let kept = m
+    set m = bump(m, "a")
+    print(kept["a"])
+    print(m["a"])
+    let side = bump(kept, "a")
+    print(kept["a"])
+    print(side["a"])
+    let through = pass_through(m)
+    print(m["a"])
+    print(len(through))
+    print(len(m))
+    let doubled = twice(kept)
+    print(doubled["a"])
+    print(kept["a"])
+
+    var xs: List[Int] = [1]
+    set xs = push(xs, 2)
+    let snapshot = xs
+    set xs = push(xs, 3)
+    print(len(snapshot))
+    print(len(xs))
+    set xs = second(xs, xs)
+    set xs = push(xs, 4)
+    print(len(xs))
+    print(len(snapshot))
+    let base = xs
+    var other: List[Int] = []
+    set other = push(base, 9)
+    print(len(base))
+    print(len(other))
+
+    var counts: Map[Text, Int] = {}
+    var i = 0
+    while i < 1000:
+        set counts = bump(counts, "k" + int_to_text(i % 7))
+        set i = i + 1
+    print(counts["k0"])
+    print(len(counts))
+    return 0
+"#;
+    let artifact = compile("collection-helpers.gu", source).expect("helpers compile");
+    let expected = "1\n2\n1\n2\n2\n2\n1\n3\n1\n2\n3\n4\n2\n4\n5\n143\n7\n";
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), HostPolicy::default())
+            .expect("runtime loads the artifact");
+        instance.invoke("main", vec![]).expect("program runs");
+        assert_eq!(instance.take_output(), expected);
+    }
+}
+
+#[test]
+fn collections_handed_through_helpers_stay_linear_under_the_allocation_budget() {
+    // Each call used to copy the whole map or list, and check every item of it again on return,
+    // so these loops cost the square of their size and ran out of this budget long before the
+    // end. Handed back to the caller's own variable, the update is made in place.
+    let source = r#"fn bump(counts: Map[Text, Int], key: Text) -> Map[Text, Int]:
+    if map_has(counts, key):
+        return map_set(counts, key, counts[key] + 1)
+    return map_set(counts, key, 1)
+
+fn push(xs: List[Int], value: Int) -> List[Int]:
+    return list_push(xs, value)
+
+fn main() -> Int:
+    var counts: Map[Text, Int] = {}
+    var xs: List[Int] = [0]
+    var i = 0
+    while i < 20000:
+        set counts = bump(counts, "k" + int_to_text(i))
+        set xs = push(xs, i)
+        set i = i + 1
+    print(len(counts))
+    print(len(xs))
+    return 0
+"#;
+    let artifact = compile("collection-helper-scale.gu", source).expect("loop compiles");
+    let policy = HostPolicy {
+        allocation_limit_bytes: 64 << 20,
+        ..HostPolicy::default()
+    };
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), policy.clone())
+            .expect("runtime loads the artifact");
+        instance.invoke("main", vec![]).expect("program runs");
+        assert_eq!(instance.take_output(), "20000\n20001\n");
+    }
+}
+
+#[test]
+fn list_set_and_float_lists_through_helpers_keep_aliases_and_stay_linear() {
+    let source = r#"fn put(xs: List[Int], index: Int, value: Int) -> List[Int]:
+    return list_set(xs, index, value)
+
+fn push_f(xs: List[Float64], value: Float64) -> List[Float64]:
+    return list_push(xs, value)
+
+fn put_f(xs: List[Float64], index: Int, value: Float64) -> List[Float64]:
+    return list_set(xs, index, value)
+
+fn main() -> Int:
+    var xs: List[Int] = [1, 2, 3]
+    let kept = xs
+    set xs = put(xs, 0, 9)
+    print(kept[0])
+    print(xs[0])
+    let side = put(xs, 1, 8)
+    print(xs[1])
+    print(side[1])
+
+    var fs: List[Float64] = [1.0]
+    set fs = push_f(fs, 2.0)
+    let snapshot = fs
+    set fs = push_f(fs, 3.0)
+    set fs = put_f(fs, 0, 7.5)
+    print(len(snapshot))
+    print(len(fs))
+    print(snapshot[0])
+    print(fs[0])
+
+    var big: List[Int] = [0]
+    var gs: List[Float64] = [0.0]
+    var i = 0
+    while i < 20000:
+        set big = list_push(big, i)
+        set gs = push_f(gs, 1.5)
+        set big = put(big, i, i + 1)
+        set gs = put_f(gs, i, 2.5)
+        set i = i + 1
+    print(len(big))
+    print(len(gs))
+    return 0
+"#;
+    let artifact = compile("list-set-helpers.gu", source).expect("helpers compile");
+    let expected = "1\n9\n2\n8\n2\n3\n1\n7.5\n20001\n20001\n";
+    let policy = HostPolicy {
+        allocation_limit_bytes: 64 << 20,
+        ..HostPolicy::default()
+    };
+    for runtime in [Runtime::new(), Runtime::vm_only()] {
+        let mut instance = runtime
+            .load(artifact.clone(), policy.clone())
+            .expect("runtime loads the artifact");
+        instance.invoke("main", vec![]).expect("program runs");
+        assert_eq!(instance.take_output(), expected);
+    }
+}
+
+#[test]
+fn text_built_through_a_helper_is_appended_in_place_and_aliases_are_kept() {
+    let source = r#"fn add(s: Text, piece: Text) -> Text:
+    return s + piece
+
+fn main() -> Int:
+    var s = ""
+    set s = add(s, "ab")
+    let kept = s
+    set s = add(s, "cd")
+    print(kept)
+    print(s)
+    let side = add(s, "!")
+    print(s)
+    print(side)
+    var big = ""
+    var i = 0
+    while i < 60000:
+        set big = add(big, "abcd")
+        set i = i + 1
+    print(len(big))
+    return 0
+"#;
+    let artifact = compile("text-helper.gu", source).expect("helper compiles");
+    let policy = HostPolicy {
+        allocation_limit_bytes: 64 << 20,
+        ..HostPolicy::default()
+    };
+    for (name, runtime) in [("vm", Runtime::vm_only()), ("native", Runtime::new())] {
+        let mut instance = runtime
+            .load(artifact.clone(), policy.clone())
+            .expect("runtime loads the artifact");
+        instance
+            .invoke("main", vec![])
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        assert_eq!(instance.take_output(), "ab\nabcd\nabcd\nabcd!\n240000\n");
+    }
+}
+
+#[test]
 fn nested_records_run_natively_and_kept_records_are_not_overwritten() {
     // `previous` keeps last iteration's record. Native code once pointed it at the call's output
     // block, so the next call to `point` overwrote it and `next.x == previous.x` held every time.
