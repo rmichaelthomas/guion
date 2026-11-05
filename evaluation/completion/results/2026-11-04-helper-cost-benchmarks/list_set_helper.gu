@@ -1,0 +1,10 @@
+fn put(xs: List[Int], index: Int, v: Int) -> List[Int]:
+    return list_set(xs, index, v)
+fn main() -> Unit:
+    var xs: List[Int] = [0]
+    var i = 0
+    while i < 40000:
+        set xs = list_push(xs, 0)
+        set xs = put(xs, i, i)
+        set i = i + 1
+    print(len(xs))

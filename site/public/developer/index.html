@@ -715,7 +715,7 @@
 <div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
 <div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
 <div><dt>Browser</dt><dd>WebAssembly ABI 1.0, which runs the playground below</dd></div>
-<div><dt>Tooling</dt><dd>19 subcommands in one binary, most with <code>--json</code></dd></div>
+<div><dt>Tooling</dt><dd>20 subcommands in one binary, most with <code>--json</code></dd></div>
 </dl>
 </div>
 <div class="cta-row">
@@ -834,7 +834,7 @@
 <div class="reason-main">
 <h3>More than a language.</h3>
 <p class="v-plain">One command makes a project, checks it, tidies it, tests it, runs it, packs it up, and tells you what it can do. A person, or an assistant, can ask for a report instead of text.</p>
-<p class="v-dev">19 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
+<p class="v-dev">20 subcommands in one binary. <code>--json</code> on check, lint, test, run, build, package, verify-package, inspect, doc, doctor and sync returns a versioned report with stable fields and codes.</p>
 </div>
 <aside class="marginalia v-dev"><span class="smallcaps">Margin note</span><p>Report kinds and schemas are indexed in <code>docs/agents/index.json</code>; the table in section 03 lists each one.</p></aside>
 </li>
@@ -854,7 +854,7 @@
 <div class="sectionhead">
 <div><p class="overline">03 / The apparatus</p><h2>One command.<br><span class="serif">The whole job.</span></h2></div>
 <p class="v-plain">Most languages leave you to put the tools together yourself. Guion ships one program that walks the whole path, from an empty folder to something you can hand to someone else.</p>
-<p class="v-dev">19 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
+<p class="v-dev">20 subcommands behind one binary. Core commands never discover or launch Python or uv.</p>
 </div>
 <div class="v-plain" data-ahi="ahi.relationships-diagrams.flow-map">
 <ol class="route">
@@ -891,6 +891,7 @@
 <tr><th scope="row"><code>guion publish</code></th><td><code>[DIRECTORY]</code></td><td>Checks the library (including its declared capabilities), packs it and uploads it with the publisher token in GUION_REGISTRY_TOKEN; a published version never changes.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion yank</code></th><td><code>NAME VERSION [--undo]</code></td><td>Marks a published version yanked so resolution skips it; existing locks keep working. --undo restores it.</td><td>—</td></tr>
 <tr><th scope="row"><code>guion token</code></th><td><code>rotate | revoke</code></td><td>rotate issues a new token for the publisher in GUION_REGISTRY_TOKEN, prints it once and revokes the old one; revoke withdraws the token outright.</td><td>—</td></tr>
+<tr><th scope="row"><code>guion cache</code></th><td><code>clean [PROJECT]</code></td><td>clean removes the project's compiled-source cache and reports the bytes removed; guion run --no-cache forces a fresh compile instead.</td><td>—</td></tr>
 </tbody>
 </table>
 </div>

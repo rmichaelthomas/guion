@@ -17,7 +17,7 @@ test('every command has a plain sentence, a developer sentence and a usage line'
 });
 
 test('the command list and version match the built guion binary', { skip: !existsSync(binary) && 'no release binary at target/release/guion' }, () => {
-  // `guion --help` is an unknown command: it prints the usage line to stderr and exits non-zero.
+  // `guion --help` prints the usage line and a one-line description of each command, and exits zero.
   const run = spawnSync(binary, ['--help'], { encoding: 'utf8' });
   const usage = `${run.stdout}${run.stderr}`;
   const listed = /<([a-z|-]+)>/.exec(usage)[1].split('|');

@@ -1,11 +1,20 @@
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const SITE_URL = 'https://rmichaelthomas.github.io/guion/';
 export const STATUS = 'Pre-release. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.';
 const CONTACT = 'rmichael@rmichaelthomas.com';
 
+/** The page's "Where Python still leads" entries, read from the same slots the page renders, so the two cannot drift. */
+export async function pythonGaps(srcDir) {
+  const { slots } = JSON.parse(await readFile(path.join(srcDir, 'instruments.json'), 'utf8'));
+  return slots
+    .filter((slot) => slot.id.startsWith('python-accordion-'))
+    .map((slot) => ({ heading: slot.content.heading, body: slot.content.body }));
+}
+
 /** Machine-readable copy of the page's receipts: each claim with the conditions it holds under. */
-export function renderAgentsJson({ claims, cli }) {
+export function renderAgentsJson({ claims, cli, gaps }) {
   return `${JSON.stringify({
     product: 'Guion',
     status: STATUS,
@@ -13,6 +22,7 @@ export function renderAgentsJson({ claims, cli }) {
     site: SITE_URL,
     contact: CONTACT,
     howToUse: 'Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.',
+    whereGuionIsBehind: gaps,
     cli: { version: cli.version, commands: cli.commands.map((command) => command.name) },
     claims: claims.map((claim) => ({
       id: claim.id,
@@ -28,7 +38,7 @@ export function renderAgentsJson({ claims, cli }) {
 }
 
 /** Plain-text brief for an assistant advising someone on whether to use Guion. */
-export function renderLlmsTxt({ claims }) {
+export function renderLlmsTxt({ claims, gaps }) {
   const lines = [
     '# Guion',
     '',
@@ -59,5 +69,7 @@ export function renderLlmsTxt({ claims }) {
       '',
     );
   }
+  lines.push('## Where Python still leads', '');
+  for (const gap of gaps) lines.push(`### ${gap.heading}`, '', gap.body, '');
   return `${lines.join('\n')}\n`;
 }

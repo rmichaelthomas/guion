@@ -7,7 +7,7 @@ import { loadClaims, renderCaseFiles, renderClaimCard } from './claims.mjs';
 import { publishEvidence } from './evidence.mjs';
 import { highlightGuion } from './highlight.mjs';
 import { renderRatioChart } from './ratios.mjs';
-import { renderAgentsJson, renderLlmsTxt } from './agents-surface.mjs';
+import { renderAgentsJson, renderLlmsTxt, pythonGaps } from './agents-surface.mjs';
 
 // Vendored AllHere family CSS goes before `components` so the site's own rules can override it.
 const STYLE_BEFORE_VENDOR = ['tokens', 'base', 'layout', 'plain', 'developer'];
@@ -222,8 +222,9 @@ export async function buildSite({ srcDir, vendorDir, outDir, repoRoot = REPO_ROO
   }
   await publishEvidence({ repoRoot, claims, outDir: path.join(outDir, 'evidence') });
   if (cli) {
-    await writeFile(path.join(outDir, 'agents.json'), renderAgentsJson({ claims, cli }));
-    await writeFile(path.join(outDir, 'llms.txt'), renderLlmsTxt({ claims }));
+    const gaps = await pythonGaps(srcDir);
+    await writeFile(path.join(outDir, 'agents.json'), renderAgentsJson({ claims, cli, gaps }));
+    await writeFile(path.join(outDir, 'llms.txt'), renderLlmsTxt({ claims, gaps }));
   }
 
   return { files: await walk(outDir), report: measured };

@@ -134,6 +134,13 @@
       "plain": "Replace or withdraw your registry publishing token.",
       "dev": "rotate issues a new token for the publisher in GUION_REGISTRY_TOKEN, prints it once and revokes the old one; revoke withdraws the token outright.",
       "report": null
+    },
+    {
+      "name": "cache",
+      "args": "clean [PROJECT]",
+      "plain": "Clear the saved copy of compiled programs, so the next run starts fresh.",
+      "dev": "clean removes the project's compiled-source cache and reports the bytes removed; guion run --no-cache forces a fresh compile instead.",
+      "report": null
     }
   ]
 }

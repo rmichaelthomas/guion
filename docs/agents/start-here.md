@@ -24,6 +24,7 @@ The starter prints `Hello, Guion!`. Cargo builds the Guion tool; normal Guion so
 - `let` creates an immutable binding. `var` creates a mutable binding, changed with `set`.
 - `Option[T]` means a value may be absent. `Result[T, E]` means an operation may succeed or fail. Use `match`, or postfix `?` inside a function that returns a compatible `Result`; reserve `unwrap` for values whose success was already established.
 - Lists and maps are immutable values; update operations return a new value.
+- Updating a list, map or text through a helper (`set m = bump(m, key)`, with `return map_set(m, ...)` inside) is done in place when the result goes back into the same variable. Storing the result in a different variable (`let t = bump(m, key)`) keeps the old value alive, so each call copies it: correct, but slow for large values in a loop.
 - File, network, environment, and clock operations follow explicit host permissions. Network and clock access are denied unless granted.
 - Guion is a real programming language with structured syntax. “Plain English” is the goal for the learning experience and diagnostics, not a promise that arbitrary English is executable code.
 
