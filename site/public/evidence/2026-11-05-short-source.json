@@ -1,10 +1,10 @@
 {
   "bootstrap_resamples": 10000,
-  "created_at_utc": "2026-10-28T00:01:07.546288+00:00",
+  "created_at_utc": "2026-11-05T02:59:30.512842+00:00",
   "guion_binaries": {
-    "current": {
-      "path": "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
-      "sha256": "dde95e975ad1d356b69c5fc017ca78425621bda94498842e88f29590ca20fb39"
+    "main": {
+      "path": "/Users/rmichaelthomas/guion/target/release/guion",
+      "sha256": "8a64e276d60d1eff16c16ac686168bf22e9124eb512a44e5e7b5bcbe59c04e06"
     }
   },
   "kind": "guion-first-source-speed-cohort",
@@ -25,328 +25,328 @@
   },
   "random_seed": 20261025,
   "schema_version": 1,
-  "source_revision": "6b5e5aba81c9c306cc3fe14848e3a05d19a10925",
+  "source_revision": "e4354bfbfaf410fd0038f7f5e80aeace44ac731f",
   "trial_count": 21,
   "workloads": {
     "arithmetic": {
       "cache_policy": "--no-cache; fresh process and fresh copied project per sample",
       "expected_stdout": "500500\n",
       "lanes": {
-        "current": {
+        "main": {
           "guion_samples": [
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-issh6our/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-veda3vcu/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.00872675,
+              "seconds": 0.006059625,
               "trial": 1
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-ldpi50dd/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-xjj2beq5/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006223917,
+              "seconds": 0.005357625,
               "trial": 2
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-6qjua75r/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-m2dejfri/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006313166,
+              "seconds": 0.005599875,
               "trial": 3
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-qkqm406d/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-72lo8ibe/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006512125,
+              "seconds": 0.005604875,
               "trial": 4
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-9iy_3s1m/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-0cbhacdu/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006805583,
+              "seconds": 0.00552475,
               "trial": 5
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-lj5vvliw/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-ogjmf76u/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.00746625,
+              "seconds": 0.005407541,
               "trial": 6
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-ga0z8ftt/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-pu5c6rje/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007130208,
+              "seconds": 0.00608675,
               "trial": 7
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-hl_hawse/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-kkgcprq7/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006836083,
+              "seconds": 0.005723584,
               "trial": 8
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-f_0zcgp9/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-4krhd299/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006580459,
+              "seconds": 0.005543417,
               "trial": 9
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-5qgiv82s/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-3dipsh6l/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006004333,
+              "seconds": 0.005517334,
               "trial": 10
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-zbd8nlpy/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-soufz0rx/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005496834,
+              "seconds": 0.005026333,
               "trial": 11
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-sa3mo24m/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-n2f3o1_v/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005891833,
+              "seconds": 0.005653542,
               "trial": 12
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-03i51byr/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-_oykx9t8/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005885334,
+              "seconds": 0.005659959,
               "trial": 13
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-exg37pyx/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-_3ot5fd0/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.0057975,
+              "seconds": 0.0053985,
               "trial": 14
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-b_797vsw/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-bbudryya/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006437333,
+              "seconds": 0.005582166,
               "trial": 15
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-lufbl2ss/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-zz4m9e4j/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.008150583,
+              "seconds": 0.005449542,
               "trial": 16
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-otrpnxg2/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-1q78tmp7/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007833208,
+              "seconds": 0.005787917,
               "trial": 17
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-vqsvuxtn/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-pe6u47vd/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006610875,
+              "seconds": 0.005589417,
               "trial": 18
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-qehamqjo/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-ig4gcidr/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006397833,
+              "seconds": 0.005528417,
               "trial": 19
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-6xf12i52/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-dcn_k3z2/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006469292,
+              "seconds": 0.005006458,
               "trial": 20
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-h8g102ax/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-v0ex7nqe/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.008044958,
+              "seconds": 0.005909542,
               "trial": 21
             }
           ],
@@ -354,287 +354,287 @@
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-vgjytq6l/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-7waw9_oc/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.032958292,
+              "seconds": 0.02384675,
               "trial": 1
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-yn0z9jvv/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-xvj52cmv/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.024653458,
+              "seconds": 0.025097875,
               "trial": 2
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-fgsoufk3/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-_f9h86t_/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.024694583,
+              "seconds": 0.024146458,
               "trial": 3
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-or7hxupo/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-8ojxjwz0/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.024752083,
+              "seconds": 0.023507833,
               "trial": 4
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-33asvuyx/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-9nt28r9_/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.025638375,
+              "seconds": 0.024358625,
               "trial": 5
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-twcwjkcy/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-rxjl3qgu/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.037219917,
+              "seconds": 0.024794666,
               "trial": 6
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-guwg_ihe/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-3xjrfj5s/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.02828875,
+              "seconds": 0.025083167,
               "trial": 7
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-0jt4slon/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-sqi1ebyr/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.031983542,
+              "seconds": 0.025211916,
               "trial": 8
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-6ogqia40/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-5snysktu/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.033733583,
+              "seconds": 0.023338,
               "trial": 9
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-cj0ozfff/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-lgzr5xn0/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.028988542,
+              "seconds": 0.023298583,
               "trial": 10
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-fzo_04qs/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-i0jqo749/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.024817,
+              "seconds": 0.024182334,
               "trial": 11
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-83g6so0f/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-mevwowil/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.025080583,
+              "seconds": 0.023224,
               "trial": 12
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-38h183qd/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-9gkfc77i/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.024978792,
+              "seconds": 0.023352292,
               "trial": 13
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-8jwr08_5/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-7l2sq2aj/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.02511375,
+              "seconds": 0.0232225,
               "trial": 14
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-v1v3hvf5/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-leq39sce/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.024352166,
+              "seconds": 0.024005875,
               "trial": 15
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-kyznf5_z/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-bydv40q8/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.029747083,
+              "seconds": 0.023536875,
               "trial": 16
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-1sxh73h2/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-hxmvc6s2/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.032761917,
+              "seconds": 0.023008458,
               "trial": 17
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-nppyvkqo/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-4x00joxk/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.026113416,
+              "seconds": 0.023911542,
               "trial": 18
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-6a2665ua/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-qlbhww54/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.027095292,
+              "seconds": 0.023115,
               "trial": 19
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-sn7rd1lm/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-l6rxqsgm/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.03262275,
+              "seconds": 0.0251365,
               "trial": 20
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/arithmetic-qe1jq1_u/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/arithmetic-bd1n3f5w/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.034177,
+              "seconds": 0.023356542,
               "trial": 21
             }
           ],
           "summary": {
-            "guion_median_seconds": 0.006512125,
-            "guion_p95_seconds_nearest_rank": 0.008150583,
-            "paired_median_ratio_guion_over_python": 0.23612341952247645,
+            "guion_median_seconds": 0.005582166,
+            "guion_p95_seconds_nearest_rank": 0.006059625,
+            "paired_median_ratio_guion_over_python": 0.23375393356062105,
             "paired_ratio_bootstrap_95_percent_interval": [
-              0.2308496341645513,
-              0.2531600997740012
+              0.2315320959133275,
+              0.23917010599178024
             ],
-            "python_median_seconds": 0.027095292,
-            "python_p95_seconds_nearest_rank": 0.034177,
+            "python_median_seconds": 0.02384675,
+            "python_p95_seconds_nearest_rank": 0.0251365,
             "speed_gate_passed": true
           }
         }
@@ -645,321 +645,321 @@
       "cache_policy": "--no-cache; fresh process and fresh copied project per sample",
       "expected_stdout": "42\n",
       "lanes": {
-        "current": {
+        "main": {
           "guion_samples": [
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-0479rblk/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-yyrc_aho/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006026583,
+              "seconds": 0.005652875,
               "trial": 1
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-pmas5jdv/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-p1u0ffqv/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005982334,
+              "seconds": 0.005804792,
               "trial": 2
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-xx66m2ta/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-7gehpc8i/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006629958,
+              "seconds": 0.006187166,
               "trial": 3
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-w4hufjo8/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-ap637h15/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.008511917,
+              "seconds": 0.005957125,
               "trial": 4
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-4_o4hrca/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-16iygy2z/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006260458,
+              "seconds": 0.006107125,
               "trial": 5
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-pkdtepee/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-nd7_d87z/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006401958,
+              "seconds": 0.00574775,
               "trial": 6
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-a1f40dcs/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-dxl6vb07/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006197542,
+              "seconds": 0.005765958,
               "trial": 7
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-1rq0v361/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-dnd_lyef/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.0055885,
+              "seconds": 0.005292167,
               "trial": 8
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-ikpt79kn/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-2z0ujoa6/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006301792,
+              "seconds": 0.006086917,
               "trial": 9
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-couh0iuw/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-0_mtsbrr/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.008143792,
+              "seconds": 0.005797625,
               "trial": 10
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-_tlvj8iq/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-a34wk2tb/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006356125,
+              "seconds": 0.005837583,
               "trial": 11
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-meotukxy/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-agxuyy22/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006216875,
+              "seconds": 0.005820084,
               "trial": 12
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-c_kp65x_/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-14092lim/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006082625,
+              "seconds": 0.005708291,
               "trial": 13
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-z6dfezsm/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-orkkq2z7/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.00807025,
+              "seconds": 0.00582425,
               "trial": 14
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-feuzgtnd/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-os2dm8zf/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006710875,
+              "seconds": 0.006059709,
               "trial": 15
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-upg7qn84/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-0qft1q4z/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006682542,
+              "seconds": 0.005538416,
               "trial": 16
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-5eu0m7y6/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-op8sw8j1/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007205292,
+              "seconds": 0.005843833,
               "trial": 17
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-uv4qgtsi/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-qo2zaeaj/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.0065715,
+              "seconds": 0.005967166,
               "trial": 18
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-edlk16q4/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-kr2grky6/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007871,
+              "seconds": 0.00550625,
               "trial": 19
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-ymtwa2dk/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-mt5d3oan/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006202917,
+              "seconds": 0.006339416,
               "trial": 20
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-e2ucob50/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-b2ppivt7/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.00697225,
+              "seconds": 0.00571175,
               "trial": 21
             }
           ],
@@ -967,287 +967,287 @@
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-73z0svbw/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-n1aes0u6/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.027012708,
+              "seconds": 0.02656225,
               "trial": 1
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-hbuj7sw1/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-zyby72ce/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.028270583,
+              "seconds": 0.025371333,
               "trial": 2
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-2qfyaej6/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-d9o8rplj/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.027984458,
+              "seconds": 0.025156375,
               "trial": 3
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-88j9kpeu/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-kkff9fa6/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.031933708,
+              "seconds": 0.02520175,
               "trial": 4
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-zgh8elha/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-f9btxyzl/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.02934775,
+              "seconds": 0.024391709,
               "trial": 5
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-smqlxt2p/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-whwa43ga/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.026624,
+              "seconds": 0.024775792,
               "trial": 6
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-93vygg7h/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-6mz_awd3/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.026474417,
+              "seconds": 0.025066792,
               "trial": 7
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-loxdh9sc/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-fbngsc82/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.027394917,
+              "seconds": 0.025136,
               "trial": 8
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-61eessfa/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-b5rhf9ka/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.033471667,
+              "seconds": 0.025682625,
               "trial": 9
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-kp6w_la8/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-wslkl64n/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.028058209,
+              "seconds": 0.024849958,
               "trial": 10
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-rn6l42mx/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-d3agmfu3/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.0268685,
+              "seconds": 0.024154208,
               "trial": 11
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-euptid57/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-l149cjmq/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.02712475,
+              "seconds": 0.025035833,
               "trial": 12
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-t9lhudzu/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-sycwxr_2/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.026839209,
+              "seconds": 0.024955584,
               "trial": 13
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-jhwvkr0u/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-objql3wu/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.03292025,
+              "seconds": 0.024621208,
               "trial": 14
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-zg05a3ek/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-sxlx84vt/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.030823833,
+              "seconds": 0.024281458,
               "trial": 15
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-pw5k8l9k/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-m5oufbbk/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.0276115,
+              "seconds": 0.0246475,
               "trial": 16
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-koydyo6u/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-7boqhy74/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.030190166,
+              "seconds": 0.02551825,
               "trial": 17
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-v2j94kq3/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-mmofd3p1/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.027848625,
+              "seconds": 0.025473333,
               "trial": 18
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-q2krpbf3/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-wonytcm_/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.034089625,
+              "seconds": 0.025550417,
               "trial": 19
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-w8kijtbx/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-el5mhy1n/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.026909667,
+              "seconds": 0.025259416,
               "trial": 20
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/imported_helper-5g3zig6g/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/imported_helper-o0ve15h9/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.026413291,
+              "seconds": 0.025291041,
               "trial": 21
             }
           ],
           "summary": {
-            "guion_median_seconds": 0.006401958,
-            "guion_p95_seconds_nearest_rank": 0.008143792,
-            "paired_median_ratio_guion_over_python": 0.23409550435048296,
+            "guion_median_seconds": 0.005820084,
+            "guion_p95_seconds_nearest_rank": 0.006187166,
+            "paired_median_ratio_guion_over_python": 0.23247015587617953,
             "paired_ratio_bootstrap_95_percent_interval": [
-              0.2266320516375874,
-              0.2386635436188062
+              0.22879333931725226,
+              0.23655419344168652
             ],
-            "python_median_seconds": 0.027848625,
-            "python_p95_seconds_nearest_rank": 0.033471667,
+            "python_median_seconds": 0.025136,
+            "python_p95_seconds_nearest_rank": 0.025682625,
             "speed_gate_passed": true
           }
         }
@@ -1258,16 +1258,16 @@
       "cache_policy": "--no-cache; fresh process and fresh copied project per sample",
       "expected_stdout": "3\n",
       "lanes": {
-        "current": {
+        "main": {
           "guion_samples": [
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-aognod80",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-aognod80/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-zcd3q5sj",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-zcd3q5sj/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1275,17 +1275,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.006767833,
+              "seconds": 0.005486292,
               "trial": 1
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-fejligyj",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-fejligyj/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-ygtf_jba",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-ygtf_jba/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1293,17 +1293,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.005644916,
+              "seconds": 0.005168125,
               "trial": 2
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-n10w5wm6",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-n10w5wm6/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-k53axprc",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-k53axprc/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1311,17 +1311,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005525583,
+              "seconds": 0.005231292,
               "trial": 3
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-21ktetih",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-21ktetih/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-wpv058fu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-wpv058fu/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1329,17 +1329,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.005679334,
+              "seconds": 0.004910375,
               "trial": 4
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-z_1jy7ou",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-z_1jy7ou/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-woznmj2t",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-woznmj2t/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1347,17 +1347,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005898125,
+              "seconds": 0.004848125,
               "trial": 5
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-sp_foss9",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-sp_foss9/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-a1dh8_q4",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-a1dh8_q4/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1365,17 +1365,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.006954125,
+              "seconds": 0.005007875,
               "trial": 6
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-0r92zft9",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-0r92zft9/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-ozflkzdp",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-ozflkzdp/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1383,17 +1383,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005350375,
+              "seconds": 0.005203208,
               "trial": 7
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-j9400qm3",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-j9400qm3/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-8x120wtw",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-8x120wtw/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1401,17 +1401,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005457041,
+              "seconds": 0.006004584,
               "trial": 8
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-34b6vxmy",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-34b6vxmy/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-q01wn4xw",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-q01wn4xw/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1419,17 +1419,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005779667,
+              "seconds": 0.0055555,
               "trial": 9
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-19vo2huo",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-19vo2huo/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-yyjds1nd",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-yyjds1nd/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1437,17 +1437,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005969334,
+              "seconds": 0.005631,
               "trial": 10
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-ir7u91yy",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-ir7u91yy/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-n26u52qt",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-n26u52qt/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1455,17 +1455,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.00599375,
+              "seconds": 0.00498925,
               "trial": 11
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-eboiaa2j",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-eboiaa2j/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-dgwe4ulf",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-dgwe4ulf/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1473,17 +1473,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.00571375,
+              "seconds": 0.005106917,
               "trial": 12
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-627zuww2",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-627zuww2/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-cgggv9ef",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-cgggv9ef/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1491,17 +1491,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.006197875,
+              "seconds": 0.005066375,
               "trial": 13
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-gez0qp8c",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-gez0qp8c/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-y4qqdw67",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-y4qqdw67/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1509,17 +1509,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.006885959,
+              "seconds": 0.005175792,
               "trial": 14
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-jmbw_koy",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-jmbw_koy/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-n2g_64xa",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-n2g_64xa/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1527,17 +1527,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.0058875,
+              "seconds": 0.00549125,
               "trial": 15
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-hwbwcv30",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-hwbwcv30/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-wdpaam4e",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-wdpaam4e/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1545,17 +1545,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005489958,
+              "seconds": 0.004808416,
               "trial": 16
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-_y9zbcmq",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-_y9zbcmq/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-gwbkxiip",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-gwbkxiip/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1563,17 +1563,17 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.005749042,
+              "seconds": 0.005316875,
               "trial": 17
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-opyvythy",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-opyvythy/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-jyldhea4",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-jyldhea4/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1581,17 +1581,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005924041,
+              "seconds": 0.005045667,
               "trial": 18
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-4kqiegt0",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-4kqiegt0/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-8t88sg5h",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-8t88sg5h/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1599,17 +1599,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005763708,
+              "seconds": 0.005442417,
               "trial": 19
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-6l4g5dty",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-6l4g5dty/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-0nw8ri5_",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-0nw8ri5_/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1617,17 +1617,17 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.005516916,
+              "seconds": 0.005346166,
               "trial": 20
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-2j3doig1",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-2j3doig1/main.gu",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-u9vf9u6u",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-u9vf9u6u/main.gu",
                 "records.json"
               ],
               "correct": true,
@@ -1635,7 +1635,7 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.005982292,
+              "seconds": 0.005252417,
               "trial": 21
             }
           ],
@@ -1643,7 +1643,7 @@
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-_yhwqvtf/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-nujvgvcp/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1651,13 +1651,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.030589208,
+              "seconds": 0.028026708,
               "trial": 1
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-jguq7j9f/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-59l6fjh7/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1665,13 +1665,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.030915416,
+              "seconds": 0.027732375,
               "trial": 2
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-rdl_udx8/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-wvufj96j/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1679,13 +1679,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.03198525,
+              "seconds": 0.027137666,
               "trial": 3
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-32x8fn44/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-hw925rg2/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1693,13 +1693,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.032206125,
+              "seconds": 0.027589833,
               "trial": 4
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-ovozos0k/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-1hbpv2to/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1707,13 +1707,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.035610417,
+              "seconds": 0.028017292,
               "trial": 5
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-658s59nq/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-57z8cxrn/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1721,13 +1721,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.032525458,
+              "seconds": 0.029083666,
               "trial": 6
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-r6p1uiei/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-56hnrgg6/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1735,13 +1735,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.029786333,
+              "seconds": 0.029234334,
               "trial": 7
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-yxmf_mf2/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-esan0tia/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1749,13 +1749,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.029673542,
+              "seconds": 0.02918125,
               "trial": 8
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-r2tg239f/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-alrzdgm0/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1763,13 +1763,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.030282334,
+              "seconds": 0.028077708,
               "trial": 9
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-a47on4nl/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-t19isx6d/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1777,13 +1777,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.036773209,
+              "seconds": 0.027677625,
               "trial": 10
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-6yibosmj/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-9pu38i5q/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1791,13 +1791,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.03317175,
+              "seconds": 0.027780917,
               "trial": 11
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-szxagutb/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-4vndoiu1/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1805,13 +1805,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.032160042,
+              "seconds": 0.027572208,
               "trial": 12
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-2s4iux1r/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-75jmstik/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1819,13 +1819,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.0314075,
+              "seconds": 0.027583292,
               "trial": 13
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-4idr9370/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-gclglzok/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1833,13 +1833,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.030400916,
+              "seconds": 0.027225625,
               "trial": 14
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-uoxm0r34/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-coy6ejib/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1847,13 +1847,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.037024208,
+              "seconds": 0.027522875,
               "trial": 15
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-x3jij3cj/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-ordl7plb/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1861,13 +1861,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.030176459,
+              "seconds": 0.026995792,
               "trial": 16
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-mbauk794/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-7lzr0_86/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1875,13 +1875,13 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.0299645,
+              "seconds": 0.027655042,
               "trial": 17
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-ra_zhmbs/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-_yiqphn3/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1889,13 +1889,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.029381167,
+              "seconds": 0.030483584,
               "trial": 18
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-izol9__1/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-cpltqdzb/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1903,13 +1903,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.030053375,
+              "seconds": 0.03032575,
               "trial": 19
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-pvpjbet5/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-kownnlwq/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1917,13 +1917,13 @@
                 "guion",
                 "python"
               ],
-              "seconds": 0.031219833,
+              "seconds": 0.029312291,
               "trial": 20
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/json_file-vy2eyar8/main.py",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/json_file-me4obm5x/main.py",
                 "records.json"
               ],
               "correct": true,
@@ -1931,20 +1931,20 @@
                 "python",
                 "guion"
               ],
-              "seconds": 0.037576417,
+              "seconds": 0.029239208,
               "trial": 21
             }
           ],
           "summary": {
-            "guion_median_seconds": 0.005779667,
-            "guion_p95_seconds_nearest_rank": 0.006885959,
-            "paired_median_ratio_guion_over_python": 0.1819285026119201,
+            "guion_median_seconds": 0.005203208,
+            "guion_p95_seconds_nearest_rank": 0.005631,
+            "paired_median_ratio_guion_over_python": 0.1836755018219,
             "paired_ratio_bootstrap_95_percent_interval": [
-              0.1767118997721737,
-              0.19178238716949428
+              0.17946520696108093,
+              0.1922569851819426
             ],
-            "python_median_seconds": 0.031219833,
-            "python_p95_seconds_nearest_rank": 0.037024208,
+            "python_median_seconds": 0.027780917,
+            "python_p95_seconds_nearest_rank": 0.03032575,
             "speed_gate_passed": true
           }
         }
@@ -1955,363 +1955,363 @@
       "cache_policy": "--no-cache; fresh process and fresh copied project per sample",
       "expected_stdout": "Guion agents\n",
       "lanes": {
-        "current": {
+        "main": {
           "guion_samples": [
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-m6c6od7v",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-m6c6od7v/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-8n4vubch",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-8n4vubch/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.011324833,
+              "seconds": 0.007500542,
               "trial": 1
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-b4ww6qyk",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-b4ww6qyk/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-tw0fszee",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-tw0fszee/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.009418667,
+              "seconds": 0.007027667,
               "trial": 2
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ust1ib_n",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ust1ib_n/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-vba6hxx2",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-vba6hxx2/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007965209,
+              "seconds": 0.007427542,
               "trial": 3
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-_upz_ec8",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-_upz_ec8/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-jari4nf1",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-jari4nf1/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.0094855,
+              "seconds": 0.007591875,
               "trial": 4
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-50xbafd8",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-50xbafd8/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-0ye2ghpb",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-0ye2ghpb/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007943917,
+              "seconds": 0.00719825,
               "trial": 5
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ry4fk0p1",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ry4fk0p1/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-wcn8odew",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-wcn8odew/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.008127083,
+              "seconds": 0.007105042,
               "trial": 6
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-9vj7_k_q",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-9vj7_k_q/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-7g7yho_m",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-7g7yho_m/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007493875,
+              "seconds": 0.007073042,
               "trial": 7
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-0foiv9ja",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-0foiv9ja/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-_8o9ds97",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-_8o9ds97/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.010129917,
+              "seconds": 0.00729725,
               "trial": 8
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-tqymg3zw",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-tqymg3zw/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-922ykb73",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-922ykb73/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.00708675,
+              "seconds": 0.0071615,
               "trial": 9
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ipjhf9t6",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ipjhf9t6/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-lw10c_qp",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-lw10c_qp/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007560042,
+              "seconds": 0.00656575,
               "trial": 10
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-eviere6r",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-eviere6r/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-f_y2qs09",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-f_y2qs09/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007683916,
+              "seconds": 0.007093709,
               "trial": 11
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ew_i8_9k",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ew_i8_9k/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-2cjuzj7k",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-2cjuzj7k/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.009847083,
+              "seconds": 0.007449625,
               "trial": 12
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-_so946u2",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-_so946u2/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-x5s4zh64",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-x5s4zh64/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.009750542,
+              "seconds": 0.006708625,
               "trial": 13
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-6p2607_f",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-6p2607_f/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-6v3bb1tz",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-6v3bb1tz/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.008777166,
+              "seconds": 0.007508125,
               "trial": 14
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-dne0peo8",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-dne0peo8/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-7cjz92nh",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-7cjz92nh/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.008177834,
+              "seconds": 0.007456667,
               "trial": 15
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-j4_il5vq",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-j4_il5vq/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-bz7atqzp",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-bz7atqzp/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.009688292,
+              "seconds": 0.007217875,
               "trial": 16
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-tedeurwf",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-tedeurwf/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-3o4g3dui",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-3o4g3dui/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007239,
+              "seconds": 0.007299208,
               "trial": 17
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-z77z2e8w",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-z77z2e8w/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-516qhblf",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-516qhblf/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007103917,
+              "seconds": 0.00654775,
               "trial": 18
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-bt5nq3c4",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-bt5nq3c4/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-k5fp26pt",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-k5fp26pt/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007661708,
+              "seconds": 0.00748,
               "trial": 19
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-z78d8cn7",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-z78d8cn7/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-rlk4vkhb",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-rlk4vkhb/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.007351125,
+              "seconds": 0.007458041,
               "trial": 20
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
                 "--file-root",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ax42j6v0",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-ax42j6v0/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-zvpyls3n",
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-zvpyls3n/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.016899584,
+              "seconds": 0.007459708,
               "trial": 21
             }
           ],
@@ -2319,287 +2319,287 @@
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-sndq_1yo/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-exbq7w7r/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.038183291,
+              "seconds": 0.031984875,
               "trial": 1
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-iq4wybw4/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-6jpuyhz4/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.044180583,
+              "seconds": 0.031327458,
               "trial": 2
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-7ubff7df/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-g8ukumz7/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.036061041,
+              "seconds": 0.031382791,
               "trial": 3
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-qh3i47te/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-46pxqizo/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.036862584,
+              "seconds": 0.032405709,
               "trial": 4
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-9h809blg/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-s27y4r82/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.0489185,
+              "seconds": 0.031772292,
               "trial": 5
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-qb2jly96/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-uxl66m9x/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.037440459,
+              "seconds": 0.03165575,
               "trial": 6
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-rhv3fmb4/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-zwaljlhh/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.036744292,
+              "seconds": 0.031518334,
               "trial": 7
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-0bqwryqb/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-kfrp90mz/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.0414255,
+              "seconds": 0.034046375,
               "trial": 8
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-cmscnh0l/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-frz83t7o/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.038195167,
+              "seconds": 0.031039625,
               "trial": 9
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-w2zbbfhw/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-_c1d5ay0/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.041768083,
+              "seconds": 0.030550916,
               "trial": 10
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-r4p7j7e6/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-k05_xxfb/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.035456334,
+              "seconds": 0.030605916,
               "trial": 11
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-n1stn2cq/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-lwqtcp0i/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.039783708,
+              "seconds": 0.03253625,
               "trial": 12
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-odc39t4z/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-q5qb_umg/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.039463958,
+              "seconds": 0.030831083,
               "trial": 13
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-r916ajri/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-igmldjtm/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.034557041,
+              "seconds": 0.031738333,
               "trial": 14
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-s7es23em/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-5vw6qeke/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.035744666,
+              "seconds": 0.030439416,
               "trial": 15
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-hfremxvz/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-wgxfcaya/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.04071075,
+              "seconds": 0.030515,
               "trial": 16
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-kqrmz66z/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-kkqkwoyc/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.035205333,
+              "seconds": 0.031634708,
               "trial": 17
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-0vp3cdl1/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-fhs6hy_k/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.035184333,
+              "seconds": 0.03037475,
               "trial": 18
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-vuoxpn_t/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-fq1mmh0d/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.034115708,
+              "seconds": 0.030606333,
               "trial": 19
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-jhy0oa1h/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-o6j62ix4/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.033714333,
+              "seconds": 0.029756667,
               "trial": 20
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/sqlite_toml-g7r8k1dz/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/sqlite_toml-n1xdk5aq/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.038621209,
+              "seconds": 0.030351291,
               "trial": 21
             }
           ],
           "summary": {
-            "guion_median_seconds": 0.008127083,
-            "guion_p95_seconds_nearest_rank": 0.011324833,
-            "paired_median_ratio_guion_over_python": 0.22088128293356807,
+            "guion_median_seconds": 0.00729725,
+            "guion_p95_seconds_nearest_rank": 0.007508125,
+            "paired_median_ratio_guion_over_python": 0.2307341670420982,
             "paired_ratio_bootstrap_95_percent_interval": [
-              0.21318566574823153,
-              0.24453336712894236
+              0.2244471225606722,
+              0.2365353105030313
             ],
-            "python_median_seconds": 0.037440459,
-            "python_p95_seconds_nearest_rank": 0.044180583,
+            "python_median_seconds": 0.031327458,
+            "python_p95_seconds_nearest_rank": 0.03253625,
             "speed_gate_passed": true
           }
         }
@@ -2610,321 +2610,321 @@
       "cache_policy": "--no-cache; fresh process and fresh copied project per sample",
       "expected_stdout": "Hello from Guion\n",
       "lanes": {
-        "current": {
+        "main": {
           "guion_samples": [
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-elu_wlys/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-uhbw_0a8/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.022307834,
+              "seconds": 0.00445875,
               "trial": 1
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-i8wj4gx4/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-l5n6lqkd/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.0053765,
+              "seconds": 0.0047405,
               "trial": 2
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-s11fcxcu/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-lrc6wi76/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005209625,
+              "seconds": 0.004821375,
               "trial": 3
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-1pv56j5d/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-_sy9svky/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005471916,
+              "seconds": 0.004722584,
               "trial": 4
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-h7yehxy7/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-zcx6h9dp/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005240291,
+              "seconds": 0.004263,
               "trial": 5
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-1rfw4xk_/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-jy8g02rf/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005456666,
+              "seconds": 0.005324541,
               "trial": 6
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-zuc2ni7a/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-l34tcmpt/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005354375,
+              "seconds": 0.004825542,
               "trial": 7
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-q2nzw46f/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-adpgtdbj/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.007087791,
+              "seconds": 0.0051635,
               "trial": 8
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-c9qzuzwo/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-zo2bakoc/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.00558425,
+              "seconds": 0.004944875,
               "trial": 9
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-nggw50hm/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-u2mnrvkt/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005626833,
+              "seconds": 0.0047595,
               "trial": 10
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-_n6z_q51/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-f5bk0l24/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005529292,
+              "seconds": 0.004831916,
               "trial": 11
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-u77vvftm/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-lffafp65/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.00474975,
+              "seconds": 0.004909958,
               "trial": 12
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-muo8c_yd/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-9fzpjjpm/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.006790083,
+              "seconds": 0.004945541,
               "trial": 13
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-npkkxhem/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-zi59sktd/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005131125,
+              "seconds": 0.005053875,
               "trial": 14
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-bjy36r0z/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-6ef8_rft/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005252541,
+              "seconds": 0.004700625,
               "trial": 15
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-w2xt5jjq/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-_nftbznp/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005673292,
+              "seconds": 0.00483075,
               "trial": 16
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-p95n3qka/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-ygqdiuac/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.006093792,
+              "seconds": 0.004954,
               "trial": 17
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-j882uqo2/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-nya6emkc/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.005609917,
+              "seconds": 0.004861667,
               "trial": 18
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-l0kz0w5z/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-b8zvt1ll/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.0052215,
+              "seconds": 0.004998875,
               "trial": 19
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-3jvtpbok/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-wo3su2nj/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005415416,
+              "seconds": 0.005077583,
               "trial": 20
             },
             {
               "command": [
-                "/Users/rmichaelthomas/guion/target/perf-session/cargo/release/guion",
+                "/Users/rmichaelthomas/guion/target/release/guion",
                 "run",
                 "--no-cache",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-xdtea56u/main.gu"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-12dmjue8/main.gu"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.005223833,
+              "seconds": 0.005054625,
               "trial": 21
             }
           ],
@@ -2932,287 +2932,287 @@
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-lwefpj04/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-u4baztqq/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.032368292,
+              "seconds": 0.022894708,
               "trial": 1
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-1y2dzej6/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-e97w456y/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.026899708,
+              "seconds": 0.023031041,
               "trial": 2
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-lzm5rqfc/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-_7bi_w6n/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.026522709,
+              "seconds": 0.022916541,
               "trial": 3
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-2laes55s/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-06dkij7d/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.025929167,
+              "seconds": 0.023221417,
               "trial": 4
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-lkixvyv3/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-kd81ri_t/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.032171542,
+              "seconds": 0.023042208,
               "trial": 5
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-fy7tedti/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-fwai2xki/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.02719225,
+              "seconds": 0.024082667,
               "trial": 6
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-vok173hr/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-qirugxmn/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.033832167,
+              "seconds": 0.025661208,
               "trial": 7
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-5vx6ksrg/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-tzxf7kj4/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.02619675,
+              "seconds": 0.024311208,
               "trial": 8
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-xhwtapf_/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-ezoz4inh/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.024574583,
+              "seconds": 0.024465625,
               "trial": 9
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-kre7wy2k/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-7w615m15/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.024288833,
+              "seconds": 0.024293625,
               "trial": 10
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-tohlklpg/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-89qnglfy/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.02644025,
+              "seconds": 0.024401292,
               "trial": 11
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-jgv8ibin/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-ulqi74dt/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.026787959,
+              "seconds": 0.023993875,
               "trial": 12
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-nvmn7qo0/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-_0f8j352/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.031559583,
+              "seconds": 0.025208375,
               "trial": 13
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-_q7hd7s0/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-_dg6mfcg/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.026198458,
+              "seconds": 0.023856542,
               "trial": 14
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-yhc7m901/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-j43zm2qv/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.025800583,
+              "seconds": 0.023662541,
               "trial": 15
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-_0irap8q/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-w33jetdx/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.027897792,
+              "seconds": 0.024117292,
               "trial": 16
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-c6re4kfr/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-8doiwop3/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.034523417,
+              "seconds": 0.024776,
               "trial": 17
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-f98fk9b0/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-kfk37mch/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "guion",
                 "python"
               ],
-              "seconds": 0.026124875,
+              "seconds": 0.024858416,
               "trial": 18
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-8zwhxh_8/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-a3at_6dj/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.025942625,
+              "seconds": 0.024775334,
               "trial": 19
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-elvxuieh/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-5how8vr4/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.025992625,
+              "seconds": 0.024893458,
               "trial": 20
             },
             {
               "command": [
                 "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
-                "/Users/rmichaelthomas/guion/target/perf-session/current-main-short-source/tmp/tiny-rppf5flw/main.py"
+                "/Users/rmichaelthomas/guion/target/guion-first-source-speed/tmp/tiny-hmk9rfa_/main.py"
               ],
               "correct": true,
               "paired_order": [
                 "python",
                 "guion"
               ],
-              "seconds": 0.0252715,
+              "seconds": 0.025271875,
               "trial": 21
             }
           ],
           "summary": {
-            "guion_median_seconds": 0.005456666,
-            "guion_p95_seconds_nearest_rank": 0.007087791,
-            "paired_median_ratio_guion_over_python": 0.20358226013730002,
+            "guion_median_seconds": 0.004861667,
+            "guion_p95_seconds_nearest_rank": 0.0051635,
+            "paired_median_ratio_guion_over_python": 0.20030233908516762,
             "paired_ratio_bootstrap_95_percent_interval": [
-              0.1998720580907421,
-              0.21103323527516332
+              0.19801885900140043,
+              0.203972585889835
             ],
-            "python_median_seconds": 0.02644025,
-            "python_p95_seconds_nearest_rank": 0.033832167,
+            "python_median_seconds": 0.024293625,
+            "python_p95_seconds_nearest_rank": 0.025271875,
             "speed_gate_passed": true
           }
         }

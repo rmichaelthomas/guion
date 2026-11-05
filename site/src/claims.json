@@ -80,23 +80,23 @@
     "id": "richards",
     "title": "Richards, a classic benchmark program",
     "plain": {
-      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 27.46 ms. CPython took 72.92 ms.",
-      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 44.",
-      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 24.2 MiB against 18.3 MiB. Free-threaded Python was not available to compare."
+      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 28.03 ms. CPython took 64.70 ms.",
+      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 61.",
+      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 23.4 MiB against 18.2 MiB. Free-threaded Python was not available to compare."
     },
     "dev": {
       "rows": [
         [
           "Guion median",
-          "27.46 ms"
+          "28.03 ms"
         ],
         [
           "CPython median",
-          "72.92 ms"
+          "64.70 ms"
         ],
         [
           "Ratio (95% interval)",
-          "0.375 (0.370–0.379)"
+          "0.433 (0.426–0.440)"
         ],
         [
           "Sprint target",
@@ -104,7 +104,7 @@
         ],
         [
           "Peak RSS, Guion / Python",
-          "24.2 MiB / 18.3 MiB"
+          "23.4 MiB / 18.2 MiB"
         ],
         [
           "Trials",
@@ -120,36 +120,40 @@
         ],
         [
           "Artifact format",
-          "44"
+          "61"
         ],
         [
           "Commit",
-          "6b5e5aba"
+          "484cefd"
         ]
       ]
     },
     "figures": [
-      "27.46 ms",
-      "72.92 ms",
-      "0.375",
-      "0.370–0.379",
-      "24.2 MiB",
-      "18.3 MiB",
+      "28.03 ms",
+      "64.70 ms",
+      "0.433",
+      "0.426–0.440",
+      "23.4 MiB",
+      "18.2 MiB",
       "0.60 target"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
         "needles": [
           "CPython 3.14.7",
           "macOS 27",
           "Free-threaded Python was unavailable"
         ]
+      },
+      {
+        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+        "needles": []
       }
     ],
     "evidence": [
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-      "evaluation/completion/results/source-loop/20261027T233155909692Z.json"
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-richards-session-report.json"
     ],
     "group": "speed"
   },
@@ -231,7 +235,7 @@
     "id": "short-source",
     "title": "Five short programs, start to finish",
     "plain": {
-      "say": "Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.182 to 0.236 of Python's time on every one.",
+      "say": "Five small programs were each run from source in 21 randomized pairs against Python. Guion took 0.184 to 0.234 of Python's time on every one.",
       "holdsWhen": "The same Mac and CPython 3.14.7 as the Richards run, in fresh processes, with outputs checked.",
       "doesntTell": "How Guion compares on long-running or heavily optimized programs. A ratio below 1 means Guion took less time. The operating system's file cache was not controlled."
     },
@@ -239,23 +243,23 @@
       "rows": [
         [
           "Tiny launch",
-          "0.204 (0.200–0.211)"
+          "0.200 (0.198–0.204)"
         ],
         [
           "Arithmetic",
-          "0.236 (0.231–0.253)"
+          "0.234 (0.232–0.239)"
         ],
         [
           "JSON file",
-          "0.182 (0.177–0.192)"
+          "0.184 (0.179–0.192)"
         ],
         [
           "Imported helper",
-          "0.234 (0.227–0.239)"
+          "0.232 (0.229–0.237)"
         ],
         [
           "SQLite and TOML",
-          "0.221 (0.213–0.245)"
+          "0.231 (0.224–0.237)"
         ],
         [
           "Pairs per task",
@@ -264,21 +268,21 @@
       ]
     },
     "figures": [
-      "0.182",
-      "0.236",
+      "0.184",
+      "0.234",
       "21 randomized pairs"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
         "needles": [
           "file-cache state was uncontrolled"
         ]
       }
     ],
     "evidence": [
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-short-source.json"
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-short-source.json"
     ],
     "group": "speed"
   },
@@ -286,65 +290,65 @@
     "id": "nine-apps",
     "title": "Nine everyday applications",
     "plain": {
-      "say": "On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.137 to 0.845.",
+      "say": "On nine ordinary applications, timed in seven randomized pairs each, Guion's median was lower than Python's every time. The ratios run from 0.149 to 0.826.",
       "holdsWhen": "The frozen application suite on one Mac with CPython 3.14.7, fresh processes, outputs checked against the expected results.",
-      "doesntTell": "That Guion is faster at every kind of application. The smallest gain was service health, at 0.845 of Python's time. Broader task classes and carefully matched Python implementations are still needed."
+      "doesntTell": "That Guion is faster at every kind of application. The smallest gain was service health, at 0.826 of Python's time. Broader task classes and carefully matched Python implementations are still needed."
     },
     "dev": {
       "rows": [
         [
           "SLA report",
-          "15.5 ms vs 102.8 ms · 0.150 (0.142–0.153)"
+          "14.5 ms vs 85.7 ms · 0.172 (0.165–0.174)"
         ],
         [
           "JSONL summary",
-          "15.2 ms vs 102.2 ms · 0.152 (0.144–0.157)"
+          "21.5 ms vs 86.0 ms · 0.250 (0.243–0.254)"
         ],
         [
           "Release notes",
-          "21.6 ms vs 105.1 ms · 0.211 (0.197–0.216)"
+          "25.3 ms vs 84.7 ms · 0.298 (0.290–0.304)"
         ],
         [
           "Calendar conflicts",
-          "252.7 ms vs 372.7 ms · 0.676 (0.660–0.678)"
+          "281.6 ms vs 408.0 ms · 0.697 (0.676–0.703)"
         ],
         [
           "Webhook replay",
-          "143.1 ms vs 825.7 ms · 0.173 (0.169–0.180)"
+          "159.1 ms vs 731.8 ms · 0.215 (0.213–0.231)"
         ],
         [
           "Service health",
-          "529.8 ms vs 630.6 ms · 0.845 (0.837–0.854)"
+          "558.2 ms vs 674.6 ms · 0.826 (0.799–0.831)"
         ],
         [
           "Config migrator",
-          "13.6 ms vs 97.3 ms · 0.137 (0.130–0.151)"
+          "12.5 ms vs 84.0 ms · 0.149 (0.146–0.151)"
         ],
         [
           "Document index",
-          "54.0 ms vs 295.8 ms · 0.183 (0.182–0.193)"
+          "45.1 ms vs 250.9 ms · 0.180 (0.176–0.182)"
         ],
         [
           "Lockfile auditor",
-          "18.4 ms vs 95.6 ms · 0.192 (0.162–0.202)"
+          "15.5 ms vs 83.5 ms · 0.183 (0.180–0.186)"
         ]
       ]
     },
     "figures": [
-      "0.137 to 0.845",
+      "0.149 to 0.826",
       "seven randomized timing pairs"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
         "needles": [
           "Broader task classes and carefully matched Python implementations are still needed"
         ]
       }
     ],
     "evidence": [
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-nine-app-comparison.json"
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-nine-app-comparison.json"
     ],
     "group": "speed"
   },
@@ -353,7 +357,7 @@
     "title": "Does it behave the same as Python?",
     "plain": {
       "say": "On the frozen application suite, Guion passed 127 of 127 cases and the independent Python version passed 127 of 127.",
-      "holdsWhen": "Current main at commit 6b5e5aba, artifact format 44, on macOS ARM64. Every measured program output matched its expected output.",
+      "holdsWhen": "Current main at commit 484cefd, artifact format 61, on macOS ARM64. Every measured program output matched its expected output.",
       "doesntTell": "Anything about other operating systems or CPU architectures. This checkpoint is macOS ARM64 only, and the earlier three-target cohort used an older artifact format."
     },
     "dev": {
@@ -368,11 +372,11 @@
         ],
         [
           "Commit",
-          "6b5e5aba"
+          "484cefd"
         ],
         [
           "Artifact format",
-          "44"
+          "61"
         ],
         [
           "Host",
@@ -381,12 +385,12 @@
       ]
     },
     "figures": [
-      "127/127 cases in Guion and 127/127 in Python",
-      "6b5e5aba"
+      "127/127",
+      "484cefd"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
+        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
         "needles": [
           "This checkpoint is macOS ARM64 only",
           "Every measured program output matched its expected output"
@@ -394,8 +398,8 @@
       }
     ],
     "evidence": [
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-application-acceptance.json"
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-application-acceptance.json"
     ],
     "group": "behaviour"
   },
@@ -403,31 +407,31 @@
     "id": "lockfile",
     "title": "A lockfile auditor, up to 16,384 packages",
     "plain": {
-      "say": "Auditing 16,384 packages took Guion 171.82 ms and 40.92 MiB. Python took 179.87 ms and 47.13 MiB. Output was exact through 32,768 diagnostics.",
+      "say": "Auditing 16,384 packages took Guion 77.71 ms and 29.7 MiB. Python took 162.23 ms and 46.7 MiB. Output was exact through 32,768 diagnostics.",
       "holdsWhen": "Seven randomized fresh-process timing pairs per size, exact-output checks, Guion's source cache bypassed, one Apple Silicon host, Python 3.14.7.",
-      "doesntTell": "That Guion is generally faster than Python. An earlier run of this same workload was slower than Python (1.416×); a native report serializer changed that to 0.948×. Other programs, hosts and cold-cache runs need their own measurements."
+      "doesntTell": "That Guion is generally faster than Python. An earlier run of this same workload was slower than Python (1.416×); a native report serializer changed that to 0.948×, and later speed-ups to 0.477×. Other programs, hosts and cold-cache runs need their own measurements."
     },
     "dev": {
       "rows": [
         [
           "16,384 packages, Guion / Python",
-          "171.82 ms / 179.87 ms"
+          "77.71 ms / 162.23 ms"
         ],
         [
           "Ratio (95% interval)",
-          "0.948× (0.942–0.975)"
+          "0.477× (0.471–0.479)"
         ],
         [
           "Peak RSS, Guion / Python",
-          "40.92 / 47.13 MiB"
+          "29.7 / 46.7 MiB"
         ],
         [
           "8,192 packages",
-          "95.29 ms vs 137.88 ms · 0.692× (0.676–0.700)"
+          "46.47 ms vs 123.70 ms · 0.379× (0.368–0.384)"
         ],
         [
           "4,096 packages",
-          "56.35 ms vs 117.45 ms · 0.479× (0.469–0.490)"
+          "30.96 ms vs 103.25 ms · 0.299× (0.286–0.301)"
         ],
         [
           "Frozen acceptance cases",
@@ -436,34 +440,32 @@
       ]
     },
     "figures": [
-      "171.82 ms",
-      "179.87 ms",
-      "40.92 MiB",
-      "47.13 MiB",
+      "77.71 ms",
+      "162.23 ms",
+      "29.7 MiB",
+      "46.7 MiB",
       "16,384 packages and 32,768 diagnostics",
       "1.416×",
-      "0.948×"
+      "0.948×",
+      "0.477×"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-scale-ram-package-limit.md",
+        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
         "needles": [
           "Seven randomized fresh-process timing pairs",
           "It is not evidence that Guion is generally faster than Python"
         ]
       },
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md",
-        "needles": [
-          "the lockfile workload's separate 16,384-package measurement"
-        ]
+        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-scale-ram-package-limit.md",
+        "needles": []
       }
     ],
     "evidence": [
-      "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-scale-ram-package-limit.md",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-native-pair-serialization.json",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-native-pair-acceptance.json",
-      "evaluation/completion/results/real-task-sprint/2026-10-27-current-main-outcome-checkpoint.md"
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-lockfile-scale.json",
+      "evaluation/completion/results/real-task-sprint/2026-10-27-lockfile-scale-ram-package-limit.md"
     ],
     "group": "speed"
   },
@@ -472,7 +474,7 @@
     "title": "A failing worker cancels its siblings",
     "plain": {
       "say": "When one parallel worker fails, a sibling still waiting on an HTTP response is interrupted and its connection is closed. The original failure is the one reported.",
-      "holdsWhen": "A local loopback test with two workers, on current main, artifact format 44, macOS ARM64. The focused test passed 1/1.",
+      "holdsWhen": "A local loopback test with two workers, on main at commit 484cefd, artifact format 61, macOS ARM64. The focused test passed 1/1.",
       "doesntTell": "That Guion has a general async runtime, that effects already received by a remote service are rolled back, or that this holds on Linux or other targets."
     },
     "dev": {
@@ -492,35 +494,27 @@
         [
           "Network contacted",
           "none (loopback fixture)"
-        ],
-        [
-          "Calendar case",
-          "6/6 checks, at most two requests in flight"
-        ],
-        [
-          "Service-health cases",
-          "5/5 and 5/5"
-        ],
-        [
-          "Agent examples",
-          "26/26"
         ]
       ],
       "command": "cargo test --locked --offline --jobs 2 -p guion-runtime --test http parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket -- --exact"
     },
     "figures": [
-      "passed 1/1",
-      "26/26"
+      "passed 1/1"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-parallel-http-cancellation.md",
+        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
         "needles": [
           "They do not establish a general async runtime"
         ]
+      },
+      {
+        "path": "evaluation/completion/results/real-task-sprint/2026-10-27-parallel-http-cancellation.md",
+        "needles": []
       }
     ],
     "evidence": [
+      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
       "evaluation/completion/results/real-task-sprint/2026-10-27-parallel-http-cancellation.md"
     ],
     "group": "behaviour"
