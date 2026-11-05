@@ -1,6 +1,6 @@
 {
   "product": "Guion",
-  "status": "Pre-release. The first preview build, v0.1.0-preview, is out for Linux; there is no macOS package yet.",
+  "status": "Pre-release. The second preview build, v0.1.0-preview.2, is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon).",
   "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",
@@ -16,7 +16,7 @@
     },
     {
       "heading": "A release you can use",
-      "body": "Guion's first public build is a Linux pre-release, v0.1.0-preview, for Debian 12 on ARM64 and x86_64. There is no macOS package yet. The preview was built on 3 November; later work, including the package registry, is in the repository and not in that build. Python is a released language with a long track record."
+      "body": "Guion's second public build is a pre-release, v0.1.0-preview.2, for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It was built on 5 November from the current code, including the package registry client. The Mac build is signed and notarized by Apple, so it opens without a warning. Python is a released language with a long track record."
     },
     {
       "heading": "Learning it",
