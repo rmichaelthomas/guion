@@ -1,0 +1,600 @@
+{
+  "schema_version": 1,
+  "kind": "lockfile-diagnostic-scaling",
+  "baseline_commit": "ed06a82",
+  "baseline_source_sha256": "aa859ff7f9d5e8423b6c9c6e6d3cfc44414e4a64334a403251edea7fb32af456",
+  "candidate_source_sha256": "a2f25632dee7aa44b8e7ba1a364030593ec523b054aaa577e7197d7bae106548",
+  "guion_binary_sha256": "8a64e276d60d1eff16c16ac686168bf22e9124eb512a44e5e7b5bcbe59c04e06",
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.14.7 (main, Aug  5 2026, 10:29:49) [Clang 21.0.0 (clang-2100.1.1.101)]",
+  "trials": 7,
+  "measurement": "Fresh-process source runs with Guion source cache bypassed; fixture setup excluded. Every report is checked against the expected sorted JSON. OS file cache is uncontrolled.",
+  "memory_measurement": "Direct-child peak RSS from resource.getrusage(RUSAGE_CHILDREN).ru_maxrss; each memory run is checked against the exact expected report.",
+  "workloads": {
+    "4096": {
+      "packages": 4096,
+      "diagnostics": 8192,
+      "preflight": {
+        "baseline_source": {
+          "passed": true,
+          "elapsed_seconds": 0.033476,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.03614737495081499
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.029544,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.032120332994963974
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.104567,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.10643787501612678
+        }
+      },
+      "samples_seconds": {
+        "baseline_source": [
+          0.034264,
+          0.035705,
+          0.033715,
+          0.033175,
+          0.031653,
+          0.030819,
+          0.034877
+        ],
+        "candidate_source": [
+          0.031096,
+          0.031124,
+          0.030508,
+          0.028295,
+          0.029311,
+          0.031422,
+          0.030961
+        ],
+        "python": [
+          0.103248,
+          0.103943,
+          0.104486,
+          0.106952,
+          0.1025,
+          0.103162,
+          0.102836
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ],
+        [
+          "python",
+          "baseline_source",
+          "candidate_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "python",
+          "candidate_source",
+          "baseline_source"
+        ],
+        [
+          "baseline_source",
+          "python",
+          "candidate_source"
+        ]
+      ],
+      "median_seconds": {
+        "baseline_source": 0.033715,
+        "candidate_source": 0.030961,
+        "python": 0.103248
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 0.2994333432746794,
+          "bootstrap_95_interval": [
+            0.28596097560975614,
+            0.3011777467844413
+          ]
+        },
+        "candidate_over_baseline": {
+          "median": 0.9048791339166543,
+          "bootstrap_95_interval": [
+            0.8716986416468281,
+            0.9260101728114238
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed",
+      "memory": {
+        "runs_per_arm": 7,
+        "peak_rss_bytes": {
+          "baseline_source": [
+            17481728,
+            17465344,
+            17465344,
+            17448960,
+            17481728,
+            17481728,
+            17465344
+          ],
+          "candidate_source": [
+            16990208,
+            17235968,
+            17022976,
+            16990208,
+            16990208,
+            17006592,
+            16990208
+          ],
+          "python": [
+            36962304,
+            37306368,
+            37158912,
+            37158912,
+            37175296,
+            37601280,
+            37322752
+          ]
+        },
+        "median_peak_rss_bytes": {
+          "baseline_source": 17465344,
+          "candidate_source": 16990208,
+          "python": 37175296
+        },
+        "ratios": {
+          "candidate_over_python": 0.45702952842661965,
+          "candidate_over_baseline": 0.9727954971857411
+        },
+        "paired_order": [
+          [
+            "baseline_source",
+            "python",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "baseline_source",
+            "candidate_source",
+            "python"
+          ],
+          [
+            "python",
+            "candidate_source",
+            "baseline_source"
+          ],
+          [
+            "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ]
+        ],
+        "all_outputs_verified": true
+      }
+    },
+    "8192": {
+      "packages": 8192,
+      "diagnostics": 16384,
+      "preflight": {
+        "baseline_source": {
+          "passed": true,
+          "elapsed_seconds": 0.050359,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.053032958996482193
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.04639,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.049196750042028725
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.123083,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.1251264169695787
+        }
+      },
+      "samples_seconds": {
+        "baseline_source": [
+          0.051117,
+          0.052919,
+          0.051888,
+          0.052313,
+          0.050794,
+          0.052406,
+          0.049659
+        ],
+        "candidate_source": [
+          0.047134,
+          0.051226,
+          0.0464,
+          0.046783,
+          0.045509,
+          0.04589,
+          0.046471
+        ],
+        "python": [
+          0.122792,
+          0.124041,
+          0.12257,
+          0.121803,
+          0.124168,
+          0.124819,
+          0.123703
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ],
+        [
+          "python",
+          "candidate_source",
+          "baseline_source"
+        ],
+        [
+          "baseline_source",
+          "python",
+          "candidate_source"
+        ],
+        [
+          "baseline_source",
+          "candidate_source",
+          "python"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ],
+        [
+          "python",
+          "candidate_source",
+          "baseline_source"
+        ],
+        [
+          "baseline_source",
+          "candidate_source",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "baseline_source": 0.051888,
+        "candidate_source": 0.046471,
+        "python": 0.123703
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 0.37855919066655785,
+          "bootstrap_95_interval": [
+            0.36765236061817513,
+            0.3840874198500858
+          ]
+        },
+        "candidate_over_baseline": {
+          "median": 0.89595227782809,
+          "bootstrap_95_interval": [
+            0.8942337341967315,
+            0.9358021708048893
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed",
+      "memory": {
+        "runs_per_arm": 7,
+        "peak_rss_bytes": {
+          "baseline_source": [
+            22757376,
+            22740992,
+            22740992,
+            22970368,
+            22970368,
+            22757376,
+            22691840
+          ],
+          "candidate_source": [
+            21725184,
+            21725184,
+            21725184,
+            21725184,
+            21708800,
+            21741568,
+            21757952
+          ],
+          "python": [
+            41140224,
+            41222144,
+            41140224,
+            42614784,
+            41730048,
+            41009152,
+            41353216
+          ]
+        },
+        "median_peak_rss_bytes": {
+          "baseline_source": 22757376,
+          "candidate_source": 21725184,
+          "python": 41222144
+        },
+        "ratios": {
+          "candidate_over_python": 0.527027027027027,
+          "candidate_over_baseline": 0.9546436285097192
+        },
+        "paired_order": [
+          [
+            "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "baseline_source",
+            "candidate_source",
+            "python"
+          ],
+          [
+            "python",
+            "candidate_source",
+            "baseline_source"
+          ],
+          [
+            "baseline_source",
+            "python",
+            "candidate_source"
+          ],
+          [
+            "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "candidate_source",
+            "baseline_source",
+            "python"
+          ],
+          [
+            "candidate_source",
+            "baseline_source",
+            "python"
+          ]
+        ],
+        "all_outputs_verified": true
+      }
+    },
+    "16384": {
+      "packages": 16384,
+      "diagnostics": 32768,
+      "preflight": {
+        "baseline_source": {
+          "passed": true,
+          "elapsed_seconds": 0.086314,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.0893445000401698
+        },
+        "candidate_source": {
+          "passed": true,
+          "elapsed_seconds": 0.075801,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.07899895799346268
+        },
+        "python": {
+          "passed": true,
+          "elapsed_seconds": 0.165584,
+          "failures": [],
+          "stderr": "",
+          "runner_wall_seconds": 0.16860162501689047
+        }
+      },
+      "samples_seconds": {
+        "baseline_source": [
+          0.09073,
+          0.089377,
+          0.089861,
+          0.089767,
+          0.089474,
+          0.087349,
+          0.088672
+        ],
+        "candidate_source": [
+          0.07883,
+          0.079975,
+          0.07771,
+          0.077329,
+          0.078015,
+          0.077556,
+          0.076962
+        ],
+        "python": [
+          0.164604,
+          0.172542,
+          0.161988,
+          0.162231,
+          0.165694,
+          0.161893,
+          0.161835
+        ]
+      },
+      "paired_order": [
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ],
+        [
+          "python",
+          "baseline_source",
+          "candidate_source"
+        ],
+        [
+          "candidate_source",
+          "python",
+          "baseline_source"
+        ],
+        [
+          "baseline_source",
+          "python",
+          "candidate_source"
+        ],
+        [
+          "baseline_source",
+          "candidate_source",
+          "python"
+        ],
+        [
+          "candidate_source",
+          "baseline_source",
+          "python"
+        ]
+      ],
+      "median_seconds": {
+        "baseline_source": 0.089474,
+        "candidate_source": 0.07771,
+        "python": 0.162231
+      },
+      "ratios": {
+        "candidate_over_python": {
+          "median": 0.4766598245711362,
+          "bootstrap_95_interval": [
+            0.47083780945598513,
+            0.4790571550344981
+          ]
+        },
+        "candidate_over_baseline": {
+          "median": 0.8688416179874352,
+          "bootstrap_95_interval": [
+            0.8647800491870778,
+            0.8878865241731445
+          ]
+        }
+      },
+      "all_outputs_verified": true,
+      "status": "passed",
+      "memory": {
+        "runs_per_arm": 7,
+        "peak_rss_bytes": {
+          "baseline_source": [
+            33144832,
+            33128448,
+            33144832,
+            33144832,
+            33161216,
+            33112064,
+            33144832
+          ],
+          "candidate_source": [
+            31129600,
+            31129600,
+            31342592,
+            31113216,
+            31129600,
+            31113216,
+            31129600
+          ],
+          "python": [
+            48971776,
+            50135040,
+            50315264,
+            48496640,
+            48562176,
+            48922624,
+            49135616
+          ]
+        },
+        "median_peak_rss_bytes": {
+          "baseline_source": 33144832,
+          "candidate_source": 31129600,
+          "python": 48971776
+        },
+        "ratios": {
+          "candidate_over_python": 0.6356641017062563,
+          "candidate_over_baseline": 0.9391992090954029
+        },
+        "paired_order": [
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "candidate_source",
+            "python",
+            "baseline_source"
+          ],
+          [
+            "baseline_source",
+            "python",
+            "candidate_source"
+          ],
+          [
+            "baseline_source",
+            "python",
+            "candidate_source"
+          ],
+          [
+            "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "python",
+            "baseline_source",
+            "candidate_source"
+          ],
+          [
+            "python",
+            "candidate_source",
+            "baseline_source"
+          ]
+        ],
+        "all_outputs_verified": true
+      }
+    }
+  }
+}
