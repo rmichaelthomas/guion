@@ -23,6 +23,8 @@ use std::{
     time::Instant,
 };
 
+pub mod array;
+mod array_compute;
 mod register;
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
@@ -2711,6 +2713,45 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Array(function, element) => {
+                let arity = function.arity();
+                let mut args = [Value::Unit, Value::Unit, Value::Unit];
+                for slot in (0..arity).rev() {
+                    args[slot] = pop!();
+                }
+                let span = instruction.span;
+                let mut charge = |bytes: usize| {
+                    charge_allocation(budget.as_ref(), bytes, span)
+                        .map_err(|error| ("R_ALLOCATION_LIMIT", error.message))
+                };
+                let result = array::apply(*function, *element, &mut args[..arity], &mut charge)
+                    .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
+                if !matches!(result, Value::Array(_)) {
+                    if let Some(error) = value_limit_error(&result, limits, span) {
+                        return Err(error);
+                    }
+                }
+                push_stack!(result);
+            }
+            Op::ArraySetLocal(slot) => {
+                let value = pop!();
+                let index = pop!();
+                let span = instruction.span;
+                let local = locals.get_mut(*slot).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_LOCAL_UNINITIALIZED",
+                        "array_set assignment targets an uninitialized local",
+                        span,
+                    )
+                })?;
+                if let Value::Array(array) = &*local {
+                    if Shared::strong_count(array) > 1 {
+                        charge_allocation(budget.as_ref(), array_allocation(array), span)?;
+                    }
+                }
+                array::set_local(local, &index, &value)
+                    .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
+            }
             Op::Math(function) => {
                 let function = *function;
                 let right = if function.arity() == 2 {
@@ -4915,6 +4956,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::ListPushLocal(_) => "ListPushLocal",
         Op::ListSet => "ListSet",
         Op::ListSetLocal(_) => "ListSetLocal",
+        Op::ArraySetLocal(_) => "ArraySetLocal",
         Op::Divide => "Divide",
         Op::FloatSqrt => "FloatSqrt",
         Op::JsonAsFloat => "JsonAsFloat",
@@ -6022,6 +6064,7 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
                             .all(|(value, field)| value_matches(value, &field.ty, records))
                 })
         }
+        (Value::Array(array), Type::Array(element)) => array.element() == *element,
         (Value::TaskError(_), Type::TaskError) => true,
         (Value::Json(_), Type::Json) => true,
         (Value::JsonError(_), Type::JsonError) => true,
@@ -6370,6 +6413,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 Op::Load(s)
                 | Op::Store(s)
                 | Op::ListSetLocal(s)
+                | Op::ArraySetLocal(s)
                 | Op::ListPushLocal(s)
                 | Op::JsonPushLocal(s)
                 | Op::JsonSetLocal(s)
@@ -6666,6 +6710,21 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 };
                 if item.as_ref() != &value {
                     return Err(format!("list_set item type mismatch at instruction {pc}"));
+                }
+            }
+            Op::ArraySetLocal(slot) => {
+                let value = pop_type(&mut state.stack, pc)?;
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("array_set index requires Int at instruction {pc}"));
+                }
+                let Some(Type::Array(element)) = state.locals.get(*slot).and_then(Option::as_ref)
+                else {
+                    return Err(format!(
+                        "array_set local is not an array at instruction {pc}"
+                    ));
+                };
+                if element.scalar_type() != value {
+                    return Err(format!("array_set value type mismatch at instruction {pc}"));
                 }
             }
             Op::Pop | Op::Print | Op::PrintErr => {

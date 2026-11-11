@@ -67,7 +67,10 @@ pub fn render_guion(root: &Path) -> Result<String, String> {
             .iter()
             .map(|value| {
                 let parameter = value.as_str().unwrap();
-                if parameter.contains('$')
+                // Array signatures keep their element variables: the self-hosted compiler
+                // binds them with the same rule as the Rust compiler.
+                let array_generic = parameter.contains("Array[$") || parameter.contains("Elem[$");
+                if (parameter.contains('$') && !array_generic)
                     || parameter.contains('|')
                     || parameter == "Any"
                     || parameter == "Sized"
@@ -136,6 +139,15 @@ mod tests {
         fs::create_dir_all(root.join("language/self_host")).unwrap();
         fs::write(root.join("language/builtin-signatures.json"), r#"{"schema_version":1,"entries":[{"name":"test","parameters":["Text"],"result":"Int","operation":"Test"}]}"#).unwrap();
         root
+    }
+
+    #[test]
+    fn renders_array_element_variables_in_full() {
+        let root = fixture();
+        fs::write(root.join("language/builtin-signatures.json"), r#"{"schema_version":1,"entries":[{"name":"array_set","parameters":["Array[$A]","Int","Elem[$A]"],"result":"Array[$A]","operation":"ArraySet"},{"name":"list_push","parameters":["List[$T]","$T"],"result":"List[$T]","operation":"ListPush"}]}"#).unwrap();
+        let rendered = render_guion(&root).unwrap();
+        assert!(rendered.contains(r#"return "3:ArraySet:Array[$A]:Array[$A];Int;Elem[$A]""#));
+        assert!(rendered.contains(r#"return "2:ListPush:List[$T]:;""#));
     }
 
     #[test]

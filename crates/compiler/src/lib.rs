@@ -741,6 +741,23 @@ impl Parser {
                 Ok(Type::NativeResource(t.text))
             }
             "Json" => Ok(Type::Json),
+            "Array" => {
+                self.expect("[")?;
+                let tag = self.name()?;
+                self.expect("]")?;
+                guion_model::ElementType::from_name(&tag.text)
+                    .map(Type::Array)
+                    .ok_or_else(|| {
+                        diagnostic(
+                            "E_TYPE_UNKNOWN",
+                            format!(
+                                "unknown array element type `{}`; use one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool",
+                                tag.text
+                            ),
+                            tag.span,
+                        )
+                    })
+            }
             "List" => {
                 self.expect("[")?;
                 let item = self.ty()?;
@@ -1412,6 +1429,105 @@ impl<'a> FnCompiler<'a> {
         Ok(Some(result))
     }
 
+    /// Types a generic array builtin from its catalog signature. The first parameter that
+    /// mentions an element variable binds it from the argument's `Array[e]` type; later
+    /// parameters and the result are checked after substitution.
+    fn catalog_array_builtin(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Option<Type>, Diagnostic> {
+        let Some(signature) = builtin_catalog::get(name) else {
+            return Ok(None);
+        };
+        let Some((function, fixed)) = builtin_catalog::array_operation(&signature.operation) else {
+            return Ok(None);
+        };
+        let variable = ["$A", "$N", "$F"].into_iter().find(|variable| {
+            signature
+                .parameters
+                .iter()
+                .any(|spec| spec.contains(variable))
+        });
+        let mut bound: Option<guion_model::ElementType> = None;
+        for (argument, spec) in args.iter().zip(&signature.parameters) {
+            let expected = match (variable, bound) {
+                (Some(variable), Some(element)) => {
+                    Some(builtin_catalog::substitute_element(spec, variable, element))
+                }
+                (Some(variable), None) if spec.contains(variable) => None,
+                _ => Some(spec.clone()),
+            };
+            let Some(expected) = expected else {
+                let actual = self.expr_with_expected(argument, None)?;
+                let element = match (&actual, spec.starts_with("List[")) {
+                    (Type::Array(element), false) => Some(*element),
+                    (Type::List(item), true) => match item.as_ref() {
+                        Type::Array(element) => Some(*element),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let Some(element) = element else {
+                    let wanted = if spec.starts_with("List[") {
+                        "a List of arrays"
+                    } else {
+                        "an array"
+                    };
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        format!("argument to `{name}` must be {wanted}, got {actual:?}"),
+                        argument.span(),
+                    ));
+                };
+                let variable = variable.expect("a binding parameter names its variable");
+                if builtin_catalog::element_variable_accepts(variable, element) != Some(true) {
+                    let class = if variable == "$F" {
+                        "a float (f32 or f64)"
+                    } else {
+                        "a numeric"
+                    };
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        format!(
+                            "`{name}` requires {class} array, got Array[{}]",
+                            element.name()
+                        ),
+                        argument.span(),
+                    ));
+                }
+                bound = Some(element);
+                continue;
+            };
+            let Some(expected) = builtin_catalog::concrete_type(&expected) else {
+                return Ok(None);
+            };
+            let actual = self.expr_with_expected(argument, Some(&expected))?;
+            if actual != expected {
+                return Err(diagnostic(
+                    "E_TYPE_ARGUMENT",
+                    format!("argument to `{name}` expects {expected:?}, got {actual:?}"),
+                    argument.span(),
+                ));
+            }
+        }
+        let Some(element) = fixed.or(bound) else {
+            return Ok(None);
+        };
+        let result = match (variable, bound) {
+            (Some(variable), Some(bound)) => {
+                builtin_catalog::substitute_element(&signature.result, variable, bound)
+            }
+            _ => signature.result.clone(),
+        };
+        let Some(result) = builtin_catalog::concrete_type(&result) else {
+            return Ok(None);
+        };
+        self.emit(Op::Array(function, element), span);
+        Ok(Some(result))
+    }
+
     fn expr_with_expected(
         &mut self,
         e: &Expr,
@@ -1784,6 +1900,9 @@ impl<'a> FnCompiler<'a> {
                         ));
                     }
                     if let Some(result) = self.catalog_fixed_builtin(name, args, *s)? {
+                        return Ok(result);
+                    }
+                    if let Some(result) = self.catalog_array_builtin(name, args, *s)? {
                         return Ok(result);
                     }
                 }
@@ -2783,8 +2902,42 @@ impl<'a> FnCompiler<'a> {
                         }
                         _ => None,
                     };
-                    let optimized_local_list_update =
-                        optimized_list_push.is_some() || optimized_list_set.is_some();
+                    let optimized_array_set = match value {
+                        Expr::Call(call, args, keywords, _)
+                            if call == "array_set"
+                                && keywords.is_empty()
+                                && args.len() == 3
+                                && matches!(&local.ty, Type::Array(_))
+                                && matches!(&args[0], Expr::Name(source, _) if source == name) =>
+                        {
+                            let Type::Array(element) = &local.ty else {
+                                unreachable!("guarded above")
+                            };
+                            if self.expr(&args[1])? != Type::Int {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "array_set index must be Int",
+                                    args[1].span(),
+                                ));
+                            }
+                            let scalar = element.scalar_type();
+                            if self.expr_with_expected(&args[2], Some(&scalar))? != scalar {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    format!(
+                                        "array_set value must be {scalar:?} for Array[{}]",
+                                        element.name()
+                                    ),
+                                    args[2].span(),
+                                ));
+                            }
+                            Some(Op::ArraySetLocal(local.slot))
+                        }
+                        _ => None,
+                    };
+                    let optimized_local_list_update = optimized_list_push.is_some()
+                        || optimized_list_set.is_some()
+                        || optimized_array_set.is_some();
                     let optimized_local_update = optimized_local_list_update
                         || optimized_json_push.is_some()
                         || optimized_json_set.is_some();
@@ -2818,6 +2971,7 @@ impl<'a> FnCompiler<'a> {
                             .or(optimized_json_push)
                             .or(optimized_list_push)
                             .or(optimized_list_set)
+                            .or(optimized_array_set)
                             .unwrap_or(Op::Store(local.slot)),
                         *span,
                     );

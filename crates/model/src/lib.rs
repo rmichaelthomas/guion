@@ -3820,6 +3820,7 @@ pub enum Op {
     Net(NetFunction),
     Tls(TlsFunction),
     Array(ArrayFunction, ElementType),
+    ArraySetLocal(usize),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4517,6 +4518,12 @@ impl Artifact {
                         w.u8(function.code());
                         w.u8(element.code());
                     }
+                    // `set a = array_set(a, index, value)` on a local array: updated in place
+                    // when unshared.
+                    Op::ArraySetLocal(slot) => {
+                        w.u8(194);
+                        w.count(*slot)?;
+                    }
                     Op::Codec(function) => {
                         w.u8(182);
                         w.u8(function.code());
@@ -5073,7 +5080,8 @@ impl Artifact {
                         })?;
                         Op::Array(function, element)
                     }
-                    193 => {
+                    194 if format_version >= 62 => Op::ArraySetLocal(r.count()?),
+                    193 | 194 => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "array instructions require artifact format 62",
@@ -5719,7 +5727,7 @@ fn artifact_uses_arrays(artifact: &Artifact) -> bool {
                 .code
                 .iter()
                 .any(|instruction| match &instruction.op {
-                    Op::Array(_, _) => true,
+                    Op::Array(_, _) | Op::ArraySetLocal(_) => true,
                     Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => type_mentions_array(ty),
                     _ => false,
                 })

@@ -6081,6 +6081,7 @@ fn live_local_slots_at_ip(function: &Function) -> Vec<Vec<usize>> {
                 Op::Load(slot) => uses[slot] = true,
                 Op::Store(slot) => defines[slot] = true,
                 Op::ListSetLocal(slot)
+                | Op::ArraySetLocal(slot)
                 | Op::ListPushLocal(slot)
                 | Op::JsonPushLocal(slot)
                 | Op::JsonSetLocal(slot) => {

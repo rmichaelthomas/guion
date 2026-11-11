@@ -3,9 +3,9 @@
 use std::{collections::BTreeMap, fs};
 
 use guion_model::{
-    Artifact, BigInt, CodecFunction, ExternalFunction, Float64, FsFunction, Function, Instruction,
-    MathFunction, NetFunction, Op, ProcessFunction, RecordDefinition, RecordField, RegexFunction,
-    Span, TlsFunction, Type, Value,
+    ArrayFunction, Artifact, BigInt, CodecFunction, ElementType, ExternalFunction, Float64,
+    FsFunction, Function, Instruction, MathFunction, NetFunction, Op, ProcessFunction,
+    RecordDefinition, RecordField, RegexFunction, Span, TlsFunction, Type, Value,
 };
 use serde_json::Value as Json;
 
@@ -317,6 +317,14 @@ fn parse_instruction(
         "ListSetLocal" => {
             Op::ListSetLocal(required_usize(object.get("local"), "ListSetLocal.local")?)
         }
+        "ArraySetLocal" => {
+            Op::ArraySetLocal(required_usize(object.get("local"), "ArraySetLocal.local")?)
+        }
+        other if other.starts_with("Array") && other.contains('.') => {
+            let (function, element) = ArrayFunction::parse_instruction_name(other)
+                .ok_or_else(|| format!("unsupported IR opcode `{other}` at instruction {pc}"))?;
+            Op::Array(function, element)
+        }
         "FloatSqrt" => Op::FloatSqrt,
         "JsonParse" => Op::JsonParse,
         "JsonStringify" => Op::JsonStringify,
@@ -535,6 +543,11 @@ fn parse_type(input: &str) -> Result<Type, String> {
         }
         "TaskError" => Ok(Type::TaskError),
         "Unit" => Ok(Type::Unit),
+        other if other.starts_with("Array[") && other.ends_with(']') => {
+            ElementType::from_name(&other[6..other.len() - 1])
+                .map(Type::Array)
+                .ok_or_else(|| format!("unknown array element type in `{other}`"))
+        }
         other if other.starts_with("List[") && other.ends_with(']') => Ok(Type::List(Box::new(
             parse_type(&other[5..other.len() - 1])?,
         ))),

@@ -514,6 +514,24 @@ impl ArrayFunction {
         }
     }
 
+    /// Number of operands the instruction pops.
+    pub fn arity(self) -> usize {
+        static ARITIES: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+        let arities = ARITIES.get_or_init(|| {
+            ArrayFunction::ALL
+                .iter()
+                .map(|function| {
+                    let element = ElementType::ALL
+                        .into_iter()
+                        .find(|element| function.element_class().accepts(*element))
+                        .expect("every function accepts some element type");
+                    function.signature(element).0.len() as u8
+                })
+                .collect()
+        });
+        usize::from(arities[usize::from(self.code())])
+    }
+
     /// Whether the function builds a new array of its element type from non-array inputs or
     /// converts into it; the catalog names these per element type (`array_f64_full`).
     pub fn is_constructor(self) -> bool {
