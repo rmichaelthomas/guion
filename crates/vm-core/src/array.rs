@@ -56,7 +56,7 @@ pub(crate) fn float_value(value: f64) -> Result<Value, ArrayError> {
 }
 
 /// One element type's storage and conversions.
-pub(crate) trait Element: Copy + PartialOrd + Default + Send + Sync + 'static {
+pub trait Element: Copy + PartialOrd + Default + Send + Sync + 'static {
     const TYPE: ElementType;
     fn wrap(items: Vec<Self>) -> ArrayData;
     fn items(data: &ArrayData) -> &[Self];

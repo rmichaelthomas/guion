@@ -93,7 +93,31 @@ pub fn render_guion(root: &Path) -> Result<String, String> {
         ));
     }
     output.push_str("    return \"\"\n\nfn builtin_catalog_part(value: Text, delimiter: Text, wanted: Int) -> Text:\n    var cursor = 0\n    var part = 0\n    var result = \"\"\n    while cursor <= len(value):\n        if cursor == len(value) or value[cursor] == delimiter:\n            if part == wanted:\n                return result\n            set part = part + 1\n            set result = \"\"\n        else:\n            if part == wanted:\n                set result = result + value[cursor]\n        set cursor = cursor + 1\n    return \"\"\n\npub fn builtin_catalog_has(name: Text) -> Bool:\n    return builtin_catalog_signature(name) != \"\"\n\npub fn builtin_catalog_arity(name: Text) -> Int:\n    let value = builtin_catalog_part(builtin_catalog_signature(name), \":\", 0)\n    if value == \"0\":\n        return 0\n    if value == \"1\":\n        return 1\n    if value == \"2\":\n        return 2\n    if value == \"3\":\n        return 3\n    if value == \"4\":\n        return 4\n    if value == \"5\":\n        return 5\n    return -1\n\npub fn builtin_catalog_operation(name: Text) -> Text:\n    return builtin_catalog_part(builtin_catalog_signature(name), \":\", 1)\n\npub fn builtin_catalog_result(name: Text) -> Text:\n    return builtin_catalog_part(builtin_catalog_signature(name), \":\", 2)\n\npub fn builtin_catalog_parameter_type(name: Text, index: Int) -> Text:\n    let parameters = builtin_catalog_part(builtin_catalog_signature(name), \":\", 3)\n    return builtin_catalog_part(parameters, \";\", index)\n");
+    output.push_str(&render_array_codes());
     Ok(output)
+}
+
+/// Function and element codes for `Op::Array`, generated from the model so that the
+/// self-hosted artifact writer cannot drift from `ArrayFunction::ALL`.
+fn render_array_codes() -> String {
+    let mut output = String::from("\npub fn builtin_array_function_code(name: Text) -> Int:\n");
+    for function in guion_model::ArrayFunction::ALL {
+        output.push_str(&format!(
+            "    if name == {:?}:\n        return {}\n",
+            function.op_name(),
+            function.code()
+        ));
+    }
+    output.push_str("    return -1\n\npub fn builtin_array_element_code(name: Text) -> Int:\n");
+    for element in guion_model::ElementType::ALL {
+        output.push_str(&format!(
+            "    if name == {:?}:\n        return {}\n",
+            element.name(),
+            element.code()
+        ));
+    }
+    output.push_str("    return -1\n");
+    output
 }
 
 pub fn validate(root: &Path) -> Result<(), String> {
@@ -148,6 +172,8 @@ mod tests {
         let rendered = render_guion(&root).unwrap();
         assert!(rendered.contains(r#"return "3:ArraySet:Array[$A]:Array[$A];Int;Elem[$A]""#));
         assert!(rendered.contains(r#"return "2:ListPush:List[$T]:;""#));
+        assert!(rendered.contains("if name == \"ArrayAdd\":\n        return 25\n"));
+        assert!(rendered.contains("if name == \"f64\":\n        return 9\n"));
     }
 
     #[test]

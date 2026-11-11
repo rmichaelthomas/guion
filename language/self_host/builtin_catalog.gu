@@ -797,3 +797,219 @@ pub fn builtin_catalog_result(name: Text) -> Text:
 pub fn builtin_catalog_parameter_type(name: Text, index: Int) -> Text:
     let parameters = builtin_catalog_part(builtin_catalog_signature(name), ":", 3)
     return builtin_catalog_part(parameters, ";", index)
+
+pub fn builtin_array_function_code(name: Text) -> Int:
+    if name == "ArrayFromList":
+        return 0
+    if name == "ArrayFull":
+        return 1
+    if name == "ArrayZeros":
+        return 2
+    if name == "ArrayConvert":
+        return 3
+    if name == "ArrayFromBytes":
+        return 4
+    if name == "ArrayRange":
+        return 5
+    if name == "ArrayLinspace":
+        return 6
+    if name == "ArrayRandom":
+        return 7
+    if name == "ArrayNormal":
+        return 8
+    if name == "ArrayShape":
+        return 9
+    if name == "ArrayNdim":
+        return 10
+    if name == "ArraySize":
+        return 11
+    if name == "ArrayEqual":
+        return 12
+    if name == "ArrayGet":
+        return 13
+    if name == "ArrayGetAt":
+        return 14
+    if name == "ArraySet":
+        return 15
+    if name == "ArraySetAt":
+        return 16
+    if name == "ArrayReshape":
+        return 17
+    if name == "ArrayFlatten":
+        return 18
+    if name == "ArrayTranspose":
+        return 19
+    if name == "ArraySlice":
+        return 20
+    if name == "ArrayConcat":
+        return 21
+    if name == "ArrayStack":
+        return 22
+    if name == "ArrayToList":
+        return 23
+    if name == "ArrayToBytes":
+        return 24
+    if name == "ArrayAdd":
+        return 25
+    if name == "ArraySub":
+        return 26
+    if name == "ArrayMul":
+        return 27
+    if name == "ArrayDiv":
+        return 28
+    if name == "ArrayMinimum":
+        return 29
+    if name == "ArrayMaximum":
+        return 30
+    if name == "ArrayAddScalar":
+        return 31
+    if name == "ArraySubScalar":
+        return 32
+    if name == "ArrayMulScalar":
+        return 33
+    if name == "ArrayDivScalar":
+        return 34
+    if name == "ArrayNeg":
+        return 35
+    if name == "ArrayAbs":
+        return 36
+    if name == "ArrayClip":
+        return 37
+    if name == "ArraySqrt":
+        return 38
+    if name == "ArrayExp":
+        return 39
+    if name == "ArrayLog":
+        return 40
+    if name == "ArrayLog10":
+        return 41
+    if name == "ArrayLog2":
+        return 42
+    if name == "ArraySin":
+        return 43
+    if name == "ArrayCos":
+        return 44
+    if name == "ArrayTan":
+        return 45
+    if name == "ArrayAsin":
+        return 46
+    if name == "ArrayAcos":
+        return 47
+    if name == "ArrayAtan":
+        return 48
+    if name == "ArraySinh":
+        return 49
+    if name == "ArrayCosh":
+        return 50
+    if name == "ArrayTanh":
+        return 51
+    if name == "ArrayFloor":
+        return 52
+    if name == "ArrayCeil":
+        return 53
+    if name == "ArrayRound":
+        return 54
+    if name == "ArrayPow":
+        return 55
+    if name == "ArrayEq":
+        return 56
+    if name == "ArrayNe":
+        return 57
+    if name == "ArrayLt":
+        return 58
+    if name == "ArrayLe":
+        return 59
+    if name == "ArrayGt":
+        return 60
+    if name == "ArrayGe":
+        return 61
+    if name == "ArrayEqScalar":
+        return 62
+    if name == "ArrayNeScalar":
+        return 63
+    if name == "ArrayLtScalar":
+        return 64
+    if name == "ArrayLeScalar":
+        return 65
+    if name == "ArrayGtScalar":
+        return 66
+    if name == "ArrayGeScalar":
+        return 67
+    if name == "ArrayAnd":
+        return 68
+    if name == "ArrayOr":
+        return 69
+    if name == "ArrayNot":
+        return 70
+    if name == "ArrayAny":
+        return 71
+    if name == "ArrayAll":
+        return 72
+    if name == "ArrayCount":
+        return 73
+    if name == "ArrayWhere":
+        return 74
+    if name == "ArrayFilter":
+        return 75
+    if name == "ArraySum":
+        return 76
+    if name == "ArrayProd":
+        return 77
+    if name == "ArrayMin":
+        return 78
+    if name == "ArrayMax":
+        return 79
+    if name == "ArrayArgmin":
+        return 80
+    if name == "ArrayArgmax":
+        return 81
+    if name == "ArrayMean":
+        return 82
+    if name == "ArrayVar":
+        return 83
+    if name == "ArrayStd":
+        return 84
+    if name == "ArraySumAxis":
+        return 85
+    if name == "ArrayMinAxis":
+        return 86
+    if name == "ArrayMaxAxis":
+        return 87
+    if name == "ArrayMeanAxis":
+        return 88
+    if name == "ArraySort":
+        return 89
+    if name == "ArrayArgsort":
+        return 90
+    if name == "ArrayCumsum":
+        return 91
+    if name == "ArrayDot":
+        return 92
+    if name == "ArrayMatmul":
+        return 93
+    return -1
+
+pub fn builtin_array_element_code(name: Text) -> Int:
+    if name == "i8":
+        return 0
+    if name == "i16":
+        return 1
+    if name == "i32":
+        return 2
+    if name == "i64":
+        return 3
+    if name == "u8":
+        return 4
+    if name == "u16":
+        return 5
+    if name == "u32":
+        return 6
+    if name == "u64":
+        return 7
+    if name == "f32":
+        return 8
+    if name == "f64":
+        return 9
+    if name == "bool":
+        return 10
+    return -1
