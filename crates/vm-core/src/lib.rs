@@ -4996,6 +4996,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextReplace => "TextReplace",
         Op::TextTrim => "TextTrim",
         Op::Math(function) => function.op_name(),
+        Op::Array(function, _) => function.op_name(),
         Op::Codec(function) => function.op_name(),
         Op::Fs(function) => function.op_name(),
         Op::Regex(function) => function.op_name(),
@@ -5550,6 +5551,7 @@ pub fn new_value_allocation(value: &Value) -> usize {
         Value::Bytes(bytes) => size_of::<Vec<u8>>().saturating_add(bytes.capacity()),
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
+        Value::Array(array) => array_allocation(array),
         // Records own a fresh field-vector, but nested Lists, Maps, and JSON
         // remain shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
@@ -5577,6 +5579,13 @@ pub fn new_value_allocation(value: &Value) -> usize {
         }
         _ => 0,
     }
+}
+
+/// Bytes charged for an array: its header, shape and element storage.
+pub fn array_allocation(array: &guion_model::ArrayValue) -> usize {
+    size_of::<guion_model::ArrayValue>()
+        .saturating_add(array.shape.len().saturating_mul(size_of::<usize>()))
+        .saturating_add(array.data.byte_len())
 }
 
 #[inline]
@@ -6487,6 +6496,7 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::JsonError
         | Type::FileError
         | Type::HttpError
+        | Type::Array(_)
         | Type::Unit => true,
     }
 }
@@ -6525,6 +6535,7 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::Bool(_) => Type::Bool,
         Value::Text(_) => Type::Text,
         Value::Bytes(_) => Type::Bytes,
+        Value::Array(array) => Type::Array(array.element()),
         Value::Unit => Type::Unit,
         Value::List(items) => {
             let first = items.first()?;
@@ -7032,6 +7043,30 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     return Err(format!("sqrt requires Float64 at instruction {pc}"));
                 }
                 state.stack.push(Type::Float64);
+            }
+            Op::Array(function, element) => {
+                if !function.element_class().accepts(*element) {
+                    return Err(format!(
+                        "{} does not accept {} arrays at instruction {pc}",
+                        function.op_name(),
+                        element.name()
+                    ));
+                }
+                let (operands, result) = function.signature(*element);
+                for operand in operands.iter().rev() {
+                    let actual = pop_type(&mut state.stack, pc)?;
+                    let matches = match operand {
+                        guion_model::ArrayOperand::Exact(expected) => actual == *expected,
+                        guion_model::ArrayOperand::AnyArray => matches!(actual, Type::Array(_)),
+                    };
+                    if !matches {
+                        return Err(format!(
+                            "{} expects {operand:?}, found {actual:?} at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(result);
             }
             Op::Math(function) => {
                 for _ in 0..function.arity() {

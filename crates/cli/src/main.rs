@@ -2444,6 +2444,7 @@ fn display_type(ty: &guion_model::Type) -> String {
         Type::FileError => "FileError".into(),
         Type::HttpError => "HttpError".into(),
         Type::NativeResource(name) => name.clone(),
+        Type::Array(element) => format!("Array[{}]", element.name()),
         Type::List(item) => format!("List[{}]", display_type(item)),
         Type::Map(item) => format!("Map[Text, {}]", display_type(item)),
         Type::Option(item) => format!("Option[{}]", display_type(item)),

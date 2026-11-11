@@ -4173,7 +4173,7 @@ fn python_bridge_type(ty: &Type) -> bool {
         Type::List(item) => python_bridge_type(item),
         Type::Map(item) => python_bridge_type(item),
         Type::Record(_) => false,
-        Type::NativeResource(_) => false,
+        Type::NativeResource(_) | Type::Array(_) => false,
         Type::Option(_)
         | Type::Result(_, _)
         | Type::TaskError

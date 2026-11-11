@@ -10282,6 +10282,62 @@
       },
       "source_signature": "`format_utc_date(value: Instant) -> Text`",
       "declared_status": "Implemented in standard library; requires format 48"
+    },
+    {
+      "id": "type-array",
+      "kind": "type",
+      "name": "Array",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Type",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "type.array.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "type.array.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "type.array.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-array",
+      "kind": "opcode",
+      "name": "Array",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-array.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-array.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-array.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
     }
   ],
   "regression_applications": [
