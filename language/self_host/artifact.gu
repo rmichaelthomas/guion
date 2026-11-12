@@ -628,6 +628,8 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 159
     if name == "JsonSetLocal":
         return 160
+    if name == "ArraySetLocal":
+        return 194
     if name == "TextCaseFold":
         return 133
     if name == "TextCollapseWhitespace":
@@ -873,7 +875,7 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     if tag < 0:
         return ab_u8(255)
     var parts: List[Bytes] = [ab_instruction_span(instruction, pc, source_id), ab_u8(tag)]
-    if name == "Load" or name == "Store" or name == "MakeList" or name == "MakeMap" or name == "ListSetLocal" or name == "ListPushLocal" or name == "JsonPushLocal" or name == "JsonSetLocal":
+    if name == "Load" or name == "Store" or name == "MakeList" or name == "MakeMap" or name == "ListSetLocal" or name == "ListPushLocal" or name == "JsonPushLocal" or name == "JsonSetLocal" or name == "ArraySetLocal":
         var field = "local"
         if name == "MakeList" or name == "MakeMap":
             set field = "count"

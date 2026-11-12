@@ -176,3 +176,41 @@ print(array_all(array_bool_zeros([0])))"#,
     )
     .contains("R_ARRAY_SHAPE"));
 }
+
+#[test]
+fn reused_buffers_never_change_a_value_another_variable_holds() {
+    let out = stdout_of(
+        "reuse-alias",
+        r#"let a = array_i32([1, 2, 3])
+let b = a
+let c = array_add(a, array_i32([10, 10, 10]))
+print(a)
+print(b)
+print(c)
+var d = array_f64([1.0, 2.0])
+let e = d
+set d = array_mul(d, array_f64([3.0, 3.0]))
+print(d)
+print(e)
+let f = array_neg(array_add(e, e))
+print(f)
+print(e)
+var g = array_i64([1, 2, 3])
+set g = array_add(g, g)
+set g = array_mul(g, g)
+print(g)"#,
+    );
+    assert_eq!(
+        out,
+        "[1, 2, 3]\n[1, 2, 3]\n[11, 12, 13]\n[3, 6]\n[1, 2]\n[-2, -4]\n[1, 2]\n[4, 16, 36]\n"
+    );
+}
+
+#[test]
+fn a_nonfinite_result_in_a_reused_buffer_still_raises() {
+    let err = error_of(
+        "reuse-nonfinite",
+        "let big = array_f64_full([2], 1.0e308)\nprint(array_add(array_add(big, big), big))",
+    );
+    assert!(err.contains("R_FLOAT_NONFINITE"), "{err}");
+}

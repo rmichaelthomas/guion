@@ -98,3 +98,15 @@ fn concatenating_huge_zero_size_extents_raises_a_shape_error() {
         "R_ARRAY_SHAPE",
     );
 }
+
+// a and b hold 160 MB of the 256 MiB budget and `a * b` another 80 MB. Adding to that
+// unshared temporary reuses its buffer; allocating a fourth 80 MB array would exceed the limit.
+#[test]
+fn elementwise_results_reuse_an_unshared_operand_buffer() {
+    let (ok, stdout, stderr) = run(
+        "reuse-budget",
+        "let a = array_f64_full([10000000], 2.0)\nlet b = array_f64_full([10000000], 3.0)\nprint(array_get(array_add(array_mul(a, b), b), 9999999))\nprint(array_get(array_neg(array_mul(a, b)), 0))\nprint(array_get(array_neg(array_add(array_mul(a, b), b)), 0))\n",
+    );
+    assert!(ok, "{stderr}");
+    assert_eq!(stdout, "9\n-6\n-9\n");
+}

@@ -233,3 +233,27 @@ fn self_hosted_csv_read_columns_program_matches_the_rust_compiler() {
     assert!(expected.contains("b text"), "{expected}");
     assert_eq!(self_hosted_stdout(&project, "cols.gu"), expected);
 }
+
+#[test]
+fn self_hosted_compiler_emits_array_set_local_like_the_rust_compiler() {
+    let project = project("set-local");
+    let source = "fn main() -> Unit:\n    var v = array_f64_zeros([3])\n    set v = array_set(v, 1, 2.5)\n    var w = array_i32([1, 2])\n    set w = array_set(w, 0, 7)\n    print(v)\n    print(w)\n";
+    std::fs::write(project.0.join("set.gu"), source).unwrap();
+    let compiled = guion(&project.0, &["run", "compiler.gu", "set.gu"]);
+    assert!(compiled.status.success());
+    let ir = String::from_utf8_lossy(&compiled.stdout).into_owned();
+    assert_eq!(ir.matches("ArraySetLocal").count(), 2, "{ir}");
+    let rust_count = guion_compiler::compile_project(&project.0.join("set.gu"), &project.0)
+        .expect("compiles")
+        .functions
+        .iter()
+        .flat_map(|function| function.code.iter())
+        .filter(|instruction| matches!(instruction.op, guion_model::Op::ArraySetLocal(_)))
+        .count();
+    assert_eq!(rust_count, 2);
+    let rust = guion(&project.0, &["run", "set.gu"]);
+    assert_eq!(
+        self_hosted_stdout(&project, "set.gu"),
+        String::from_utf8_lossy(&rust.stdout)
+    );
+}

@@ -68,6 +68,24 @@ trait Numeric: Element {
     fn zero() -> Self {
         Self::default()
     }
+    /// `add`, `sub` and `mul` without the per-element finiteness check; the kernels then call
+    /// `first_nonfinite` once on the finished result. Integers check overflow as usual.
+    #[inline]
+    fn add_raw(self, other: Self) -> Result<Self, &'static str> {
+        self.add(other)
+    }
+    #[inline]
+    fn sub_raw(self, other: Self) -> Result<Self, &'static str> {
+        self.sub(other)
+    }
+    #[inline]
+    fn mul_raw(self, other: Self) -> Result<Self, &'static str> {
+        self.mul(other)
+    }
+    /// The first element of a result produced by the `_raw` operations that is not finite.
+    fn first_nonfinite(_items: &[Self]) -> Option<usize> {
+        None
+    }
 }
 
 const OVERFLOW: &str = "R_ARRAY_OVERFLOW";
@@ -135,6 +153,25 @@ macro_rules! float_numeric {
             }
             fn abs(self) -> Result<Self, &'static str> {
                 Ok(self.abs())
+            }
+            #[inline]
+            fn add_raw(self, other: Self) -> Result<Self, &'static str> {
+                Ok(self + other)
+            }
+            #[inline]
+            fn sub_raw(self, other: Self) -> Result<Self, &'static str> {
+                Ok(self - other)
+            }
+            #[inline]
+            fn mul_raw(self, other: Self) -> Result<Self, &'static str> {
+                Ok(self * other)
+            }
+            fn first_nonfinite(items: &[Self]) -> Option<usize> {
+                if items.iter().all(|item| item.is_finite()) {
+                    None
+                } else {
+                    items.iter().position(|item| !item.is_finite())
+                }
             }
         }
     )*};
@@ -275,35 +312,138 @@ fn map<A: Element, R: Element>(
     finish(array.shape.clone(), out)
 }
 
+/// Whether `value` is an array of `shape` that nothing else holds, so a kernel may overwrite
+/// its buffer with the result.
+fn reusable(value: &Value, shape: &[usize]) -> bool {
+    matches!(value, Value::Array(array) if Shared::strong_count(array) == 1 && array.shape == shape)
+}
+
+/// `map` that overwrites the operand's buffer when nothing else holds it.
+fn map_owned<T: Element>(
+    args: &mut [Value],
+    charge: &mut Charge<'_>,
+    what: &str,
+    f: impl Fn(T) -> Result<T, ArrayError>,
+) -> Result<Value, ArrayError> {
+    let shape = array_arg(args, 0)?.shape.clone();
+    if !reusable(&args[0], &shape) {
+        return map(array_arg(args, 0)?, charge, what, f);
+    }
+    let Value::Array(mut owned) = std::mem::replace(&mut args[0], Value::Unit) else {
+        unreachable!("checked by reusable")
+    };
+    let target = Shared::get_mut(&mut owned).expect("a unique array");
+    for (index, slot) in T::items_mut(&mut target.data).iter_mut().enumerate() {
+        *slot = f(*slot).map_err(|(code, message)| {
+            if message.is_empty() {
+                element_error(code, what, T::TYPE, index)
+            } else {
+                (code, message)
+            }
+        })?;
+    }
+    Ok(Value::Array(owned))
+}
+
+/// Same-type arithmetic with broadcasting. When an operand is an unshared array already of the
+/// result's shape, its buffer receives the result; float results are checked for finiteness
+/// once, after the loop.
+fn zip_numeric<T: Numeric>(
+    args: &mut [Value],
+    scalar: Option<ArrayValue>,
+    charge: &mut Charge<'_>,
+    what: &str,
+    f: impl Fn(T, T) -> Result<T, &'static str>,
+) -> Result<Value, ArrayError> {
+    let (reuse, shape) = {
+        let left = array_arg(args, 0)?;
+        let right = match &scalar {
+            Some(scalar) => scalar,
+            None => array_arg(args, 1)?,
+        };
+        let shape = if left.shape == right.shape {
+            left.shape.clone()
+        } else {
+            broadcast_shape(&left.shape, &right.shape)?
+        };
+        let fits = |other: &ArrayValue| other.shape == shape || other.size() == 1;
+        let reuse = if reusable(&args[0], &shape) && fits(right) {
+            Some(0)
+        } else if scalar.is_none() && reusable(&args[1], &shape) && fits(left) {
+            Some(1)
+        } else {
+            None
+        };
+        (reuse, shape)
+    };
+    let Some(which) = reuse else {
+        let left = array_arg(args, 0)?;
+        let right = match &scalar {
+            Some(scalar) => scalar,
+            None => array_arg(args, 1)?,
+        };
+        let result = zip_with(left, right, charge, what, &f)?;
+        if let Value::Array(array) = &result {
+            if let Some(index) = T::first_nonfinite(T::items(&array.data)) {
+                return Err(element_error(NONFINITE, what, T::TYPE, index));
+            }
+        }
+        return Ok(result);
+    };
+    let Value::Array(mut owned) = std::mem::replace(&mut args[which], Value::Unit) else {
+        unreachable!("checked by reusable")
+    };
+    let other = match (&scalar, which) {
+        (Some(scalar), _) => scalar,
+        (None, 0) => array_arg(args, 1)?,
+        (None, _) => array_arg(args, 0)?,
+    };
+    let other = T::items(&other.data);
+    let target = Shared::get_mut(&mut owned).expect("a unique array");
+    let items = T::items_mut(&mut target.data);
+    debug_assert_eq!(shape_size(&shape), Some(items.len()));
+    let fail = |code, index| element_error(code, what, T::TYPE, index);
+    let apply = |x: T, y: T| if which == 0 { f(x, y) } else { f(y, x) };
+    if other.len() == items.len() {
+        for (index, (slot, y)) in items.iter_mut().zip(other).enumerate() {
+            *slot = apply(*slot, *y).map_err(|code| fail(code, index))?;
+        }
+    } else {
+        let y = other[0];
+        for (index, slot) in items.iter_mut().enumerate() {
+            *slot = apply(*slot, y).map_err(|code| fail(code, index))?;
+        }
+    }
+    if let Some(index) = T::first_nonfinite(items) {
+        return Err(fail(NONFINITE, index));
+    }
+    Ok(Value::Array(owned))
+}
+
 fn scalar_array<T: Element>(value: &Value) -> Result<ArrayValue, ArrayError> {
     ArrayValue::new(vec![], T::wrap(vec![T::from_value(value)?]))
 }
 
 fn arithmetic<T: Numeric>(
     function: ArrayFunction,
-    args: &[Value],
+    args: &mut [Value],
     charge: &mut Charge<'_>,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
-    let left = array_arg(args, 0)?;
-    let scalar;
-    let right = match function {
-        AddScalar | SubScalar | MulScalar | DivScalar => {
-            scalar = scalar_array::<T>(&args[1])?;
-            &scalar
-        }
-        _ => array_arg(args, 1)?,
+    let scalar = match function {
+        AddScalar | SubScalar | MulScalar | DivScalar => Some(scalar_array::<T>(&args[1])?),
+        _ => None,
     };
     let name = function.op_name();
     match function {
-        Add | AddScalar => zip_with(left, right, charge, name, T::add),
-        Sub | SubScalar => zip_with(left, right, charge, name, T::sub),
-        Mul | MulScalar => zip_with(left, right, charge, name, T::mul),
-        Div | DivScalar => zip_with(left, right, charge, name, T::div),
-        Minimum => zip_with(left, right, charge, name, |x: T, y: T| {
+        Add | AddScalar => zip_numeric(args, scalar, charge, name, T::add_raw),
+        Sub | SubScalar => zip_numeric(args, scalar, charge, name, T::sub_raw),
+        Mul | MulScalar => zip_numeric(args, scalar, charge, name, T::mul_raw),
+        Div | DivScalar => zip_numeric(args, scalar, charge, name, T::div),
+        Minimum => zip_numeric(args, scalar, charge, name, |x: T, y: T| {
             Ok(if y < x { y } else { x })
         }),
-        Maximum => zip_with(left, right, charge, name, |x: T, y: T| {
+        Maximum => zip_numeric(args, scalar, charge, name, |x: T, y: T| {
             Ok(if y > x { y } else { x })
         }),
         _ => unreachable!("arithmetic dispatch"),
@@ -364,10 +504,10 @@ fn math_function(function: ArrayFunction) -> Option<MathFunction> {
 
 fn float_math<T: Element>(
     function: ArrayFunction,
-    args: &[Value],
+    args: &mut [Value],
     charge: &mut Charge<'_>,
 ) -> Result<Value, ArrayError> {
-    let array = array_arg(args, 0)?;
+    array_arg(args, 0)?;
     let exponent = if function == ArrayFunction::Pow {
         float_arg(args, 1)?
     } else {
@@ -375,7 +515,7 @@ fn float_math<T: Element>(
     };
     let math = math_function(function);
     let name = function.op_name();
-    map(array, charge, name, |x: T| {
+    map_owned(args, charge, name, |x: T| {
         let x = x.to_f64();
         let result = match math {
             Some(math) => crate::apply_math(math, x, exponent)
@@ -1043,10 +1183,10 @@ pub fn apply(
     match function {
         Add | Sub | Mul | Div | Minimum | Maximum | AddScalar | SubScalar | MulScalar
         | DivScalar => with_numeric!(element, T => arithmetic::<T>(function, args, charge)),
-        Neg => with_numeric!(element, T => map(array_arg(args, 0)?, charge, "array_neg", |x: T| {
+        Neg => with_numeric!(element, T => map_owned(args, charge, "array_neg", |x: T| {
             Numeric::neg(x).map_err(|code| (code, String::new()))
         })),
-        Abs => with_numeric!(element, T => map(array_arg(args, 0)?, charge, "array_abs", |x: T| {
+        Abs => with_numeric!(element, T => map_owned(args, charge, "array_abs", |x: T| {
             Numeric::abs(x).map_err(|code| (code, String::new()))
         })),
         Clip => with_numeric!(element, T => {
@@ -1054,7 +1194,7 @@ pub fn apply(
             if low > high {
                 return error("R_ARRAY_SHAPE", "array_clip needs low <= high");
             }
-            map(array_arg(args, 0)?, charge, "array_clip", |x: T| {
+            map_owned(args, charge, "array_clip", |x: T| {
                 Ok(if x < low { low } else if x > high { high } else { x })
             })
         }),
