@@ -1,0 +1,9 @@
+fn main() -> Unit:
+    let n = 1000000
+    let a = array_f64_linspace(0.0, 1.0, n)
+    var total = 0.0
+    var i = 0
+    while i < n:
+        set total = total + array_get(a, i)
+        set i = i + 1
+    print(total)

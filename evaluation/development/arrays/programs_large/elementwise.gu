@@ -1,0 +1,11 @@
+fn main() -> Unit:
+    let n = 10000000
+    let a = array_f64_linspace(0.0, 1.0, n)
+    let b = array_f64_linspace(1.0, 2.0, n)
+    let c = array_f64_linspace(2.0, 3.0, n)
+    var r = c
+    var i = 0
+    while i < 5:
+        set r = array_add(array_mul(a, b), c)
+        set i = i + 1
+    print(array_sum(r))
