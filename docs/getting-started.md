@@ -1,10 +1,10 @@
 # Getting started
 
-Guion is in pre-release development. The second preview build, v0.1.0-preview.2, is downloadable from the project's GitHub releases.
+Guion 0.2.0 is downloadable from the project's GitHub releases. It is the first release that is not a preview, and it is still pre-1.0: the [stability policy](stability-policy.md) says what you can rely on between releases and what you cannot.
 
 ## Install a prebuilt package
 
-Prebuilt packages are on the project's [GitHub releases](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2). The `v0.1.0-preview.2` release has packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`), and for macOS on Apple Silicon (`guion-macos-aarch64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
+Prebuilt packages are on the project's [GitHub releases](https://github.com/rmichaelthomas/guion/releases/tag/v0.2.0). The `v0.2.0` release has packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`), and for macOS on Apple Silicon (`guion-macos-aarch64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
 
 ```sh
 sha256sum -c guion-debian-aarch64.tar.gz.sha256
@@ -71,4 +71,4 @@ For the optional Python bridge, the CLI must be built with the `python-interop` 
 - `guion doctor` reports the current host and enabled profile in human-readable form. `guion doctor --json` emits the versioned report for the active build profile; the [agent index](agents/index.json) lists both report shapes.
 - Use `guion package PROJECT --output DIRECTORY` to create a current-host application bundle.
 
-The CLI command list and behavior are in the [reference](reference.md). Releases are still previews, so these commands may change before a stable release.
+The CLI command list and behavior are in the [reference](reference.md). Guion is pre-1.0, so these commands may change in a minor release; the [stability policy](stability-policy.md) lists what is promised.

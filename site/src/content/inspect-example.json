@@ -1,11 +1,11 @@
 {
   "command": "guion inspect --json main.gu",
-  "guionVersion": "guion 0.1.0 (artifact format 61, timezone data 2026c)",
+  "guionVersion": "guion 0.2.0 (artifact format 64, timezone data 2026c)",
   "program": "fn main() -> Int:\n    let args_list = args()\n    let headers: Map[Text, Text] = {}\n    match read_text(\"notes.txt\"):\n        Ok(text):\n            print(text)\n        Err(problem):\n            print(file_error_code(problem))\n    match http_request_bytes(\"GET\", args_list[0], headers, bytes_from_text(\"\"), 1000):\n        Ok(response):\n            print(\"fetched\")\n        Err(problem):\n            print(http_error_code(problem))\n    return 0\n",
   "manifest": "[project]\nname = \"notes\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = [\"api.example.test\"]\n",
   "report": {
     "analysis_scope": "reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations",
-    "artifact_format": 61,
+    "artifact_format": 64,
     "capability_claim": "static_bytecode_reachability_not_sandbox",
     "clock_grant": {
       "grant_model": "wall-clock reads are denied unless explicitly enabled",

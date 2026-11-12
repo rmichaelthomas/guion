@@ -27,7 +27,7 @@
 
 Guion (say GUY-on) is a programming language for everyday work: scripts, command-line tools, data processing, web requests, and full applications. It aims to be easy to read, hard to get wrong, and fast to run.
 
-Guion is early. The second preview build is out for Linux and macOS, and the language is changing quickly. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
+Guion is young. Version 0.2.0 is out for Linux and macOS: it is the first release that is not a preview, with a written [stability policy](docs/stability-policy.md) for what stays compatible within the 0.2 series. The language is still changing between minor releases. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
 
 ## A first look
 
@@ -75,9 +75,9 @@ You can try these examples and others [in your browser](https://rmichaelthomas.g
 
 ## Install
 
-### Linux (preview)
+### Linux
 
-Download the archive for your machine from the [v0.1.0-preview.2 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
+Download the archive for your machine from the [v0.2.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.2.0). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
 
 ```sh
 tar -xzf guion-debian-x86_64.tar.gz     # or guion-debian-aarch64.tar.gz
@@ -87,9 +87,9 @@ sh install.sh                           # installs under ~/.local; pass a path t
 
 Each archive has a matching `.sha256` checksum file. You don't need Rust or Python installed.
 
-### macOS (preview, Apple Silicon)
+### macOS (Apple Silicon)
 
-Download `guion-macos-aarch64.tar.gz` and its `.sha256` file from the [v0.1.0-preview.2 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.1.0-preview.2).
+Download `guion-macos-aarch64.tar.gz` and its `.sha256` file from the [v0.2.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.2.0).
 
 ```sh
 shasum -a 256 -c guion-macos-aarch64.tar.gz.sha256
@@ -98,7 +98,7 @@ cd guion-macos-aarch64
 sh install.sh                           # installs under ~/.local; pass a path to choose another place
 ```
 
-The Mac build is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning. The first launch checks with Apple, so it needs an internet connection.
+The Mac build is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning. The first launch checks with Apple, so it needs an internet connection (a bare command-line binary cannot carry the notarization ticket with it).
 
 ### Other systems
 
@@ -138,9 +138,9 @@ Earlier tests on a Mac found Guion 2.7× faster on the Richards benchmark and fa
 
 Python is mature and widely used. Here is where it's still ahead of Guion today:
 
-- **Libraries and packages.** Guion ships 27 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text, time, random and regex, plus a package manager and a package registry with a signed log. Nothing has been published to the registry yet.
-- **Arrays and data science.** Guion has no native array type yet, so NumPy and pandas have no Guion counterpart.
-- **A stable release.** The current build is a preview for Linux and Apple Silicon Macs, with no stability promise yet.
+- **Libraries and packages.** Guion ships 27 standard-library modules, including JSON, CSV, TOML, SQLite, HTTP, files, text, time, random and regex, plus a package manager and a package registry with a signed log. The registry is live, with `frames` 0.1.0 as its first package (`guion add frames`).
+- **Arrays and data science.** Guion has native n-dimensional arrays and a first-party `frames` data-frame library, but both are young. In the committed reports on one Apple M1 Pro, `frames` finishes five tested CSV workloads before pandas does end to end (mostly because pandas takes about 0.26 s to load). On compute alone, reading a large CSV is still about 3 times pandas, and array maths is about 1.4 to 2.3 times NumPy's ([speed report](evaluation/completion/results/2026-11-12-speed-report.md)).
+- **Long-term stability.** 0.2.0 has a written [stability policy](docs/stability-policy.md), but it is a first release with a short track record, for Linux and Apple Silicon Macs only.
 
 ## Documentation
 
