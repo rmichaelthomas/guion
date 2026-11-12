@@ -151,6 +151,7 @@ Python is mature and widely used. Here is where it's still ahead of Guion today:
 - [Architecture](docs/architecture.md)
 - [Browser WebAssembly interface](docs/browser-wasm-abi/README.md)
 - [Compatibility and migration](docs/compatibility-and-migrations.md)
+- [Stability policy](docs/stability-policy.md)
 - [Current status and all measured results](docs/status.md)
 - [Changelog](CHANGELOG.md)
 
