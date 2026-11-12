@@ -6,6 +6,7 @@ use guion_model::{
 };
 
 use crate::array::{float_value, with_element, ArrayError, Charge, Element, Release};
+use crate::matmul;
 
 fn error<T>(code: &'static str, message: impl Into<String>) -> Result<T, ArrayError> {
     Err((code, message.into()))
@@ -951,8 +952,6 @@ fn dot<T: Element>(args: &[Value]) -> Result<Value, ArrayError> {
     )
 }
 
-const MATMUL_BLOCK: usize = 64;
-
 fn matmul<T: Element>(
     args: &[Value],
     charge: &mut Charge<'_>,
@@ -1029,26 +1028,21 @@ fn matmul<T: Element>(
     let left: Vec<f64> = x.iter().map(|item| item.to_f64()).collect();
     let right: Vec<f64> = y.iter().map(|item| item.to_f64()).collect();
     let mut acc = vec![0.0f64; n * m];
-    for i0 in (0..n).step_by(MATMUL_BLOCK) {
-        for p0 in (0..k).step_by(MATMUL_BLOCK) {
-            for j0 in (0..m).step_by(MATMUL_BLOCK) {
-                let (i1, p1, j1) = (
-                    (i0 + MATMUL_BLOCK).min(n),
-                    (p0 + MATMUL_BLOCK).min(k),
-                    (j0 + MATMUL_BLOCK).min(m),
-                );
-                for i in i0..i1 {
-                    for p in p0..p1 {
-                        let scale = left[i * k + p];
-                        let row = &mut acc[i * m + j0..i * m + j1];
-                        let column = &right[p * m + j0..p * m + j1];
-                        for (cell, value) in row.iter_mut().zip(column) {
-                            *cell += scale * value;
-                        }
-                    }
+    if n == 1 || m == 1 {
+        // A single row or column cannot fill a register tile; sum each element in order of k.
+        for i in 0..n {
+            for p in 0..k {
+                let scale = left[i * k + p];
+                for (cell, value) in acc[i * m..(i + 1) * m].iter_mut().zip(&right[p * m..]) {
+                    *cell += scale * value;
                 }
             }
         }
+    } else {
+        let dims = (n, k, m);
+        let threads = matmul::threads_for(dims);
+        hold(charge, held, matmul::scratch_bytes(dims, threads))?;
+        matmul::matmul_f64(&left, &right, &mut acc, dims, threads, matmul::native_isa());
     }
     let mut out = Vec::with_capacity(n * m);
     for (index, value) in acc.into_iter().enumerate() {
@@ -1734,6 +1728,37 @@ mod budget_tests {
                 "a failed matmul leaves only its output charge"
             );
         }
+    }
+
+    #[test]
+    fn matmul_packing_buffers_are_charged_and_released() {
+        let (a, b) = (
+            array(ElementType::F64, vec![16, 16], |i| i as i64 % 7),
+            array(ElementType::F64, vec![16, 16], |i| i as i64 % 5),
+        );
+        let output = array_bytes(ElementType::F64, 2, 256);
+        // Holds the output, both float copies and the accumulator, but not the packed panels.
+        let copies = output + 3 * 256 * 8;
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Matmul,
+            ElementType::F64,
+            vec![a.clone(), b.clone()],
+            copies,
+            &used,
+        );
+        assert_limit(result, "matmul packing buffers");
+        assert_eq!(used.get(), output, "a failed matmul leaves only its output");
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Matmul,
+            ElementType::F64,
+            vec![a, b],
+            1 << 30,
+            &used,
+        );
+        assert!(result.is_ok());
+        assert_eq!(used.get(), output, "packing buffers are released");
     }
 
     #[test]

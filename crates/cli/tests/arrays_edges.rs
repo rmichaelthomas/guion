@@ -184,3 +184,39 @@ fn a_rejected_argument_value_raises_array_argument() {
         assert!(stderr.contains("R_ARRAY_ARGUMENT"), "{call}: {stderr}");
     }
 }
+
+// Shapes that are not tile multiples, 2-D by 1-D, and an overflowing product.
+#[test]
+fn matmul_handles_awkward_shapes_and_nonfinite_results() {
+    let linspace = |start: f64, stop: f64, len: usize, index: usize| {
+        start + (stop - start) * index as f64 / (len - 1) as f64
+    };
+    for (n, k, m) in [(1, 2, 2), (1, 9, 7), (9, 7, 1), (7, 13, 5), (65, 70, 67)] {
+        let source = format!(
+            "let a = array_reshape(array_f64_linspace(0.0, 1.0, {}), [{n}, {k}])\nlet b = array_reshape(array_f64_linspace(1.0, 2.0, {}), [{k}, {m}])\nprint(array_shape(array_matmul(a, b)))\nprint(array_sum(array_matmul(a, b)))",
+            n * k,
+            k * m
+        );
+        let (ok, stdout, stderr) = run("matmul-shape", &source);
+        assert!(ok, "{n}x{k}x{m}: {stderr}");
+        let mut want = 0.0f64;
+        for i in 0..n {
+            for j in 0..m {
+                for p in 0..k {
+                    want +=
+                        linspace(0.0, 1.0, n * k, i * k + p) * linspace(1.0, 2.0, k * m, p * m + j);
+                }
+            }
+        }
+        let got: f64 = stdout.lines().last().unwrap().trim().parse().unwrap();
+        assert!(
+            (got - want).abs() <= 1e-9 * want,
+            "{n}x{k}x{m}: {got} vs {want}"
+        );
+    }
+    fails_with(
+        "matmul-f64-overflow",
+        "let a = array_reshape(array_f64_linspace(1.0e200, 2.0e200, 4096), [64, 64])\nprint(array_matmul(a, a))",
+        "R_FLOAT_NONFINITE",
+    );
+}

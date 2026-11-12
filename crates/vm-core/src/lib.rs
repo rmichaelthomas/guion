@@ -25,6 +25,7 @@ use std::{
 
 pub mod array;
 mod array_compute;
+mod matmul;
 mod register;
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
