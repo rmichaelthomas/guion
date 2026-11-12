@@ -42,4 +42,4 @@ For an existing project, first keep a backup of its source, manifest, lock files
 
 ## Package and installation behavior
 
-`guion package PROJECT --output DIRECTORY` builds a current-host application bundle. `guion verify-package DIRECTORY` checks its recorded hashes. `guion install DIRECTORY [--prefix PATH]` installs a verified bundle under the chosen prefix, defaulting to `~/.local`; it does not edit shell startup files. The current release candidate has not been publicly published, so these commands are development interfaces, not a public installation channel.
+`guion package PROJECT --output DIRECTORY` builds a current-host application bundle. `guion verify-package DIRECTORY` checks its recorded hashes. `guion install DIRECTORY [--prefix PATH]` installs a verified bundle under the chosen prefix, defaulting to `~/.local`; it does not edit shell startup files. Guion 0.2.0 is published on the project's GitHub releases with Linux and Apple Silicon macOS archives; these commands are what each archive's `install.sh` uses, and the [stability policy](stability-policy.md) says what is promised about them.
