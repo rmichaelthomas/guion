@@ -1,6 +1,6 @@
 # Compatibility and migration
 
-Guion is pre-1.0. Source syntax, public APIs, bytecode, and package metadata may change before 1.0; there is no long-term compatibility promise yet.
+Guion is pre-1.0. Source syntax, public APIs, bytecode, and package metadata may change before 1.0; there is no long-term compatibility promise yet. What is promised within a release series, and how deprecation works, is in the [stability policy](stability-policy.md).
 
 ## Current Guion names
 

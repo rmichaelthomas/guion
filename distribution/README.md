@@ -21,6 +21,7 @@ To run directly from the extracted archive, use `./bin/guion`. For example:
 - [Language reference](docs/reference.md) and [language contract](language/spec.md)
 - [Architecture](docs/architecture.md)
 - [Compatibility and migrations](docs/compatibility-and-migrations.md)
+- [Stability policy](docs/stability-policy.md)
 - [Current status and evidence](docs/status.md)
 - [Self-hosted compiler](docs/self-hosted-compiler.md)
 
