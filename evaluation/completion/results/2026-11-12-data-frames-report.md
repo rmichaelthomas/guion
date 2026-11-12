@@ -44,8 +44,10 @@ So for a short script on a small file Guion finishes first (pandas' import alone
 
 ## Limits found
 
-- **CSV reading is about 45× slower than pandas.** Splitting records is native (`csv_next` iterates 1M rows in about 0.35 s), but turning fields into columns runs as guest code: one VM loop per value to parse and append, plus copying each field into a per-column list. A native columnar parse (a kernel that turns a list of field texts into a typed array plus a missing-value mask, and a text factorize) would remove most of it. That is a new core builtin surface beyond the one the design pre-approved (`text_factorize`), so it is left for the owner to decide.
-- **A call inside a large guest loop can cost microseconds.** In the CSV reader, a one-line helper (`is_flag`, `chunk_rows`) called once per value or row cost about 7 µs per call and made a column ten times slower; inlining it fixed the reader (10.4 s to 2.9 s for 1M rows). Small programs with the same shape do not reproduce it, so the trigger is not yet isolated. It is a runtime performance finding, not a frames bug.
-- **File size limit.** The streaming CSV reader counts the whole file against `[runtime] max_file_bytes`, 16 MiB by default; the 35.8 MB benchmark file needs the project to raise it (the benchmark sets 1 GiB). The memory limit was also raised (4 GiB) for headroom; peak RSS reading the file was about 175 MB.
+The first three limits below were fixed by the speed batch; measurements are in [the speed report](2026-11-12-speed-report.md).
+
+- ~~**CSV reading is about 45× slower than pandas.**~~ Fixed: a native `csv_read_columns` builtin reads 1M rows in about 0.2 s, under pandas end to end.
+- ~~**A call inside a large guest loop can cost microseconds.**~~ Fixed: the cause was a per-call rescan of the program for constants; a call now costs about 0.2 µs.
+- ~~**File size limit.**~~ Fixed: streaming CSV and line readers no longer count the file against `max_file_bytes`, and the allocation-limit error names the setting to raise.
 - **JSONL column order** follows the first object's keys as its JSON text lists them, which is sorted: no builtin enumerates an object's keys in file order.
 - **Not provided:** dates and times, pivot and melt, rolling windows, string methods, Parquet and Arrow, and publishing `frames` to the registry.

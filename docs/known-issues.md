@@ -23,5 +23,6 @@ This list covers open problems only. Each row has a status and the batch that wi
 | 17 | Very large and very small floats are written in full decimal form. | open | Batch 2 |
 | 18 | JSONL keys first seen after line 1 are dropped. | open | Batch 2 |
 | 19 | `array_mean_by` is not used by `frames`, and `group.gu` has an unused local. | open | Batch 2 |
+| 20 | Filtering a 1M-row frame after the read takes about 10 ms, 2 to 4 times pandas (measured in the speed report; the pandas part is within the noise of the method). | open | Batch 2 |
 
-Batch 1 covers items 1, 2, 4, 5, 6 and 13. Batch 2 covers items 7 to 12 and 14 to 19. Batch 3 covers item 3.
+Batch 1 covers items 1, 2, 4, 5, 6 and 13. Batch 2 covers items 7 to 12 and 14 to 20. Batch 3 covers item 3.

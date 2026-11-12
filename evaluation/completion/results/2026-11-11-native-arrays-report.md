@@ -72,8 +72,10 @@ Two smaller ones were fixed at the same time: an empty float `array_sum` or `arr
 
 ## Limits found
 
+Limits fixed by the speed batch are struck through; see [the speed report](2026-11-12-speed-report.md).
+
 - **Memory limit.** The 10M-element `a*b+c` run needs about 486 MB (peak RSS), more than the 256 MiB default `allocation_limit_bytes`, and fails with `R_ALLOCATION_LIMIT` unless the project raises it. The large benchmark set raises it to 2 GiB in its `guion.toml`. NumPy has no such limit.
-- **Elementwise kernels** are about twice NumPy's cost per element. Each operation allocates a fresh result and checks every float result for finiteness; there is no fused or in-place form.
+- ~~**Elementwise kernels** are about twice NumPy's cost per element.~~ Fixed: kernels reuse unshared buffers, `set a = array_fn(a, ...)` updates in place and finiteness is checked without branching; `a*b+c` is about 1.4 times NumPy compute.
 - **Matrix multiplication** has no BLAS.
-- **Self-hosted compiler** emits plain `ArraySet` rather than the in-place `ArraySetLocal`, as it already does for `list_set`. Programs it compiles produce the same output, but an `array_set` loop copies on each pass.
+- ~~**Self-hosted compiler** emits plain `ArraySet` rather than the in-place `ArraySetLocal`.~~ Fixed: it now emits `ArraySetLocal`.
 - Not provided: strided views, fancy indexing, complex numbers, operator syntax on arrays, and the Python bridge for arrays.
