@@ -328,6 +328,19 @@ macro_rules! array_functions {
         impl ArrayFunction {
             pub const ALL: &'static [ArrayFunction] = &[$(ArrayFunction::$variant),*];
 
+            /// The guest builtin name for a compute function, e.g. `array_add_scalar` for
+            /// `AddScalar`; error messages use it so they match what the program wrote.
+            pub fn guest_name(self) -> String {
+                let mut name = String::from("array_");
+                for (index, ch) in self.op_name()["Array".len()..].chars().enumerate() {
+                    if ch.is_ascii_uppercase() && index > 0 {
+                        name.push('_');
+                    }
+                    name.push(ch.to_ascii_lowercase());
+                }
+                name
+            }
+
             /// The instruction name used by builtin catalogs and the textual bytecode form.
             pub fn op_name(self) -> &'static str {
                 match self {

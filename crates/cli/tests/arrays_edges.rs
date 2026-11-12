@@ -158,3 +158,29 @@ fn i64_range_with_extreme_operands_never_panics() {
     assert!(ok, "{stderr}");
     assert!(stdout.contains("9223372036854775807"), "{stdout}");
 }
+
+#[test]
+fn array_errors_name_the_guest_function_not_the_instruction() {
+    let (ok, _, stderr) = run(
+        "guest-name",
+        "print(array_add(array_u8([200]), array_u8([100])))",
+    );
+    assert!(!ok);
+    assert!(stderr.contains("array_add overflows u8"), "{stderr}");
+    assert!(!stderr.contains("ArrayAdd"), "{stderr}");
+    let (ok, _, stderr) = run("guest-name-sum", "print(array_min(array_i32_zeros([0])))");
+    assert!(!ok);
+    assert!(stderr.contains("array_min of an empty array"), "{stderr}");
+}
+
+#[test]
+fn a_rejected_argument_value_raises_array_argument() {
+    for (name, call) in [
+        ("clip", "array_clip(array_i32([1, 2]), 5, 1)"),
+        ("range", "array_i64_range(0, 10, 0)"),
+    ] {
+        let (ok, _, stderr) = run(&format!("argument-{name}"), &format!("print({call})"));
+        assert!(!ok);
+        assert!(stderr.contains("R_ARRAY_ARGUMENT"), "{call}: {stderr}");
+    }
+}

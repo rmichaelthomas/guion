@@ -473,7 +473,7 @@ fn arithmetic<T: Numeric>(
         AddScalar | SubScalar | MulScalar | DivScalar => Some(scalar_array::<T>(&args[1])?),
         _ => None,
     };
-    let name = function.op_name();
+    let name = &function.guest_name();
     match function {
         Add | AddScalar => zip_numeric(args, scalar, charge, name, T::add_raw),
         Sub | SubScalar => zip_numeric(args, scalar, charge, name, T::sub_raw),
@@ -504,7 +504,7 @@ fn compare<T: Element>(
         }
         _ => array_arg(args, 1)?,
     };
-    let name = function.op_name();
+    let name = &function.guest_name();
     let test: fn(&T, &T) -> bool = match function {
         Eq | EqScalar => |x, y| x == y,
         Ne | NeScalar => |x, y| x != y,
@@ -553,7 +553,7 @@ fn float_math<T: Element>(
         0.0
     };
     let math = math_function(function);
-    let name = function.op_name();
+    let name = &function.guest_name();
     map_owned(args, charge, name, |x: T| {
         let x = x.to_f64();
         let result = match math {
@@ -711,7 +711,7 @@ fn reduce<T: Element>(function: ArrayFunction, args: &[Value]) -> Result<Value, 
     use ArrayFunction::*;
     let array = array_arg(args, 0)?;
     let items = T::items(&array.data);
-    let name = function.op_name();
+    let name = &function.guest_name();
     match function {
         Sum if T::TYPE.is_integer() => {
             let mut sum = ExactSum::default();
@@ -819,7 +819,7 @@ fn reduce_axis<T: Numeric>(
     let (outer, extent, inner, shape) = axis_parts(array, int_arg(args, 1)?)?;
     let items = T::items(&array.data);
     let size = outer * inner;
-    let name = function.op_name();
+    let name = &function.guest_name();
     if extent == 0 && size > 0 && function != SumAxis {
         return Err(empty_error(name));
     }
@@ -881,7 +881,7 @@ fn order<T: Numeric>(
     use ArrayFunction::*;
     let array = array_arg(args, 0)?;
     let items = T::items(&array.data);
-    let name = function.op_name();
+    let name = &function.guest_name();
     if function == Cumsum {
         charge(array_bytes(T::TYPE, 1, items.len()))?;
         let mut out = Vec::with_capacity(items.len());
@@ -1070,7 +1070,7 @@ fn generate(
         Range => {
             let (start, stop, step) = (int_arg(args, 0)?, int_arg(args, 1)?, int_arg(args, 2)?);
             if step == 0 {
-                return error("R_ARRAY_SHAPE", "array_i64_range step must not be 0");
+                return error("R_ARRAY_ARGUMENT", "array_i64_range step must not be 0");
             }
             let overflow = || {
                 (
@@ -1268,7 +1268,7 @@ fn apply_kernel(
             "R_TYPE_INVALID",
             format!(
                 "{} does not accept {} arrays",
-                function.op_name(),
+                function.guest_name(),
                 element.name()
             ),
         );
@@ -1285,7 +1285,7 @@ fn apply_kernel(
         Clip => with_numeric!(element, T => {
             let (low, high) = (T::from_value(&args[1])?, T::from_value(&args[2])?);
             if low > high {
-                return error("R_ARRAY_SHAPE", "array_clip needs low <= high");
+                return error("R_ARRAY_ARGUMENT", "array_clip needs low <= high");
             }
             map_owned(args, charge, "array_clip", |x: T| {
                 Ok(if x < low { low } else if x > high { high } else { x })
@@ -1321,7 +1321,7 @@ fn apply_kernel(
         JoinIndex => join_index(args, charge, held),
         _ => error(
             "R_TYPE_INVALID",
-            format!("{} is not a compute instruction", function.op_name()),
+            format!("{} is not a compute instruction", function.guest_name()),
         ),
     }
 }
