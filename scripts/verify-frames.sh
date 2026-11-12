@@ -23,6 +23,7 @@ step() { # name command...
   fi
 }
 
+step "formatting" cargo fmt --all -- --check
 step "release binary builds" cargo build --release --locked --offline -p guion-cli
 step "model: format-63 gating" cargo test --locked --offline -p guion-model --test arrays
 step "kernels: take, factorize, by-group, join" cargo test --locked --offline -p guion-cli --test frames_kernels

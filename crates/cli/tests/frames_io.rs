@@ -42,8 +42,15 @@ fn app(name: &str, files: &[(&str, &str)], body: &str) -> App {
     }
     std::fs::write(dir.join("src/main.gu"), source).unwrap();
     let package = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/frames");
-    let added = guion(&dir, &["add", "frames", "--path", package.to_str().unwrap()]);
-    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let added = guion(
+        &dir,
+        &["add", "frames", "--path", package.to_str().unwrap()],
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
     App(dir)
 }
 
@@ -87,12 +94,17 @@ fn csv_errors_name_the_line_and_column() {
     );
     let out = stdout(&app);
     let lines: Vec<&str> = out.lines().collect();
-    assert!(lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 3"), "{out}");
+    assert!(
+        lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 3"),
+        "{out}"
+    );
     assert!(lines[1].starts_with("E_FRAME_PARSE"), "{out}");
     assert!(lines[2].starts_with("E_FRAME_COLUMN"), "{out}");
     assert!(lines[3].starts_with("R_FILE_NOT_FOUND"), "{out}");
     assert!(
-        lines[4].starts_with("E_FRAME_PARSE") && lines[4].contains("line 2") && lines[4].contains("`name`"),
+        lines[4].starts_with("E_FRAME_PARSE")
+            && lines[4].contains("line 2")
+            && lines[4].contains("`name`"),
         "{out}"
     );
     assert!(lines[5].starts_with("E_FRAME_COLUMN"), "{out}");
@@ -119,7 +131,10 @@ fn csv_round_trips_kinds_values_and_missing_values() {
         written.lines().next().unwrap(),
         "id,score,flag,name,big,mixed,blank,n"
     );
-    assert_eq!(written.lines().nth(2).unwrap(), "2,,false,bob,1.0,true,,2.5");
+    assert_eq!(
+        written.lines().nth(2).unwrap(),
+        "2,,false,bob,1.0,true,,2.5"
+    );
 }
 
 #[test]
@@ -129,7 +144,11 @@ fn many_rows_cross_reading_chunks() {
         if row == 69_999 {
             csv.push_str(&format!("{row},0.5,late\n"));
         } else {
-            csv.push_str(&format!("{row},{},{}\n", row % 7, if row % 3 == 0 { "" } else { "x" }));
+            csv.push_str(&format!(
+                "{row},{},{}\n",
+                row % 7,
+                if row % 3 == 0 { "" } else { "x" }
+            ));
         }
     }
     let app = app(
@@ -159,7 +178,10 @@ fn jsonl_columns_come_from_the_first_object() {
     assert_eq!(lines[0], "a:f64:0 b:text:1 c:f64:1 ");
     assert_eq!(lines[1], "1.0");
     assert_eq!(lines[2], "y");
-    assert!(lines[3].starts_with("E_FRAME_PARSE") && lines[3].contains("line 2"), "{out}");
+    assert!(
+        lines[3].starts_with("E_FRAME_PARSE") && lines[3].contains("line 2"),
+        "{out}"
+    );
 }
 
 #[test]
@@ -205,8 +227,14 @@ fn jsonl_line_that_is_not_an_object_is_a_parse_error() {
     );
     let out = stdout(&app);
     let lines: Vec<&str> = out.lines().collect();
-    assert!(lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 2"), "{out}");
-    assert!(lines[1].starts_with("E_FRAME_PARSE") && lines[1].contains("line 1"), "{out}");
+    assert!(
+        lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 2"),
+        "{out}"
+    );
+    assert!(
+        lines[1].starts_with("E_FRAME_PARSE") && lines[1].contains("line 1"),
+        "{out}"
+    );
 }
 
 #[test]

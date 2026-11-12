@@ -20,7 +20,8 @@ fn guion(dir: &Path, args: &[&str]) -> Output {
 }
 
 fn run(name: &str, csv: &str, body: &str) -> String {
-    let dir = std::env::temp_dir().join(format!("guion-frames-group-{name}-{}", std::process::id()));
+    let dir =
+        std::env::temp_dir().join(format!("guion-frames-group-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("src")).unwrap();
     let app = App(dir.clone());
@@ -40,8 +41,15 @@ fn run(name: &str, csv: &str, body: &str) -> String {
     }
     std::fs::write(dir.join("src/main.gu"), source).unwrap();
     let package = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/frames");
-    let added = guion(&dir, &["add", "frames", "--path", package.to_str().unwrap()]);
-    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let added = guion(
+        &dir,
+        &["add", "frames", "--path", package.to_str().unwrap()],
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
     let ran = guion(&dir, &["run", "src/main.gu"]);
     assert!(
         ran.status.success(),
@@ -133,5 +141,8 @@ fn group_rejects_bad_aggregations() {
         DATA,
         "print(code(frame_group(frame, [\"g\"], [\"x:median\"])))\nprint(code(frame_group(frame, [\"g\"], [\"g:sum\"])))\nprint(code(frame_group(frame, [\"zz\"], [\"x:sum\"])))\nprint(code(frame_group(frame, [\"g\"], [\"x\"])))",
     );
-    assert_eq!(out, "E_FRAME_KIND\nE_FRAME_KIND\nE_FRAME_COLUMN\nE_FRAME_KIND\n");
+    assert_eq!(
+        out,
+        "E_FRAME_KIND\nE_FRAME_KIND\nE_FRAME_COLUMN\nE_FRAME_KIND\n"
+    );
 }

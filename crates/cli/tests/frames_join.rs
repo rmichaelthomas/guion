@@ -41,8 +41,15 @@ fn run(name: &str, left: &str, right: &str, body: &str) -> String {
     }
     std::fs::write(dir.join("src/main.gu"), source).unwrap();
     let package = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/frames");
-    let added = guion(&dir, &["add", "frames", "--path", package.to_str().unwrap()]);
-    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    let added = guion(
+        &dir,
+        &["add", "frames", "--path", package.to_str().unwrap()],
+    );
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
     let ran = guion(&dir, &["run", "src/main.gu"]);
     assert!(
         ran.status.success(),
@@ -104,5 +111,8 @@ fn join_rejects_bad_keys() {
         "k,w\n1,2\n",
         "print(code(frame_join(left, right, [\"k\"], \"inner\")))\nprint(code(frame_join(left, right, [\"zz\"], \"inner\")))\nprint(code(frame_join(left, left, [\"k\"], \"outer\")))\nprint(code(frame_join(left, right, [], \"inner\")))",
     );
-    assert_eq!(out, "E_FRAME_KIND\nE_FRAME_COLUMN\nE_FRAME_KIND\nE_FRAME_COLUMN\n");
+    assert_eq!(
+        out,
+        "E_FRAME_KIND\nE_FRAME_COLUMN\nE_FRAME_KIND\nE_FRAME_COLUMN\n"
+    );
 }
