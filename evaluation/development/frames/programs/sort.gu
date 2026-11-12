@@ -1,0 +1,10 @@
+import "pkg:frames/src/lib.gu"
+
+fn main() -> Unit:
+    let frame = unwrap(frame_read_csv("data/rows.csv"))
+    let sorted = unwrap(frame_sort(frame, ["group", "x"], [true, false]))
+    let id = unwrap(frame_column(sorted, "id"))
+    print(unwrap(column_get_i64(id, 0)))
+    print(unwrap(column_get_i64(id, 1)))
+    print(unwrap(column_get_i64(id, 2)))
+    print(unwrap(column_get_i64(id, frame_rows(sorted) - 1)))

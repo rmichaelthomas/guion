@@ -1,0 +1,5 @@
+.venv/
+programs/data/
+programs/guion.lock
+programs/.guion/
+run.log

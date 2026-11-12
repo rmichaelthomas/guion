@@ -1,0 +1,7 @@
+import "pkg:frames/src/lib.gu"
+
+fn main() -> Unit:
+    let frame = unwrap(frame_read_csv("data/rows.csv"))
+    let kept = unwrap(frame_filter(frame, unwrap(column_compare(unwrap(frame_column(frame, "x")), ">", 0.5))))
+    print(frame_rows(kept))
+    print(column_sum(unwrap(frame_column(kept, "y"))))

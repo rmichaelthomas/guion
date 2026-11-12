@@ -1,0 +1,8 @@
+import "pkg:frames/src/lib.gu"
+
+fn main() -> Unit:
+    let frame = unwrap(frame_read_csv("data/rows.csv"))
+    let x = unwrap(frame_column(frame, "x"))
+    print(frame_rows(frame))
+    print(column_sum(x))
+    print(column_count(x))

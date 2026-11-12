@@ -132,82 +132,138 @@ fn absorb(builder: Builder, fields: List[Text], lines: List[Int]) -> Result[Buil
     var flags: List[Bool] = []
     var codes: List[Int] = []
     var valid: List[Bool] = []
+    let count = len(fields)
     var index = 0
-    while index < len(fields):
-        let field = fields[index]
-        if reread:
-            set index = index + 1
-        else:
-            if field == "":
-                set valid = list_push(valid, false)
-                if kind == "i64":
-                    set ints = list_push(ints, 0)
-                else:
-                    if kind == "f64":
-                        set floats = list_push(floats, 0.0)
-                    else:
-                        if kind == "bool":
-                            set flags = list_push(flags, false)
-                        else:
-                            set codes = list_push(codes, 0)
-                set index = index + 1
-            else:
-                var stored = false
-                if kind == "i64":
-                    let parsed = text_parse_int(field)
-                    if is_ok(parsed) and fits_i64(unwrap(parsed)):
-                        set ints = list_push(ints, unwrap(parsed))
-                        set stored = true
-                else:
-                    if kind == "f64":
-                        let parsed = text_parse_float(field)
-                        if is_ok(parsed):
-                            set floats = list_push(floats, unwrap(parsed))
-                            set stored = true
-                    else:
-                        if kind == "bool":
-                            if is_flag(field):
-                                set flags = list_push(flags, field == "true")
-                                set stored = true
-                        else:
-                            match map_get(seen, field):
-                                Some(code):
-                                    set codes = list_push(codes, code)
-                                None:
-                                    set seen = map_set(seen, field, len(dictionary))
-                                    set codes = list_push(codes, len(dictionary))
-                                    set dictionary = list_push(dictionary, field)
-                            set stored = true
-                if stored:
-                    set valid = list_push(valid, true)
-                    set present = present + 1
+    while index < count:
+        if not reread and kind == "f64":
+            var running = true
+            while running and index < count:
+                let item = fields[index]
+                if item == "":
+                    set floats = list_push(floats, 0.0)
+                    set valid = list_push(valid, false)
                     set index = index + 1
                 else:
-                    if builder.fixed:
-                        return Err(parse_error(lines[index], builder.name, "`" + field + "` is not " + kind))
-                    let wanted = kind_of(field)
-                    if present == 0:
-                        # Every earlier value was missing: restart in the new kind, zero-filled.
-                        if wanted == "f64":
-                            set float_chunks = zero_chunks_f64(builder.valid)
-                            set floats = ints_as_floats(zeros_i64(len(valid)))
-                        else:
-                            if wanted == "bool":
-                                set flag_chunks = zero_chunks_bool(builder.valid)
-                                set flags = zeros_bool(len(valid))
-                            else:
-                                set code_chunks = zero_chunks_i64(builder.valid)
-                                set codes = zeros_i64(len(valid))
-                        set kind = wanted
+                    let parsed = text_parse_float(item)
+                    if is_ok(parsed):
+                        set floats = list_push(floats, unwrap(parsed))
+                        set valid = list_push(valid, true)
+                        set present = present + 1
+                        set index = index + 1
                     else:
-                        if kind == "i64" and (wanted == "i64" or wanted == "f64"):
-                            set float_chunks = ints_to_floats(int_chunks)
-                            set floats = ints_as_floats(ints)
-                            set kind = "f64"
+                        set running = false
+        if not reread and kind == "i64":
+            var running = true
+            while running and index < count:
+                let item = fields[index]
+                if item == "":
+                    set ints = list_push(ints, 0)
+                    set valid = list_push(valid, false)
+                    set index = index + 1
+                else:
+                    let parsed = text_parse_int(item)
+                    set running = false
+                    if is_ok(parsed):
+                        let value = unwrap(parsed)
+                        if value >= -9223372036854775808 and value <= 9223372036854775807:
+                            set ints = list_push(ints, value)
+                            set valid = list_push(valid, true)
+                            set present = present + 1
+                            set index = index + 1
+                            set running = true
+        if not reread and kind == "text":
+            var running = true
+            while running and index < count:
+                let item = fields[index]
+                if item == "":
+                    set codes = list_push(codes, 0)
+                    set valid = list_push(valid, false)
+                else:
+                    match map_get(seen, item):
+                        Some(code):
+                            set codes = list_push(codes, code)
+                        None:
+                            set seen = map_set(seen, item, len(dictionary))
+                            set codes = list_push(codes, len(dictionary))
+                            set dictionary = list_push(dictionary, item)
+                    set valid = list_push(valid, true)
+                    set present = present + 1
+                set index = index + 1
+        if index < count:
+            let field = fields[index]
+            if reread:
+                set index = index + 1
+            else:
+                if field == "":
+                    set valid = list_push(valid, false)
+                    if kind == "i64":
+                        set ints = list_push(ints, 0)
+                    else:
+                        if kind == "f64":
+                            set floats = list_push(floats, 0.0)
                         else:
-                            # Earlier values were not text; read this column again as text.
-                            set kind = "text"
-                            set reread = true
+                            if kind == "bool":
+                                set flags = list_push(flags, false)
+                            else:
+                                set codes = list_push(codes, 0)
+                    set index = index + 1
+                else:
+                    var stored = false
+                    if kind == "i64":
+                        let parsed = text_parse_int(field)
+                        if is_ok(parsed) and unwrap(parsed) >= -9223372036854775808 and unwrap(parsed) <= 9223372036854775807:
+                            set ints = list_push(ints, unwrap(parsed))
+                            set stored = true
+                    else:
+                        if kind == "f64":
+                            let parsed = text_parse_float(field)
+                            if is_ok(parsed):
+                                set floats = list_push(floats, unwrap(parsed))
+                                set stored = true
+                        else:
+                            if kind == "bool":
+                                if field == "true" or field == "false":
+                                    set flags = list_push(flags, field == "true")
+                                    set stored = true
+                            else:
+                                match map_get(seen, field):
+                                    Some(code):
+                                        set codes = list_push(codes, code)
+                                    None:
+                                        set seen = map_set(seen, field, len(dictionary))
+                                        set codes = list_push(codes, len(dictionary))
+                                        set dictionary = list_push(dictionary, field)
+                                set stored = true
+                    if stored:
+                        set valid = list_push(valid, true)
+                        set present = present + 1
+                        set index = index + 1
+                    else:
+                        if builder.fixed:
+                            return Err(parse_error(lines[index], builder.name, "`" + field + "` is not " + kind))
+                        let wanted = kind_of(field)
+                        if present == 0:
+                            # Every earlier value was missing: restart in the new kind, zero-filled.
+                            if wanted == "f64":
+                                set float_chunks = zero_chunks_f64(builder.valid)
+                                set floats = ints_as_floats(zeros_i64(len(valid)))
+                            else:
+                                if wanted == "bool":
+                                    set flag_chunks = zero_chunks_bool(builder.valid)
+                                    set flags = zeros_bool(len(valid))
+                                else:
+                                    set code_chunks = zero_chunks_i64(builder.valid)
+                                    set codes = zeros_i64(len(valid))
+                            set kind = wanted
+                        else:
+                            if kind == "i64" and (wanted == "i64" or wanted == "f64"):
+                                set float_chunks = ints_to_floats(int_chunks)
+                                set floats = ints_as_floats(ints)
+                                set kind = "f64"
+                            else:
+                                # Earlier values were not text; read this column again as text.
+                                set kind = "text"
+                                set reread = true
     let mask = array_bool(valid)
     if reread:
         return Ok(Builder(builder.name, "text", false, present, true, builder.ints, builder.floats, builder.flags, builder.codes, list_push(builder.valid, mask), seen, dictionary))
@@ -269,11 +325,12 @@ fn read_rows(path: Text, builders: List[Builder], only: List[Int]) -> Result[Lis
     let header = csv_next(reader)
     if not is_ok(header):
         return Err(file_failure(error(header), path))
+    let chunk = chunk_rows()
     var done = false
     while not done:
         var rows: List[CsvRow] = []
         var lines: List[Int] = []
-        while len(rows) < chunk_rows() and not done:
+        while len(rows) < chunk and not done:
             let next = csv_next(reader)
             if not is_ok(next):
                 return Err(file_failure(error(next), path))
