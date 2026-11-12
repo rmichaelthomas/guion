@@ -1006,7 +1006,6 @@ E_SORT_KEY
 E_SOURCE_BYTES
 E_SOURCE_IDENTITY
 E_SOURCE_READ
-E_SPAWN
 E_SQLITE_BEGIN
 E_SQLITE_CANCELLED
 E_SQLITE_CAPABILITY
@@ -1430,4 +1429,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:6b463d2b9a457a9dee645c7b343c452c5f90681dde44682a699b1f753d7df3d4. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:3072441a5874c2ebf2fb899a47df0d61b831e9cae6992dd9a5be1a1f842c20e2. Validated by `cargo xtask agent-reference --check`. -->

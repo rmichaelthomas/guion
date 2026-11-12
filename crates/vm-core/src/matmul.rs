@@ -129,13 +129,13 @@ pub(crate) fn matmul_f64(
 
 #[cfg(test)]
 thread_local! {
-    static REFUSE_SPAWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static NO_NEW_THREADS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Lets a test stand in for an operating system that refuses to start a thread.
 #[cfg(test)]
 fn refuse_spawn() -> bool {
-    REFUSE_SPAWN.with(|refuse| refuse.get())
+    NO_NEW_THREADS.with(|refuse| refuse.get())
 }
 
 #[cfg(not(test))]
@@ -417,9 +417,9 @@ mod tests {
         let (n, k, m) = (70, 300, 50);
         let (expected, _) = run(n, k, m, 1, native_isa());
         // No helper thread can be started: the calling thread does all of it.
-        REFUSE_SPAWN.with(|refuse| refuse.set(true));
+        NO_NEW_THREADS.with(|refuse| refuse.set(true));
         let (got, _) = run(n, k, m, 8, native_isa());
-        REFUSE_SPAWN.with(|refuse| refuse.set(false));
+        NO_NEW_THREADS.with(|refuse| refuse.set(false));
         assert_eq!(got, expected);
     }
 
