@@ -121,12 +121,10 @@ fn aggregate(column: Column, how: Text, name: Text, codes: Array[i64], groups: I
             set values = array_filter(values, column_valid(column))
         if how == "sum":
             return Ok(column_from_i64(name, array_sum_by(values, present_codes, groups), no_mask()))
-        if how == "mean":
-            let sums = array_sum_by(array_to_f64(values), present_codes, groups)
-            let means = array_div(sums, array_to_f64(array_maximum(counts, array_i64_full([groups], 1))))
-            return Ok(column_from_f64(name, means, filled))
         let padded_values = array_concat([values, array_i64_zeros([array_size(empty)])])
         let padded_codes = array_concat([present_codes, empty])
+        if how == "mean":
+            return Ok(column_from_f64(name, array_mean_by(padded_values, padded_codes, groups), filled))
         if how == "min":
             return Ok(column_from_i64(name, array_min_by(padded_values, padded_codes, groups), filled))
         if how == "max":
@@ -137,12 +135,10 @@ fn aggregate(column: Column, how: Text, name: Text, codes: Array[i64], groups: I
         set values = array_filter(values, column_valid(column))
     if how == "sum":
         return Ok(column_from_f64(name, array_sum_by(values, present_codes, groups), no_mask()))
-    if how == "mean":
-        let sums = array_sum_by(values, present_codes, groups)
-        let means = array_div(sums, array_to_f64(array_maximum(counts, array_i64_full([groups], 1))))
-        return Ok(column_from_f64(name, means, filled))
     let padded_values = array_concat([values, array_f64_zeros([array_size(empty)])])
     let padded_codes = array_concat([present_codes, empty])
+    if how == "mean":
+        return Ok(column_from_f64(name, array_mean_by(padded_values, padded_codes, groups), filled))
     if how == "min":
         return Ok(column_from_f64(name, array_min_by(padded_values, padded_codes, groups), filled))
     if how == "max":
@@ -164,7 +160,6 @@ pub fn frame_group(frame: Frame, keys: List[Text], aggregations: List[Text]) -> 
         let how = text_slice(spec, colon + 1, len(spec))
         if how != "sum" and how != "mean" and how != "min" and how != "max" and how != "count":
             return Err(bad_aggregation(spec, "is not one of sum, mean, min, max, count"))
-        let checked = frame_column(frame, name)?
         set specs = list_push(specs, [name, how])
     let codes = frame_group_codes(frame, keys)?
     let groups = group_total(codes)

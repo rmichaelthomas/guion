@@ -8,6 +8,7 @@
 
 use super::resources::{io_error, read_csv_record, ReaderError, ReaderErrorKind, ReaderResource};
 use std::{
+    cell::Cell,
     collections::{BTreeMap, HashSet},
     fs::File,
     hash::BuildHasher,
@@ -566,9 +567,11 @@ fn open(path: &Path, max_record_bytes: usize) -> Result<ReaderResource, ColumnsE
 }
 
 /// Calls `each` with the line, the text and the fields of every record that is not a blank
-/// line, in order.
+/// line, in order. While `blank_is_value` is set (the header has one column), a blank line is
+/// the single empty field of a record instead of being skipped.
 fn for_each_record(
     resource: &mut ReaderResource,
+    blank_is_value: &Cell<bool>,
     mut each: impl FnMut(usize, &str, &[Span]) -> Result<(), ColumnsError>,
 ) -> Result<(), ColumnsError> {
     let mut spans: Vec<Span> = Vec::new();
@@ -595,7 +598,7 @@ fn for_each_record(
                 let text = text.strip_suffix(b"\r").unwrap_or(text);
                 if memchr::memchr2(b'"', b'\r', text).is_none() {
                     if let Ok(text) = std::str::from_utf8(text) {
-                        if !text.is_empty() {
+                        if !text.is_empty() || blank_is_value.get() {
                             spans.clear();
                             let mut start = 0;
                             for comma in memchr::memchr_iter(b',', text.as_bytes()) {
@@ -631,6 +634,15 @@ fn for_each_record(
             }
         }
         if record.is_empty() {
+            if blank_is_value.get() {
+                spans.clear();
+                spans.push(Span {
+                    start: 0,
+                    end: 0,
+                    quoted: false,
+                });
+                each(line, "", &spans)?;
+            }
             continue;
         }
         let text = std::str::from_utf8(&record).map_err(|error| ColumnsError::Malformed {
@@ -784,9 +796,11 @@ fn read_passes(
     // The read buffer, a record buffer of the largest size seen, and the field scratch space.
     let mut buffers = BUFFER_BYTES;
     settler.settle(&builders, buffers)?;
-    for_each_record(&mut resource, |line, text, spans| {
+    let one_column = Cell::new(false);
+    for_each_record(&mut resource, &one_column, |line, text, spans| {
         if !header_seen {
             header_seen = true;
+            one_column.set(spans.len() == 1);
             let names: Vec<&str> = spans
                 .iter()
                 .map(|span| &text[span.start..span.end])
@@ -896,9 +910,11 @@ fn read_passes(
             bytes: 0,
         };
         let mut again_records = 0usize;
-        for_each_record(&mut resource, |line, text, spans| {
+        let one_column = Cell::new(false);
+        for_each_record(&mut resource, &one_column, |line, text, spans| {
             if !header_seen {
                 header_seen = true;
+                one_column.set(spans.len() == 1);
                 let same = spans.len() == names.len()
                     && spans
                         .iter()

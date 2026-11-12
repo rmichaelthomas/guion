@@ -164,7 +164,7 @@ fn many_rows_cross_reading_chunks() {
 }
 
 #[test]
-fn jsonl_columns_come_from_the_first_object() {
+fn jsonl_columns_are_the_keys_of_every_object() {
     let app = app(
         "jsonl",
         &[(
@@ -175,7 +175,7 @@ fn jsonl_columns_come_from_the_first_object() {
     );
     let out = stdout(&app);
     let lines: Vec<&str> = out.lines().collect();
-    assert_eq!(lines[0], "a:f64:0 b:text:1 c:f64:1 ");
+    assert_eq!(lines[0], "a:f64:0 b:text:1 c:f64:1 d:bool:2 ");
     assert_eq!(lines[1], "1.0");
     assert_eq!(lines[2], "y");
     assert!(
@@ -238,13 +238,13 @@ fn jsonl_line_that_is_not_an_object_is_a_parse_error() {
 }
 
 #[test]
-fn csv_blank_lines_are_skipped() {
+fn csv_blank_lines_are_skipped_except_in_a_one_column_file() {
     let app = app(
         "blank",
         &[("wide.csv", "a,b\n1,2\n\n3,4\n\n"), ("narrow.csv", "a\n1\n\n2\n")],
-        "print(frame_rows(unwrap(frame_read_csv(\"wide.csv\"))))\nprint(kinds(unwrap(frame_read_csv(\"narrow.csv\"))))",
+        "print(frame_rows(unwrap(frame_read_csv(\"wide.csv\"))))\nprint(frame_rows(unwrap(frame_read_csv(\"narrow.csv\"))))",
     );
-    assert_eq!(stdout(&app), "2\na:i64:0 \n");
+    assert_eq!(stdout(&app), "2\n3\n");
 }
 
 #[test]
@@ -286,4 +286,66 @@ fn csv_reads_files_above_a_small_max_file_bytes() {
     std::fs::write(&manifest, toml).unwrap();
     assert!(csv.len() > 4096);
     assert_eq!(stdout(&app), "2000\n1999000\n");
+}
+
+#[test]
+fn show_aligns_wide_characters_by_display_width() {
+    let app = app(
+        "show-width",
+        &[],
+        "let frame = unwrap(frame_new([column_text(\"t\", [\"日本\", \"ab\", \"e\\u{301}\", \"a\\nb\", \"c\\td\"]), column_i64(\"n\", [1, 2, 3, 4, 5])]))\nprint(frame_show(frame, 10))",
+    );
+    assert_eq!(
+        stdout(&app),
+        concat!(
+            "t     n\n",
+            "日本  1\n",
+            "ab    2\n",
+            "e\u{301}     3\n",
+            "a\\nb  4\n",
+            "c\\td  5\n",
+            "[5 rows x 2 columns]\n",
+        )
+    );
+}
+
+#[test]
+fn csv_writes_extreme_floats_in_exponent_form_that_reads_back() {
+    let app = app(
+        "exponent",
+        &[],
+        "let values = [1e20, 1.5e-7, 0.0, 1e16, 0.0001, 0.00001, -2.5e-10, 1e300, 123456789012345680.0, 1.0, 1234.5, -1e22]\nlet frame = unwrap(frame_new([column_f64(\"x\", values)]))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nlet x = unwrap(frame_column(again, \"x\"))\nprint(column_kind(x))\nprint(array_to_list(column_floats(x)) == values)",
+    );
+    assert_eq!(stdout(&app), "12\nf64\ntrue\n");
+    let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
+    assert_eq!(
+        written,
+        "x\n1e+20\n1.5e-07\n0.0\n1e+16\n0.0001\n1e-05\n-2.5e-10\n1e+300\n1.2345678901234568e+17\n1.0\n1234.5\n-1e+22"
+    );
+}
+
+#[test]
+fn jsonl_keys_that_first_appear_later_become_columns() {
+    let app = app(
+        "jsonl-union",
+        &[(
+            "rows.jsonl",
+            "{\"b\": 1, \"a\": 2}\n{\"a\": 3, \"z\": \"s\", \"c\": true}\n{\"y\": 1.5, \"b\": 4}\n",
+        )],
+        "let frame = unwrap(frame_read_jsonl(\"rows.jsonl\"))\nprint(text_join_native(frame_names(frame), \"|\"))\nprint(kinds(frame))\nprint(column_cell_text(unwrap(frame_column(frame, \"z\")), 0) + \"|\" + column_cell_text(unwrap(frame_column(frame, \"z\")), 1))",
+    );
+    assert_eq!(
+        stdout(&app),
+        "a|b|c|z|y\na:i64:1 b:i64:1 c:bool:2 z:text:2 y:f64:2 \nNA|s\n"
+    );
+}
+
+#[test]
+fn a_one_column_csv_keeps_a_missing_value_through_a_round_trip() {
+    let app = app(
+        "one-column",
+        &[("in.csv", "n\n1\n\n3\n")],
+        "let frame = unwrap(frame_read_csv(\"in.csv\"))\nprint(frame_rows(frame))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nprint(frame_rows(again))\nprint(column_missing(unwrap(frame_column(again, \"n\"))))\nprint(frame_show(again, 10) == frame_show(frame, 10))",
+    );
+    assert_eq!(stdout(&app), "3\n3\n3\n1\ntrue\n");
 }

@@ -22,7 +22,7 @@ fn total(codes: Array[i64]) -> Int:
 # keep the left frame's order, and a left row matching several right rows repeats in the
 # right frame's order. A missing key value never matches, not even another missing value.
 # The result has the left frame's columns, then the right frame's other columns; a right
-# column whose name is already taken gets the suffix `_right`.
+# column whose name is already taken gets the suffix `_right` (`_right_2`, `_right_3`, ... when that is taken too).
 pub fn frame_join(left: Frame, right: Frame, keys: List[Text], how: Text) -> Result[Frame, StdError]:
     if how != "inner" and how != "left":
         return Err(frame_error("E_FRAME_KIND", "join kind `" + how + "` is not `inner` or `left`"))
@@ -57,7 +57,12 @@ pub fn frame_join(left: Frame, right: Frame, keys: List[Text], how: Text) -> Res
         if not map_has(is_key, column_name(column)):
             var name = column_name(column)
             if map_has(taken, name):
-                set name = name + "_right"
+                let base = name + "_right"
+                set name = base
+                var attempt = 2
+                while map_has(taken, name):
+                    set name = base + "_" + int_to_text(attempt)
+                    set attempt = attempt + 1
             set taken = map_set(taken, name, 1)
             set columns = list_push(columns, column_rename(column_take_or_missing(column, right_index), name))
     return frame_new(columns)

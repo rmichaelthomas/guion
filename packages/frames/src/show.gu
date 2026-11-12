@@ -11,6 +11,48 @@ fn spaces(count: Int) -> Text:
         set index = index + 1
     return out
 
+# Terminal columns taken by one character: 2 for East Asian wide and fullwidth characters and
+# emoji, 0 for combining marks and zero-width characters, 1 for everything else.
+fn char_width(char: Text) -> Int:
+    if char < "\u{300}":
+        return 1
+    if char <= "\u{36F}":
+        return 0
+    if char >= "\u{200B}" and char <= "\u{200F}":
+        return 0
+    if char >= "\u{1100}" and char <= "\u{115F}":
+        return 2
+    if char >= "\u{2E80}" and char <= "\u{A4CF}":
+        return 2
+    if char >= "\u{AC00}" and char <= "\u{D7A3}":
+        return 2
+    if char >= "\u{F900}" and char <= "\u{FAFF}":
+        return 2
+    if char >= "\u{FE30}" and char <= "\u{FE4F}":
+        return 2
+    if char >= "\u{FF00}" and char <= "\u{FF60}":
+        return 2
+    if char >= "\u{FFE0}" and char <= "\u{FFE6}":
+        return 2
+    if char >= "\u{1F300}" and char <= "\u{1F64F}":
+        return 2
+    if char >= "\u{1F900}" and char <= "\u{1F9FF}":
+        return 2
+    if char >= "\u{20000}" and char <= "\u{3FFFD}":
+        return 2
+    return 1
+
+# The columns `text` takes when printed.
+pub fn display_width(text: Text) -> Int:
+    var width = 0
+    for char in text_chars(text):
+        set width = width + char_width(char)
+    return width
+
+# A cell as it is printed: a newline, carriage return or tab shows as `\n`, `\r` or `\t`.
+fn display_text(text: Text) -> Text:
+    return text_replace_native(text_replace_native(text_replace_native(text, "\n", "\\n"), "\r", "\\r"), "\t", "\\t")
+
 fn numeric(column: Column) -> Bool:
     return column_kind(column) == "i64" or column_kind(column) == "f64"
 
@@ -51,14 +93,15 @@ pub fn frame_show(frame: Frame, max_rows: Int) -> Text:
     var cells: List[List[Text]] = []
     var widths: List[Int] = []
     for column in columns:
-        var texts: List[Text] = [column_name(column)]
-        var width = len(column_name(column))
+        let heading = display_text(column_name(column))
+        var texts: List[Text] = [heading]
+        var width = display_width(heading)
         for row in rows:
             var cell = "…"
             if row >= 0:
-                set cell = column_cell_text(column, row)
-            if len(cell) > width:
-                set width = len(cell)
+                set cell = display_text(column_cell_text(column, row))
+            if display_width(cell) > width:
+                set width = display_width(cell)
             set texts = list_push(texts, cell)
         set cells = list_push(cells, texts)
         set widths = list_push(widths, width)
@@ -69,7 +112,7 @@ pub fn frame_show(frame: Frame, max_rows: Int) -> Text:
         var index = 0
         while index < len(columns):
             let cell = cells[index][line_index]
-            let pad = spaces(widths[index] - len(cell))
+            let pad = spaces(widths[index] - display_width(cell))
             if index > 0:
                 set line = line + "  "
             if numeric(columns[index]):

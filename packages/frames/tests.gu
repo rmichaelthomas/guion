@@ -124,3 +124,19 @@ fn test_reads_and_writes_files() -> Unit:
     assert(frame_show(again, 10) == frame_show(frame, 10))
     let lines = unwrap(frame_read_jsonl("fixtures/small.jsonl"))
     assert(column_missing(unwrap(frame_column(lines, "name"))) == 1)
+
+fn codes_error(result: Result[Column, StdError]) -> Text:
+    match result:
+        Ok(column):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+fn test_from_codes_checks_present_codes() -> Unit:
+    let none = array_bool_zeros([0])
+    assert(codes_error(column_from_codes("t", array_i64([0, 1, 0]), ["a", "b"], none)) == "ok")
+    assert(codes_error(column_from_codes("t", array_i64([0, 2]), ["a", "b"], none)) == "E_FRAME_SHAPE")
+    assert(codes_error(column_from_codes("t", array_i64([0, -1]), ["a", "b"], none)) == "E_FRAME_SHAPE")
+    assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, false]))) == "ok")
+    assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, true]))) == "E_FRAME_SHAPE")
+    assert(codes_error(column_from_codes("t", array_i64([0, 0]), ["a"], array_bool([true]))) == "E_FRAME_SHAPE")

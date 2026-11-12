@@ -1216,6 +1216,31 @@ fn main() -> Unit:
 }
 
 #[test]
+fn csv_read_columns_reads_a_blank_line_as_a_missing_value_in_a_one_column_file() {
+    let csv = b"n\n1\n\n3\r\n\r\n5\n";
+    let wide = b"n,v\n1,2\n\n3,4\n";
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("one.csv", no_kinds()))
+    assert(columns[0].kind == "i64")
+    assert(columns[0].ints == array_i64([1, 0, 3, 0, 5]))
+    assert(columns[0].valid == array_bool([true, false, true, false, true]))
+    let two = unwrap(csv_read_columns("two.csv", no_kinds()))
+    assert(two[0].ints == array_i64([1, 3]))
+    print("ok")
+"#
+    );
+    let out = run_csv_program(
+        "one-column",
+        &[("one.csv", csv), ("two.csv", wide)],
+        &source,
+        |_| {},
+    );
+    assert_eq!(out, "ok\n");
+}
+
+#[test]
 fn csv_read_columns_treats_quoted_empty_as_text_in_text_columns_only() {
     let csv = "t,n,q,m\n\"\",\"\",\"\",1\nx,5,\"\",\"\"\n,6,\"\",x\n";
     let source = format!(

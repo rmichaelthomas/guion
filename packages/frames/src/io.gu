@@ -35,13 +35,13 @@ fn kind_named(kinds: Map[Text, Text], name: Text) -> Text:
         None:
             return "text"
 
-fn column_of(part: CsvColumn) -> Column:
+fn column_of(part: CsvColumn) -> Result[Column, StdError]:
     if part.kind == "i64":
-        return column_from_i64(part.name, part.ints, part.valid)
+        return Ok(column_from_i64(part.name, part.ints, part.valid))
     if part.kind == "f64":
-        return column_from_f64(part.name, part.floats, part.valid)
+        return Ok(column_from_f64(part.name, part.floats, part.valid))
     if part.kind == "bool":
-        return column_from_bool(part.name, part.flags, part.valid)
+        return Ok(column_from_bool(part.name, part.flags, part.valid))
     return column_from_codes(part.name, part.codes, part.dictionary, part.valid)
 
 fn read_csv_kinds(path: Text, kinds: Map[Text, Text]) -> Result[Frame, StdError]:
@@ -58,7 +58,7 @@ fn read_csv_kinds(path: Text, kinds: Map[Text, Text]) -> Result[Frame, StdError]
         if map_has(seen, part.name):
             return Err(frame_error("E_FRAME_COLUMN", "duplicate column name `" + part.name + "` in " + path))
         set seen = map_set(seen, part.name, 1)
-        set columns = list_push(columns, column_of(part))
+        set columns = list_push(columns, column_of(part)?)
     return frame_new(columns)
 
 # Reads a CSV file with a header row. Each column's kind is the first of i64, f64, bool and
@@ -251,14 +251,21 @@ fn field_of(object: Json, key: Text) -> Json:
         return json_get(object, key)
     return json_null()
 
-# Reads a JSONL file: one JSON object per line. The first object's keys (in its JSON text
-# order) are the columns. A missing key or `null` is a missing value; kinds follow the JSON
+# Reads a JSONL file: one JSON object per line. The columns are the keys of all the objects,
+# in the order they are first seen (one object's keys in the order its JSON text lists them,
+# which is sorted). A key an object lacks, or `null`, is a missing value; kinds follow the JSON
 # value types, and integers mixed with other numbers widen to f64.
 pub fn frame_read_jsonl(path: Text) -> Result[Frame, StdError]:
     let objects = jsonl_objects(path)?
     if len(objects) == 0:
         return Ok(frame_empty())
-    let keys = object_keys(objects[0])
+    var keys: List[Text] = []
+    var known: Map[Text, Int] = {}
+    for object in objects:
+        for key in object_keys(object):
+            if not map_has(known, key):
+                set known = map_set(known, key, 1)
+                set keys = list_push(keys, key)
     var columns: List[Column] = []
     for key in keys:
         var kind = ""
@@ -307,5 +314,5 @@ pub fn frame_read_jsonl(path: Text) -> Result[Frame, StdError]:
                     set columns = list_push(columns, column_from_bool(key, array_bool(flags), mask))
                 else:
                     let text = column_text(key, texts)
-                    set columns = list_push(columns, column_from_codes(key, column_codes(text), column_dictionary(text), mask))
+                    set columns = list_push(columns, column_from_codes(key, column_codes(text), column_dictionary(text), mask)?)
     return frame_new(columns)
