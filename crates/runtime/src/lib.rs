@@ -292,7 +292,7 @@ struct NativeListArena {
     native_record_fields: Vec<Box<[i64]>>,
     native_record_indices: HashMap<i64, usize>,
     values: Vec<Value>,
-    constant_values: Vec<Value>,
+    constant_values: Arc<Vec<Value>>,
     inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
     inline_tagged_value_len: usize,
     tagged_values: Vec<Vec<NativeTaggedValue>>,
@@ -383,7 +383,7 @@ impl NativeListArena {
             native_record_fields: Vec::new(),
             native_record_indices: HashMap::new(),
             values: Vec::new(),
-            constant_values: Vec::new(),
+            constant_values: Arc::new(Vec::new()),
             inline_tagged_values: [NativeTaggedValue {
                 kind: 0,
                 payload_tag: 0,
@@ -1262,18 +1262,11 @@ impl NativeListArena {
         &mut self,
         instance: *mut Instance,
         artifact: Arc<Artifact>,
+        constants: Arc<Vec<Value>>,
         budget: Arc<Budget>,
         limits: VmLimits,
     ) {
-        self.constant_values = artifact
-            .functions
-            .iter()
-            .flat_map(|function| function.code.iter())
-            .filter_map(|instruction| match &instruction.op {
-                Op::Const(value @ (Value::Text(_) | Value::Bytes(_))) => Some(value.clone()),
-                _ => None,
-            })
-            .collect();
+        self.constant_values = constants;
         self.runtime_context = Some(NativeRuntimeContext {
             instance,
             artifact,
@@ -3003,6 +2996,24 @@ fn local_date_from_unix_time_ms(_unix_time_ms: i64) -> Result<(i32, i32, i32), S
     Err("local date lookup is supported on Unix hosts only".into())
 }
 
+/// The text and byte constants native code addresses by handle. They depend only on the
+/// artifact, so an instance builds the table once, not on every native entry.
+fn native_constant_table(artifact: &Artifact) -> Arc<Vec<Value>> {
+    #[cfg(test)]
+    ARTIFACT_SCAN_TALLY.with(|scans| scans.set(scans.get() + 1));
+    Arc::new(
+        artifact
+            .functions
+            .iter()
+            .flat_map(|function| function.code.iter())
+            .filter_map(|instruction| match &instruction.op {
+                Op::Const(value @ (Value::Text(_) | Value::Bytes(_))) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+    )
+}
+
 fn share_artifact(artifact: Artifact) -> Arc<Artifact> {
     Arc::new(artifact)
 }
@@ -3086,9 +3097,11 @@ impl Runtime {
         let mut artifact = artifact;
         inline_host_forwarders(&mut artifact);
         let registers = Arc::new(build_register_programs(&artifact));
+        let native_constants = native_constant_table(&artifact);
         let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
+            native_constants,
             registers,
             native: None,
             native_code: None,
@@ -3136,6 +3149,7 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     artifact: Arc<Artifact>,
+    native_constants: Arc<Vec<Value>>,
     registers: Arc<RegisterPrograms>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
@@ -7978,6 +7992,7 @@ impl Instance {
         native_arena.attach_runtime_context(
             self as *mut Instance,
             Arc::clone(&artifact),
+            Arc::clone(&self.native_constants),
             budget.clone(),
             self.policy.vm_limits(),
         );
@@ -8273,9 +8288,7 @@ impl Instance {
                 match outcome.status {
                     0 => {
                         let value = match &f.result {
-                            Type::Int => {
-                                Value::Int(BigInt::parse(&outcome.value.to_string()).unwrap())
-                            }
+                            Type::Int => Value::Int(BigInt::from_i64(outcome.value)),
                             Type::Float64 => Value::Float64(
                                 Float64::new(f64::from_bits(outcome.value as u64)).unwrap(),
                             ),
@@ -8936,6 +8949,7 @@ impl Instance {
         let cancelled = Arc::new(AtomicBool::new(false));
         let artifact = Arc::clone(&self.artifact);
         let registers = Arc::clone(&self.registers);
+        let native_constants = Arc::clone(&self.native_constants);
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
@@ -8965,6 +8979,7 @@ impl Instance {
             let cancelled = cancelled.clone();
             let artifact = artifact.clone();
             let registers = registers.clone();
+            let native_constants = native_constants.clone();
             let policy = policy.clone();
             let values = values.clone();
             let budget = worker_budget.clone();
@@ -8999,6 +9014,7 @@ impl Instance {
                     database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
                         artifact: Arc::clone(&artifact),
+                        native_constants: Arc::clone(&native_constants),
                         registers: Arc::clone(&registers),
                         native: None,
                         native_code: native_code.clone(),
@@ -12123,6 +12139,48 @@ mod native_small_list_tests {
 
         assert!(invalid.is_null());
         assert_eq!(profile.to_json()["list_set"]["operations"], 0);
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static ARTIFACT_SCAN_TALLY: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+mod native_entry_cost_tests {
+    use super::*;
+
+    /// A small native-eligible helper called from an interpreted loop must not rescan the whole
+    /// artifact for text constants on every entry.
+    #[test]
+    fn native_entry_does_not_rescan_the_artifact_per_call() {
+        let source = r#"fn chunk_rows() -> Int:
+    return 65536
+
+record Row:
+    fields: List[Text]
+    line: Int
+
+fn main() -> Int:
+    var rows: List[Row] = []
+    var seen = 0
+    while len(rows) < chunk_rows() and seen < 3000:
+        set rows = list_push(rows, Row(["a", "b"], seen))
+        set seen = seen + 1
+    return len(rows)
+"#;
+        let artifact = guion_compiler::compile("entry-cost.gu", source).expect("compiles");
+        let mut instance = Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .expect("loads");
+        ARTIFACT_SCAN_TALLY.with(|scans| scans.set(0));
+        instance.invoke("main", vec![]).expect("runs");
+        let scans = ARTIFACT_SCAN_TALLY.with(|scans| scans.get());
+        assert!(
+            scans <= 2,
+            "artifact scanned {scans} times for 3000 helper calls"
+        );
     }
 }
 
