@@ -5,7 +5,7 @@ This list covers open problems only. Each row has a status and the batch that wi
 | # | Problem | Status | Closed by |
 |---|---------|--------|-----------|
 | 1 | Reading CSV files is about 45 times slower than pandas. | open | Batch 1 |
-| 2 | Calling a small helper inside a large guest loop costs microseconds per call. | open | Batch 1 |
+| 2 | Calling a small helper inside a large guest loop costs microseconds per call. | fixed in ae485c5 | Batch 1 |
 | 3 | Multiplying two 512 by 512 f64 matrices is about 25 times slower than NumPy. | open | Batch 3 |
 | 4 | Element-wise array maths costs about 2 times NumPy's cost per element. | open | Batch 1 |
 | 5 | The self-hosted compiler emits `ArraySet` where it could emit `ArraySetLocal`. | open | Batch 1 |
