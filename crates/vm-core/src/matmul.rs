@@ -15,8 +15,9 @@ pub(crate) const NR: usize = 6;
 /// Rows of `A` packed at once per worker chunk, and the inner-dimension block length.
 const MC: usize = 128;
 const KC: usize = 256;
-/// Products (n*m*k) below which one thread does the work.
-const PARALLEL_MIN: usize = 1 << 21;
+/// Products (n*m*k) below which one thread does the work: 128^3 is faster on one thread and
+/// 160^3 on several (M1 Pro), so the cut sits between them.
+const PARALLEL_MIN: usize = (1 << 21) + (1 << 20);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Isa {
@@ -382,6 +383,14 @@ mod tests {
             let (scalar, _) = run(n, k, m, 2, Isa::Scalar);
             assert_eq!(first, scalar, "{n}x{k}x{m} scalar fallback");
         }
+    }
+
+    #[test]
+    fn small_products_stay_on_one_thread() {
+        // Measured on M1 Pro: 128^3 is faster on one thread, 160^3 and up on several.
+        assert_eq!(threads_for((128, 128, 128)), 1);
+        let cores = std::thread::available_parallelism().map_or(1, |count| count.get());
+        assert_eq!(threads_for((160, 160, 160)) > 1, cores > 1);
     }
 
     /// Reports which kernel `native_isa` picks. Setting `GUION_EXPECT_ISA` (for example
