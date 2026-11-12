@@ -1263,6 +1263,91 @@
       "operation": "ArrayMatmul"
     },
     {
+      "name": "array_take",
+      "parameters": [
+        "Array[$A]",
+        "Array[i64]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayTake"
+    },
+    {
+      "name": "array_factorize",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayFactorize"
+    },
+    {
+      "name": "array_first_index",
+      "parameters": [
+        "Array[i64]",
+        "Int"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayFirstIndex.i64"
+    },
+    {
+      "name": "array_count_by",
+      "parameters": [
+        "Array[i64]",
+        "Int"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayCountBy.i64"
+    },
+    {
+      "name": "array_sum_by",
+      "parameters": [
+        "Array[$N]",
+        "Array[i64]",
+        "Int"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArraySumBy"
+    },
+    {
+      "name": "array_min_by",
+      "parameters": [
+        "Array[$N]",
+        "Array[i64]",
+        "Int"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMinBy"
+    },
+    {
+      "name": "array_max_by",
+      "parameters": [
+        "Array[$N]",
+        "Array[i64]",
+        "Int"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMaxBy"
+    },
+    {
+      "name": "array_mean_by",
+      "parameters": [
+        "Array[$N]",
+        "Array[i64]",
+        "Int"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayMeanBy"
+    },
+    {
+      "name": "array_join_index",
+      "parameters": [
+        "Array[i64]",
+        "Array[i64]",
+        "Bool"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayJoinIndex.i64"
+    },
+    {
       "name": "bytes_from_ints",
       "parameters": [
         "List[Int]"

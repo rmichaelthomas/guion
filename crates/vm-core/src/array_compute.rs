@@ -1077,9 +1077,355 @@ pub fn apply(
         Dot => with_numeric!(element, T => dot::<T>(args)),
         Matmul => with_numeric!(element, T => matmul::<T>(args, charge)),
         Range | Linspace | Random | Normal => generate(function, args, charge),
+        Take => with_element!(element, T => take::<T>(args, charge)),
+        Factorize => with_element!(element, T => factorize::<T>(args, charge)),
+        FirstIndex | CountBy => by_code(function, args, charge),
+        SumBy | MinBy | MaxBy | MeanBy => {
+            with_numeric!(element, T => reduce_by::<T>(function, args, charge))
+        }
+        JoinIndex => join_index(args, charge),
         _ => error(
             "R_TYPE_INVALID",
             format!("{} is not a compute instruction", function.op_name()),
         ),
     }
+}
+
+/// A multiply-rotate hasher for integer keys; the grouping kernels hash millions of codes and
+/// the default SipHash would dominate their cost. Keys are guest data, but the tables are
+/// per-call and bounded by the allocation budget, so collision flooding only slows one call.
+#[derive(Default)]
+struct KeyHasher(u64);
+
+impl std::hash::Hasher for KeyHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.write_u64(u64::from(*byte));
+        }
+    }
+    fn write_u64(&mut self, value: u64) {
+        self.0 = (self.0.rotate_left(5) ^ value).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+    fn write_i64(&mut self, value: i64) {
+        self.write_u64(value as u64);
+    }
+    fn write_u128(&mut self, value: u128) {
+        self.write_u64(value as u64);
+        self.write_u64((value >> 64) as u64);
+    }
+    fn write_i128(&mut self, value: i128) {
+        self.write_u128(value as u128);
+    }
+}
+
+type KeyMap<K, V> = std::collections::HashMap<K, V, std::hash::BuildHasherDefault<KeyHasher>>;
+
+fn rank1<'a>(array: &'a ArrayValue, name: &str) -> Result<&'a ArrayValue, ArrayError> {
+    if array.shape.len() != 1 {
+        return error(
+            "R_ARRAY_SHAPE",
+            format!(
+                "{name} needs a rank-1 array, got rank {}",
+                array.shape.len()
+            ),
+        );
+    }
+    Ok(array)
+}
+
+fn i64_items<'a>(array: &'a ArrayValue, name: &str) -> Result<&'a [i64], ArrayError> {
+    let array = rank1(array, name)?;
+    match &array.data {
+        guion_model::ArrayData::I64(items) => Ok(items),
+        _ => error("R_TYPE_INVALID", format!("{name} needs an Array[i64]")),
+    }
+}
+
+fn group_count(args: &[Value], index: usize, name: &str) -> Result<usize, ArrayError> {
+    let groups = int_arg(args, index)?;
+    if groups < 0 || groups > i128::from(u32::MAX) {
+        return error(
+            "R_ARRAY_SHAPE",
+            format!(
+                "{name} needs a group count from 0 to {}, got {groups}",
+                u32::MAX
+            ),
+        );
+    }
+    Ok(groups as usize)
+}
+
+/// Checks every code is a group index and returns them as positions.
+fn group_codes(codes: &[i64], groups: usize, name: &str) -> Result<(), ArrayError> {
+    for (row, code) in codes.iter().enumerate() {
+        if *code < 0 || *code as u64 >= groups as u64 {
+            return error(
+                "R_ARRAY_INDEX",
+                format!("{name}: code {code} at row {row} is outside 0..{groups}"),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn take<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+    let source = rank1(array_arg(args, 0)?, "array_take")?;
+    let indices = i64_items(array_arg(args, 1)?, "array_take")?;
+    let items = T::items(&source.data);
+    charge(array_bytes(T::TYPE, 1, indices.len()))?;
+    let mut out = Vec::with_capacity(indices.len());
+    for (position, index) in indices.iter().enumerate() {
+        match usize::try_from(*index)
+            .ok()
+            .and_then(|index| items.get(index))
+        {
+            Some(item) => out.push(*item),
+            None => {
+                return error(
+                    "R_ARRAY_INDEX",
+                    format!(
+                        "array_take: index {index} at position {position} is outside 0..{}",
+                        items.len()
+                    ),
+                )
+            }
+        }
+    }
+    finish(vec![indices.len()], out)
+}
+
+/// The hash key of an element: floats by value with `-0.0` equal to `0.0`.
+fn element_key<T: Element>(item: T) -> i128 {
+    match item.to_int() {
+        Some(int) => int,
+        None => i128::from((item.to_f64() + 0.0).to_bits()),
+    }
+}
+
+fn factorize<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+    let source = rank1(array_arg(args, 0)?, "array_factorize")?;
+    let items = T::items(&source.data);
+    charge(array_bytes(ElementType::I64, 1, items.len()))?;
+    let mut codes: KeyMap<i128, i64> = KeyMap::default();
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        let next = codes.len() as i64;
+        let code = *codes.entry(element_key(*item)).or_insert_with(|| next);
+        if code == next {
+            charge(48)?;
+        }
+        out.push(code);
+    }
+    finish(vec![items.len()], out)
+}
+
+fn by_code(
+    function: ArrayFunction,
+    args: &[Value],
+    charge: &mut Charge<'_>,
+) -> Result<Value, ArrayError> {
+    let name = if function == ArrayFunction::FirstIndex {
+        "array_first_index"
+    } else {
+        "array_count_by"
+    };
+    let codes = i64_items(array_arg(args, 0)?, name)?;
+    let groups = group_count(args, 1, name)?;
+    group_codes(codes, groups, name)?;
+    charge(array_bytes(ElementType::I64, 1, groups))?;
+    if function == ArrayFunction::FirstIndex {
+        let mut out = vec![-1i64; groups];
+        for (row, code) in codes.iter().enumerate().rev() {
+            out[*code as usize] = row as i64;
+        }
+        return finish(vec![groups], out);
+    }
+    let mut out = vec![0i64; groups];
+    for code in codes {
+        out[*code as usize] += 1;
+    }
+    finish(vec![groups], out)
+}
+
+fn reduce_by<T: Numeric>(
+    function: ArrayFunction,
+    args: &[Value],
+    charge: &mut Charge<'_>,
+) -> Result<Value, ArrayError> {
+    use ArrayFunction::*;
+    let name = match function {
+        SumBy => "array_sum_by",
+        MinBy => "array_min_by",
+        MaxBy => "array_max_by",
+        _ => "array_mean_by",
+    };
+    let values = rank1(array_arg(args, 0)?, name)?;
+    let codes = i64_items(array_arg(args, 1)?, name)?;
+    let groups = group_count(args, 2, name)?;
+    let items = T::items(&values.data);
+    if items.len() != codes.len() {
+        return error(
+            "R_ARRAY_SHAPE",
+            format!(
+                "{name} needs one code per value, got {} values and {} codes",
+                items.len(),
+                codes.len()
+            ),
+        );
+    }
+    group_codes(codes, groups, name)?;
+    let empty_group = |seen: &[bool]| -> Result<(), ArrayError> {
+        match seen.iter().position(|seen| !seen) {
+            Some(group) => error(
+                "R_ARRAY_EMPTY",
+                format!("{name}: group {group} has no values"),
+            ),
+            None => Ok(()),
+        }
+    };
+    match function {
+        SumBy => {
+            charge(array_bytes(T::TYPE, 1, groups))?;
+            let mut out = vec![T::zero(); groups];
+            for (row, (item, code)) in items.iter().zip(codes).enumerate() {
+                let slot = &mut out[*code as usize];
+                *slot = slot
+                    .add(*item)
+                    .map_err(|code| element_error(code, name, T::TYPE, row))?;
+            }
+            finish(vec![groups], out)
+        }
+        MinBy | MaxBy => {
+            charge(array_bytes(T::TYPE, 1, groups).saturating_add(groups))?;
+            let mut out = vec![T::zero(); groups];
+            let mut seen = vec![false; groups];
+            for (item, code) in items.iter().zip(codes) {
+                let group = *code as usize;
+                let better = !seen[group]
+                    || if function == MinBy {
+                        *item < out[group]
+                    } else {
+                        *item > out[group]
+                    };
+                if better {
+                    out[group] = *item;
+                    seen[group] = true;
+                }
+            }
+            empty_group(&seen)?;
+            finish(vec![groups], out)
+        }
+        _ => {
+            charge(array_bytes(ElementType::F64, 1, groups).saturating_add(groups * 16))?;
+            let mut sums = vec![0.0f64; groups];
+            let mut counts = vec![0u64; groups];
+            for (item, code) in items.iter().zip(codes) {
+                sums[*code as usize] += item.to_f64();
+                counts[*code as usize] += 1;
+            }
+            let seen: Vec<bool> = counts.iter().map(|count| *count > 0).collect();
+            empty_group(&seen)?;
+            let mut out = Vec::with_capacity(groups);
+            for (group, (sum, count)) in sums.iter().zip(&counts).enumerate() {
+                let mean = sum / *count as f64;
+                if !mean.is_finite() {
+                    return error(NONFINITE, format!("{name} is not finite at group {group}"));
+                }
+                out.push(mean + 0.0);
+            }
+            finish(vec![groups], out)
+        }
+    }
+}
+
+fn join_index(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+    let name = "array_join_index";
+    let left = i64_items(array_arg(args, 0)?, name)?;
+    let right = i64_items(array_arg(args, 1)?, name)?;
+    let keep_unmatched = matches!(args[2], Value::Bool(true));
+    // Right rows grouped by code, in right order: `slots[code]` indexes `starts`.
+    charge(right.len().saturating_mul(40))?;
+    let mut slots: KeyMap<i64, usize> = KeyMap::default();
+    let mut counts: Vec<usize> = Vec::new();
+    let mut slot_of_row = Vec::with_capacity(right.len());
+    for code in right {
+        if *code < 0 {
+            slot_of_row.push(usize::MAX);
+            continue;
+        }
+        let next = counts.len();
+        let slot = *slots.entry(*code).or_insert(next);
+        if slot == next {
+            counts.push(0);
+        }
+        counts[slot] += 1;
+        slot_of_row.push(slot);
+    }
+    let mut starts = Vec::with_capacity(counts.len() + 1);
+    let mut total = 0usize;
+    for count in &counts {
+        starts.push(total);
+        total += count;
+    }
+    starts.push(total);
+    let mut fill = starts.clone();
+    let mut rows = vec![0usize; total];
+    for (row, slot) in slot_of_row.iter().enumerate() {
+        if *slot != usize::MAX {
+            rows[fill[*slot]] = row;
+            fill[*slot] += 1;
+        }
+    }
+    let matches_of = |code: i64| -> Option<usize> {
+        if code < 0 {
+            None
+        } else {
+            slots.get(&code).copied()
+        }
+    };
+    let mut pairs = 0usize;
+    for code in left {
+        let found = matches_of(*code).map_or(0, |slot| starts[slot + 1] - starts[slot]);
+        let found = if found == 0 && keep_unmatched {
+            1
+        } else {
+            found
+        };
+        pairs = pairs.checked_add(found).ok_or_else(|| {
+            (
+                "R_ARRAY_SHAPE",
+                format!("{name}: the join has too many rows"),
+            )
+        })?;
+    }
+    let length = pairs.checked_mul(2).ok_or_else(|| {
+        (
+            "R_ARRAY_SHAPE",
+            format!("{name}: the join has too many rows"),
+        )
+    })?;
+    charge(array_bytes(ElementType::I64, 1, length))?;
+    let mut out = vec![0i64; length];
+    let mut next = 0usize;
+    for (row, code) in left.iter().enumerate() {
+        match matches_of(*code) {
+            Some(slot) => {
+                for right_row in &rows[starts[slot]..starts[slot + 1]] {
+                    out[next] = row as i64;
+                    out[pairs + next] = *right_row as i64;
+                    next += 1;
+                }
+            }
+            None if keep_unmatched => {
+                out[next] = row as i64;
+                out[pairs + next] = -1;
+                next += 1;
+            }
+            None => {}
+        }
+    }
+    finish(vec![length], out)
 }

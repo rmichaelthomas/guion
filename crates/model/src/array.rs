@@ -355,8 +355,24 @@ array_functions!(
     Sum, Prod, Min, Max, Argmin, Argmax, Mean, Var, Std, SumAxis, MinAxis, MaxAxis, MeanAxis,
     // Order and accumulation.
     Sort, Argsort, Cumsum, // Linear algebra.
-    Dot, Matmul,
+    Dot, Matmul, // Format 63: gathering, grouping and joining by integer codes.
+    Take, Factorize, FirstIndex, CountBy, SumBy, MinBy, MaxBy, MeanBy, JoinIndex,
 );
+
+impl ArrayFunction {
+    /// The first function added in artifact format 63; earlier formats cannot encode it or
+    /// anything after it.
+    pub const FIRST_FORMAT_63: ArrayFunction = ArrayFunction::Take;
+
+    /// The artifact format that introduced this function.
+    pub fn min_format(self) -> u32 {
+        if self.code() >= Self::FIRST_FORMAT_63.code() {
+            63
+        } else {
+            62
+        }
+    }
+}
 
 impl ArrayFunction {
     pub fn code(self) -> u8 {
@@ -450,7 +466,9 @@ impl ArrayFunction {
             Sqrt | Exp | Log | Log10 | Log2 | Sin | Cos | Tan | Asin | Acos | Atan | Sinh
             | Cosh | Tanh | Floor | Ceil | Round | Pow => ElementClass::Float,
             And | Or | Not | Any | All | Count => ElementClass::Bool,
-            Where | Filter => ElementClass::Any,
+            Where | Filter | Take | Factorize => ElementClass::Any,
+            FirstIndex | CountBy | JoinIndex => ElementClass::Only(ElementType::I64),
+            SumBy | MinBy | MaxBy | MeanBy => ElementClass::Numeric,
         }
     }
 
@@ -510,7 +528,18 @@ impl ArrayFunction {
             Mean | Var | Std => (vec![a()], Type::Float64),
             SumAxis | MinAxis | MaxAxis => (vec![a(), int()], array),
             MeanAxis => (vec![a(), int()], Type::Array(ElementType::F64)),
-            Argsort => (vec![a()], Type::Array(ElementType::I64)),
+            Argsort | Factorize => (vec![a()], Type::Array(ElementType::I64)),
+            Take => (vec![a(), Exact(Type::Array(ElementType::I64))], array),
+            FirstIndex | CountBy => (vec![a(), int()], Type::Array(ElementType::I64)),
+            SumBy | MinBy | MaxBy => (
+                vec![a(), Exact(Type::Array(ElementType::I64)), int()],
+                array,
+            ),
+            MeanBy => (
+                vec![a(), Exact(Type::Array(ElementType::I64)), int()],
+                Type::Array(ElementType::F64),
+            ),
+            JoinIndex => (vec![a(), a(), Exact(Type::Bool)], array),
         }
     }
 
