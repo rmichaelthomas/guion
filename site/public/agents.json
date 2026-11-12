@@ -12,7 +12,7 @@
     },
     {
       "heading": "Arrays and data science",
-      "body": "NumPy and pandas make Python the default for numeric and data work. Guion now has native arrays and a first-party data-frame library, frames, but both are young. In the project's reports on one Mac, the frames workloads took several times as long as pandas from reading a large CSV to the result, and Guion's array compute was still slower than NumPy's."
+      "body": "NumPy and pandas make Python the default for numeric and data work. Guion now has native arrays and a first-party data-frame library, frames, but both are young. In the project's reports on one Apple M1 Pro, frames finishes five tested CSV workloads before pandas does from start to finish, mostly because pandas takes about 0.26 s to load. On compute alone, reading a large CSV is still about 3 times pandas, and array maths is about 1.4 to 2.3 times NumPy's."
     },
     {
       "heading": "A release you can use",
