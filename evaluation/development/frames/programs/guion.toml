@@ -8,6 +8,4 @@ name = "frames-bench"
 version = "0.1.0"
 
 [runtime]
-allocation_limit_bytes = 4294967296
 instruction_limit = 100000000000
-max_file_bytes = 1073741824

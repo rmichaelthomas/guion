@@ -35,11 +35,11 @@ Every operation that names a column or can meet bad input returns `Result[..., S
 
 ## Files
 
-- `frame_read_csv(path)` reads a file with a header row. Each column's kind is the first of `i64`, `f64`, `bool` (`true`/`false`) and `text` that holds every non-empty value; integers beyond the `i64` range make the column `f64`, and an empty field is missing. Blank lines are skipped, and a leading UTF-8 byte-order mark is not part of the first column name. `frame_read_csv_with(path, {"name": "kind"})` fixes kinds; a value that does not fit is `E_FRAME_PARSE`.
+- `frame_read_csv(path)` reads a file with a header row. Each column's kind is the first of `i64`, `f64`, `bool` (`true`/`false`) and `text` that holds every non-empty value; integers beyond the `i64` range make the column `f64`, and an unquoted empty field is missing (a column with no values at all is `text`; a quoted `""` is missing in a numeric or bool column and is the empty text in a `text` column). Blank lines are skipped, and a leading UTF-8 byte-order mark is not part of the first column name. `frame_read_csv_with(path, {"name": "kind"})` fixes kinds; a value that does not fit is `E_FRAME_PARSE`.
 - `frame_read_jsonl(path)` reads one JSON object per line; any other JSON value is `E_FRAME_PARSE`. The first object's keys are the columns, in the order its JSON text lists them (sorted by key). A missing key or `null` is missing; kinds follow the JSON types, and integers mixed with other numbers become `f64`. Nested values become their JSON text, and keys that first appear in later objects are not read.
-- `frame_write_csv(frame, path)` writes a header and the rows; missing values are empty fields and floats always carry a decimal point, so the file reads back with the same kinds. An empty text value is also written as an empty field, so it reads back as missing.
+- `frame_write_csv(frame, path)` writes a header and the rows; missing values are empty fields and floats always carry a decimal point, so the file reads back with the same kinds. An empty text value is written as `""`, so it reads back as empty text, distinct from missing.
 - `frame_show(frame, max_rows)` returns an aligned table with a `[rows x columns]` footer, showing the first and last rows with a `…` row when there are more than `max_rows`.
 
-Reading a file is limited by the project's `[runtime] max_file_bytes` (16 MiB by default) and memory by `allocation_limit_bytes` (256 MiB by default); raise both in `guion.toml` for large files.
+`frame_read_csv` streams the file, so there is no file-size limit for CSV (a single record is still bounded by `max_file_bytes`). Memory is limited by `allocation_limit_bytes` (256 MiB by default); raise it under `[runtime]` in `guion.toml` for very large files.
 
 Not yet provided: dates and times, pivot and melt, rolling windows, string methods on columns, and Parquet or Arrow files.

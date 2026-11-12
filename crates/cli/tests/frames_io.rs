@@ -76,7 +76,7 @@ fn csv_kinds_are_inferred_from_every_value() {
     );
     assert_eq!(
         stdout(&app),
-        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:i64:3 n:f64:0 \n1|true|x\nNA\n1.0\n1.0\n"
+        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:text:3 n:f64:0 \n1|true|x\nNA\n1.0\n1.0\n"
     );
 }
 
@@ -124,7 +124,7 @@ fn csv_round_trips_kinds_values_and_missing_values() {
     );
     assert_eq!(
         stdout(&app),
-        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:i64:3 n:f64:0 \ntrue\n"
+        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:text:3 n:f64:0 \ntrue\n"
     );
     let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
     assert_eq!(
@@ -255,4 +255,35 @@ fn csv_byte_order_mark_is_not_part_of_the_first_name() {
         "print(text_join_native(frame_names(unwrap(frame_read_csv(\"bom.csv\"))), \"|\"))",
     );
     assert_eq!(stdout(&app), "a|b\n");
+}
+
+#[test]
+fn csv_empty_text_round_trips_distinct_from_missing() {
+    let app = app(
+        "emptytext",
+        &[("in.csv", "name,n\nann,1\n\"\",2\n,3\nbob,\n")],
+        "let frame = unwrap(frame_read_csv(\"in.csv\"))\nlet name = unwrap(frame_column(frame, \"name\"))\nprint(column_missing(name))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nlet back = unwrap(frame_column(again, \"name\"))\nprint(column_missing(back))\nprint(array_to_list(column_valid(back)) == array_to_list(column_valid(name)))\nprint(frame_show(again, 10) == frame_show(frame, 10))",
+    );
+    assert_eq!(stdout(&app), "1\n4\n1\ntrue\ntrue\n");
+    let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
+    assert_eq!(written, "name,n\nann,1\n\"\",2\n,3\nbob,");
+}
+
+#[test]
+fn csv_reads_files_above_a_small_max_file_bytes() {
+    let mut csv = String::from("k,t\n");
+    for row in 0..2_000 {
+        csv.push_str(&format!("{row},value-{}\n", row % 13));
+    }
+    let app = app(
+        "smalllimit",
+        &[("big.csv", &csv)],
+        "let frame = unwrap(frame_read_csv(\"big.csv\"))\nprint(frame_rows(frame))\nprint(column_sum(unwrap(frame_column(frame, \"k\"))))",
+    );
+    let manifest = app.0.join("guion.toml");
+    let mut toml = std::fs::read_to_string(&manifest).unwrap();
+    toml.push_str("\n[runtime]\nmax_file_bytes = 4096\n");
+    std::fs::write(&manifest, toml).unwrap();
+    assert!(csv.len() > 4096);
+    assert_eq!(stdout(&app), "2000\n1999000\n");
 }
