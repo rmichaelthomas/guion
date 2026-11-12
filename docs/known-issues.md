@@ -17,12 +17,13 @@ This list covers open problems only. Each row has a status and the batch that wi
 | 11 | The spec says element types outside `Array[...]` should give `E_TYPE_UNKNOWN`. Both compilers give `E_TYPE_ANNOTATION`. | fixed in 130013f | Batch 2 |
 | 12 | `catalog_array_builtin` can return `Ok(None)` after it has emitted argument code. Only a test guards this. | fixed in 130013f | Batch 2 |
 | 13 | Empty text becomes missing after a CSV round trip. | fixed in 8cdf52c | Batch 1 |
-| 14 | `frame_show` misaligns wide characters and text that contains newlines. | open | Batch 2 |
-| 15 | A join fails when the `<name>_right` column name is already taken. | open | Batch 2 |
-| 16 | `column_from_codes` does not check its codes. | open | Batch 2 |
-| 17 | Very large and very small floats are written in full decimal form. | open | Batch 2 |
-| 18 | JSONL keys first seen after line 1 are dropped. | open | Batch 2 |
-| 19 | `array_mean_by` is not used by `frames`, and `group.gu` has an unused local. | open | Batch 2 |
+| 14 | `frame_show` misaligns wide characters and text that contains newlines. | fixed in 99f685c | Batch 2 |
+| 15 | A join fails when the `<name>_right` column name is already taken. | fixed in 99f685c | Batch 2 |
+| 16 | `column_from_codes` does not check its codes. | fixed in 99f685c | Batch 2 |
+| 17 | Very large and very small floats are written in full decimal form. | fixed in 99f685c | Batch 2 |
+| 18 | JSONL keys first seen after line 1 are dropped. | fixed in 99f685c | Batch 2 |
+| 19 | `array_mean_by` is not used by `frames`, and `group.gu` has an unused local. | fixed in 99f685c | Batch 2 |
 | 20 | Filtering a 1M-row frame after the read takes about 10 ms, 2 to 4 times pandas (measured in the speed report; the pandas part is within the noise of the method). | open | Batch 2 |
+| 21 | A single-column CSV file lost a row whose value was missing, because a blank line was skipped. | fixed in 99f685c | Batch 2 |
 
-Batch 1 covers items 1, 2, 4, 5, 6 and 13. Batch 2 covers items 7 to 12 and 14 to 20. Batch 3 covers item 3.
+Batch 1 covers items 1, 2, 4, 5, 6 and 13. Batch 2 covers items 7 to 12 and 14 to 21. Batch 3 covers item 3.
