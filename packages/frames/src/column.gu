@@ -49,8 +49,8 @@ pub fn column_from_bool(name: Text, values: Array[bool], valid: Array[bool]) -> 
 fn text_column(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Column:
     return Column(name, "text", no_ints(), no_floats(), no_flags(), codes, dictionary, tidy_valid(valid))
 
-# A text column from codes into `dictionary`; a missing slot holds code 0 (any code is
-# accepted there). A present row whose code is outside `0..len(dictionary)`, or a mask of a
+# A text column from codes into `dictionary`; a missing slot holds code 0 (whatever code is
+# passed there is replaced by 0). A present row whose code is outside `0..len(dictionary)`, or a mask of a
 # different length from the codes, is `E_FRAME_SHAPE`.
 pub fn column_from_codes(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Result[Column, StdError]:
     let count = array_size(codes)
@@ -62,6 +62,8 @@ pub fn column_from_codes(name: Text, codes: Array[i64], dictionary: List[Text], 
     if array_any(outside):
         let row = array_argmax(array_to_i64(outside))
         return Err(frame_error("E_FRAME_SHAPE", "column `" + name + "` row " + int_to_text(row) + " has code " + int_to_text(array_get(codes, row)) + ", outside the dictionary of " + int_to_text(len(dictionary))))
+    if array_size(valid) != 0:
+        return Ok(text_column(name, array_where(valid, codes, array_i64_zeros([count])), dictionary, valid))
     return Ok(text_column(name, codes, dictionary, valid))
 
 pub fn column_i64(name: Text, values: List[Int]) -> Column:

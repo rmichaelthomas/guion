@@ -885,6 +885,12 @@ fn element_type_failure(type_node: Json, records: List[RecordSignature], source_
             return json_null()
         if json_len(json_get(element, "arguments")) == 0 and not known_primitive_type(element_name) and record_index(records, element_name) < 0:
             return failure_at_node("E_TYPE_UNKNOWN", "unknown type `" + element_name + "`", element, source_name, source, len(element_name))
+        var inner = 0
+        while element_name != "Array" and inner < json_len(json_get(element, "arguments")):
+            let inside = element_type_failure(json_index(json_get(element, "arguments"), inner), records, source_name, source)
+            if not json_is_null(inside):
+                return inside
+            set inner = inner + 1
         return failure_at_node("E_TYPE_ANNOTATION", "Array element type must be one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool", element, source_name, source, len(element_name))
     var cursor = 0
     while cursor < count:

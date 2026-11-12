@@ -23,5 +23,5 @@ This list covers open problems only. Each row has a status. When an item is fixe
 | 17 | Very large and very small floats are written in full decimal form. | fixed in 99f685c |
 | 18 | JSONL keys first seen after line 1 are dropped. | fixed in 99f685c |
 | 19 | `array_mean_by` is not used by `frames`, and `group.gu` has an unused local. | fixed in 99f685c |
-| 20 | Filtering a 1M-row frame after the read takes about 10 ms, 2 to 4 times pandas (measured in the speed report; the pandas part is within the noise of the method). | fixed: measured in-process (evaluation/development/frames/step_timing.py, 15 batches of 20 steps, M1 Pro release build) the filter-and-sum step is 5.8 ms in Guion against 4.6 ms in pandas, 1.26 times; the earlier figure came from subtracting whole-process medians |
+| 20 | Filtering a 1M-row frame after the read takes about 10 ms, 2 to 4 times pandas (measured in the speed report; the pandas part is within the noise of the method). | fixed in 48e2763: measured in-process (evaluation/development/frames/step_timing.py, 15 batches of 20 steps, M1 Pro release build) the filter-and-sum step is 5.8 ms in Guion against 4.6 ms in pandas, 1.26 times; the earlier figure came from subtracting whole-process medians |
 | 21 | A single-column CSV file lost a row whose value was missing, because a blank line was skipped. | fixed in 99f685c |

@@ -138,5 +138,13 @@ fn test_from_codes_checks_present_codes() -> Unit:
     assert(codes_error(column_from_codes("t", array_i64([0, 2]), ["a", "b"], none)) == "E_FRAME_SHAPE")
     assert(codes_error(column_from_codes("t", array_i64([0, -1]), ["a", "b"], none)) == "E_FRAME_SHAPE")
     assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, false]))) == "ok")
+
+fn test_from_codes_missing_slot_code_is_normalised() -> Unit:
+    let column = unwrap(column_from_codes("s", array_i64([1, -1, 0]), ["a", "b"], array_bool([true, false, true])))
+    let frame = unwrap(frame_new([column]))
+    let joined = unwrap(frame_concat([frame, frame]))
+    assert(frame_rows(joined) == 6)
+    let sorted = unwrap(frame_sort(frame, ["s"], [true]))
+    assert(frame_rows(sorted) == 3)
     assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, true]))) == "E_FRAME_SHAPE")
     assert(codes_error(column_from_codes("t", array_i64([0, 0]), ["a"], array_bool([true]))) == "E_FRAME_SHAPE")

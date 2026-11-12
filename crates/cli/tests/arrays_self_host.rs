@@ -232,6 +232,20 @@ fn both_compilers_report_the_same_array_element_type_errors() {
     );
     assert_both_report_type_error(
         &project,
+        "list-of-element",
+        &format!("fn f(x: Array[List[f64]]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "map-of-element",
+        &format!("fn f(x: Array[Map[Text, i32]]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `i32`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
         "int",
         &format!("fn f(x: Array[Int]) -> Int:\n    return 1\n\n{main}"),
         "E_TYPE_ANNOTATION",
