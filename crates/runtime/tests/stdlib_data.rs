@@ -1575,8 +1575,9 @@ fn main() -> Unit:
         let outcome = runtime.invoke("main", vec![]);
         let effects: Vec<_> = runtime
             .effect_report()
-            .into_iter()
+            .iter()
             .filter(|effect| effect.kind == guion_runtime::EffectKind::FileRead)
+            .cloned()
             .collect();
         assert_eq!(effects.len(), 1, "limit {limit}: {effects:?} {outcome:?}");
         match outcome {
