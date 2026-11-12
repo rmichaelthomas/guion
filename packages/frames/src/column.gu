@@ -50,8 +50,8 @@ fn text_column(name: Text, codes: Array[i64], dictionary: List[Text], valid: Arr
     return Column(name, "text", no_ints(), no_floats(), no_flags(), codes, dictionary, tidy_valid(valid))
 
 # A text column from codes into `dictionary`; a missing slot holds code 0 (whatever code is
-# passed there is replaced by 0). A present row whose code is outside `0..len(dictionary)`, or a mask of a
-# different length from the codes, is `E_FRAME_SHAPE`.
+# passed there is replaced by 0). A present row whose code is outside `0..len(dictionary)`,
+# or a mask of a different length from the codes, is `E_FRAME_SHAPE`.
 pub fn column_from_codes(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Result[Column, StdError]:
     let count = array_size(codes)
     if array_size(valid) != 0 and array_size(valid) != count:
@@ -238,6 +238,14 @@ pub fn float_cell(value: Float64) -> Text:
     let text = float_to_text(value)
     if text_find(text, "e", 0) >= 0 or text_find(text, "E", 0) >= 0:
         return text
+    # The common case, a plain decimal between 1e-4 and 1e16 (or zero), needs no rewriting.
+    var size = value
+    if size < 0.0:
+        set size = -size
+    if size == 0.0 or (size >= 0.0001 and size < 1.0e16):
+        if text_find(text, ".", 0) >= 0:
+            return text
+        return text + ".0"
     var sign = ""
     var plain = text
     if text_slice(text, 0, 1) == "-":

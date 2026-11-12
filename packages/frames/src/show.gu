@@ -11,6 +11,254 @@ fn spaces(count: Int) -> Text:
         set index = index + 1
     return out
 
+# Whether a character is East Asian Wide or Fullwidth (Unicode 16), which includes every emoji
+# with emoji presentation. A search over the ranges that start at U+0300 or above, from a
+# table made from the Unicode East Asian Width property.
+fn is_wide(char: Text) -> Bool:
+    if char < "\u{17000}":
+        if char < "\u{2757}":
+            if char < "\u{26BD}":
+                if char < "\u{2614}":
+                    if char < "\u{23E9}":
+                        if char < "\u{231A}":
+                            return char >= "\u{1100}" and char <= "\u{115F}"
+                        if char < "\u{2329}":
+                            return char >= "\u{231A}" and char <= "\u{231B}"
+                        return char >= "\u{2329}" and char <= "\u{232A}"
+                    if char < "\u{23F3}":
+                        if char < "\u{23F0}":
+                            return char >= "\u{23E9}" and char <= "\u{23EC}"
+                        return char == "\u{23F0}"
+                    if char < "\u{25FD}":
+                        return char == "\u{23F3}"
+                    return char >= "\u{25FD}" and char <= "\u{25FE}"
+                if char < "\u{268A}":
+                    if char < "\u{2648}":
+                        if char < "\u{2630}":
+                            return char >= "\u{2614}" and char <= "\u{2615}"
+                        return char >= "\u{2630}" and char <= "\u{2637}"
+                    if char < "\u{267F}":
+                        return char >= "\u{2648}" and char <= "\u{2653}"
+                    return char == "\u{267F}"
+                if char < "\u{26A1}":
+                    if char < "\u{2693}":
+                        return char >= "\u{268A}" and char <= "\u{268F}"
+                    return char == "\u{2693}"
+                if char < "\u{26AA}":
+                    return char == "\u{26A1}"
+                return char >= "\u{26AA}" and char <= "\u{26AB}"
+            if char < "\u{26FA}":
+                if char < "\u{26D4}":
+                    if char < "\u{26C4}":
+                        return char >= "\u{26BD}" and char <= "\u{26BE}"
+                    if char < "\u{26CE}":
+                        return char >= "\u{26C4}" and char <= "\u{26C5}"
+                    return char == "\u{26CE}"
+                if char < "\u{26F2}":
+                    if char < "\u{26EA}":
+                        return char == "\u{26D4}"
+                    return char == "\u{26EA}"
+                if char < "\u{26F5}":
+                    return char >= "\u{26F2}" and char <= "\u{26F3}"
+                return char == "\u{26F5}"
+            if char < "\u{2728}":
+                if char < "\u{2705}":
+                    if char < "\u{26FD}":
+                        return char == "\u{26FA}"
+                    return char == "\u{26FD}"
+                if char < "\u{270A}":
+                    return char == "\u{2705}"
+                return char >= "\u{270A}" and char <= "\u{270B}"
+            if char < "\u{274E}":
+                if char < "\u{274C}":
+                    return char == "\u{2728}"
+                return char == "\u{274C}"
+            if char < "\u{2753}":
+                return char == "\u{274E}"
+            return char >= "\u{2753}" and char <= "\u{2755}"
+        if char < "\u{3190}":
+            if char < "\u{2E80}":
+                if char < "\u{27BF}":
+                    if char < "\u{2795}":
+                        return char == "\u{2757}"
+                    if char < "\u{27B0}":
+                        return char >= "\u{2795}" and char <= "\u{2797}"
+                    return char == "\u{27B0}"
+                if char < "\u{2B50}":
+                    if char < "\u{2B1B}":
+                        return char == "\u{27BF}"
+                    return char >= "\u{2B1B}" and char <= "\u{2B1C}"
+                if char < "\u{2B55}":
+                    return char == "\u{2B50}"
+                return char == "\u{2B55}"
+            if char < "\u{3041}":
+                if char < "\u{2F00}":
+                    if char < "\u{2E9B}":
+                        return char >= "\u{2E80}" and char <= "\u{2E99}"
+                    return char >= "\u{2E9B}" and char <= "\u{2EF3}"
+                if char < "\u{2FF0}":
+                    return char >= "\u{2F00}" and char <= "\u{2FD5}"
+                return char >= "\u{2FF0}" and char <= "\u{303E}"
+            if char < "\u{3105}":
+                if char < "\u{3099}":
+                    return char >= "\u{3041}" and char <= "\u{3096}"
+                return char >= "\u{3099}" and char <= "\u{30FF}"
+            if char < "\u{3131}":
+                return char >= "\u{3105}" and char <= "\u{312F}"
+            return char >= "\u{3131}" and char <= "\u{318E}"
+        if char < "\u{FE10}":
+            if char < "\u{A490}":
+                if char < "\u{3220}":
+                    if char < "\u{31EF}":
+                        return char >= "\u{3190}" and char <= "\u{31E5}"
+                    return char >= "\u{31EF}" and char <= "\u{321E}"
+                if char < "\u{3250}":
+                    return char >= "\u{3220}" and char <= "\u{3247}"
+                return char >= "\u{3250}" and char <= "\u{A48C}"
+            if char < "\u{AC00}":
+                if char < "\u{A960}":
+                    return char >= "\u{A490}" and char <= "\u{A4C6}"
+                return char >= "\u{A960}" and char <= "\u{A97C}"
+            if char < "\u{F900}":
+                return char >= "\u{AC00}" and char <= "\u{D7A3}"
+            return char >= "\u{F900}" and char <= "\u{FAFF}"
+        if char < "\u{FF01}":
+            if char < "\u{FE54}":
+                if char < "\u{FE30}":
+                    return char >= "\u{FE10}" and char <= "\u{FE19}"
+                return char >= "\u{FE30}" and char <= "\u{FE52}"
+            if char < "\u{FE68}":
+                return char >= "\u{FE54}" and char <= "\u{FE66}"
+            return char >= "\u{FE68}" and char <= "\u{FE6B}"
+        if char < "\u{16FE0}":
+            if char < "\u{FFE0}":
+                return char >= "\u{FF01}" and char <= "\u{FF60}"
+            return char >= "\u{FFE0}" and char <= "\u{FFE6}"
+        if char < "\u{16FF0}":
+            return char >= "\u{16FE0}" and char <= "\u{16FE4}"
+        return char >= "\u{16FF0}" and char <= "\u{16FF1}"
+    if char < "\u{1F3F4}":
+        if char < "\u{1F0CF}":
+            if char < "\u{1B132}":
+                if char < "\u{1AFF0}":
+                    if char < "\u{18800}":
+                        return char >= "\u{17000}" and char <= "\u{187F7}"
+                    if char < "\u{18CFF}":
+                        return char >= "\u{18800}" and char <= "\u{18CD5}"
+                    return char >= "\u{18CFF}" and char <= "\u{18D08}"
+                if char < "\u{1AFFD}":
+                    if char < "\u{1AFF5}":
+                        return char >= "\u{1AFF0}" and char <= "\u{1AFF3}"
+                    return char >= "\u{1AFF5}" and char <= "\u{1AFFB}"
+                if char < "\u{1B000}":
+                    return char >= "\u{1AFFD}" and char <= "\u{1AFFE}"
+                return char >= "\u{1B000}" and char <= "\u{1B122}"
+            if char < "\u{1B170}":
+                if char < "\u{1B155}":
+                    if char < "\u{1B150}":
+                        return char == "\u{1B132}"
+                    return char >= "\u{1B150}" and char <= "\u{1B152}"
+                if char < "\u{1B164}":
+                    return char == "\u{1B155}"
+                return char >= "\u{1B164}" and char <= "\u{1B167}"
+            if char < "\u{1D360}":
+                if char < "\u{1D300}":
+                    return char >= "\u{1B170}" and char <= "\u{1B2FB}"
+                return char >= "\u{1D300}" and char <= "\u{1D356}"
+            if char < "\u{1F004}":
+                return char >= "\u{1D360}" and char <= "\u{1D376}"
+            return char == "\u{1F004}"
+        if char < "\u{1F260}":
+            if char < "\u{1F200}":
+                if char < "\u{1F18E}":
+                    return char == "\u{1F0CF}"
+                if char < "\u{1F191}":
+                    return char == "\u{1F18E}"
+                return char >= "\u{1F191}" and char <= "\u{1F19A}"
+            if char < "\u{1F240}":
+                if char < "\u{1F210}":
+                    return char >= "\u{1F200}" and char <= "\u{1F202}"
+                return char >= "\u{1F210}" and char <= "\u{1F23B}"
+            if char < "\u{1F250}":
+                return char >= "\u{1F240}" and char <= "\u{1F248}"
+            return char >= "\u{1F250}" and char <= "\u{1F251}"
+        if char < "\u{1F37E}":
+            if char < "\u{1F32D}":
+                if char < "\u{1F300}":
+                    return char >= "\u{1F260}" and char <= "\u{1F265}"
+                return char >= "\u{1F300}" and char <= "\u{1F320}"
+            if char < "\u{1F337}":
+                return char >= "\u{1F32D}" and char <= "\u{1F335}"
+            return char >= "\u{1F337}" and char <= "\u{1F37C}"
+        if char < "\u{1F3CF}":
+            if char < "\u{1F3A0}":
+                return char >= "\u{1F37E}" and char <= "\u{1F393}"
+            return char >= "\u{1F3A0}" and char <= "\u{1F3CA}"
+        if char < "\u{1F3E0}":
+            return char >= "\u{1F3CF}" and char <= "\u{1F3D3}"
+        return char >= "\u{1F3E0}" and char <= "\u{1F3F0}"
+    if char < "\u{1F6DC}":
+        if char < "\u{1F57A}":
+            if char < "\u{1F442}":
+                if char < "\u{1F3F8}":
+                    return char == "\u{1F3F4}"
+                if char < "\u{1F440}":
+                    return char >= "\u{1F3F8}" and char <= "\u{1F43E}"
+                return char == "\u{1F440}"
+            if char < "\u{1F54B}":
+                if char < "\u{1F4FF}":
+                    return char >= "\u{1F442}" and char <= "\u{1F4FC}"
+                return char >= "\u{1F4FF}" and char <= "\u{1F53D}"
+            if char < "\u{1F550}":
+                return char >= "\u{1F54B}" and char <= "\u{1F54E}"
+            return char >= "\u{1F550}" and char <= "\u{1F567}"
+        if char < "\u{1F680}":
+            if char < "\u{1F5A4}":
+                if char < "\u{1F595}":
+                    return char == "\u{1F57A}"
+                return char >= "\u{1F595}" and char <= "\u{1F596}"
+            if char < "\u{1F5FB}":
+                return char == "\u{1F5A4}"
+            return char >= "\u{1F5FB}" and char <= "\u{1F64F}"
+        if char < "\u{1F6D0}":
+            if char < "\u{1F6CC}":
+                return char >= "\u{1F680}" and char <= "\u{1F6C5}"
+            return char == "\u{1F6CC}"
+        if char < "\u{1F6D5}":
+            return char >= "\u{1F6D0}" and char <= "\u{1F6D2}"
+        return char >= "\u{1F6D5}" and char <= "\u{1F6D7}"
+    if char < "\u{1FA70}":
+        if char < "\u{1F7F0}":
+            if char < "\u{1F6F4}":
+                if char < "\u{1F6EB}":
+                    return char >= "\u{1F6DC}" and char <= "\u{1F6DF}"
+                return char >= "\u{1F6EB}" and char <= "\u{1F6EC}"
+            if char < "\u{1F7E0}":
+                return char >= "\u{1F6F4}" and char <= "\u{1F6FC}"
+            return char >= "\u{1F7E0}" and char <= "\u{1F7EB}"
+        if char < "\u{1F93C}":
+            if char < "\u{1F90C}":
+                return char == "\u{1F7F0}"
+            return char >= "\u{1F90C}" and char <= "\u{1F93A}"
+        if char < "\u{1F947}":
+            return char >= "\u{1F93C}" and char <= "\u{1F945}"
+        return char >= "\u{1F947}" and char <= "\u{1F9FF}"
+    if char < "\u{1FADF}":
+        if char < "\u{1FA8F}":
+            if char < "\u{1FA80}":
+                return char >= "\u{1FA70}" and char <= "\u{1FA7C}"
+            return char >= "\u{1FA80}" and char <= "\u{1FA89}"
+        if char < "\u{1FACE}":
+            return char >= "\u{1FA8F}" and char <= "\u{1FAC6}"
+        return char >= "\u{1FACE}" and char <= "\u{1FADC}"
+    if char < "\u{20000}":
+        if char < "\u{1FAF0}":
+            return char >= "\u{1FADF}" and char <= "\u{1FAE9}"
+        return char >= "\u{1FAF0}" and char <= "\u{1FAF8}"
+    if char < "\u{30000}":
+        return char >= "\u{20000}" and char <= "\u{2FFFD}"
+    return char >= "\u{30000}" and char <= "\u{3FFFD}"
+
 # Terminal columns taken by one character: 2 for East Asian wide and fullwidth characters and
 # emoji, 0 for combining marks and zero-width characters, 1 for everything else.
 fn char_width(char: Text) -> Int:
@@ -20,25 +268,7 @@ fn char_width(char: Text) -> Int:
         return 0
     if char >= "\u{200B}" and char <= "\u{200F}":
         return 0
-    if char >= "\u{1100}" and char <= "\u{115F}":
-        return 2
-    if char >= "\u{2E80}" and char <= "\u{A4CF}":
-        return 2
-    if char >= "\u{AC00}" and char <= "\u{D7A3}":
-        return 2
-    if char >= "\u{F900}" and char <= "\u{FAFF}":
-        return 2
-    if char >= "\u{FE30}" and char <= "\u{FE4F}":
-        return 2
-    if char >= "\u{FF00}" and char <= "\u{FF60}":
-        return 2
-    if char >= "\u{FFE0}" and char <= "\u{FFE6}":
-        return 2
-    if char >= "\u{1F300}" and char <= "\u{1F64F}":
-        return 2
-    if char >= "\u{1F900}" and char <= "\u{1F9FF}":
-        return 2
-    if char >= "\u{20000}" and char <= "\u{3FFFD}":
+    if is_wide(char):
         return 2
     return 1
 

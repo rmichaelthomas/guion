@@ -18,6 +18,15 @@ PANDAS_PYTHON = os.path.join(HERE, ".venv", "bin", "python")
 BATCH = 20
 
 
+def refresh_package():
+    """Copy the current `frames` sources into the project's package cache. The timed program
+    imports `pkg:frames`, a snapshot taken when the package was added, so without this a
+    run measures whatever the package looked like then."""
+    done = subprocess.run([GUION, "update"], cwd=PROGRAMS, capture_output=True, text=True)
+    if done.returncode != 0:
+        raise SystemExit(f"guion update failed: {done.stderr}")
+
+
 def lane(command):
     done = subprocess.run(command, cwd=PROGRAMS, capture_output=True, text=True)
     if done.returncode != 0:
@@ -27,6 +36,7 @@ def lane(command):
 
 
 def main():
+    refresh_package()
     guion, guion_total = lane([GUION, "run", "--allow-clock", "filter_step.gu"])
     pandas, pandas_total = lane([PANDAS_PYTHON, "-I", "filter_step_pd.py"])
     if abs(guion_total - pandas_total) > 1e-9 * max(1.0, abs(pandas_total)):

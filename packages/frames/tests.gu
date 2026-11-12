@@ -138,6 +138,8 @@ fn test_from_codes_checks_present_codes() -> Unit:
     assert(codes_error(column_from_codes("t", array_i64([0, 2]), ["a", "b"], none)) == "E_FRAME_SHAPE")
     assert(codes_error(column_from_codes("t", array_i64([0, -1]), ["a", "b"], none)) == "E_FRAME_SHAPE")
     assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, false]))) == "ok")
+    assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, true]))) == "E_FRAME_SHAPE")
+    assert(codes_error(column_from_codes("t", array_i64([0, 0]), ["a"], array_bool([true]))) == "E_FRAME_SHAPE")
 
 fn test_from_codes_missing_slot_code_is_normalised() -> Unit:
     let column = unwrap(column_from_codes("s", array_i64([1, -1, 0]), ["a", "b"], array_bool([true, false, true])))
@@ -146,5 +148,29 @@ fn test_from_codes_missing_slot_code_is_normalised() -> Unit:
     assert(frame_rows(joined) == 6)
     let sorted = unwrap(frame_sort(frame, ["s"], [true]))
     assert(frame_rows(sorted) == 3)
-    assert(codes_error(column_from_codes("t", array_i64([0, 7]), ["a", "b"], array_bool([true, true]))) == "E_FRAME_SHAPE")
-    assert(codes_error(column_from_codes("t", array_i64([0, 0]), ["a"], array_bool([true]))) == "E_FRAME_SHAPE")
+
+fn test_display_width_follows_the_east_asian_width_ranges() -> Unit:
+    # Wide: the Hangul Jamo block, the first wide symbols, fullwidth forms, the CJK planes and
+    # the emoji that lie outside the CJK blocks.
+    assert(display_width("\u{1100}\u{115F}") == 4)
+    assert(display_width("\u{231A}\u{26A1}\u{2705}\u{2B50}") == 8)
+    assert(display_width("\u{3000}\u{FF01}\u{FFE6}\u{20000}\u{3FFFD}") == 10)
+    assert(display_width("\u{1F680}\u{1F7E0}\u{1F947}\u{1FA70}\u{1FAF8}") == 10)
+    # Narrow: one past each edge, text-style symbols, private use and halfwidth forms.
+    assert(display_width("\u{1160}\u{2319}\u{2764}\u{303F}\u{E000}\u{FF61}\u{1FAF9}") == 7)
+    # Combining marks and zero-width characters take no columns.
+    assert(display_width("e\u{301}\u{200B}") == 1)
+    assert(display_width("a\u{65E5}b") == 4)
+
+fn test_float_cell_writes_plain_and_exponent_forms_at_the_boundaries() -> Unit:
+    assert(float_cell(0.0) == "0.0")
+    assert(float_cell(1.0) == "1.0")
+    assert(float_cell(-2.5) == "-2.5")
+    assert(float_cell(0.0001) == "0.0001")
+    assert(float_cell(0.00009999) == "9.999e-05")
+    assert(float_cell(-0.00001) == "-1e-05")
+    assert(float_cell(1000000000000000.0) == "1000000000000000.0")
+    assert(float_cell(9999999999999998.0) == "9999999999999998.0")
+    assert(float_cell(10000000000000000.0) == "1e+16")
+    assert(float_cell(-1.5e20) == "-1.5e+20")
+    assert(float_cell(123456.789) == "123456.789")

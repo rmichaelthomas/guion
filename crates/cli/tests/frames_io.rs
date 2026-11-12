@@ -184,6 +184,21 @@ fn jsonl_columns_are_the_keys_of_every_object() {
     );
 }
 
+// A line with as many keys as the columns so far, but one of them new, still adds its column; a
+// line that repeats the same keys adds none.
+#[test]
+fn jsonl_a_line_with_the_same_number_of_keys_but_a_new_one_adds_a_column() {
+    let app = app(
+        "jsonl-same-count",
+        &[(
+            "rows.jsonl",
+            "{\"a\": 1, \"b\": 2}\n{\"a\": 3, \"b\": 4}\n{\"a\": 5, \"c\": 6}\n{\"b\": 7, \"a\": 8}\n",
+        )],
+        "let frame = unwrap(frame_read_jsonl(\"rows.jsonl\"))\nprint(kinds(frame))\nprint(frame_rows(frame))",
+    );
+    assert_eq!(stdout(&app), "a:i64:0 b:i64:1 c:i64:3 \n4\n");
+}
+
 #[test]
 fn show_prints_an_aligned_table() {
     let app = app(
@@ -305,6 +320,35 @@ fn show_aligns_wide_characters_by_display_width() {
             "a\\nb  4\n",
             "c\\td  5\n",
             "[5 rows x 2 columns]\n",
+        )
+    );
+}
+
+// Emoji that are two columns wide in a terminal but lie outside the CJK blocks: the transport
+// and symbol blocks, the Unicode 12 to 15 additions, and the single wide symbols in the BMP.
+#[test]
+fn show_aligns_every_wide_emoji_by_display_width() {
+    let app = app(
+        "show-emoji",
+        &[],
+        "let frame = unwrap(frame_new([column_text(\"t\", [\"\u{1F680}\", \"\u{2705}\", \"\u{2B50}\", \"\u{1F7E0}\", \"\u{1FA70}\", \"\u{26A1}\", \"\u{1F947}\", \"ab\", \"\u{2764}\"]), column_i64(\"n\", [1, 2, 3, 4, 5, 6, 7, 8, 9])]))\nprint(frame_show(frame, 20))",
+    );
+    // Each of the first seven cells is two columns wide, like `ab`; U+2764 (a text-style
+    // heart) is one column wide.
+    assert_eq!(
+        stdout(&app),
+        concat!(
+            "t   n\n",
+            "\u{1F680}  1\n",
+            "\u{2705}  2\n",
+            "\u{2B50}  3\n",
+            "\u{1F7E0}  4\n",
+            "\u{1FA70}  5\n",
+            "\u{26A1}  6\n",
+            "\u{1F947}  7\n",
+            "ab  8\n",
+            "\u{2764}   9\n",
+            "[9 rows x 2 columns]\n",
         )
     );
 }

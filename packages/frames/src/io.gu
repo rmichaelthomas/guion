@@ -251,6 +251,15 @@ fn field_of(object: Json, key: Text) -> Json:
         return json_get(object, key)
     return json_null()
 
+# Whether an object has exactly the given keys (and so none that are new).
+fn has_exactly(object: Json, keys: List[Text]) -> Bool:
+    if len(keys) == 0 or json_len(object) != len(keys):
+        return false
+    for key in keys:
+        if not json_has(object, key):
+            return false
+    return true
+
 # Reads a JSONL file: one JSON object per line. The columns are the keys of all the objects,
 # in the order they are first seen (one object's keys in the order its JSON text lists them,
 # which is sorted). A key an object lacks, or `null`, is a missing value; kinds follow the JSON
@@ -262,10 +271,13 @@ pub fn frame_read_jsonl(path: Text) -> Result[Frame, StdError]:
     var keys: List[Text] = []
     var known: Map[Text, Int] = {}
     for object in objects:
-        for key in object_keys(object):
-            if not map_has(known, key):
-                set known = map_set(known, key, 1)
-                set keys = list_push(keys, key)
+        # An object with exactly the keys seen so far adds none, and checking that takes a
+        # lookup per key; only an object that differs has its keys listed.
+        if not has_exactly(object, keys):
+            for key in object_keys(object):
+                if not map_has(known, key):
+                    set known = map_set(known, key, 1)
+                    set keys = list_push(keys, key)
     var columns: List[Column] = []
     for key in keys:
         var kind = ""
