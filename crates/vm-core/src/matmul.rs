@@ -14,7 +14,7 @@ pub(crate) const MR: usize = 8;
 pub(crate) const NR: usize = 6;
 /// Rows of `A` packed at once per worker chunk, and the inner-dimension block length.
 const MC: usize = 128;
-const KC: usize = 256;
+pub(crate) const KC: usize = 256;
 /// Products (n*m*k) below which one thread does the work: 128^3 is faster on one thread and
 /// 160^3 on several (M1 Pro), so the cut sits between them.
 const PARALLEL_MIN: usize = (1 << 21) + (1 << 20);
@@ -109,12 +109,38 @@ pub(crate) fn matmul_f64(
     if threads == 1 {
         work();
     } else {
+        // The workers pull row chunks from one queue, so the calling thread works too and a
+        // thread the operating system refuses to start only means fewer workers, never a
+        // missing chunk (or a panic that would abort the program).
         std::thread::scope(|scope| {
-            for _ in 0..threads {
-                scope.spawn(work);
+            for _ in 1..threads {
+                if refuse_spawn()
+                    || std::thread::Builder::new()
+                        .spawn_scoped(scope, work)
+                        .is_err()
+                {
+                    break;
+                }
             }
+            work();
         });
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    static REFUSE_SPAWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Lets a test stand in for an operating system that refuses to start a thread.
+#[cfg(test)]
+fn refuse_spawn() -> bool {
+    REFUSE_SPAWN.with(|refuse| refuse.get())
+}
+
+#[cfg(not(test))]
+fn refuse_spawn() -> bool {
+    false
 }
 
 /// Packs `B` as, per `KC` block of rows, panels of `NR` columns, each stored `[p][NR]` and
@@ -332,11 +358,12 @@ mod tests {
         (c, reference(&a, &b, n, k, m))
     }
 
-    fn assert_close(got: &[f64], want: &[f64], k: usize, what: &str) {
+    /// Agreement to 1e-12 relative to the value (with a floor of 1, so a sum that cancels to
+    /// nearly zero is judged against the size of its terms rather than against itself).
+    fn assert_close(got: &[f64], want: &[f64], what: &str) {
         for (index, (g, w)) in got.iter().zip(want).enumerate() {
-            let scale = (k as f64).max(1.0);
             assert!(
-                (g - w).abs() <= 1e-12 * scale,
+                (g - w).abs() <= 1e-12 * w.abs().max(1.0),
                 "{what}: element {index}: {g} vs {w}"
             );
         }
@@ -359,7 +386,7 @@ mod tests {
         for &(n, k, m) in SHAPES {
             for isa in [Isa::Scalar, native_isa()] {
                 let (got, want) = run(n, k, m, 1, isa);
-                assert_close(&got, &want, k, &format!("{n}x{k} * {k}x{m} {isa:?}"));
+                assert_close(&got, &want, &format!("{n}x{k} * {k}x{m} {isa:?}"));
             }
         }
     }
@@ -383,6 +410,17 @@ mod tests {
             let (scalar, _) = run(n, k, m, 2, Isa::Scalar);
             assert_eq!(first, scalar, "{n}x{k}x{m} scalar fallback");
         }
+    }
+
+    #[test]
+    fn a_refused_thread_leaves_the_work_to_the_threads_that_started() {
+        let (n, k, m) = (70, 300, 50);
+        let (expected, _) = run(n, k, m, 1, native_isa());
+        // No helper thread can be started: the calling thread does all of it.
+        REFUSE_SPAWN.with(|refuse| refuse.set(true));
+        let (got, _) = run(n, k, m, 8, native_isa());
+        REFUSE_SPAWN.with(|refuse| refuse.set(false));
+        assert_eq!(got, expected);
     }
 
     #[test]

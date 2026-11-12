@@ -360,12 +360,15 @@ fn map_owned<T: Element>(
 
 /// Same-type arithmetic with broadcasting. When an operand is an unshared array already of the
 /// result's shape, its buffer receives the result; float results are checked for finiteness
-/// once, after the loop.
+/// once, after the loop. `f` is one of the `_raw` operations (`raw` is true) when it leaves
+/// that check to the loop's end, and a checked operation (division, minimum, maximum) when
+/// each result is already known to be acceptable.
 fn zip_numeric<T: Numeric>(
     args: &mut [Value],
     scalar: Option<ArrayValue>,
     charge: &mut Charge<'_>,
     what: &str,
+    raw: bool,
     f: impl Fn(T, T) -> Result<T, &'static str>,
 ) -> Result<Value, ArrayError> {
     let (reuse, shape) = {
@@ -417,7 +420,7 @@ fn zip_numeric<T: Numeric>(
             return finish(shape, out);
         }
         let result = zip_with(left, right, charge, what, &f)?;
-        if let Value::Array(array) = &result {
+        if let (true, Value::Array(array)) = (raw, &result) {
             if let Some(index) = T::first_nonfinite(T::items(&array.data)) {
                 return Err(element_error(NONFINITE, what, T::TYPE, index));
             }
@@ -479,14 +482,14 @@ fn arithmetic<T: Numeric>(
     };
     let name = &function.guest_name();
     match function {
-        Add | AddScalar => zip_numeric(args, scalar, charge, name, T::add_raw),
-        Sub | SubScalar => zip_numeric(args, scalar, charge, name, T::sub_raw),
-        Mul | MulScalar => zip_numeric(args, scalar, charge, name, T::mul_raw),
-        Div | DivScalar => zip_numeric(args, scalar, charge, name, T::div),
-        Minimum => zip_numeric(args, scalar, charge, name, |x: T, y: T| {
+        Add | AddScalar => zip_numeric(args, scalar, charge, name, true, T::add_raw),
+        Sub | SubScalar => zip_numeric(args, scalar, charge, name, true, T::sub_raw),
+        Mul | MulScalar => zip_numeric(args, scalar, charge, name, true, T::mul_raw),
+        Div | DivScalar => zip_numeric(args, scalar, charge, name, false, T::div),
+        Minimum => zip_numeric(args, scalar, charge, name, false, |x: T, y: T| {
             Ok(if y < x { y } else { x })
         }),
-        Maximum => zip_numeric(args, scalar, charge, name, |x: T, y: T| {
+        Maximum => zip_numeric(args, scalar, charge, name, false, |x: T, y: T| {
             Ok(if y > x { y } else { x })
         }),
         _ => unreachable!("arithmetic dispatch"),
@@ -1047,12 +1050,36 @@ fn matmul<T: Element>(
     };
     let mut acc = vec![0.0f64; n * m];
     if n == 1 || m == 1 {
-        // A single row or column cannot fill a register tile; sum each element in order of k.
+        // A single row or column cannot fill a register tile, so it is summed here the way the
+        // tile kernels sum every element: blocks of `KC` in the inner dimension in order, each
+        // block fused from zero and then added to the result. A slice of a product therefore
+        // equals the matching part of the whole product bit for bit.
+        let mut block = if k > matmul::KC {
+            hold(charge, held, m.saturating_mul(size_of::<f64>()))?;
+            vec![0.0f64; m]
+        } else {
+            Vec::new()
+        };
         for i in 0..n {
-            for p in 0..k {
-                let scale = left[i * k + p];
-                for (cell, value) in acc[i * m..(i + 1) * m].iter_mut().zip(&right[p * m..]) {
-                    *cell += scale * value;
+            let row = &mut acc[i * m..(i + 1) * m];
+            for (index, start) in (0..k).step_by(matmul::KC).enumerate() {
+                let end = k.min(start + matmul::KC);
+                // The first block can sum straight into the zeroed row: adding it to zero
+                // changes nothing.
+                let cells: &mut [f64] = if index == 0 { &mut *row } else { &mut block };
+                if index > 0 {
+                    cells.fill(0.0);
+                }
+                for p in start..end {
+                    let scale = left[i * k + p];
+                    for (cell, value) in cells.iter_mut().zip(&right[p * m..]) {
+                        *cell = scale.mul_add(*value, *cell);
+                    }
+                }
+                if index > 0 {
+                    for (cell, partial) in row.iter_mut().zip(&block) {
+                        *cell += partial;
+                    }
                 }
             }
         }
@@ -1290,7 +1317,7 @@ fn apply_kernel(
             "R_TYPE_INVALID",
             format!(
                 "{} does not accept {} arrays",
-                function.guest_name(),
+                function.guest_name_for(element),
                 element.name()
             ),
         );
@@ -1343,7 +1370,10 @@ fn apply_kernel(
         JoinIndex => join_index(args, charge, held),
         _ => error(
             "R_TYPE_INVALID",
-            format!("{} is not a compute instruction", function.guest_name()),
+            format!(
+                "{} is not a compute instruction",
+                function.guest_name_for(element)
+            ),
         ),
     }
 }
@@ -1474,10 +1504,15 @@ fn factorize<T: Element>(
     let mut out = Vec::with_capacity(items.len());
     for item in items {
         let next = codes.len() as i64;
-        let code = *codes.entry(element_key(*item)).or_insert_with(|| next);
-        if code == next {
-            hold(charge, held, 48)?;
-        }
+        // A new key is charged before it is inserted, so the table never outgrows its charge.
+        let code = match codes.entry(element_key(*item)) {
+            std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                hold(charge, held, 48)?;
+                entry.insert(next);
+                next
+            }
+        };
         out.push(code);
     }
     finish(vec![items.len()], out)
@@ -1612,7 +1647,9 @@ fn join_index(
     let right = i64_items(array_arg(args, 1)?, name)?;
     let keep_unmatched = matches!(args[2], Value::Bool(true));
     // Right rows grouped by code, in right order: `slots[code]` indexes `starts`.
-    hold(charge, held, right.len().saturating_mul(40))?;
+    // Per right row: its slot (8), a count (8), its table entry (about 24), its place in the
+    // grouped rows (8), the group's start (8) and a fill cursor (8).
+    hold(charge, held, right.len().saturating_mul(64))?;
     let mut slots: KeyMap<i64, usize> = KeyMap::default();
     let mut counts: Vec<usize> = Vec::new();
     let mut slot_of_row = Vec::with_capacity(right.len());
@@ -1846,6 +1883,106 @@ mod budget_tests {
         assert_eq!(used.get(), output, "only the output stays charged");
     }
 
+    /// A product with a single row or column is summed the way every element of a larger
+    /// product is: in order of k, each step fused. So a slice of a product equals the matching
+    /// part of the whole product to the last bit.
+    #[test]
+    fn a_single_row_or_column_matches_the_same_part_of_the_whole_product() {
+        let value = |index: usize, salt: usize| {
+            ((index * 7919 + salt * 104_729) % 100_003) as f64 / 99_991.0 - 0.37
+        };
+        let matrix = |rows: usize, columns: usize, salt: usize| {
+            Value::Array(Shared::new(
+                ArrayValue::new(
+                    vec![rows, columns],
+                    ArrayData::F64((0..rows * columns).map(|i| value(i, salt)).collect()),
+                )
+                .unwrap(),
+            ))
+        };
+        for (n, k, m) in [(9, 61, 7), (5, 600, 4)] {
+            let (a, b) = (matrix(n, k, 1), matrix(k, m, 2));
+            let multiply = |left: Value, right: Value| {
+                let used = Cell::new(0usize);
+                match run(
+                    ArrayFunction::Matmul,
+                    ElementType::F64,
+                    vec![left, right],
+                    1 << 30,
+                    &used,
+                ) {
+                    Ok(Value::Array(product)) => match &product.data {
+                        ArrayData::F64(items) => items.clone(),
+                        _ => panic!("not f64"),
+                    },
+                    other => panic!("matmul failed: {other:?}"),
+                }
+            };
+            let whole = multiply(a.clone(), b.clone());
+            // Each row on its own.
+            for row in 0..n {
+                let Value::Array(source) = &a else {
+                    unreachable!()
+                };
+                let ArrayData::F64(items) = &source.data else {
+                    unreachable!()
+                };
+                let single = Value::Array(Shared::new(
+                    ArrayValue::new(
+                        vec![1, k],
+                        ArrayData::F64(items[row * k..(row + 1) * k].to_vec()),
+                    )
+                    .unwrap(),
+                ));
+                assert_eq!(
+                    multiply(single, b.clone()),
+                    whole[row * m..(row + 1) * m].to_vec(),
+                    "row {row}"
+                );
+            }
+            // Each column on its own.
+            for column in 0..m {
+                let Value::Array(source) = &b else {
+                    unreachable!()
+                };
+                let ArrayData::F64(items) = &source.data else {
+                    unreachable!()
+                };
+                let single = Value::Array(Shared::new(
+                    ArrayValue::new(
+                        vec![k, 1],
+                        ArrayData::F64((0..k).map(|p| items[p * m + column]).collect()),
+                    )
+                    .unwrap(),
+                ));
+                let got = multiply(a.clone(), single);
+                let want: Vec<f64> = (0..n).map(|row| whole[row * m + column]).collect();
+                assert_eq!(got, want, "column {column}");
+            }
+        }
+    }
+
+    #[test]
+    fn factorize_charges_each_new_key_and_gives_the_charge_back_on_failure() {
+        let a = array(ElementType::I64, vec![256], |i| i as i64);
+        let output = array_bytes(ElementType::I64, 1, 256);
+        // Room for ten keys: the eleventh is refused, and what was held is released.
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Factorize,
+            ElementType::I64,
+            vec![a],
+            output + 48 * 10,
+            &used,
+        );
+        assert_limit(result, "factorize keys");
+        assert_eq!(
+            used.get(),
+            output,
+            "a failed factorize leaves only its output"
+        );
+    }
+
     #[test]
     fn join_index_tables_are_charged_and_released() {
         let left = array(ElementType::I64, vec![128], |i| i as i64 % 40);
@@ -1879,19 +2016,37 @@ mod budget_tests {
     fn a_thousand_argsorts_under_a_small_budget_complete() {
         let a = array(ElementType::I64, vec![64], |i| (i as i64 * 31) % 64);
         let output = array_bytes(ElementType::I64, 1, 64);
-        let used = Cell::new(0);
+        let temporary = 64 * 8;
+        let used = Cell::new(0usize);
+        let peak = Cell::new(0usize);
         for _ in 0..1000 {
-            let result = run(
+            let mut charge = |bytes: usize| {
+                if used.get().saturating_add(bytes) > output + temporary {
+                    return Err(("R_ALLOCATION_LIMIT", "limit".to_string()));
+                }
+                used.set(used.get() + bytes);
+                peak.set(peak.get().max(used.get()));
+                Ok(())
+            };
+            let mut release = |bytes: usize| used.set(used.get() - bytes);
+            let result = crate::array::apply(
                 ArrayFunction::Argsort,
                 ElementType::I64,
-                vec![a.clone()],
-                output + 64 * 8,
-                &used,
+                &mut [a.clone()],
+                &mut charge,
+                &mut release,
             );
             assert!(result.is_ok(), "argsort ran out of budget");
-            // Dropping the result releases its own charge, as the VM does.
+            // The kernel releases its own temporary. Its output stays charged until the
+            // owner of the budget reclaims it, which the loop stands in for here (the command
+            // line does it by measuring live memory).
+            assert_eq!(used.get(), output, "the temporary must be released");
             used.set(used.get() - output);
-            assert_eq!(used.get(), 0, "temporaries must be released");
         }
+        assert_eq!(
+            peak.get(),
+            output + temporary,
+            "the temporary is charged while the kernel runs"
+        );
     }
 }

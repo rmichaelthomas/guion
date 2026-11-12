@@ -341,6 +341,25 @@ macro_rules! array_functions {
                 name
             }
 
+            /// The guest builtin name for a function applied to an element type. A constructor
+            /// has one builtin per element (`array_i8_full`, `array_to_f32`), so its name takes
+            /// the element; any other function is named as by `guest_name`.
+            pub fn guest_name_for(self, element: ElementType) -> String {
+                let element = element.name();
+                match self.op_name() {
+                    "ArrayFromList" => format!("array_{element}"),
+                    "ArrayFull" => format!("array_{element}_full"),
+                    "ArrayZeros" => format!("array_{element}_zeros"),
+                    "ArrayConvert" => format!("array_to_{element}"),
+                    "ArrayFromBytes" => format!("array_{element}_from_bytes"),
+                    "ArrayRange" => format!("array_{element}_range"),
+                    "ArrayLinspace" => format!("array_{element}_linspace"),
+                    "ArrayRandom" => format!("array_{element}_random"),
+                    "ArrayNormal" => format!("array_{element}_normal"),
+                    _ => self.guest_name(),
+                }
+            }
+
             /// The instruction name used by builtin catalogs and the textual bytecode form.
             pub fn op_name(self) -> &'static str {
                 match self {
@@ -582,5 +601,50 @@ impl ArrayFunction {
             self,
             FromList | Full | Zeros | Convert | FromBytes | Range | Linspace | Random | Normal
         )
+    }
+}
+
+#[cfg(test)]
+mod guest_name_tests {
+    use super::*;
+
+    /// Every array builtin in the catalog is named by the function behind it, so the names in
+    /// runtime error messages are the names a program wrote.
+    #[test]
+    fn guest_names_equal_the_catalog_builtin_names() {
+        let catalog: serde_json::Value =
+            serde_json::from_str(include_str!("../../../language/builtin-signatures.json"))
+                .expect("the catalog is JSON");
+        let mut seen = std::collections::HashSet::new();
+        for entry in catalog["entries"].as_array().expect("entries") {
+            let operation = entry["operation"].as_str().expect("operation");
+            if !operation.starts_with("Array") {
+                continue;
+            }
+            let name = entry["name"].as_str().expect("name");
+            let (function, element) = match operation.split_once('.') {
+                Some((function, element)) => (
+                    ArrayFunction::from_op_name(function).expect("a known function"),
+                    Some(ElementType::from_name(element).expect("a known element")),
+                ),
+                None => (
+                    ArrayFunction::from_op_name(operation).expect("a known function"),
+                    None,
+                ),
+            };
+            seen.insert(function);
+            let guest = match element {
+                Some(element) => function.guest_name_for(element),
+                None => function.guest_name(),
+            };
+            assert_eq!(guest, name, "{operation}");
+        }
+        for function in ArrayFunction::ALL {
+            assert!(
+                seen.contains(function),
+                "{} has no catalog builtin",
+                function.op_name()
+            );
+        }
     }
 }

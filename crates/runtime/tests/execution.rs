@@ -8071,3 +8071,40 @@ fn filesystem_functions_are_denied_without_a_policy_grant_and_confined_with_one(
     assert!(!dir.parent().unwrap().join("escape").exists());
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// Without the command line's live-memory refill, the budget is cumulative: the virtual machine
+/// charges each kernel's output for good and must give back each kernel's temporary. A thousand
+/// argsorts hold 1,000 outputs and no temporaries; with the temporaries left charged they would
+/// need half as much again.
+#[test]
+fn the_vm_releases_array_kernel_temporaries_to_the_budget() {
+    let source = r#"fn main() -> Int:
+    let a = array_i64_range(0, 2000, 1)
+    var total = 0
+    var i = 0
+    while i < 1000:
+        set total = total + array_size(array_argsort(a))
+        set i = i + 1
+    return total
+"#;
+    let artifact = compile("argsort-loop.gu", source).expect("argsort loop compiles");
+    let output = 2000 * 8 + 64;
+    let run = |limit: usize| {
+        let policy = HostPolicy {
+            allocation_limit_bytes: limit,
+            ..HostPolicy::default()
+        };
+        let mut vm = Runtime::vm_only()
+            .load(artifact.clone(), policy)
+            .expect("runtime loads the artifact");
+        vm.invoke("main", vec![])
+    };
+    // The input, 1,000 outputs and slack for the loop's own values.
+    let holds_outputs = 1000 * output + 2000 * 8 + (1 << 20);
+    assert_eq!(
+        run(holds_outputs).expect("outputs alone fit"),
+        Value::Int(BigInt::from_i64(2_000_000))
+    );
+    let error = run(holds_outputs / 2).expect_err("half the outputs do not fit");
+    assert_eq!(error.code, "R_ALLOCATION_LIMIT");
+}

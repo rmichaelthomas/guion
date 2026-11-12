@@ -38,6 +38,111 @@ fn fails_with(name: &str, lines: &str, code: &str) {
     assert!(!stderr.contains("panicked"), "{name} panicked: {stderr}");
 }
 
+/// Runs `lines` in a project whose `guion.toml` caps the allocation budget at `limit` bytes.
+fn run_limited(name: &str, limit: usize, lines: &str) -> (bool, String, String) {
+    let dir =
+        std::env::temp_dir().join(format!("guion-arrays-limit-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("guion.toml"),
+        format!(
+            "[package]\nname = \"limited\"\nversion = \"0.1.0\"\n\n[runtime]\nallocation_limit_bytes = {limit}\n"
+        ),
+    )
+    .unwrap();
+    let mut source = String::from("fn main() -> Unit:\n");
+    for line in lines.lines() {
+        source.push_str("    ");
+        source.push_str(line);
+        source.push('\n');
+    }
+    std::fs::write(dir.join("main.gu"), source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "main.gu"])
+        .current_dir(&dir)
+        .output()
+        .expect("guion starts");
+    let _ = std::fs::remove_dir_all(&dir);
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+/// A kernel that holds a temporary beside its operands and its output. `tight` holds the
+/// operands and the output but not the temporary; `roomy` holds all three.
+fn kernel_temporary_is_charged(
+    name: &str,
+    lines: &str,
+    expected: &str,
+    tight: usize,
+    roomy: usize,
+) {
+    let (ok, stdout, stderr) = run_limited(&format!("{name}-tight"), tight, lines);
+    assert!(!ok, "{name} fit in {tight} bytes: {stdout}");
+    assert!(stderr.contains("R_ALLOCATION_LIMIT"), "{name}: {stderr}");
+    let (ok, stdout, stderr) = run_limited(&format!("{name}-roomy"), roomy, lines);
+    assert!(ok, "{name} failed in {roomy} bytes: {stderr}");
+    assert_eq!(stdout.trim(), expected, "{name}");
+}
+
+// Each operand and output here is about 0.4 to 0.8 MB; the limits hold those and not the
+// kernel's own temporary (a sort's index vector, a hash table, packing buffers).
+#[test]
+fn kernel_temporaries_are_charged_to_the_allocation_budget() {
+    kernel_temporary_is_charged(
+        "sort",
+        "let a = array_i64_range(0, 100000, 1)\nprint(array_size(array_sort(a)))",
+        "100000",
+        2_300_000,
+        3_000_000,
+    );
+    kernel_temporary_is_charged(
+        "argsort",
+        "let a = array_i64_range(0, 100000, 1)\nprint(array_size(array_argsort(a)))",
+        "100000",
+        2_300_000,
+        3_000_000,
+    );
+    kernel_temporary_is_charged(
+        "factorize",
+        "let a = array_i64_range(0, 100000, 1)\nprint(array_size(array_factorize(a)))",
+        "100000",
+        2_500_000,
+        8_000_000,
+    );
+    kernel_temporary_is_charged(
+        "matmul",
+        "let a = array_f64_zeros([300, 300])\nlet b = array_f64_zeros([300, 300])\nprint(array_size(array_matmul(a, b)))",
+        "90000",
+        2_900_000,
+        6_000_000,
+    );
+    kernel_temporary_is_charged(
+        "join-index",
+        "let a = array_i64_range(0, 50000, 1)\nlet b = array_i64_range(0, 50000, 1)\nprint(array_size(array_join_index(a, b, false)))",
+        "100000",
+        2_500_000,
+        6_000_000,
+    );
+}
+
+// A loop of sorts under a budget that holds one sort at a time completes. The command line
+// also refills the budget from live memory, so this guards the loop as a user sees it; the
+// virtual machine's own release of each kernel's temporary is tested in the runtime crate.
+#[test]
+fn a_loop_of_argsorts_under_a_small_budget_completes() {
+    let (ok, stdout, stderr) = run_limited(
+        "argsort-loop",
+        3_000_000,
+        "let a = array_i64_range(0, 100000, 1)\nvar total = 0\nvar i = 0\nwhile i < 200:\n    set total = total + array_size(array_argsort(a))\n    set i = i + 1\nprint(total)",
+    );
+    assert!(ok, "{stderr}");
+    assert_eq!(stdout.trim(), "20000000");
+}
+
 // Five 64 MB copies held at once exceed the 256 MiB default budget.
 #[test]
 fn reshape_copies_are_charged_to_the_allocation_budget() {
@@ -156,7 +261,8 @@ fn i64_range_with_extreme_operands_never_panics() {
         ),
     );
     assert!(ok, "{stderr}");
-    assert!(stdout.contains("9223372036854775807"), "{stdout}");
+    // Exactly two elements: the start, and the start plus the step (zero).
+    assert_eq!(stdout, "[-9223372036854775807, 0]\n");
 }
 
 #[test]
@@ -219,4 +325,95 @@ fn matmul_handles_awkward_shapes_and_nonfinite_results() {
         "let a = array_reshape(array_f64_linspace(1.0e200, 2.0e200, 4096), [64, 64])\nprint(array_matmul(a, a))",
         "R_FLOAT_NONFINITE",
     );
+}
+
+// The matrix-by-vector form (rank-1 right operand) gives a rank-1 result.
+#[test]
+fn matmul_by_a_rank_one_vector_gives_a_vector() {
+    let (n, k) = (300, 257);
+    let source = format!(
+        "let a = array_reshape(array_f64_linspace(0.0, 1.0, {}), [{n}, {k}])\nlet v = array_f64_linspace(1.0, 2.0, {k})\nlet product = array_matmul(a, v)\nprint(array_shape(product))\nprint(array_sum(product))",
+        n * k
+    );
+    let (ok, stdout, stderr) = run("matmul-vector", &source);
+    assert!(ok, "{stderr}");
+    let mut lines = stdout.lines();
+    assert_eq!(lines.next(), Some("[300]"));
+    let mut want = 0.0f64;
+    for i in 0..n {
+        for p in 0..k {
+            let a = (i * k + p) as f64 / (n * k - 1) as f64;
+            let v = 1.0 + p as f64 / (k - 1) as f64;
+            want += a * v;
+        }
+    }
+    let got: f64 = lines.next().unwrap().trim().parse().unwrap();
+    assert!((got - want).abs() <= 1e-9 * want, "{got} vs {want}");
+}
+
+// Float32 is computed in f64 and rounded; the result stays within 1e-5 of the exact product.
+#[test]
+fn matmul_of_float32_arrays_agrees_with_the_exact_product() {
+    let (n, k, m) = (40, 50, 30);
+    let source = format!(
+        "let a = array_to_f32(array_reshape(array_f64_linspace(0.0, 1.0, {}), [{n}, {k}]))\nlet b = array_to_f32(array_reshape(array_f64_linspace(1.0, 2.0, {}), [{k}, {m}]))\nlet product = array_matmul(a, b)\nprint(array_shape(product))\nprint(array_get(product, 0))\nprint(array_get(product, {}))",
+        n * k,
+        k * m,
+        n * m - 1
+    );
+    let (ok, stdout, stderr) = run("matmul-f32", &source);
+    assert!(ok, "{stderr}");
+    let operand = |start: f64, stop: f64, len: usize, index: usize| {
+        let exact = start + (stop - start) * index as f64 / (len - 1) as f64;
+        f64::from(exact as f32)
+    };
+    let element = |i: usize, j: usize| {
+        (0..k)
+            .map(|p| operand(0.0, 1.0, n * k, i * k + p) * operand(1.0, 2.0, k * m, p * m + j))
+            .sum::<f64>()
+    };
+    let mut lines = stdout.lines();
+    assert_eq!(lines.next(), Some("[40, 30]"));
+    for (line, want) in [
+        (lines.next(), element(0, 0)),
+        (lines.next(), element(n - 1, m - 1)),
+    ] {
+        let got: f64 = line.unwrap().trim().parse().unwrap();
+        assert!((got - want).abs() <= 1e-5 * want, "{got} vs {want}");
+    }
+}
+
+// About ten million multiply-adds, enough to be split across threads; the answer must not
+// depend on how it is split.
+#[test]
+fn a_matmul_large_enough_to_use_several_threads_agrees_with_the_triple_loop() {
+    let (n, k, m) = (256, 200, 200);
+    let source = format!(
+        "let a = array_reshape(array_f64_linspace(0.0, 1.0, {}), [{n}, {k}])\nlet b = array_reshape(array_f64_linspace(1.0, 2.0, {}), [{k}, {m}])\nlet product = array_matmul(a, b)\nprint(array_shape(product))\nprint(array_sum(product))\nprint(array_get(product, {}))\nprint(array_equal(product, array_matmul(a, b)))",
+        n * k,
+        k * m,
+        n * m - 1
+    );
+    let (ok, stdout, stderr) = run("matmul-threaded", &source);
+    assert!(ok, "{stderr}");
+    let a = |i: usize, p: usize| (i * k + p) as f64 / (n * k - 1) as f64;
+    let b = |p: usize, j: usize| 1.0 + (p * m + j) as f64 / (k * m - 1) as f64;
+    let mut sum = 0.0f64;
+    let mut last = 0.0f64;
+    for i in 0..n {
+        for j in 0..m {
+            let element: f64 = (0..k).map(|p| a(i, p) * b(p, j)).sum();
+            sum += element;
+            if i == n - 1 && j == m - 1 {
+                last = element;
+            }
+        }
+    }
+    let mut lines = stdout.lines();
+    assert_eq!(lines.next(), Some("[256, 200]"));
+    let got: f64 = lines.next().unwrap().trim().parse().unwrap();
+    assert!((got - sum).abs() <= 1e-9 * sum, "{got} vs {sum}");
+    let got: f64 = lines.next().unwrap().trim().parse().unwrap();
+    assert!((got - last).abs() <= 1e-9 * last, "{got} vs {last}");
+    assert_eq!(lines.next(), Some("true"));
 }
