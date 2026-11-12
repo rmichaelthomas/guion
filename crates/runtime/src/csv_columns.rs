@@ -198,8 +198,13 @@ struct Builder {
     valid: Vec<bool>,
 }
 
-/// A value that does not fit its column's fixed kind.
-struct DoesNotFit;
+/// Why a builder refused a field.
+enum Refused {
+    /// The value does not fit the column's fixed kind.
+    DoesNotFit,
+    /// The budget refused this many bytes for a transient copy.
+    Budget(usize),
+}
 
 impl Builder {
     fn new(name: String, kind: Option<ColumnKind>) -> Self {
@@ -260,7 +265,7 @@ impl Builder {
 
     /// Takes one field. An unquoted empty field is missing; a quoted empty one is missing too,
     /// except in a text column, where it is the empty text.
-    fn ingest(&mut self, text: &str, quoted: bool) -> Result<(), DoesNotFit> {
+    fn ingest(&mut self, text: &str, quoted: bool, meter: &mut Meter<'_>) -> Result<(), Refused> {
         match self.mode {
             Mode::Reread => return Ok(()),
             Mode::Text => {
@@ -304,11 +309,19 @@ impl Builder {
                 if let Some(value) = parse_i64(text) {
                     self.ints.push(value);
                 } else if self.fixed {
-                    return Err(DoesNotFit);
+                    return Err(Refused::DoesNotFit);
                 } else if let Some(value) = parse_f64(text) {
+                    // The floats are built while the ints are still held: charge that copy
+                    // before making it and give it back once the ints are freed. The floats
+                    // themselves are charged with the builder at the next settle.
+                    let copy = self.ints.len().saturating_mul(8);
+                    if !(meter.charge)(copy) {
+                        return Err(Refused::Budget(copy));
+                    }
                     self.floats = self.ints.iter().map(|&int| int as f64).collect();
                     self.floats.push(value);
                     self.ints = Vec::new();
+                    (meter.release)(copy);
                     self.mode = Mode::Float;
                 } else {
                     self.give_up_numbers();
@@ -319,7 +332,7 @@ impl Builder {
                 if let Some(value) = parse_f64(text) {
                     self.floats.push(value);
                 } else if self.fixed {
-                    return Err(DoesNotFit);
+                    return Err(Refused::DoesNotFit);
                 } else {
                     self.give_up_numbers();
                     return Ok(());
@@ -329,7 +342,7 @@ impl Builder {
                 if let Some(value) = parse_bool(text) {
                     self.flags.push(value);
                 } else if self.fixed {
-                    return Err(DoesNotFit);
+                    return Err(Refused::DoesNotFit);
                 } else {
                     self.give_up_numbers();
                     return Ok(());
@@ -696,6 +709,15 @@ pub fn read_csv_columns(
     read_csv_columns_between(path, kinds, max_record_bytes, meter, || {})
 }
 
+/// What the result of a read holds beyond the arrays and the dictionary text, both of which
+/// were charged as the builders grew (a dictionary's text is charged there and only there).
+pub fn result_overhead(columns: &[Column]) -> usize {
+    columns
+        .iter()
+        .map(|column| column.name.len().saturating_add(256))
+        .sum()
+}
+
 fn changed_while_read() -> ColumnsError {
     ColumnsError::Malformed {
         line: 0,
@@ -707,6 +729,42 @@ fn changed_while_read() -> ColumnsError {
 /// `read_csv_columns` with a hook that runs between the first and second pass (a seam for
 /// tests; the production hook is empty and is compiled away).
 fn read_csv_columns_between(
+    path: &Path,
+    kinds: &BTreeMap<String, String>,
+    max_record_bytes: usize,
+    meter: &mut Meter<'_>,
+    between_passes: impl FnOnce(),
+) -> Result<Vec<Column>, ColumnsError> {
+    // What this read holds on the budget: whatever it charged and has not released. A read
+    // that fails frees every builder, so it hands all of that back; a read that succeeds
+    // keeps the charge for the columns it returns.
+    let held = std::cell::Cell::new(0usize);
+    let result = {
+        let mut charge = |bytes: usize| {
+            let granted = (meter.charge)(bytes);
+            if granted {
+                held.set(held.get().saturating_add(bytes));
+            }
+            granted
+        };
+        let mut release = |bytes: usize| {
+            (meter.release)(bytes);
+            held.set(held.get().saturating_sub(bytes));
+        };
+        let mut tracked = Meter {
+            charge: &mut charge,
+            release: &mut release,
+            cancelled: meter.cancelled,
+        };
+        read_passes(path, kinds, max_record_bytes, &mut tracked, between_passes)
+    };
+    if result.is_err() {
+        (meter.release)(held.get());
+    }
+    result
+}
+
+fn read_passes(
     path: &Path,
     kinds: &BTreeMap<String, String>,
     max_record_bytes: usize,
@@ -770,8 +828,12 @@ fn read_csv_columns_between(
         }
         for (index, (builder, span)) in builders.iter_mut().zip(spans).enumerate() {
             let field = &text[span.start..span.end];
-            if builder.ingest(field, span.quoted).is_err() {
-                return Err(bad_value(builder, field, line, index + 1));
+            match builder.ingest(field, span.quoted, settler.meter) {
+                Ok(()) => {}
+                Err(Refused::DoesNotFit) => {
+                    return Err(bad_value(builder, field, line, index + 1));
+                }
+                Err(Refused::Budget(bytes)) => return Err(ColumnsError::Allocation(bytes)),
             }
         }
         records += 1;
@@ -866,8 +928,8 @@ fn read_csv_columns_between(
             }
             for (builder, &index) in texts.iter_mut().zip(&again) {
                 let span = spans[index];
-                // A text column accepts every field.
-                let _ = builder.ingest(&text[span.start..span.end], span.quoted);
+                // A text column accepts every field and promotes nothing.
+                let _ = builder.ingest(&text[span.start..span.end], span.quoted, settler.meter);
             }
             buffers = buffers.max(BUFFER_BYTES + text.len() * 2);
             if settler.note(text.len()) {
@@ -982,6 +1044,147 @@ mod tests {
         assert_changed(changed_file("header", |path| {
             std::fs::write(path, "n,t\n1,a\n2,b\n").unwrap()
         }));
+    }
+
+    /// A simulated budget: what is charged and not yet released, and each charge and release.
+    #[derive(Default)]
+    struct Pool {
+        limit: usize,
+        used: std::cell::Cell<usize>,
+        charges: std::cell::RefCell<Vec<usize>>,
+        releases: std::cell::RefCell<Vec<usize>>,
+    }
+
+    fn pooled(
+        pool: &Pool,
+        path: &Path,
+        kinds: &BTreeMap<String, String>,
+        between: impl FnOnce(),
+    ) -> Result<Vec<Column>, ColumnsError> {
+        let mut charge = |bytes: usize| {
+            if pool.used.get().saturating_add(bytes) > pool.limit {
+                return false;
+            }
+            pool.used.set(pool.used.get() + bytes);
+            pool.charges.borrow_mut().push(bytes);
+            true
+        };
+        let mut release = |bytes: usize| {
+            pool.used.set(pool.used.get() - bytes);
+            pool.releases.borrow_mut().push(bytes);
+        };
+        let cancelled = || false;
+        let mut meter = Meter {
+            charge: &mut charge,
+            release: &mut release,
+            cancelled: &cancelled,
+        };
+        read_csv_columns_between(path, kinds, 1 << 20, &mut meter, between)
+    }
+
+    fn temp_csv(name: &str, body: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "guion-csv-columns-pool-{}-{name}.csv",
+            std::process::id()
+        ));
+        std::fs::write(&path, body).unwrap();
+        path
+    }
+
+    fn text_rows(rows: usize) -> String {
+        let mut body = String::from("n,s\n");
+        for row in 0..rows {
+            body.push_str(&format!("{row},word{row}\n"));
+        }
+        body
+    }
+
+    #[test]
+    fn every_failing_read_releases_everything_it_charged() {
+        let rows = text_rows(300);
+        let mut ragged = rows.clone();
+        ragged.push_str("1,2,3\n");
+        type Case = (&'static str, String, BTreeMap<String, String>, usize, bool);
+        let cases: Vec<Case> = vec![
+            // The second pass finds a changed file after pass 1's columns are retained.
+            ("changed", rows.clone(), BTreeMap::new(), 1 << 30, true),
+            ("ragged", ragged, BTreeMap::new(), 1 << 30, false),
+            (
+                "value",
+                rows.clone(),
+                BTreeMap::from([("s".to_string(), "i64".to_string())]),
+                1 << 30,
+                false,
+            ),
+            // The budget runs out partway through.
+            ("budget", rows.clone(), BTreeMap::new(), 66_000, false),
+        ];
+        for (name, body, kinds, limit, change) in cases {
+            let path = temp_csv(name, &body);
+            let pool = Pool {
+                limit,
+                ..Pool::default()
+            };
+            for _ in 0..1000 {
+                let result = pooled(&pool, &path, &kinds, || {
+                    if change {
+                        std::fs::write(&path, "n,s\n1,a\n").unwrap();
+                    }
+                });
+                assert!(result.is_err(), "{name} unexpectedly read");
+                if change {
+                    std::fs::write(&path, &body).unwrap();
+                }
+                assert_eq!(pool.used.get(), 0, "{name}: a failed read kept its charges");
+            }
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    #[test]
+    fn promoting_an_int_column_to_float_charges_its_transient_copy() {
+        let mut body = String::from("x\n");
+        for row in 0..1000 {
+            body.push_str(&format!("{row}\n"));
+        }
+        body.push_str("1.5\n");
+        let path = temp_csv("promote", &body);
+        let pool = Pool {
+            limit: 1 << 30,
+            ..Pool::default()
+        };
+        let columns = pooled(&pool, &path, &BTreeMap::new(), || {}).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(columns[0].floats.len(), 1001);
+        // The copy of 1,000 values (8,000 bytes) is charged first and released afterwards.
+        assert!(pool.charges.borrow().contains(&8000), "{:?}", pool.charges);
+        assert!(
+            pool.releases.borrow().contains(&8000),
+            "{:?}",
+            pool.releases
+        );
+    }
+
+    #[test]
+    fn dictionary_text_is_charged_once() {
+        let small = column_of_texts(10);
+        let large = column_of_texts(10_000);
+        assert_eq!(result_overhead(&small), result_overhead(&large));
+    }
+
+    fn column_of_texts(distinct: usize) -> Vec<Column> {
+        let mut body = String::from("s\n");
+        for row in 0..distinct {
+            body.push_str(&format!("word{row}\n"));
+        }
+        let path = temp_csv(&format!("dictionary-{distinct}"), &body);
+        let pool = Pool {
+            limit: 1 << 30,
+            ..Pool::default()
+        };
+        let columns = pooled(&pool, &path, &BTreeMap::new(), || {}).unwrap();
+        let _ = std::fs::remove_file(&path);
+        columns
     }
 
     #[test]

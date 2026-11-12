@@ -5,7 +5,7 @@ use guion_model::{
     shape_size, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared, Value,
 };
 
-use crate::array::{float_value, with_element, ArrayError, Charge, Element};
+use crate::array::{float_value, with_element, ArrayError, Charge, Element, Release};
 
 fn error<T>(code: &'static str, message: impl Into<String>) -> Result<T, ArrayError> {
     Err((code, message.into()))
@@ -876,6 +876,7 @@ fn order<T: Numeric>(
     function: ArrayFunction,
     args: &[Value],
     charge: &mut Charge<'_>,
+    held: &mut usize,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
     let array = array_arg(args, 0)?;
@@ -902,6 +903,7 @@ fn order<T: Numeric>(
             ),
         );
     }
+    hold(charge, held, items.len().saturating_mul(size_of::<usize>()))?;
     let mut indices: Vec<usize> = (0..items.len()).collect();
     // Elements are finite, so `partial_cmp` is total here; `sort_by` is stable.
     indices.sort_by(|a, b| items[*a].partial_cmp(&items[*b]).expect("finite elements"));
@@ -951,7 +953,11 @@ fn dot<T: Element>(args: &[Value]) -> Result<Value, ArrayError> {
 
 const MATMUL_BLOCK: usize = 64;
 
-fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+fn matmul<T: Element>(
+    args: &[Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
+) -> Result<Value, ArrayError> {
     let (a, b) = (array_arg(args, 0)?, array_arg(args, 1)?);
     let (n, k) = match a.shape.as_slice() {
         [n, k] => (*n, *k),
@@ -988,6 +994,7 @@ fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, 
     charge(array_bytes(T::TYPE, shape.len(), n * m))?;
     let (x, y) = (T::items(&a.data), T::items(&b.data));
     if T::TYPE.is_integer() {
+        hold(charge, held, (n * m).saturating_mul(size_of::<i128>()))?;
         let mut acc = vec![0i128; n * m];
         for i in 0..n {
             for p in 0..k {
@@ -1014,6 +1021,11 @@ fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, 
         }
         return finish(shape, out);
     }
+    hold(
+        charge,
+        held,
+        (x.len() + y.len() + n * m).saturating_mul(size_of::<f64>()),
+    )?;
     let left: Vec<f64> = x.iter().map(|item| item.to_f64()).collect();
     let right: Vec<f64> = y.iter().map(|item| item.to_f64()).collect();
     let mut acc = vec![0.0f64; n * m];
@@ -1060,19 +1072,31 @@ fn generate(
             if step == 0 {
                 return error("R_ARRAY_SHAPE", "array_i64_range step must not be 0");
             }
-            let span = stop - start;
-            let count = if (span > 0) == (step > 0) && span != 0 {
-                ((span.abs() + step.abs() - 1) / step.abs()) as usize
+            let overflow = || {
+                (
+                    "R_ARRAY_CONVERSION",
+                    "array_i64_range values must fit in i64".to_string(),
+                )
+            };
+            // Operands are i128, so the span, the count and the last value are all checked.
+            let span = stop.checked_sub(start).ok_or_else(overflow)?;
+            let count_wide: u128 = if (span > 0) == (step > 0) && span != 0 {
+                let (distance, stride) = (span.unsigned_abs(), step.unsigned_abs());
+                distance / stride + u128::from(distance % stride != 0)
             } else {
                 0
             };
-            if i64::try_from(start).is_err()
-                || i64::try_from(start + step * (count as i128 - 1).max(0)).is_err()
-            {
-                return error(
-                    "R_ARRAY_CONVERSION",
-                    "array_i64_range values must fit in i64",
-                );
+            let count = usize::try_from(count_wide).map_err(|_| overflow())?;
+            let last = match count_wide.checked_sub(1) {
+                Some(steps) => i128::try_from(steps)
+                    .ok()
+                    .and_then(|steps| step.checked_mul(steps))
+                    .and_then(|offset| start.checked_add(offset))
+                    .ok_or_else(overflow)?,
+                None => start,
+            };
+            if i64::try_from(start).is_err() || i64::try_from(last).is_err() {
+                return Err(overflow());
             }
             charge(array_bytes(ElementType::I64, 1, count))?;
             let out: Vec<i64> = (0..count)
@@ -1210,11 +1234,33 @@ macro_rules! with_numeric {
     };
 }
 
+/// Charges a transient buffer and notes it in `held`, so `apply` can release it however the
+/// kernel ends.
+fn hold(charge: &mut Charge<'_>, held: &mut usize, bytes: usize) -> Result<(), ArrayError> {
+    charge(bytes)?;
+    *held = held.saturating_add(bytes);
+    Ok(())
+}
+
 pub fn apply(
     function: ArrayFunction,
     element: ElementType,
     args: &mut [Value],
     charge: &mut Charge<'_>,
+    release: &mut Release<'_>,
+) -> Result<Value, ArrayError> {
+    let mut held = 0usize;
+    let result = apply_kernel(function, element, args, charge, &mut held);
+    release(held);
+    result
+}
+
+fn apply_kernel(
+    function: ArrayFunction,
+    element: ElementType,
+    args: &mut [Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
     if !function.element_class().accepts(element) {
@@ -1260,17 +1306,19 @@ pub fn apply(
         SumAxis | MinAxis | MaxAxis | MeanAxis => {
             with_numeric!(element, T => reduce_axis::<T>(function, args, charge))
         }
-        Sort | Argsort | Cumsum => with_numeric!(element, T => order::<T>(function, args, charge)),
+        Sort | Argsort | Cumsum => {
+            with_numeric!(element, T => order::<T>(function, args, charge, held))
+        }
         Dot => with_numeric!(element, T => dot::<T>(args)),
-        Matmul => with_numeric!(element, T => matmul::<T>(args, charge)),
+        Matmul => with_numeric!(element, T => matmul::<T>(args, charge, held)),
         Range | Linspace | Random | Normal => generate(function, args, charge),
         Take => with_element!(element, T => take::<T>(args, charge)),
-        Factorize => with_element!(element, T => factorize::<T>(args, charge)),
+        Factorize => with_element!(element, T => factorize::<T>(args, charge, held)),
         FirstIndex | CountBy => by_code(function, args, charge),
         SumBy | MinBy | MaxBy | MeanBy => {
             with_numeric!(element, T => reduce_by::<T>(function, args, charge))
         }
-        JoinIndex => join_index(args, charge),
+        JoinIndex => join_index(args, charge, held),
         _ => error(
             "R_TYPE_INVALID",
             format!("{} is not a compute instruction", function.op_name()),
@@ -1392,7 +1440,11 @@ fn element_key<T: Element>(item: T) -> i128 {
     }
 }
 
-fn factorize<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+fn factorize<T: Element>(
+    args: &[Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
+) -> Result<Value, ArrayError> {
     let source = rank1(array_arg(args, 0)?, "array_factorize")?;
     let items = T::items(&source.data);
     charge(array_bytes(ElementType::I64, 1, items.len()))?;
@@ -1402,7 +1454,7 @@ fn factorize<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Valu
         let next = codes.len() as i64;
         let code = *codes.entry(element_key(*item)).or_insert_with(|| next);
         if code == next {
-            charge(48)?;
+            hold(charge, held, 48)?;
         }
         out.push(code);
     }
@@ -1528,13 +1580,17 @@ fn reduce_by<T: Numeric>(
     }
 }
 
-fn join_index(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+fn join_index(
+    args: &[Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
+) -> Result<Value, ArrayError> {
     let name = "array_join_index";
     let left = i64_items(array_arg(args, 0)?, name)?;
     let right = i64_items(array_arg(args, 1)?, name)?;
     let keep_unmatched = matches!(args[2], Value::Bool(true));
     // Right rows grouped by code, in right order: `slots[code]` indexes `starts`.
-    charge(right.len().saturating_mul(40))?;
+    hold(charge, held, right.len().saturating_mul(40))?;
     let mut slots: KeyMap<i64, usize> = KeyMap::default();
     let mut counts: Vec<usize> = Vec::new();
     let mut slot_of_row = Vec::with_capacity(right.len());
@@ -1615,4 +1671,147 @@ fn join_index(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayErr
         }
     }
     finish(vec![length], out)
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    fn array(element: ElementType, shape: Vec<usize>, fill: impl Fn(usize) -> i64) -> Value {
+        let size: usize = shape.iter().product();
+        let data = match element {
+            ElementType::F64 => crate::array::Element::wrap(
+                (0..size)
+                    .map(|index| fill(index) as f64)
+                    .collect::<Vec<f64>>(),
+            ),
+            _ => crate::array::Element::wrap((0..size).map(&fill).collect::<Vec<i64>>()),
+        };
+        Value::Array(Shared::new(ArrayValue::new(shape, data).expect("array")))
+    }
+
+    /// Runs a kernel against a simulated in-use budget of `limit` bytes. Returns the result
+    /// and the bytes still charged afterwards.
+    fn run(
+        function: ArrayFunction,
+        element: ElementType,
+        mut args: Vec<Value>,
+        limit: usize,
+        used: &Cell<usize>,
+    ) -> Result<Value, ArrayError> {
+        let mut charge = |bytes: usize| {
+            if used.get().saturating_add(bytes) > limit {
+                Err(("R_ALLOCATION_LIMIT", "limit".to_string()))
+            } else {
+                used.set(used.get() + bytes);
+                Ok(())
+            }
+        };
+        let mut release = |bytes: usize| used.set(used.get() - bytes);
+        crate::array::apply(function, element, &mut args, &mut charge, &mut release)
+    }
+
+    fn assert_limit(result: Result<Value, ArrayError>, what: &str) {
+        match result {
+            Err((code, _)) => assert_eq!(code, "R_ALLOCATION_LIMIT", "{what}"),
+            Ok(_) => panic!("{what}: fit in a budget that holds only its output"),
+        }
+    }
+
+    #[test]
+    fn matmul_temporaries_do_not_fit_a_budget_that_holds_only_the_output() {
+        for element in [ElementType::F64, ElementType::I64] {
+            let a = array(element, vec![16, 16], |i| i as i64 % 7);
+            let b = array(element, vec![16, 16], |i| i as i64 % 5);
+            let output = array_bytes(element, 2, 256);
+            let used = Cell::new(0);
+            let result = run(ArrayFunction::Matmul, element, vec![a, b], output, &used);
+            assert_limit(result, "matmul");
+            assert_eq!(
+                used.get(),
+                output,
+                "a failed matmul leaves only its output charge"
+            );
+        }
+    }
+
+    #[test]
+    fn sort_and_argsort_index_vectors_are_charged() {
+        for (function, out_element) in [
+            (ArrayFunction::Sort, ElementType::I64),
+            (ArrayFunction::Argsort, ElementType::I64),
+        ] {
+            let a = array(ElementType::I64, vec![512], |i| (i as i64 * 7919) % 513);
+            let output = array_bytes(out_element, 1, 512);
+            let used = Cell::new(0);
+            let result = run(function, ElementType::I64, vec![a], output, &used);
+            assert_limit(result, "sort index vector");
+        }
+    }
+
+    #[test]
+    fn factorize_hash_table_is_released() {
+        let a = array(ElementType::I64, vec![256], |i| i as i64);
+        let output = array_bytes(ElementType::I64, 1, 256);
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Factorize,
+            ElementType::I64,
+            vec![a],
+            1 << 30,
+            &used,
+        );
+        assert!(result.is_ok());
+        assert_eq!(used.get(), output, "only the output stays charged");
+    }
+
+    #[test]
+    fn join_index_tables_are_charged_and_released() {
+        let left = array(ElementType::I64, vec![128], |i| i as i64 % 40);
+        let right = array(ElementType::I64, vec![128], |i| i as i64 % 40);
+        let args = || vec![left.clone(), right.clone(), Value::Bool(false)];
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::JoinIndex,
+            ElementType::I64,
+            args(),
+            1 << 30,
+            &used,
+        );
+        let Ok(Value::Array(out)) = result else {
+            panic!("join_index failed");
+        };
+        assert_eq!(used.get(), array_bytes(ElementType::I64, 1, out.size()));
+        // A budget that holds the output but not the tables raises the limit.
+        let tight = Cell::new(0);
+        let result = run(
+            ArrayFunction::JoinIndex,
+            ElementType::I64,
+            args(),
+            array_bytes(ElementType::I64, 1, out.size()),
+            &tight,
+        );
+        assert_limit(result, "join_index");
+    }
+
+    #[test]
+    fn a_thousand_argsorts_under_a_small_budget_complete() {
+        let a = array(ElementType::I64, vec![64], |i| (i as i64 * 31) % 64);
+        let output = array_bytes(ElementType::I64, 1, 64);
+        let used = Cell::new(0);
+        for _ in 0..1000 {
+            let result = run(
+                ArrayFunction::Argsort,
+                ElementType::I64,
+                vec![a.clone()],
+                output + 64 * 8,
+                &used,
+            );
+            assert!(result.is_ok(), "argsort ran out of budget");
+            // Dropping the result releases its own charge, as the VM does.
+            used.set(used.get() - output);
+            assert_eq!(used.get(), 0, "temporaries must be released");
+        }
+    }
 }

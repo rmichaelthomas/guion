@@ -122,3 +122,39 @@ fn assigning_an_elementwise_result_back_to_its_unshared_local_allocates_nothing(
     assert!(ok, "{stderr}");
     assert_eq!(stdout, "-15\n5\n");
 }
+
+// Operands near the i64 limits must raise a conversion error (or return the right result)
+// instead of overflowing i128 arithmetic, which panics in a debug build.
+#[test]
+fn i64_range_with_extreme_operands_never_panics() {
+    let max = "9223372036854775807";
+    let min = "-9223372036854775808";
+    let huge = "170141183460469231731687303715884105727";
+    let cases = [
+        format!("array_i64_range({min}, {max}, 1)"),
+        format!("array_i64_range({max}, {min}, -1)"),
+        format!("array_i64_range({min}, {max}, {max})"),
+        format!("array_i64_range({max}, {min}, -{max})"),
+        format!("array_i64_range(-{huge}, {huge}, {huge})"),
+        format!("array_i64_range({huge}, -{huge}, -{huge})"),
+        format!("array_i64_range(0, {max}, {huge})"),
+        format!("array_i64_range(0, 10, -{huge})"),
+    ];
+    for (index, case) in cases.iter().enumerate() {
+        let (ok, stdout, stderr) = run(&format!("range-{index}"), &format!("print({case})"));
+        assert!(!stderr.contains("panicked"), "{case} panicked: {stderr}");
+        assert!(
+            ok || stderr.contains("R_ARRAY_CONVERSION") || stderr.contains("R_ALLOCATION_LIMIT"),
+            "{case}: unexpected failure {stdout} {stderr}"
+        );
+    }
+    let (ok, stdout, stderr) = run(
+        "range-last",
+        &format!(
+            "print(array_i64_range({}, {max}, {max}))",
+            "-9223372036854775807"
+        ),
+    );
+    assert!(ok, "{stderr}");
+    assert!(stdout.contains("9223372036854775807"), "{stdout}");
+}

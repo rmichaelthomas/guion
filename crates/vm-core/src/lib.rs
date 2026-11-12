@@ -2736,8 +2736,15 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     charge_allocation(budget.as_ref(), bytes, span)
                         .map_err(|error| ("R_ALLOCATION_LIMIT", error.message))
                 };
-                let result = array::apply(*function, *element, &mut args[..arity], &mut charge)
-                    .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
+                let mut release = |bytes: usize| budget.refund_allocation(bytes);
+                let result = array::apply(
+                    *function,
+                    *element,
+                    &mut args[..arity],
+                    &mut charge,
+                    &mut release,
+                )
+                .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
                 if !matches!(result, Value::Array(_)) {
                     if let Some(error) = value_limit_error(&result, limits, span) {
                         return Err(error);

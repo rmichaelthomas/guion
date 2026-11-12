@@ -4611,27 +4611,22 @@ impl VmHost for Instance {
                 use stdlib_data::csv_columns::ColumnsError;
                 match read {
                     Ok(columns) => {
-                        // The text and records the result holds, beyond the arrays that were
-                        // charged as they grew.
-                        let produced = columns
-                            .iter()
-                            .map(|column| {
-                                column
-                                    .dictionary
-                                    .iter()
-                                    .map(|text| text.len().saturating_add(32))
-                                    .sum::<usize>()
-                                    .saturating_add(column.name.len())
-                                    .saturating_add(256)
-                            })
-                            .sum::<usize>();
-                        charge_allocation(budget.as_ref(), produced, instruction.span)?;
+                        // The names and records the result holds, beyond the arrays and
+                        // dictionary text that were charged as they grew.
+                        let produced = stdlib_data::csv_columns::result_overhead(&columns);
+                        if let Err(error) =
+                            charge_allocation(budget.as_ref(), produced, instruction.span)
+                        {
+                            self.finish_effect(effect, EffectOutcome::ReturnedError);
+                            return Err(error);
+                        }
                         let result = Value::ResultOk(Box::new(Value::from_list_items(
                             columns.into_iter().map(csv_column_value).collect(),
                         )));
                         if let Some(error) =
                             value_limit_error(&result, &self.policy, instruction.span)
                         {
+                            self.finish_effect(effect, EffectOutcome::ReturnedError);
                             return Err(error);
                         }
                         self.finish_effect(effect, EffectOutcome::Returned);

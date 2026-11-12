@@ -1486,3 +1486,33 @@ fn main() -> Unit:
     assert_eq!(error.code, "R_ALLOCATION_LIMIT");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// A read that succeeds but whose result then breaks a limit must still close its effect record.
+#[test]
+fn csv_read_columns_closes_its_effect_when_the_result_breaks_a_limit() {
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("words.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-effect-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("words.csv"), "w\na\nb\nc\nd\n").unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+    // The dictionary of four words is a list longer than this.
+    policy.max_collection_items = 2;
+    let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
+    let error = runtime.invoke("main", vec![]).unwrap_err();
+    assert_eq!(error.code, "R_COLLECTION_LIMIT", "{}", error.message);
+    let effects = runtime.effect_report();
+    assert_eq!(effects.len(), 1);
+    assert_eq!(
+        effects[0].outcome,
+        guion_runtime::EffectOutcome::ReturnedError
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
