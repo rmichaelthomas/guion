@@ -9,7 +9,7 @@ This list covers open problems only. Each row has a status and the batch that wi
 | 3 | Multiplying two 512 by 512 f64 matrices is about 25 times slower than NumPy. | open | Batch 3 |
 | 4 | Element-wise array maths costs about 2 times NumPy's cost per element. | open | Batch 1 |
 | 5 | The self-hosted compiler emits `ArraySet` where it could emit `ArraySetLocal`. | open | Batch 1 |
-| 6 | Large files need the project to raise `max_file_bytes`, and the allocation-limit error does not say how to raise it. | open | Batch 1 |
+| 6 | Large files need the project to raise `max_file_bytes`, and the allocation-limit error does not say how to raise it. | fixed in c071ffd | Batch 1 |
 | 7 | `array_i64_range` can panic in debug builds on extreme operands. | open | Batch 2 |
 | 8 | Temporary buffers in matmul, sort and argsort, factorize and join_index are not charged to the allocation budget. | open | Batch 2 |
 | 9 | Array error messages use internal operation names. `array_clip` with low greater than high raises `R_ARRAY_SHAPE`. | open | Batch 2 |
