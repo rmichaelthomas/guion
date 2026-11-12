@@ -143,6 +143,8 @@ fn test_from_codes_checks_present_codes() -> Unit:
 
 fn test_from_codes_missing_slot_code_is_normalised() -> Unit:
     let column = unwrap(column_from_codes("s", array_i64([1, -1, 0]), ["a", "b"], array_bool([true, false, true])))
+    # The code stored in the missing slot is 0, whatever code was passed there.
+    assert(array_to_list(column_codes(column)) == [1, 0, 0])
     let frame = unwrap(frame_new([column]))
     let joined = unwrap(frame_concat([frame, frame]))
     assert(frame_rows(joined) == 6)
