@@ -1,6 +1,8 @@
 # frames: tabular data in Guion.
 pub import "column.gu"
 pub import "frame.gu"
+pub import "io.gu"
+pub import "show.gu"
 
 pub fn frames_version() -> Text:
     return "0.1.0"

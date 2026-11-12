@@ -114,3 +114,13 @@ fn test_masks_and_reductions_skip_missing() -> Unit:
     assert(column_mean(x) == sf(0.6666666666666666))
     assert(column_count(x) == 3)
     assert(array_to_list(unwrap(column_text_equals(unwrap(frame_column(frame, "name")), "a"))) == [true, false, true, false])
+
+fn test_reads_and_writes_files() -> Unit:
+    let frame = unwrap(frame_read_csv("fixtures/small.csv"))
+    assert(frame_rows(frame) == 2)
+    assert(column_kind(unwrap(frame_column(frame, "x"))) == "f64")
+    assert(unwrap(frame_write_csv(frame, "fixtures/out.csv")) == 2)
+    let again = unwrap(frame_read_csv("fixtures/out.csv"))
+    assert(frame_show(again, 10) == frame_show(frame, 10))
+    let lines = unwrap(frame_read_jsonl("fixtures/small.jsonl"))
+    assert(column_missing(unwrap(frame_column(lines, "name"))) == 1)

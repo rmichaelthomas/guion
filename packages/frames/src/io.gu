@@ -1,0 +1,541 @@
+# Reading CSV and JSONL files into frames, and writing frames as CSV.
+
+import "std:csv"
+import "std:jsonl"
+import "column.gu"
+import "frame.gu"
+
+# Rows are read in chunks and each chunk is absorbed one column at a time, so every
+# per-row update is to a local list.
+fn chunk_rows() -> Int:
+    return 65536
+
+# The state of one column while a file is read.
+record Builder:
+    name: Text
+    kind: Text
+    fixed: Bool
+    present: Int
+    reread: Bool
+    ints: List[Array[i64]]
+    floats: List[Array[f64]]
+    flags: List[Array[bool]]
+    codes: List[Array[i64]]
+    valid: List[Array[bool]]
+    seen: Map[Text, Int]
+    dictionary: List[Text]
+
+fn new_builder(name: Text, kind: Text, fixed: Bool) -> Builder:
+    let ints: List[Array[i64]] = []
+    let floats: List[Array[f64]] = []
+    let flags: List[Array[bool]] = []
+    let codes: List[Array[i64]] = []
+    let valid: List[Array[bool]] = []
+    let seen: Map[Text, Int] = {}
+    let dictionary: List[Text] = []
+    return Builder(name, kind, fixed, 0, false, ints, floats, flags, codes, valid, seen, dictionary)
+
+fn parse_error(line: Int, name: Text, message: Text) -> StdError:
+    return frame_error("E_FRAME_PARSE", "line " + int_to_text(line) + ", column `" + name + "`: " + message)
+
+fn file_failure(problem: FileError, path: Text) -> StdError:
+    return StdError(file_error_code(problem), file_error_message(problem), path, file_error_line(problem), file_error_column(problem))
+
+fn fits_i64(value: Int) -> Bool:
+    return value >= -9223372036854775808 and value <= 9223372036854775807
+
+fn is_flag(field: Text) -> Bool:
+    return field == "true" or field == "false"
+
+# The first kind, in the order i64, f64, bool, text, that can hold `field`.
+fn kind_of(field: Text) -> Text:
+    let parsed = text_parse_int(field)
+    if is_ok(parsed) and fits_i64(unwrap(parsed)):
+        return "i64"
+    if is_ok(text_parse_float(field)):
+        return "f64"
+    if is_flag(field):
+        return "bool"
+    return "text"
+
+fn zero_chunks_i64(valid: List[Array[bool]]) -> List[Array[i64]]:
+    var out: List[Array[i64]] = []
+    for mask in valid:
+        set out = list_push(out, array_i64_zeros([array_size(mask)]))
+    return out
+
+fn zero_chunks_f64(valid: List[Array[bool]]) -> List[Array[f64]]:
+    var out: List[Array[f64]] = []
+    for mask in valid:
+        set out = list_push(out, array_f64_zeros([array_size(mask)]))
+    return out
+
+fn zero_chunks_bool(valid: List[Array[bool]]) -> List[Array[bool]]:
+    var out: List[Array[bool]] = []
+    for mask in valid:
+        set out = list_push(out, array_bool_zeros([array_size(mask)]))
+    return out
+
+fn ints_to_floats(chunks: List[Array[i64]]) -> List[Array[f64]]:
+    var out: List[Array[f64]] = []
+    for chunk in chunks:
+        set out = list_push(out, array_to_f64(chunk))
+    return out
+
+fn zeros_i64(count: Int) -> List[Int]:
+    var out: List[Int] = []
+    var index = 0
+    while index < count:
+        set out = list_push(out, 0)
+        set index = index + 1
+    return out
+
+fn zeros_bool(count: Int) -> List[Bool]:
+    var out: List[Bool] = []
+    var index = 0
+    while index < count:
+        set out = list_push(out, false)
+        set index = index + 1
+    return out
+
+fn ints_as_floats(items: List[Int]) -> List[Float64]:
+    var out: List[Float64] = []
+    for item in items:
+        set out = list_push(out, int_to_float(item))
+    return out
+
+fn no_ints() -> List[Int]:
+    let none: List[Int] = []
+    return none
+
+fn no_floats() -> List[Float64]:
+    let none: List[Float64] = []
+    return none
+
+fn no_flags() -> List[Bool]:
+    let none: List[Bool] = []
+    return none
+
+# Absorbs one column of a chunk of text fields. `lines` gives each row's line number.
+fn absorb(builder: Builder, fields: List[Text], lines: List[Int]) -> Result[Builder, StdError]:
+    var kind = builder.kind
+    var present = builder.present
+    var reread = builder.reread
+    var int_chunks = builder.ints
+    var float_chunks = builder.floats
+    var flag_chunks = builder.flags
+    var code_chunks = builder.codes
+    var seen = builder.seen
+    var dictionary = builder.dictionary
+    var ints: List[Int] = []
+    var floats: List[Float64] = []
+    var flags: List[Bool] = []
+    var codes: List[Int] = []
+    var valid: List[Bool] = []
+    var index = 0
+    while index < len(fields):
+        let field = fields[index]
+        if reread:
+            set index = index + 1
+        else:
+            if field == "":
+                set valid = list_push(valid, false)
+                if kind == "i64":
+                    set ints = list_push(ints, 0)
+                else:
+                    if kind == "f64":
+                        set floats = list_push(floats, 0.0)
+                    else:
+                        if kind == "bool":
+                            set flags = list_push(flags, false)
+                        else:
+                            set codes = list_push(codes, 0)
+                set index = index + 1
+            else:
+                var stored = false
+                if kind == "i64":
+                    let parsed = text_parse_int(field)
+                    if is_ok(parsed) and fits_i64(unwrap(parsed)):
+                        set ints = list_push(ints, unwrap(parsed))
+                        set stored = true
+                else:
+                    if kind == "f64":
+                        let parsed = text_parse_float(field)
+                        if is_ok(parsed):
+                            set floats = list_push(floats, unwrap(parsed))
+                            set stored = true
+                    else:
+                        if kind == "bool":
+                            if is_flag(field):
+                                set flags = list_push(flags, field == "true")
+                                set stored = true
+                        else:
+                            match map_get(seen, field):
+                                Some(code):
+                                    set codes = list_push(codes, code)
+                                None:
+                                    set seen = map_set(seen, field, len(dictionary))
+                                    set codes = list_push(codes, len(dictionary))
+                                    set dictionary = list_push(dictionary, field)
+                            set stored = true
+                if stored:
+                    set valid = list_push(valid, true)
+                    set present = present + 1
+                    set index = index + 1
+                else:
+                    if builder.fixed:
+                        return Err(parse_error(lines[index], builder.name, "`" + field + "` is not " + kind))
+                    let wanted = kind_of(field)
+                    if present == 0:
+                        # Every earlier value was missing: restart in the new kind, zero-filled.
+                        if wanted == "f64":
+                            set float_chunks = zero_chunks_f64(builder.valid)
+                            set floats = ints_as_floats(zeros_i64(len(valid)))
+                        else:
+                            if wanted == "bool":
+                                set flag_chunks = zero_chunks_bool(builder.valid)
+                                set flags = zeros_bool(len(valid))
+                            else:
+                                set code_chunks = zero_chunks_i64(builder.valid)
+                                set codes = zeros_i64(len(valid))
+                        set kind = wanted
+                    else:
+                        if kind == "i64" and (wanted == "i64" or wanted == "f64"):
+                            set float_chunks = ints_to_floats(int_chunks)
+                            set floats = ints_as_floats(ints)
+                            set kind = "f64"
+                        else:
+                            # Earlier values were not text; read this column again as text.
+                            set kind = "text"
+                            set reread = true
+    let mask = array_bool(valid)
+    if reread:
+        return Ok(Builder(builder.name, "text", false, present, true, builder.ints, builder.floats, builder.flags, builder.codes, list_push(builder.valid, mask), seen, dictionary))
+    if kind == "i64":
+        set int_chunks = list_push(int_chunks, array_i64(ints))
+    else:
+        if kind == "f64":
+            set float_chunks = list_push(float_chunks, array_f64(floats))
+        else:
+            if kind == "bool":
+                set flag_chunks = list_push(flag_chunks, array_bool(flags))
+            else:
+                set code_chunks = list_push(code_chunks, array_i64(codes))
+    return Ok(Builder(builder.name, kind, builder.fixed, present, false, int_chunks, float_chunks, flag_chunks, code_chunks, list_push(builder.valid, mask), seen, dictionary))
+
+fn joined_i64(chunks: List[Array[i64]]) -> Array[i64]:
+    if len(chunks) == 0:
+        return array_i64_zeros([0])
+    return array_concat(chunks)
+
+fn joined_f64(chunks: List[Array[f64]]) -> Array[f64]:
+    if len(chunks) == 0:
+        return array_f64_zeros([0])
+    return array_concat(chunks)
+
+fn joined_bool(chunks: List[Array[bool]]) -> Array[bool]:
+    if len(chunks) == 0:
+        return array_bool_zeros([0])
+    return array_concat(chunks)
+
+fn built(builder: Builder) -> Column:
+    let valid = joined_bool(builder.valid)
+    if builder.kind == "i64":
+        return column_from_i64(builder.name, joined_i64(builder.ints), valid)
+    if builder.kind == "f64":
+        return column_from_f64(builder.name, joined_f64(builder.floats), valid)
+    if builder.kind == "bool":
+        return column_from_bool(builder.name, joined_bool(builder.flags), valid)
+    return column_from_codes(builder.name, joined_i64(builder.codes), builder.dictionary, valid)
+
+fn valid_kind(kind: Text) -> Bool:
+    return kind == "i64" or kind == "f64" or kind == "bool" or kind == "text"
+
+# Reads rows of a CSV file in chunks, starting after the header. Calls `absorb` for each
+# column listed in `only` (every column when `only` is empty).
+fn read_rows(path: Text, builders: List[Builder], only: List[Int]) -> Result[List[Builder], StdError]:
+    let width = len(builders)
+    var columns = only
+    if len(only) == 0:
+        var index = 0
+        while index < width:
+            set columns = list_push(columns, index)
+            set index = index + 1
+    var result = builders
+    var reader_result = csv_open(path)
+    if not is_ok(reader_result):
+        return Err(file_failure(error(reader_result), path))
+    let reader = unwrap(reader_result)
+    let header = csv_next(reader)
+    if not is_ok(header):
+        return Err(file_failure(error(header), path))
+    var done = false
+    while not done:
+        var rows: List[CsvRow] = []
+        var lines: List[Int] = []
+        while len(rows) < chunk_rows() and not done:
+            let next = csv_next(reader)
+            if not is_ok(next):
+                return Err(file_failure(error(next), path))
+            let maybe = unwrap(next)
+            if is_some(maybe):
+                let row = unwrap(maybe)
+                if len(row.fields) != width:
+                    return Err(frame_error("E_FRAME_PARSE", "line " + int_to_text(row.start_line) + " has " + int_to_text(len(row.fields)) + " fields, expected " + int_to_text(width)))
+                set rows = list_push(rows, row)
+                set lines = list_push(lines, row.start_line)
+            else:
+                set done = true
+        if len(rows) > 0:
+            for column in columns:
+                var fields: List[Text] = []
+                for row in rows:
+                    set fields = list_push(fields, row.fields[column])
+                set result = list_set(result, column, absorb(result[column], fields, lines)?)
+    let closed = file_close(reader)
+    if not is_ok(closed):
+        return Err(file_failure(error(closed), path))
+    return Ok(result)
+
+fn read_csv_kinds(path: Text, kinds: Map[Text, Text]) -> Result[Frame, StdError]:
+    let reader_result = csv_open(path)
+    if not is_ok(reader_result):
+        return Err(file_failure(error(reader_result), path))
+    let first = csv_next(unwrap(reader_result))
+    let closed = file_close(unwrap(reader_result))
+    if not is_ok(first):
+        return Err(file_failure(error(first), path))
+    let maybe_header = unwrap(first)
+    if not is_some(maybe_header):
+        return Err(frame_error("E_FRAME_PARSE", path + " has no header row"))
+    let header = unwrap(maybe_header).fields
+    var seen: Map[Text, Int] = {}
+    var builders: List[Builder] = []
+    for name in header:
+        if map_has(seen, name):
+            return Err(frame_error("E_FRAME_COLUMN", "duplicate column name `" + name + "` in " + path))
+        set seen = map_set(seen, name, 1)
+        match map_get(kinds, name):
+            Some(kind):
+                if not valid_kind(kind):
+                    return Err(frame_error("E_FRAME_KIND", "unknown column kind `" + kind + "` for `" + name + "`"))
+                set builders = list_push(builders, new_builder(name, kind, true))
+            None:
+                set builders = list_push(builders, new_builder(name, "i64", false))
+    for name in kinds:
+        if not map_has(seen, name):
+            return Err(frame_error("E_FRAME_COLUMN", "no column named `" + name + "` in " + path))
+    var read = read_rows(path, builders, no_ints())?
+    var again: List[Int] = []
+    var index = 0
+    while index < len(read):
+        if read[index].reread:
+            set again = list_push(again, index)
+            set read = list_set(read, index, new_builder(read[index].name, "text", true))
+        set index = index + 1
+    if len(again) > 0:
+        set read = read_rows(path, read, again)?
+    var columns: List[Column] = []
+    for builder in read:
+        set columns = list_push(columns, built(builder))
+    return frame_new(columns)
+
+# Reads a CSV file with a header row. Each column's kind is the first of i64, f64, bool and
+# text that holds every non-empty value; an empty field is a missing value.
+pub fn frame_read_csv(path: Text) -> Result[Frame, StdError]:
+    let none: Map[Text, Text] = {}
+    return read_csv_kinds(path, none)
+
+# As `frame_read_csv`, with the kinds of some columns fixed (`"i64"`, `"f64"`, `"bool"` or
+# `"text"`); a value that does not fit is an `E_FRAME_PARSE` error.
+pub fn frame_read_csv_with(path: Text, kinds: Map[Text, Text]) -> Result[Frame, StdError]:
+    return read_csv_kinds(path, kinds)
+
+# Writes the frame as CSV with a header row; missing values are empty fields. Returns the
+# number of data rows written.
+pub fn frame_write_csv(frame: Frame, path: Text) -> Result[Int, StdError]:
+    var lines: List[List[Text]] = [frame_names(frame)]
+    let columns = frame_columns(frame)
+    var masks: List[Array[bool]] = []
+    var gaps: List[Bool] = []
+    for column in columns:
+        set masks = list_push(masks, column_valid(column))
+        set gaps = list_push(gaps, column_missing(column) > 0)
+    var row = 0
+    while row < frame_rows(frame):
+        var cells: List[Text] = []
+        var index = 0
+        while index < len(columns):
+            if gaps[index] and not array_get(masks[index], row):
+                set cells = list_push(cells, "")
+            else:
+                set cells = list_push(cells, column_cell_text(columns[index], row))
+            set index = index + 1
+        set lines = list_push(lines, cells)
+        set row = row + 1
+    let encoded = csv_encode(lines)
+    if not is_ok(encoded):
+        return Err(file_failure(error(encoded), path))
+    let written = write_text(path, unwrap(encoded))
+    if not is_ok(written):
+        return Err(file_failure(error(written), path))
+    return Ok(frame_rows(frame))
+
+# The top-level keys of a JSON object, in the order its JSON text lists them.
+fn object_keys(value: Json) -> List[Text]:
+    let text = json_stringify(value)
+    let chars = text_chars(text)
+    var keys: List[Text] = []
+    var depth = 0
+    var index = 0
+    var expect_key = false
+    while index < len(chars):
+        let char = chars[index]
+        if char == "\"":
+            var end = index + 1
+            var escaped = false
+            var done = false
+            while not done:
+                if escaped:
+                    set escaped = false
+                else:
+                    if chars[end] == "\\":
+                        set escaped = true
+                    else:
+                        if chars[end] == "\"":
+                            set done = true
+                if not done:
+                    set end = end + 1
+            if depth == 1 and expect_key:
+                set keys = list_push(keys, json_as_text(unwrap(json_parse(text_slice(text, index, end + 1)))))
+                set expect_key = false
+            set index = end + 1
+        else:
+            if char == "{" or char == "[":
+                set depth = depth + 1
+                if depth == 1:
+                    set expect_key = true
+            else:
+                if char == "}" or char == "]":
+                    set depth = depth - 1
+                else:
+                    if char == "," and depth == 1:
+                        set expect_key = true
+            set index = index + 1
+    return keys
+
+fn json_kind(value: Json) -> Text:
+    let as_int = json_try_int(value)
+    if is_ok(as_int) and fits_i64(unwrap(as_int)):
+        return "i64"
+    if is_ok(json_try_float(value)):
+        return "f64"
+    if is_ok(json_try_bool(value)):
+        return "bool"
+    return "text"
+
+fn json_cell_text(value: Json) -> Text:
+    let as_text = json_try_text(value)
+    if is_ok(as_text):
+        return unwrap(as_text)
+    return json_stringify(value)
+
+fn widen(current: Text, next: Text) -> Text:
+    if current == "" or current == next:
+        return next
+    if (current == "i64" or current == "f64") and (next == "i64" or next == "f64"):
+        return "f64"
+    return "text"
+
+fn jsonl_failure(line: JsonlLine, path: Text) -> StdError:
+    return frame_error("E_FRAME_PARSE", path + " line " + int_to_text(line.number) + ": " + json_error_message(unwrap(line.error)))
+
+# Every non-blank line of a JSONL file as parsed JSON, with its line number.
+fn jsonl_objects(path: Text) -> Result[List[Json], StdError]:
+    let opened = jsonl_open(path)
+    if not is_ok(opened):
+        return Err(file_failure(error(opened), path))
+    let reader = unwrap(opened)
+    var objects: List[Json] = []
+    var done = false
+    while not done:
+        let next = jsonl_next(reader)
+        if not is_ok(next):
+            return Err(file_failure(error(next), path))
+        let maybe = unwrap(next)
+        if is_some(maybe):
+            let line = unwrap(maybe)
+            if text_trim_native(line.raw) != "":
+                if not is_some(line.value):
+                    return Err(jsonl_failure(line, path))
+                set objects = list_push(objects, unwrap(line.value))
+        else:
+            set done = true
+    let closed = jsonl_close(reader)
+    if not is_ok(closed):
+        return Err(file_failure(error(closed), path))
+    return Ok(objects)
+
+fn field_of(object: Json, key: Text) -> Json:
+    if json_has(object, key):
+        return json_get(object, key)
+    return json_null()
+
+# Reads a JSONL file: one JSON object per line. The first object's keys (in its JSON text
+# order) are the columns. A missing key or `null` is a missing value; kinds follow the JSON
+# value types, and integers mixed with other numbers widen to f64.
+pub fn frame_read_jsonl(path: Text) -> Result[Frame, StdError]:
+    let objects = jsonl_objects(path)?
+    if len(objects) == 0:
+        return Ok(frame_empty())
+    let keys = object_keys(objects[0])
+    var columns: List[Column] = []
+    for key in keys:
+        var kind = ""
+        for object in objects:
+            let value = field_of(object, key)
+            if not json_is_null(value):
+                set kind = widen(kind, json_kind(value))
+        if kind == "":
+            set kind = "i64"
+        var ints: List[Int] = []
+        var floats: List[Float64] = []
+        var flags: List[Bool] = []
+        var texts: List[Text] = []
+        var valid: List[Bool] = []
+        for object in objects:
+            let value = field_of(object, key)
+            let missing = json_is_null(value)
+            set valid = list_push(valid, not missing)
+            if kind == "i64":
+                if missing:
+                    set ints = list_push(ints, 0)
+                else:
+                    set ints = list_push(ints, json_as_int(value))
+            else:
+                if kind == "f64":
+                    if missing:
+                        set floats = list_push(floats, 0.0)
+                    else:
+                        set floats = list_push(floats, json_as_float(value))
+                else:
+                    if kind == "bool":
+                        set flags = list_push(flags, not missing and json_as_bool(value))
+                    else:
+                        if missing:
+                            set texts = list_push(texts, "")
+                        else:
+                            set texts = list_push(texts, json_cell_text(value))
+        let mask = array_bool(valid)
+        if kind == "i64":
+            set columns = list_push(columns, column_from_i64(key, array_i64(ints), mask))
+        else:
+            if kind == "f64":
+                set columns = list_push(columns, column_from_f64(key, array_f64(floats), mask))
+            else:
+                if kind == "bool":
+                    set columns = list_push(columns, column_from_bool(key, array_bool(flags), mask))
+                else:
+                    let text = column_text(key, texts)
+                    set columns = list_push(columns, column_from_codes(key, column_codes(text), column_dictionary(text), mask))
+    return frame_new(columns)

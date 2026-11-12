@@ -214,6 +214,13 @@ pub fn column_get_text(column: Column, row: Int) -> Option[Text]:
         return no_text()
     return some_text(column.dictionary[array_get(column.codes, row)])
 
+# Float text that always reads back as a float: `1` becomes `1.0`.
+pub fn float_cell(value: Float64) -> Text:
+    let text = float_to_text(value)
+    if text_find(text, ".", 0) >= 0 or text_find(text, "e", 0) >= 0 or text_find(text, "E", 0) >= 0:
+        return text
+    return text + ".0"
+
 # The value at `row` as display text; `NA` when missing.
 pub fn column_cell_text(column: Column, row: Int) -> Text:
     if not present(column, row):
@@ -221,7 +228,7 @@ pub fn column_cell_text(column: Column, row: Int) -> Text:
     if column.kind == "i64":
         return int_to_text(array_get(column.ints, row))
     if column.kind == "f64":
-        return float_to_text(array_get(column.floats, row))
+        return float_cell(array_get(column.floats, row))
     if column.kind == "bool":
         if array_get(column.flags, row):
             return "true"

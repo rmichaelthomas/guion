@@ -1,0 +1,83 @@
+# Printing a frame as an aligned text table.
+
+import "column.gu"
+import "frame.gu"
+
+fn spaces(count: Int) -> Text:
+    var out = ""
+    var index = 0
+    while index < count:
+        set out = out + " "
+        set index = index + 1
+    return out
+
+fn numeric(column: Column) -> Bool:
+    return column_kind(column) == "i64" or column_kind(column) == "f64"
+
+fn trim_end(text: Text) -> Text:
+    var end = len(text)
+    while end > 0 and text_slice(text, end - 1, end) == " ":
+        set end = end - 1
+    return text_slice(text, 0, end)
+
+# Rows shown: every row when there are at most `max_rows`, otherwise the first and last
+# halves (the first half takes the odd row), with -1 marking the gap.
+fn shown_rows(rows: Int, max_rows: Int) -> List[Int]:
+    var out: List[Int] = []
+    var row = 0
+    if rows <= max_rows:
+        while row < rows:
+            set out = list_push(out, row)
+            set row = row + 1
+        return out
+    let head = (max_rows + 1) // 2
+    let tail = max_rows - head
+    while row < head:
+        set out = list_push(out, row)
+        set row = row + 1
+    set out = list_push(out, -1)
+    set row = rows - tail
+    while row < rows:
+        set out = list_push(out, row)
+        set row = row + 1
+    return out
+
+# A text table of the frame: numbers right-aligned, other values left-aligned, `NA` for a
+# missing value, and `…` rows standing for the rows left out when there are more than
+# `max_rows`. The last line is `[R rows x C columns]`.
+pub fn frame_show(frame: Frame, max_rows: Int) -> Text:
+    let columns = frame_columns(frame)
+    let rows = shown_rows(frame_rows(frame), max_rows)
+    var cells: List[List[Text]] = []
+    var widths: List[Int] = []
+    for column in columns:
+        var texts: List[Text] = [column_name(column)]
+        var width = len(column_name(column))
+        for row in rows:
+            var cell = "…"
+            if row >= 0:
+                set cell = column_cell_text(column, row)
+            if len(cell) > width:
+                set width = len(cell)
+            set texts = list_push(texts, cell)
+        set cells = list_push(cells, texts)
+        set widths = list_push(widths, width)
+    var lines: List[Text] = []
+    var line_index = 0
+    while line_index <= len(rows):
+        var line = ""
+        var index = 0
+        while index < len(columns):
+            let cell = cells[index][line_index]
+            let pad = spaces(widths[index] - len(cell))
+            if index > 0:
+                set line = line + "  "
+            if numeric(columns[index]):
+                set line = line + pad + cell
+            else:
+                set line = line + cell + pad
+            set index = index + 1
+        set lines = list_push(lines, trim_end(line))
+        set line_index = line_index + 1
+    set lines = list_push(lines, "[" + int_to_text(frame_rows(frame)) + " rows x " + int_to_text(len(columns)) + " columns]")
+    return text_join_native(lines, "\n")
