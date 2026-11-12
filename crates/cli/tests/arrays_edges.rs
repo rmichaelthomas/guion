@@ -110,3 +110,15 @@ fn elementwise_results_reuse_an_unshared_operand_buffer() {
     assert!(ok, "{stderr}");
     assert_eq!(stdout, "9\n-6\n-9\n");
 }
+
+// a, b and c hold 240 MB of the 256 MiB budget, so `set a = array_add(a, b)` can only run if the
+// result is written into a's own buffer.
+#[test]
+fn assigning_an_elementwise_result_back_to_its_unshared_local_allocates_nothing() {
+    let (ok, stdout, stderr) = run(
+        "reuse-local",
+        "var a = array_f64_full([10000000], 2.0)\nlet b = array_f64_full([10000000], 3.0)\nlet c = array_f64_full([10000000], 5.0)\nset a = array_add(a, b)\nset a = array_mul(a, b)\nset a = array_neg(a)\nprint(array_get(a, 0))\nprint(array_get(c, 0))\n",
+    );
+    assert!(ok, "{stderr}");
+    assert_eq!(stdout, "-15\n5\n");
+}

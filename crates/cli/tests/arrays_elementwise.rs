@@ -214,3 +214,13 @@ fn a_nonfinite_result_in_a_reused_buffer_still_raises() {
     );
     assert!(err.contains("R_FLOAT_NONFINITE"), "{err}");
 }
+
+#[test]
+fn a_nonfinite_result_assigned_back_to_its_local_still_raises() {
+    let err = error_of(
+        "reuse-local-nonfinite",
+        "var x = array_f64([1.0, 1.0e308, 1.0e308])\nset x = array_add(x, x)\nprint(x)",
+    );
+    assert!(err.contains("R_FLOAT_NONFINITE"), "{err}");
+    assert!(err.contains("element 1"), "{err}");
+}

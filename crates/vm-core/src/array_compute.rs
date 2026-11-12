@@ -82,6 +82,11 @@ trait Numeric: Element {
     fn mul_raw(self, other: Self) -> Result<Self, &'static str> {
         self.mul(other)
     }
+    /// Whether a result of the `_raw` operations is acceptable (always true for integers).
+    #[inline]
+    fn acceptable(self) -> bool {
+        true
+    }
     /// The first element of a result produced by the `_raw` operations that is not finite.
     fn first_nonfinite(_items: &[Self]) -> Option<usize> {
         None
@@ -165,6 +170,10 @@ macro_rules! float_numeric {
             #[inline]
             fn mul_raw(self, other: Self) -> Result<Self, &'static str> {
                 Ok(self * other)
+            }
+            #[inline]
+            fn acceptable(self) -> bool {
+                self.is_finite()
             }
             fn first_nonfinite(items: &[Self]) -> Option<usize> {
                 if items.iter().all(|item| item.is_finite()) {
@@ -382,6 +391,27 @@ fn zip_numeric<T: Numeric>(
             Some(scalar) => scalar,
             None => array_arg(args, 1)?,
         };
+        if left.shape == right.shape {
+            charge(array_bytes(T::TYPE, shape.len(), left.size()))?;
+            let mut out: Vec<T> = Vec::with_capacity(left.size());
+            let mut unacceptable = false;
+            let fail = |code, index| element_error(code, what, T::TYPE, index);
+            for (index, (x, y)) in T::items(&left.data)
+                .iter()
+                .zip(T::items(&right.data))
+                .enumerate()
+            {
+                let value = f(*x, *y).map_err(|code| fail(code, index))?;
+                unacceptable |= !value.acceptable();
+                out.push(value);
+            }
+            if unacceptable {
+                if let Some(index) = T::first_nonfinite(&out) {
+                    return Err(fail(NONFINITE, index));
+                }
+            }
+            return finish(shape, out);
+        }
         let result = zip_with(left, right, charge, what, &f)?;
         if let Value::Array(array) = &result {
             if let Some(index) = T::first_nonfinite(T::items(&array.data)) {
@@ -404,18 +434,27 @@ fn zip_numeric<T: Numeric>(
     debug_assert_eq!(shape_size(&shape), Some(items.len()));
     let fail = |code, index| element_error(code, what, T::TYPE, index);
     let apply = |x: T, y: T| if which == 0 { f(x, y) } else { f(y, x) };
+    // Finiteness is accumulated without branching so the loop stays tight; only a result
+    // that failed it is searched for the offending element.
+    let mut unacceptable = false;
     if other.len() == items.len() {
         for (index, (slot, y)) in items.iter_mut().zip(other).enumerate() {
-            *slot = apply(*slot, *y).map_err(|code| fail(code, index))?;
+            let value = apply(*slot, *y).map_err(|code| fail(code, index))?;
+            unacceptable |= !value.acceptable();
+            *slot = value;
         }
     } else {
         let y = other[0];
         for (index, slot) in items.iter_mut().enumerate() {
-            *slot = apply(*slot, y).map_err(|code| fail(code, index))?;
+            let value = apply(*slot, y).map_err(|code| fail(code, index))?;
+            unacceptable |= !value.acceptable();
+            *slot = value;
         }
     }
-    if let Some(index) = T::first_nonfinite(items) {
-        return Err(fail(NONFINITE, index));
+    if unacceptable {
+        if let Some(index) = T::first_nonfinite(items) {
+            return Err(fail(NONFINITE, index));
+        }
     }
     Ok(Value::Array(owned))
 }

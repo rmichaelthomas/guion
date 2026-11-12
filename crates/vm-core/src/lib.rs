@@ -2720,6 +2720,17 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     args[slot] = pop!();
                 }
                 let span = instruction.span;
+                // `set a = array_<fn>(a, ...)` stores straight back into the local it read.
+                // Releasing that local first leaves the kernel the only owner, so it can
+                // update the buffer in place; a variable that also holds the array keeps it.
+                if let (Some(Op::Store(slot)), Value::Array(operand)) =
+                    (f.code.get(ip).map(|next| &next.op), &args[0])
+                {
+                    if matches!(&locals[*slot], Value::Array(local) if Shared::ptr_eq(local, operand))
+                    {
+                        drop_value_fast(std::mem::replace(&mut locals[*slot], Value::Unit));
+                    }
+                }
                 let mut charge = |bytes: usize| {
                     charge_allocation(budget.as_ref(), bytes, span)
                         .map_err(|error| ("R_ALLOCATION_LIMIT", error.message))
