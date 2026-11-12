@@ -10,8 +10,8 @@ This list covers open problems only. Each row has a status and the batch that wi
 | 4 | Element-wise array maths costs about 2 times NumPy's cost per element. | fixed in db55344 (10M `a*b+c` compute estimate 1.45 times NumPy, down from 2.1; an in-place `set r = array_add(r, b)` loop runs at 0.86 times NumPy) | Batch 1 |
 | 5 | The self-hosted compiler emits `ArraySet` where it could emit `ArraySetLocal`. | fixed in 4c19507 | Batch 1 |
 | 6 | Large files need the project to raise `max_file_bytes`, and the allocation-limit error does not say how to raise it. | fixed in c071ffd | Batch 1 |
-| 7 | `array_i64_range` can panic in debug builds on extreme operands. | open | Batch 2 |
-| 8 | Temporary buffers in matmul, sort and argsort, factorize and join_index are not charged to the allocation budget. | open | Batch 2 |
+| 7 | `array_i64_range` can panic in debug builds on extreme operands. | fixed in 6fb8d20 | Batch 2 |
+| 8 | Temporary buffers in matmul, sort and argsort, factorize and join_index are not charged to the allocation budget. | fixed in 6fb8d20 | Batch 2 |
 | 9 | Array error messages use internal operation names. `array_clip` with low greater than high raises `R_ARRAY_SHAPE`. | open | Batch 2 |
 | 10 | The Rust and self-hosted compilers give different error codes for `Array[i128]` and `Array[Array[f64]]`. | open | Batch 2 |
 | 11 | The spec says element types outside `Array[...]` should give `E_TYPE_UNKNOWN`. Both compilers give `E_TYPE_ANNOTATION`. | open | Batch 2 |
