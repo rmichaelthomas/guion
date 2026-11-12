@@ -60,6 +60,16 @@ So for short scripts Guion finishes first, and for bulk numeric work NumPy's ker
 
 Against plain CPython lists Guion is faster on every workload, from 1.5× (the indexing loop) to 31× (matmul).
 
+## Final review fixes
+
+A fresh whole-branch review found three defects, each confirmed with a program, and the fixes are covered by `crates/cli/tests/arrays_edges.rs` (each test failed before its fix):
+
+- `array_reshape` and `array_flatten` copied the array without charging the memory budget, so a program could hold about 1.8 GB under the 256 MiB default. Both now charge for the copy.
+- `array_mean_axis` could store infinity, and reading it then crashed the VM. It now raises `R_FLOAT_NONFINITE`.
+- `array_matmul` on `u64` wrapped silently on a product above 2^127 instead of raising `R_ARRAY_OVERFLOW`. It now checks the multiply.
+
+Two smaller ones were fixed at the same time: an empty float `array_sum` or `array_dot` printed `-0` instead of `0`, and `array_concat` of zero-size arrays with huge extents could overflow the joined extent instead of raising `R_ARRAY_SHAPE`.
+
 ## Limits found
 
 - **Memory limit.** The 10M-element `a*b+c` run needs about 486 MB (peak RSS), more than the 256 MiB default `allocation_limit_bytes`, and fails with `R_ALLOCATION_LIMIT` unless the project raises it. The large benchmark set raises it to 2 GiB in its `guion.toml`. NumPy has no such limit.

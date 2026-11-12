@@ -30,6 +30,7 @@ step "catalog matches the model operand table" cargo test --locked --offline -p 
 step "construction, access, shape, bytes" cargo test --locked --offline -p guion-cli --test arrays_core
 step "elementwise arithmetic, comparisons, math" cargo test --locked --offline -p guion-cli --test arrays_elementwise
 step "reductions, sorting, linear algebra, random" cargo test --locked --offline -p guion-cli --test arrays_reduce
+step "review edge cases (memory, overflow, non-finite)" cargo test --locked --offline -p guion-cli --test arrays_edges
 step "self-hosted compiler parity" cargo test --locked --offline -p guion-cli --test arrays_self_host
 step "machine code on and off" cargo test --locked --offline -p guion-runtime --test arrays_native
 step "shared catalog, both compilers" cargo test --locked --offline -p guion-cli --test compiler_conformance

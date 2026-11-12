@@ -510,7 +510,7 @@ impl ExactSum {
 /// Pairwise summation in f64, for accuracy on long arrays.
 fn pairwise_sum<T: Element>(items: &[T]) -> f64 {
     if items.len() <= 128 {
-        return items.iter().map(|item| item.to_f64()).sum();
+        return items.iter().fold(0.0, |total, item| total + item.to_f64());
     }
     let middle = items.len() / 2;
     pairwise_sum(&items[..middle]) + pairwise_sum(&items[middle..])
@@ -642,8 +642,18 @@ fn reduce_axis<T: Numeric>(
         let mut out = Vec::with_capacity(size);
         for o in 0..outer {
             for i in 0..inner {
-                let sum: f64 = (0..extent).map(|k| at(o, k, i).to_f64()).sum();
-                out.push(sum / extent as f64);
+                let sum = (0..extent).fold(0.0, |total, k| total + at(o, k, i).to_f64());
+                let mean = sum / extent as f64;
+                if !mean.is_finite() {
+                    return Err((
+                        NONFINITE,
+                        format!(
+                            "array_mean_axis is not finite at output index {}",
+                            o * inner + i
+                        ),
+                    ));
+                }
+                out.push(mean);
             }
         }
         return finish(shape, out);
@@ -745,7 +755,11 @@ fn dot<T: Element>(args: &[Value]) -> Result<Value, ArrayError> {
         }
         return Ok(Value::Int(sum.value()));
     }
-    float_value(x.iter().zip(y).map(|(p, q)| p.to_f64() * q.to_f64()).sum())
+    float_value(
+        x.iter()
+            .zip(y)
+            .fold(0.0, |total, (p, q)| total + p.to_f64() * q.to_f64()),
+    )
 }
 
 const MATMUL_BLOCK: usize = 64;
@@ -796,10 +810,11 @@ fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, 
                 }
                 let row = &mut acc[i * m..(i + 1) * m];
                 for (j, cell) in row.iter_mut().enumerate() {
-                    let product = left * y[p * m + j].to_int().expect("integer");
-                    *cell = cell.checked_add(product).ok_or_else(|| {
-                        element_error(OVERFLOW, "array_matmul", T::TYPE, i * m + j)
-                    })?;
+                    let overflow = || element_error(OVERFLOW, "array_matmul", T::TYPE, i * m + j);
+                    let product = left
+                        .checked_mul(y[p * m + j].to_int().expect("integer"))
+                        .ok_or_else(overflow)?;
+                    *cell = cell.checked_add(product).ok_or_else(overflow)?;
                 }
             }
         }

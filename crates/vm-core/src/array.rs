@@ -604,7 +604,11 @@ fn to_list(array: &ArrayValue, charge: &mut Charge<'_>) -> Result<Value, ArrayEr
     Ok(Value::from_list_items(items))
 }
 
-fn reshape(array: &Shared<ArrayValue>, shape: &Value) -> Result<Value, ArrayError> {
+fn reshape(
+    array: &Shared<ArrayValue>,
+    shape: &Value,
+    charge: &mut Charge<'_>,
+) -> Result<Value, ArrayError> {
     let requested = shape_arg(shape, true)?;
     let known = requested
         .iter()
@@ -632,6 +636,8 @@ fn reshape(array: &Shared<ArrayValue>, shape: &Value) -> Result<Value, ArrayErro
             format!("cannot reshape {size} elements to {shape:?}"),
         );
     }
+    // The copy holds its own element storage, so it is charged like any new array.
+    charge(array_bytes(array.element(), shape.len(), size))?;
     let mut result = ArrayValue::clone(array);
     result.shape = shape;
     Ok(Value::Array(Shared::new(result)))
@@ -736,7 +742,9 @@ fn join<T: Element>(
                 ),
             );
         }
-        leading += if stack { 1 } else { array.shape[0] };
+        leading = leading
+            .checked_add(if stack { 1 } else { array.shape[0] })
+            .ok_or_else(|| ("R_ARRAY_SHAPE", "the joined shape is too large".to_string()))?;
     }
     let mut shape = vec![leading];
     shape.extend_from_slice(inner);
@@ -824,9 +832,10 @@ pub fn apply(
             set_flat(&mut array, position, &args[2])?;
             Ok(Value::Array(array))
         }
-        Reshape => reshape(array_arg(args, 0)?, &args[1]),
+        Reshape => reshape(array_arg(args, 0)?, &args[1], charge),
         Flatten => {
             let array = array_arg(args, 0)?;
+            charge(array_bytes(array.element(), 1, array.size()))?;
             let mut result = ArrayValue::clone(array);
             result.shape = vec![array.size()];
             Ok(Value::Array(Shared::new(result)))
