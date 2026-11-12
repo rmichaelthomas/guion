@@ -765,6 +765,12 @@ impl Parser {
                     // loaded; `compile_program` reports it with the right code.
                     Type::Record(name) => {
                         self.array_elements.push((self.module_id, name, inner_span));
+                        // A placeholder: `Array[Bool]` is not a type a program can write, and
+                        // every name recorded above is checked after parsing, which always
+                        // fails (`E_TYPE_UNKNOWN` or `E_TYPE_ANNOTATION`). A parse path that
+                        // skipped that check would accept the program with this type, so
+                        // every route to a finished program must go through
+                        // `compile_program`.
                         Ok(Type::Array(guion_model::ElementType::Bool))
                     }
                     _ => Err(diagnostic(

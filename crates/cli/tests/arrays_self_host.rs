@@ -38,8 +38,9 @@ fn guion(dir: &Path, args: &[&str]) -> std::process::Output {
         .expect("guion starts")
 }
 
-/// Compiles `entry` with the self-hosted compiler and runs the result.
-fn self_hosted_stdout(project: &Project, entry: &str) -> String {
+/// Compiles `entry` with the self-hosted compiler and assembles the result; returns the path of
+/// the artifact.
+fn self_hosted_artifact(project: &Project, entry: &str) -> PathBuf {
     let compiled = guion(&project.0, &["run", "compiler.gu", entry]);
     assert!(
         compiled.status.success(),
@@ -64,6 +65,12 @@ fn self_hosted_stdout(project: &Project, entry: &str) -> String {
         "{}",
         String::from_utf8_lossy(&assembled.stderr)
     );
+    artifact
+}
+
+/// Compiles `entry` with the self-hosted compiler and runs the result.
+fn self_hosted_stdout(project: &Project, entry: &str) -> String {
+    let artifact = self_hosted_artifact(project, entry);
     let ran = guion(&project.0, &["run", artifact.to_str().unwrap()]);
     assert!(
         ran.status.success(),
@@ -71,6 +78,24 @@ fn self_hosted_stdout(project: &Project, entry: &str) -> String {
         String::from_utf8_lossy(&ran.stderr)
     );
     String::from_utf8_lossy(&ran.stdout).into_owned()
+}
+
+/// Every function's instructions, as text, in the order the compiler emitted them.
+fn instructions(artifact: &guion_model::Artifact) -> Vec<(String, Vec<String>)> {
+    artifact
+        .functions
+        .iter()
+        .map(|function| {
+            (
+                function.name.clone(),
+                function
+                    .code
+                    .iter()
+                    .map(|instruction| format!("{:?}", instruction.op))
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 const PROGRAM: &str = r#"fn total(a: Array[i64]) -> Int:
@@ -274,6 +299,50 @@ fn both_compilers_report_the_same_array_element_type_errors() {
         "E_TYPE_UNKNOWN",
         "unknown type `f64`; element types are only valid inside Array[...]",
     );
+    // A bare element type is reported wherever a type is written: a result, a record field,
+    // an external signature and a type inside another type.
+    assert_both_report_type_error(
+        &project,
+        "bare-result",
+        &format!("fn f() -> f64:\n    return 1.0\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-field",
+        &format!("record Point:\n    x: f64\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-external",
+        &format!("extern python \"math:sqrt\" fn root(value: f64) -> Int\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-in-list",
+        &format!("fn f(x: List[f64]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "array-field",
+        &format!("record Point:\n    x: Array[i128]\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `i128`",
+    );
+    assert_both_report_type_error(
+        &project,
+        "array-result",
+        &format!("fn f() -> Array[Int]:\n    return array_i32([1])\n\n{main}"),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
     assert_both_report_type_error(
         &project,
         "let-unknown",
@@ -327,6 +396,24 @@ fn self_hosted_csv_read_columns_program_matches_the_rust_compiler() {
     assert!(expected.contains("a i64"), "{expected}");
     assert!(expected.contains("b text"), "{expected}");
     assert_eq!(self_hosted_stdout(&project, "cols.gu"), expected);
+    // Not only the same output: the same instructions, so the new operation is encoded as the
+    // Rust compiler encodes it.
+    let rust_artifact = guion_compiler::compile_project(&project.0.join("cols.gu"), &project.0)
+        .expect("the Rust compiler compiles the program");
+    let self_hosted = guion_model::Artifact::from_bytes(
+        &std::fs::read(self_hosted_artifact(&project, "cols.gu")).unwrap(),
+    )
+    .expect("the assembled artifact decodes");
+    let rust_instructions = instructions(&rust_artifact);
+    assert_eq!(
+        rust_instructions
+            .iter()
+            .flat_map(|(_, ops)| ops)
+            .filter(|op| op.starts_with("CsvReadColumns"))
+            .count(),
+        2
+    );
+    assert_eq!(instructions(&self_hosted), rust_instructions);
 }
 
 #[test]
