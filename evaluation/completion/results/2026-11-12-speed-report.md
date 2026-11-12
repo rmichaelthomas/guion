@@ -77,7 +77,7 @@ Before this batch the `a*b+c` row was 0.0899 s (0.869 of NumPy).
 
 ### Matrix multiplication (8d73df4)
 
-The kernel packs the operands into tiles, multiplies register-sized blocks (NEON on aarch64, AVX2 with FMA on x86_64 chosen at run time, scalar elsewhere), computes `f32` in `f64` and narrows, and splits the rows across threads when `m·n·k` is at least 2^21 (about 128×128×128). Output is bit-identical for every thread count. Integer element types keep the checked kernel. On this machine (`available_parallelism` 10) 512×512×512 (2^27) and 256×256×256 (2^24) both run threaded. The end-to-end rows come from the full 15-trial protocol on a release build of 8d73df4 (`evaluation/development/arrays/results_large.json` and `results.json`).
+The kernel packs the operands into tiles, multiplies register-sized blocks (NEON on aarch64, AVX2 with FMA on x86_64 chosen at run time, scalar elsewhere), computes `f32` in `f64` and narrows, and splits the rows across threads when `m·n·k` is at least 3·2^20 (about 146×146×146; 0db87cf raised it from 2^21 after measuring 128³ at 0.126 ms on one thread against 0.157 ms on ten, and 160³ at 0.206 ms against 0.153 ms). Output is bit-identical for every thread count. Integer element types keep the checked kernel. On this machine (`available_parallelism` 10) 512×512×512 (2^27) and 256×256×256 (2^24) both run threaded. The end-to-end rows come from the full 15-trial protocol on a release build of 8d73df4 (`evaluation/development/arrays/results_large.json` and `results.json`).
 
 | Measure | Before | After |
 |---|---|---|
@@ -85,11 +85,23 @@ The kernel packs the operands into tiles, multiplies register-sized blocks (NEON
 | 512×512 f64, Guion work after start-up | ~27 ms | ~3.1 ms |
 | 256×256 f64, end to end | 0.0185 s | 0.0148 s |
 | 512×512 f64, Guion / NumPy end to end | 0.623 | 0.258 (0.251–0.279) |
-| 512×512 f64, compute only, Guion / NumPy | ~25 (earlier report) or ~10.5 (this report's method) | **3.03** (1.93 ms against 0.63 ms per multiply; above the target of 3) |
+| 512×512 f64, compute only, Guion / NumPy | ~25 (earlier report) or ~10.5 (this report's method) | **3.03** at 8d73df4 (1.93 ms against 0.63 ms per multiply); **2.26** after 6ea65aa (1.46 ms against 0.64 ms; target 2.5) |
 
 Why NumPy's figure differs between reports. The earlier native-arrays report gave NumPy about 1 ms for this matmul by subtracting the start-up lane (`import numpy; print(0)`) from the end-to-end lane. Both lanes of the matmul workload include building the inputs (two `linspace` calls, a reshape, a sum), and NumPy's first multiply also pays the one-time start of its BLAS thread pool, so the difference of two medians a millisecond apart was noise-dominated and too low. In this run the same method gives NumPy about 2.9 ms (64.8 ms against 61.9 ms) and Guion about 3.1 ms (16.6 ms against 13.5 ms), a ratio of about 1.1 that is not a compute-only comparison.
 
 The compute-only figure comes from the committed lane `evaluation/development/arrays/matmul_compute.py` (programs in `programs_compute/`, results in `results_compute.json`). It runs the same 512×512 multiply once and 21 times on each side, with the inputs built once, output-checked between Guion and NumPy; the per-multiply cost is (21-run time minus 1-run time) divided by 20. Median of 31 interleaved trials on a release build: Guion 1.93 ms, NumPy 0.63 ms (the platform BLAS), so Guion is **3.03 times NumPy**, just above the target of 3 (per-trial ratios range 1.84–3.69). A 15-trial run gave 3.00 and uncommitted scratch runs gave 2.7–2.8, so the true figure sits at about 3 and varies by about 10% between runs. Each multiply also includes a 262,144-element `array_sum`, the same on both sides. This is one machine and one size.
+
+Follow-up sweep (6ea65aa, 0db87cf). The kernel was already near the chip's limit (512³ in 5.9 ms on one core, about 45 Gflop/s of a roughly 51 Gflop/s peak), so the remaining cost was around it. Each multiply copied both operands to fresh `f64` vectors, allocated the accumulator and then built a second vector for the result, four 2 MB allocations with their page faults. Float64 operands are now borrowed and the accumulator becomes the result's storage after the finite check, which took the committed lane from 3.03 to 2.26 (1.93 to 1.46 ms per multiply; per-trial ratios 1.28-3.74, median of 31). `f32` still widens its operands. What was tried:
+
+| Change | In-process 512³, 10 threads | Compute-only lane (31 trials) | Kept |
+|---|---|---|---|
+| Borrow Float64 operands, reuse accumulator as result (6ea65aa) | unchanged (outside the kernel) | 3.03 → 2.2–2.3 (three runs: 2.18, 2.34, 2.26) | yes |
+| Threading threshold 2^21 → 3·2^20 (0db87cf) | 128³: 0.157 → 0.126 ms | not visible at 512 | yes |
+| Pack `B` in parallel (a second thread scope) | 1.17 ms, unchanged; 128³ slower | not run | no |
+| 8 threads instead of 10 | 512³ 1.18 ms against 1.15; 256³ 0.27 against 0.29 | not run | no (a shared row queue already balances the efficiency cores) |
+| `KC` 128 / 256 / 512 | 1.22 / 1.16 / 1.12 ms | not run | no (3% for a changed summation order) |
+
+Single-thread against ten threads, same build: 128³ 0.126 / 0.157 ms, 256³ 0.776 / 0.291 ms, 512³ 5.87 / 1.15 ms. The AVX2 kernel is unchanged, so the emulated x86_64 check was not repeated; a machine without FMA still takes the scalar kernel (about 10 times slower), which is kept because a non-fused kernel would break bit-identity with the others.
 
 AVX2 check: the AVX2+FMA kernel was run once, on emulated x86_64 in a container (`docker run --platform linux/amd64`, `QEMU_CPU=max`) that reports AVX2 and FMA; `cargo test -p guion-vm-core --lib matmul` passed there on the AVX2 path and its output was bit-identical to the scalar path. Rosetta on this Mac does not report AVX2, so earlier x86_64 runs covered the scalar path only.
 
@@ -110,7 +122,7 @@ AVX2 check: the AVX2+FMA kernel was run once, on emulated x86_64 in a container 
 
 ## What remains
 
-- Matrix multiplication is about 3.0 times NumPy's compute at 512×512 (3.03 in the committed lane; known issue 3 stays open, improved in 8d73df4); NumPy still leads because the platform BLAS is tuned for this chip.
+- Matrix multiplication is about 2.3 times NumPy's compute at 512×512 (2.26 in the committed lane after 6ea65aa, 3.03 before it; known issue 3 is fixed, first improved in 8d73df4); NumPy still leads because the platform BLAS is tuned for this chip.
 - Reading CSV is about 3 times pandas' compute; the end-to-end win comes from start-up.
 - Filter after the read is a few times pandas (known issue 20).
 - A native call still costs about 0.2 µs. Skipping machine-code entry for loop-free, call-free functions called from the VM would take it to about 0.11 µs, but it changes the tier policy and broke 17 backend tests, so it was left out.

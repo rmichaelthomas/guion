@@ -4,7 +4,8 @@
 use std::borrow::Cow;
 
 use guion_model::{
-    shape_size, ArrayData, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared, Value,
+    shape_size, ArrayData, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared,
+    Value,
 };
 
 use crate::array::{float_value, with_element, ArrayError, Charge, Element, Release};
@@ -1027,7 +1028,11 @@ fn matmul<T: Element>(
         (ArrayData::F64(x), ArrayData::F64(y)) => Some((x.as_slice(), y.as_slice())),
         _ => None,
     };
-    let widened = if native.is_some() { 0 } else { x.len() + y.len() };
+    let widened = if native.is_some() {
+        0
+    } else {
+        x.len() + y.len()
+    };
     hold(
         charge,
         held,
