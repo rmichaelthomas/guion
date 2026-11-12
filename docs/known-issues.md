@@ -13,9 +13,9 @@ This list covers open problems only. Each row has a status and the batch that wi
 | 7 | `array_i64_range` can panic in debug builds on extreme operands. | fixed in 6fb8d20 | Batch 2 |
 | 8 | Temporary buffers in matmul, sort and argsort, factorize and join_index are not charged to the allocation budget. | fixed in 6fb8d20 | Batch 2 |
 | 9 | Array error messages use internal operation names. `array_clip` with low greater than high raises `R_ARRAY_SHAPE`. | fixed in be924e7 | Batch 2 |
-| 10 | The Rust and self-hosted compilers give different error codes for `Array[i128]` and `Array[Array[f64]]`. | open | Batch 2 |
-| 11 | The spec says element types outside `Array[...]` should give `E_TYPE_UNKNOWN`. Both compilers give `E_TYPE_ANNOTATION`. | open | Batch 2 |
-| 12 | `catalog_array_builtin` can return `Ok(None)` after it has emitted argument code. Only a test guards this. | open | Batch 2 |
+| 10 | The Rust and self-hosted compilers give different error codes for `Array[i128]` and `Array[Array[f64]]`. | fixed in 130013f | Batch 2 |
+| 11 | The spec says element types outside `Array[...]` should give `E_TYPE_UNKNOWN`. Both compilers give `E_TYPE_ANNOTATION`. | fixed in 130013f | Batch 2 |
+| 12 | `catalog_array_builtin` can return `Ok(None)` after it has emitted argument code. Only a test guards this. | fixed in 130013f | Batch 2 |
 | 13 | Empty text becomes missing after a CSV round trip. | fixed in 8cdf52c | Batch 1 |
 | 14 | `frame_show` misaligns wide characters and text that contains newlines. | open | Batch 2 |
 | 15 | A join fails when the `<name>_right` column name is already taken. | open | Batch 2 |
