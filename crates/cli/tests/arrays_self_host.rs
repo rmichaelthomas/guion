@@ -65,7 +65,11 @@ fn self_hosted_stdout(project: &Project, entry: &str) -> String {
         String::from_utf8_lossy(&assembled.stderr)
     );
     let ran = guion(&project.0, &["run", artifact.to_str().unwrap()]);
-    assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stderr));
+    assert!(
+        ran.status.success(),
+        "{}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
     String::from_utf8_lossy(&ran.stdout).into_owned()
 }
 
@@ -103,7 +107,11 @@ fn self_hosted_array_programs_match_the_rust_compiler() {
     let project = project("parity");
     std::fs::write(project.0.join("arrays.gu"), PROGRAM).unwrap();
     let rust = guion(&project.0, &["run", "arrays.gu"]);
-    assert!(rust.status.success(), "{}", String::from_utf8_lossy(&rust.stderr));
+    assert!(
+        rust.status.success(),
+        "{}",
+        String::from_utf8_lossy(&rust.stderr)
+    );
     let expected = String::from_utf8_lossy(&rust.stdout).into_owned();
     assert!(expected.contains("[0, 2.5, 0]"), "{expected}");
     assert_eq!(self_hosted_stdout(&project, "arrays.gu"), expected);
@@ -118,7 +126,10 @@ fn assert_both_reject(project: &Project, name: &str, body: &str, code: &str) {
     assert_eq!(rust.code, code, "{name}: {}", rust.message);
     let compiled = guion(&project.0, &["run", "compiler.gu", &entry]);
     let diagnostic = String::from_utf8_lossy(&compiled.stdout);
-    assert!(diagnostic.contains(code), "{name}: expected {code}, got {diagnostic}");
+    assert!(
+        diagnostic.contains(code),
+        "{name}: expected {code}, got {diagnostic}"
+    );
 }
 
 #[test]

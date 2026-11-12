@@ -7,7 +7,7 @@ Generated from the current Guion language contract, builtin signature catalog, s
 ## Source and declarations
 
 - Source is UTF-8. Newlines separate statements. Four spaces define one indentation level; tabs and mixed indentation are errors. `#` begins a line comment.
-- A source file is a module. It contains one or more `fn name(parameter: Type, ...) -> Type:` declarations and may declare records with `record Name:` followed by indented `field: Type` declarations. `import "relative-path.gu"` loads another source file; `pub import "relative-path.gu"` also re-exports that module's public declarations to downstream importers. The imported module's `pub fn` and `pub record` declarations become available by their declared names. Private declarations remain local to their module. Imports are resolved from the importing file and must stay inside the project root. The graph is limited to 512 files, 128 import levels, 8 MiB per source file, and 64 MiB total source text. Duplicate declaration names and cycles are errors. Types in this executable subset are `Int`, `Float64`, `Bool`, `Text`, `Bytes`, `Unit`, `Json`, `JsonError`, `FileError`, `HttpError`, `TaskError`, `List[T]`, `Map[Text, T]`, `Option[T]`, `Result[T, E]`, and declared record names.
+- A source file is a module. It contains one or more `fn name(parameter: Type, ...) -> Type:` declarations and may declare records with `record Name:` followed by indented `field: Type` declarations. `import "relative-path.gu"` loads another source file; `pub import "relative-path.gu"` also re-exports that module's public declarations to downstream importers. The imported module's `pub fn` and `pub record` declarations become available by their declared names. Private declarations remain local to their module. Imports are resolved from the importing file and must stay inside the project root. The graph is limited to 512 files, 128 import levels, 8 MiB per source file, and 64 MiB total source text. Duplicate declaration names and cycles are errors. Types in this executable subset are `Int`, `Float64`, `Bool`, `Text`, `Bytes`, `Unit`, `Json`, `JsonError`, `FileError`, `HttpError`, `TaskError`, `List[T]`, `Map[Text, T]`, `Option[T]`, `Result[T, E]`, `Array[e]` (artifact format 62; see Runtime rules), and declared record names.
 - The entry point is `fn main() -> Int:` or `fn main() -> Unit:` in the project entry module. Calls resolve statically to local declarations, explicitly imported public declarations, or host functions such as `print(value)`. A single source file can be compiled without a project only when it has no imports.
 - Function parameters and results are annotated. Local types are inferred unless an optional local annotation is supplied, as in `let pending: List[Int] = []`. `let` creates an immutable local; `var` creates a mutable local; `set name = expression` changes only a mutable local. An annotation supplies context for empty collection literals and must exactly match the initializer type.
 
@@ -39,6 +39,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Sockets (artifact format 57): `std:net` provides blocking TCP and UDP over integer-handle records `TcpConn`, `TcpListener`, `UdpSock`: `tcp_connect`, `tcp_listen`, `tcp_listener_port`, `tcp_accept`, `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close`, `tcp_listener_close`, `udp_bind`, `udp_port`, `udp_send_to`, `udp_recv_from` (a `Datagram` with `data`, `host`, `port`) and `udp_close`. Everything is denied by default. Connecting and sending datagrams need an exact `host:port` (or `host:*`) entry in `guion.toml` `[sockets].connect` or `guion run --allow-connect`; listening and binding need one in `[sockets].bind` or `--allow-bind` (`127.0.0.1:0` allows an ephemeral port on loopback). The host name is matched as written, before resolution, so grant IP literals when the name could resolve elsewhere. Every connect, accept, receive and datagram receive takes a timeout of 1 ms up to `[sockets].timeout_ms` (default 30,000); reads are capped at `[sockets].max_read_bytes` (default 1 MiB) and at most 64 sockets may be open. A zero-length receive on TCP means the peer closed. Error codes: `E_NET_DENIED`, `E_NET_ARGUMENT`, `E_NET_RESOLVE`, `E_NET_REFUSED`, `E_NET_TIMEOUT`, `E_NET_IO`, `E_NET_HANDLE`, `E_NET_LIMIT`. Handles are shared between `parallel_map` workers: a handle opened by the program or by one worker can be used by another, several workers can wait in `tcp_accept` on one listener, and calls on the same socket from two workers take turns; sockets still open when the program ends are closed by it, not by a worker's end. Calls block the calling task until they finish or time out; a cancelled sibling task is noticed at the next call boundary, so cancellation latency is bounded by the timeout. Static inspection reports `network.socket` with a `socket_grant` section. TLS is not part of this module.
 - TLS (artifact format 58): `std:net` adds `tls_connect(host, port, timeout_ms, extra_ca_pem)` and `tls_accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`, which return a `TcpConn` that `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close` and the port functions accept. TLS 1.2 and 1.3 only, through rustls with the ring provider. The client always verifies the server certificate and name against the bundled Mozilla roots plus any PEM certificates passed as `extra_ca_pem`; there is no option to skip verification. A rejected certificate returns `E_TLS_CERTIFICATE`, other handshake failures `E_TLS_HANDSHAKE`, bad PEM or a key that does not match `E_TLS_ARGUMENT`; timeouts and grants behave as for TCP (`E_NET_TIMEOUT`, `E_NET_DENIED`). A peer that closes without a TLS close notification surfaces as `E_NET_IO` on receive. Session resumption control and ALPN are not offered. Certificates and keys are PEM text, normally read with `read_text` under the file grant. Mutual TLS (artifact format 61): `tls_connect_with_identity(host, port, timeout_ms, extra_ca_pem, certificate_chain_pem, private_key_pem)` presents a client certificate, and `tls_accept_verified(listener, timeout_ms, certificate_chain_pem, private_key_pem, client_ca_pem)` requires one and verifies it against the PEM certificates in `client_ca_pem` only; a missing or untrusted client certificate fails the handshake on the server.
 - HTTP server and WebSockets (artifact format 59): `std:crypto` adds `crypto_sha1` (SHA-1, kept for the WebSocket handshake and legacy interchange, not for new security uses) and `bytes_xor_key(data, key)`. `std:http_server` is written in Guion over `std:net`: `http_server_listen`, `http_server_accept`, `http_server_read_request(conn, timeout_ms, max_body_bytes)` returning an `HttpServerRequest` (`conn`, `method`, `target`, `path`, `query`, lowercase-named `headers`, `body`), `http_server_header`, `http_server_respond`, `http_server_respond_text` and `http_server_send`. `http_server_read_request` reads the first request on a connection and `http_server_respond` answers it and closes (`Connection: close`). For keep-alive, answer with `http_server_reply` or `http_server_reply_text`, which keep the connection open when the client asked for that (HTTP/1.1 does by default; `Connection: close` or HTTP/1.0 without `keep-alive` closes), and read the next request with `http_server_read_next(previous, timeout_ms, max_body_bytes)` or `http_server_read_request_from(conn, pending, ...)`; bytes that arrived after a request (pipelined requests) are carried in its `pending` field. `Transfer-Encoding: chunked` request bodies are decoded (chunk extensions accepted, trailers read and ignored, the size limit applied to the decoded body); a request that names both `Content-Length` and chunked framing, or any other transfer encoding, is refused (`400`, `501`). A client that closes between requests returns `E_HTTP_CLOSED`. The request head is limited to 16,384 bytes and 100 headers, and the body to the caller's limit; a protocol fault sends 400, 413, 431 or 501 and returns `E_HTTP_REQUEST_INVALID`, `E_HTTP_BODY_TOO_LARGE`, `E_HTTP_HEADER_TOO_LARGE` or `E_HTTP_UNSUPPORTED`. A connection from `tls_accept` works the same way, which gives HTTPS. `std:websocket` implements RFC 6455: `ws_server_accept(request)`, `ws_client_handshake(conn, host, path, timeout_ms, seed)`, `ws_receive(ws, timeout_ms, max_message_bytes)` (reassembles fragments, answers pings, echoes close, validates UTF-8 text, enforces masking by role), `ws_send_text`, `ws_send_binary`, `ws_send_ping`, `ws_send_close` and `ws_close`, with errors `E_WS_HANDSHAKE`, `E_WS_PROTOCOL`, `E_WS_TOO_LARGE` and `E_WS_CLOSED`. Client masks are derived from the connection seed and the payload, so pass an unpredictable seed. Socket handles are shared between `parallel_map` workers, so several workers can accept on one listener and serve connections at the same time; the HTTP server has no HTTP/2 and no `Expect: 100-continue` handling.
+- Native arrays (artifact format 62): `Array[e]` is an n-dimensional, row-major array whose element type `e` is one of `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64` or `bool`. These element types exist only inside `Array[...]`; elsewhere they are `E_TYPE_UNKNOWN`. Every array has a runtime shape (a `List[Int]` of up to 32 extents); rank is not part of the type. Reading an element gives its scalar type (`Int` for integer elements, `Float64` for `f32`/`f64`, `Bool` for `bool`); writing takes that scalar type and checks that it fits. Conversion is explicit and checked: building from a list, storing, `array_to_<e>` and decoding bytes raise `R_ARRAY_CONVERSION` for a value outside the element type (float to integer truncates toward zero; `f64` to `f32` rounds to nearest; number to `bool` requires 0 or 1), and integer arithmetic outside the element range raises `R_ARRAY_OVERFLOW`, never wrapping. Float arrays never hold NaN or infinity; a kernel that would produce one raises `R_FLOAT_NONFINITE`. Arrays are values: `array_set` returns an updated array and `set a = array_set(a, i, v)` updates an unshared local in place. Arrays are limited by the allocation budget, not by `max_collection_items`. Builders, for each element type `<e>`: `array_<e>(List[S])` (rank 1), `array_<e>_full(shape, value)`, `array_<e>_zeros(shape)`, `array_to_<e>(array)` and `array_<e>_from_bytes(Bytes)` (little endian); plus `array_i64_range(start, stop, step)`, `array_f64_linspace(start, stop, count)` (both ends included), and `array_f64_random(seed, shape)` / `array_f64_normal(seed, shape)`, which continue the `std:random` SplitMix64 stream (`array_f64_random(s, [n])` gives the same values as `n` successive `random_next_float` calls from `random_new(s)`; normal values use Box–Muller over that stream). Inspection and access: `array_shape`, `array_ndim`, `array_size`, `array_equal`, `array_get(a, flat_index)`, `array_get_at(a, [i, j, ...])`, `array_set`, `array_set_at` (`R_ARRAY_INDEX` out of range). Shape: `array_reshape` (one extent may be -1), `array_flatten`, `array_transpose` (reverses the axes), `array_slice(a, start, end)` (axis 0), `array_concat` and `array_stack` over a `List[Array[e]]`, `array_to_list` (flat), `array_to_bytes`; a shape that does not fit raises `R_ARRAY_SHAPE`. Arithmetic on numeric arrays of the same element type broadcasts by NumPy rules: `array_add`, `array_sub`, `array_mul`, `array_div` (integer floor division, as `//`; a zero divisor raises `R_DIV_ZERO`), `array_minimum`, `array_maximum`, the `_scalar` forms of the first four, `array_neg`, `array_abs` and `array_clip(a, low, high)`. Float arrays add `array_sqrt`, `array_exp`, `array_log`, `array_log10`, `array_log2`, `array_sin`, `array_cos`, `array_tan`, `array_asin`, `array_acos`, `array_atan`, `array_sinh`, `array_cosh`, `array_tanh`, `array_floor`, `array_ceil`, `array_round` and `array_pow(a, exponent)`, with the `std:math` domain errors; `f32` math is computed in `f64` and rounded. Comparisons `array_eq`, `array_ne`, `array_lt`, `array_le`, `array_gt`, `array_ge` and their `_scalar` forms return `Array[bool]`; `array_and`, `array_or`, `array_not`, `array_any`, `array_all` and `array_count` work on `Array[bool]`; `array_where(mask, a, b)` selects between arrays of one shape and `array_filter(a, mask)` keeps the masked elements as a rank-1 array. Reductions on numeric arrays: `array_sum` and `array_prod` (exact `Int` for integer elements, so they never overflow), `array_min`, `array_max`, `array_argmin`, `array_argmax` (first occurrence), `array_mean`, `array_var` and `array_std` (population; `Float64`, pairwise summation); `R_ARRAY_EMPTY` for an empty array except `sum` (0) and `prod` (1). By axis: `array_sum_axis`, `array_min_axis`, `array_max_axis` (same element type, checked) and `array_mean_axis` (`Array[f64]`). Ordering: `array_sort` and `array_argsort` (rank 1, stable; `argsort` gives `Array[i64]`) and `array_cumsum` (flat, checked). Linear algebra: `array_dot(a, b)` (rank 1, equal length; exact `Int` for integer elements) and `array_matmul(a, b)` (2-D by 2-D or 2-D by 1-D). Operands of a binary function must have the same element type; convert explicitly. `print` shows nested brackets by shape and summarises arrays of more than 1,000 elements; `==` compares element type, shape and contents. Arrays cross `parallel_map` workers but not the Python bridge. Strided views, fancy indexing, complex numbers, operator syntax on arrays and BLAS are not provided.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
 ## Builtin signatures
@@ -49,6 +50,150 @@ Ok($T) -> Result[$T, $E]
 Some($T) -> Option[$T]
 args() -> List[Text]
 args_from(Int) -> List[Text]
+array_abs(Array[$N]) -> Array[$N]
+array_acos(Array[$F]) -> Array[$F]
+array_add(Array[$N], Array[$N]) -> Array[$N]
+array_add_scalar(Array[$N], Elem[$N]) -> Array[$N]
+array_all(Array[bool]) -> Bool
+array_and(Array[bool], Array[bool]) -> Array[bool]
+array_any(Array[bool]) -> Bool
+array_argmax(Array[$N]) -> Int
+array_argmin(Array[$N]) -> Int
+array_argsort(Array[$N]) -> Array[i64]
+array_asin(Array[$F]) -> Array[$F]
+array_atan(Array[$F]) -> Array[$F]
+array_bool(List[Bool]) -> Array[bool]
+array_bool_from_bytes(Bytes) -> Array[bool]
+array_bool_full(List[Int], Bool) -> Array[bool]
+array_bool_zeros(List[Int]) -> Array[bool]
+array_ceil(Array[$F]) -> Array[$F]
+array_clip(Array[$N], Elem[$N], Elem[$N]) -> Array[$N]
+array_concat(List[Array[$A]]) -> Array[$A]
+array_cos(Array[$F]) -> Array[$F]
+array_cosh(Array[$F]) -> Array[$F]
+array_count(Array[bool]) -> Int
+array_cumsum(Array[$N]) -> Array[$N]
+array_div(Array[$N], Array[$N]) -> Array[$N]
+array_div_scalar(Array[$N], Elem[$N]) -> Array[$N]
+array_dot(Array[$N], Array[$N]) -> Elem[$N]
+array_eq(Array[$A], Array[$A]) -> Array[bool]
+array_eq_scalar(Array[$A], Elem[$A]) -> Array[bool]
+array_equal(Array[$A], Array[$A]) -> Bool
+array_exp(Array[$F]) -> Array[$F]
+array_f32(List[Float64]) -> Array[f32]
+array_f32_from_bytes(Bytes) -> Array[f32]
+array_f32_full(List[Int], Float64) -> Array[f32]
+array_f32_zeros(List[Int]) -> Array[f32]
+array_f64(List[Float64]) -> Array[f64]
+array_f64_from_bytes(Bytes) -> Array[f64]
+array_f64_full(List[Int], Float64) -> Array[f64]
+array_f64_linspace(Float64, Float64, Int) -> Array[f64]
+array_f64_normal(Int, List[Int]) -> Array[f64]
+array_f64_random(Int, List[Int]) -> Array[f64]
+array_f64_zeros(List[Int]) -> Array[f64]
+array_filter(Array[$A], Array[bool]) -> Array[$A]
+array_flatten(Array[$A]) -> Array[$A]
+array_floor(Array[$F]) -> Array[$F]
+array_ge(Array[$N], Array[$N]) -> Array[bool]
+array_ge_scalar(Array[$N], Elem[$N]) -> Array[bool]
+array_get(Array[$A], Int) -> Elem[$A]
+array_get_at(Array[$A], List[Int]) -> Elem[$A]
+array_gt(Array[$N], Array[$N]) -> Array[bool]
+array_gt_scalar(Array[$N], Elem[$N]) -> Array[bool]
+array_i16(List[Int]) -> Array[i16]
+array_i16_from_bytes(Bytes) -> Array[i16]
+array_i16_full(List[Int], Int) -> Array[i16]
+array_i16_zeros(List[Int]) -> Array[i16]
+array_i32(List[Int]) -> Array[i32]
+array_i32_from_bytes(Bytes) -> Array[i32]
+array_i32_full(List[Int], Int) -> Array[i32]
+array_i32_zeros(List[Int]) -> Array[i32]
+array_i64(List[Int]) -> Array[i64]
+array_i64_from_bytes(Bytes) -> Array[i64]
+array_i64_full(List[Int], Int) -> Array[i64]
+array_i64_range(Int, Int, Int) -> Array[i64]
+array_i64_zeros(List[Int]) -> Array[i64]
+array_i8(List[Int]) -> Array[i8]
+array_i8_from_bytes(Bytes) -> Array[i8]
+array_i8_full(List[Int], Int) -> Array[i8]
+array_i8_zeros(List[Int]) -> Array[i8]
+array_le(Array[$N], Array[$N]) -> Array[bool]
+array_le_scalar(Array[$N], Elem[$N]) -> Array[bool]
+array_log(Array[$F]) -> Array[$F]
+array_log10(Array[$F]) -> Array[$F]
+array_log2(Array[$F]) -> Array[$F]
+array_lt(Array[$N], Array[$N]) -> Array[bool]
+array_lt_scalar(Array[$N], Elem[$N]) -> Array[bool]
+array_matmul(Array[$N], Array[$N]) -> Array[$N]
+array_max(Array[$N]) -> Elem[$N]
+array_max_axis(Array[$N], Int) -> Array[$N]
+array_maximum(Array[$N], Array[$N]) -> Array[$N]
+array_mean(Array[$N]) -> Float64
+array_mean_axis(Array[$N], Int) -> Array[f64]
+array_min(Array[$N]) -> Elem[$N]
+array_min_axis(Array[$N], Int) -> Array[$N]
+array_minimum(Array[$N], Array[$N]) -> Array[$N]
+array_mul(Array[$N], Array[$N]) -> Array[$N]
+array_mul_scalar(Array[$N], Elem[$N]) -> Array[$N]
+array_ndim(Array[$A]) -> Int
+array_ne(Array[$A], Array[$A]) -> Array[bool]
+array_ne_scalar(Array[$A], Elem[$A]) -> Array[bool]
+array_neg(Array[$N]) -> Array[$N]
+array_not(Array[bool]) -> Array[bool]
+array_or(Array[bool], Array[bool]) -> Array[bool]
+array_pow(Array[$F], Float64) -> Array[$F]
+array_prod(Array[$N]) -> Elem[$N]
+array_reshape(Array[$A], List[Int]) -> Array[$A]
+array_round(Array[$F]) -> Array[$F]
+array_set(Array[$A], Int, Elem[$A]) -> Array[$A]
+array_set_at(Array[$A], List[Int], Elem[$A]) -> Array[$A]
+array_shape(Array[$A]) -> List[Int]
+array_sin(Array[$F]) -> Array[$F]
+array_sinh(Array[$F]) -> Array[$F]
+array_size(Array[$A]) -> Int
+array_slice(Array[$A], Int, Int) -> Array[$A]
+array_sort(Array[$N]) -> Array[$N]
+array_sqrt(Array[$F]) -> Array[$F]
+array_stack(List[Array[$A]]) -> Array[$A]
+array_std(Array[$N]) -> Float64
+array_sub(Array[$N], Array[$N]) -> Array[$N]
+array_sub_scalar(Array[$N], Elem[$N]) -> Array[$N]
+array_sum(Array[$N]) -> Elem[$N]
+array_sum_axis(Array[$N], Int) -> Array[$N]
+array_tan(Array[$F]) -> Array[$F]
+array_tanh(Array[$F]) -> Array[$F]
+array_to_bool(Array[$A]) -> Array[bool]
+array_to_bytes(Array[$A]) -> Bytes
+array_to_f32(Array[$A]) -> Array[f32]
+array_to_f64(Array[$A]) -> Array[f64]
+array_to_i16(Array[$A]) -> Array[i16]
+array_to_i32(Array[$A]) -> Array[i32]
+array_to_i64(Array[$A]) -> Array[i64]
+array_to_i8(Array[$A]) -> Array[i8]
+array_to_list(Array[$A]) -> List[Elem[$A]]
+array_to_u16(Array[$A]) -> Array[u16]
+array_to_u32(Array[$A]) -> Array[u32]
+array_to_u64(Array[$A]) -> Array[u64]
+array_to_u8(Array[$A]) -> Array[u8]
+array_transpose(Array[$A]) -> Array[$A]
+array_u16(List[Int]) -> Array[u16]
+array_u16_from_bytes(Bytes) -> Array[u16]
+array_u16_full(List[Int], Int) -> Array[u16]
+array_u16_zeros(List[Int]) -> Array[u16]
+array_u32(List[Int]) -> Array[u32]
+array_u32_from_bytes(Bytes) -> Array[u32]
+array_u32_full(List[Int], Int) -> Array[u32]
+array_u32_zeros(List[Int]) -> Array[u32]
+array_u64(List[Int]) -> Array[u64]
+array_u64_from_bytes(Bytes) -> Array[u64]
+array_u64_full(List[Int], Int) -> Array[u64]
+array_u64_zeros(List[Int]) -> Array[u64]
+array_u8(List[Int]) -> Array[u8]
+array_u8_from_bytes(Bytes) -> Array[u8]
+array_u8_full(List[Int], Int) -> Array[u8]
+array_u8_zeros(List[Int]) -> Array[u8]
+array_var(Array[$N]) -> Float64
+array_where(Array[bool], Array[$A], Array[$A]) -> Array[$A]
 assert(Bool) -> Unit
 bytes_from_ints(List[Int]) -> Bytes
 bytes_from_text(Text) -> Bytes
@@ -723,6 +868,7 @@ E_INSTALL_PREFIX
 E_INTEGER_DIGITS
 E_INT_LITERAL
 E_INT_PARSE
+E_ITEMS
 E_JSON_INDEX
 E_JSON_MISSING
 E_JSON_SHAPE
@@ -928,6 +1074,11 @@ E_X
 R_ALLOCATION_BYTES
 R_ALLOCATION_LIMIT
 R_ARGUMENT_INDEX
+R_ARRAY_CONVERSION
+R_ARRAY_EMPTY
+R_ARRAY_INDEX
+R_ARRAY_OVERFLOW
+R_ARRAY_SHAPE
 R_ARTIFACT_INVALID
 R_ARTIFACT_VERSION
 R_ASSERTION
@@ -1261,4 +1412,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:2d338df73d32f116cf872fb95bf587e8ea43b55b4010b7a16c525bba9a792e31. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:c934ade8160d17dd604e1151bdbc3df14c3d32efc2a70edf5b69419a7d997903. Validated by `cargo xtask agent-reference --check`. -->

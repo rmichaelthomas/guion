@@ -64,7 +64,9 @@ fn array_functions_run_in_the_vm_and_match_with_machine_code_on_and_off() {
         "the integer loop should compile to machine code; compiled: {compiled:?}"
     );
     assert!(
-        !compiled.iter().any(|name| name == "fill" || name == "scale"),
+        !compiled
+            .iter()
+            .any(|name| name == "fill" || name == "scale"),
         "array functions must stay in the VM; compiled: {compiled:?}"
     );
     let profile = native.native_compile_profile();
@@ -76,7 +78,9 @@ fn array_functions_run_in_the_vm_and_match_with_machine_code_on_and_off() {
         .find(|function| function["name"] == "fill")
         .unwrap_or_else(|| panic!("fill should be listed as VM-run: {profile}"));
     assert!(
-        fill["reason_code"].as_str().is_some_and(|code| !code.is_empty()),
+        fill["reason_code"]
+            .as_str()
+            .is_some_and(|code| !code.is_empty()),
         "{fill}"
     );
     assert_eq!(native.native_deoptimizations(), 0);
