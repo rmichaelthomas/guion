@@ -754,7 +754,6 @@ E_ARTIFACT_VERSION
 E_ASSIGN_IMMUTABLE
 E_AUTH_INVALID
 E_BASE64_INVALID
-E_BATCH
 E_BLOCK_EMPTY
 E_BLOCK_UNCLOSED
 E_BRIDGE_ARGS
@@ -1183,6 +1182,7 @@ R_RESULT_ERROR
 R_RESULT_UNWRAP
 R_RETURN_INVALID
 R_ROOTS
+R_SETTLE
 R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
@@ -1429,4 +1429,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:df36a44e4f1f1b783aafc9ebf400b74effaf3a1de5a76567e1fbf18b0b93f510. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:0ac88f1db35a20c55f2b682f5884b6b20132ea81b89567f122c6e9db4510bd56. Validated by `cargo xtask agent-reference --check`. -->

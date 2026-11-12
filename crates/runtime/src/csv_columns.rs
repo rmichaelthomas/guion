@@ -18,7 +18,7 @@ use std::{
 /// Size of the read buffer.
 const BUFFER_BYTES: usize = 64 * 1024;
 /// Rows between checks of the allocation budget and the cancel flag.
-const SETTLE_BATCH: usize = 4096;
+const ROWS_PER_SETTLE: usize = 4096;
 /// Bytes of record text between those checks, for files with very long records.
 const SETTLE_BYTES: usize = 1 << 20;
 /// What a dictionary entry costs beyond its text: the `String` itself.
@@ -648,7 +648,7 @@ impl Settler<'_, '_> {
     fn note(&mut self, record_bytes: usize) -> bool {
         self.rows += 1;
         self.bytes += record_bytes;
-        self.rows >= SETTLE_BATCH || self.bytes >= SETTLE_BYTES
+        self.rows >= ROWS_PER_SETTLE || self.bytes >= SETTLE_BYTES
     }
 
     fn settle(&mut self, builders: &[Builder], buffers: usize) -> Result<(), ColumnsError> {
