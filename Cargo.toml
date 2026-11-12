@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/model", "crates/compiler", "crates/vm-core", "crates/vm-wasm", "crates/runtime", "crates/cli", "crates/bootstrap", "xtask"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 

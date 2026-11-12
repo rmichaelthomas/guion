@@ -464,7 +464,7 @@ dependencies = [
 
 [[package]]
 name = "guion-bootstrap"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "guion-compiler",
  "guion-model",
@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "guion-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "guion-bootstrap",
  "guion-compiler",
@@ -491,7 +491,7 @@ dependencies = [
 
 [[package]]
 name = "guion-compiler"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "guion-model",
  "serde_json",
@@ -500,7 +500,7 @@ dependencies = [
 
 [[package]]
 name = "guion-model"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "hashbrown 0.16.1",
  "serde",
@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "guion-runtime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "cc",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "guion-vm-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "guion-compiler",
  "guion-model",
@@ -551,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "guion-vm-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64",
  "guion-compiler",
