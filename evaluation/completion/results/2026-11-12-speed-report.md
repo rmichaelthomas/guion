@@ -85,11 +85,13 @@ The kernel packs the operands into tiles, multiplies register-sized blocks (NEON
 | 512×512 f64, Guion work after start-up | ~27 ms | ~3.1 ms |
 | 256×256 f64, end to end | 0.0185 s | 0.0148 s |
 | 512×512 f64, Guion / NumPy end to end | 0.623 | 0.258 (0.251–0.279) |
-| 512×512 f64, compute only, Guion / NumPy | ~25 (earlier report) or ~10.5 (this report's method) | **~2.8** (1.86 ms against 0.68 ms per multiply) |
+| 512×512 f64, compute only, Guion / NumPy | ~25 (earlier report) or ~10.5 (this report's method) | **3.03** (1.93 ms against 0.63 ms per multiply; above the target of 3) |
 
 Why NumPy's figure differs between reports. The earlier native-arrays report gave NumPy about 1 ms for this matmul by subtracting the start-up lane (`import numpy; print(0)`) from the end-to-end lane. Both lanes of the matmul workload include building the inputs (two `linspace` calls, a reshape, a sum), and NumPy's first multiply also pays the one-time start of its BLAS thread pool, so the difference of two medians a millisecond apart was noise-dominated and too low. In this run the same method gives NumPy about 2.9 ms (64.8 ms against 61.9 ms) and Guion about 3.1 ms (16.6 ms against 13.5 ms), a ratio of about 1.1 that is not a compute-only comparison.
 
-The compute-only figure comes from a separate pair of programs that perform the same 512×512 multiply once and 21 times, with the inputs built once in each. Median of 15 interleaved trials each, the per-multiply cost is (21-run time minus 1-run time) divided by 20: Guion 1.86 ms, NumPy 0.68 ms (the platform BLAS), so Guion is about **2.8 times NumPy**, inside the target of 3. Each multiply there also includes a 262,144-element `array_sum`, the same on both sides. This is one machine and one size; it varies by about 10% between runs.
+The compute-only figure comes from the committed lane `evaluation/development/arrays/matmul_compute.py` (programs in `programs_compute/`, results in `results_compute.json`). It runs the same 512×512 multiply once and 21 times on each side, with the inputs built once, output-checked between Guion and NumPy; the per-multiply cost is (21-run time minus 1-run time) divided by 20. Median of 31 interleaved trials on a release build: Guion 1.93 ms, NumPy 0.63 ms (the platform BLAS), so Guion is **3.03 times NumPy**, just above the target of 3 (per-trial ratios range 1.84–3.69). A 15-trial run gave 3.00 and uncommitted scratch runs gave 2.7–2.8, so the true figure sits at about 3 and varies by about 10% between runs. Each multiply also includes a 262,144-element `array_sum`, the same on both sides. This is one machine and one size.
+
+AVX2 check: the AVX2+FMA kernel was run once, on emulated x86_64 in a container (`docker run --platform linux/amd64`, `QEMU_CPU=max`) that reports AVX2 and FMA; `cargo test -p guion-vm-core --lib matmul` passed there on the AVX2 path and its output was bit-identical to the scalar path. Rosetta on this Mac does not report AVX2, so earlier x86_64 runs covered the scalar path only.
 
 ### Helper-call cost
 
@@ -108,7 +110,7 @@ The compute-only figure comes from a separate pair of programs that perform the 
 
 ## What remains
 
-- Matrix multiplication is about 2.8 times NumPy's compute at 512×512 (known issue 3, fixed in 8d73df4); NumPy still leads because the platform BLAS is tuned for this chip.
+- Matrix multiplication is about 3.0 times NumPy's compute at 512×512 (3.03 in the committed lane; known issue 3 stays open, improved in 8d73df4); NumPy still leads because the platform BLAS is tuned for this chip.
 - Reading CSV is about 3 times pandas' compute; the end-to-end win comes from start-up.
 - Filter after the read is a few times pandas (known issue 20).
 - A native call still costs about 0.2 µs. Skipping machine-code entry for loop-free, call-free functions called from the VM would take it to about 0.11 µs, but it changes the tier policy and broke 17 backend tests, so it was left out.
