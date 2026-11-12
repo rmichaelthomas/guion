@@ -1449,3 +1449,40 @@ fn main() -> Unit:
     let out = run_csv_program("long", &[("long.csv", csv.as_bytes())], &source, |_| {});
     assert_eq!(out, "ok\n");
 }
+
+#[test]
+fn csv_read_columns_charges_the_text_pass_in_addition_to_the_numeric_pass() {
+    let rows = 20000;
+    let mut csv = String::from("a,b,c,d,e,f,late\n");
+    for row in 0..rows {
+        let late = if row == rows - 1 {
+            "z".to_string()
+        } else {
+            format!("{row}")
+        };
+        csv.push_str(&format!("{row},{row},{row},{row},{row},{row},{late}\n"));
+    }
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("late.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-twopass-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("late.csv"), &csv).unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    let run = |limit: usize| {
+        let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+        policy.allocation_limit_bytes = limit;
+        let mut runtime = Runtime::vm_only().load(artifact.clone(), policy).unwrap();
+        runtime.invoke("main", vec![]).map(|_| ())
+    };
+    // Six numeric columns stay charged while the text column is read again, so the two passes' buffers add up to more than either alone (about 2.4 MB for the second pass by itself).
+    assert!(run(8_000_000).is_ok());
+    let error = run(3_500_000).unwrap_err();
+    assert_eq!(error.code, "R_ALLOCATION_LIMIT");
+    let _ = std::fs::remove_dir_all(&root);
+}

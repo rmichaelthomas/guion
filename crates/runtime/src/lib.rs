@@ -4594,9 +4594,11 @@ impl VmHost for Instance {
                 let read = {
                     let budget = budget.as_ref();
                     let mut charge = |bytes: usize| budget.allocate(bytes);
+                    let mut release = |bytes: usize| budget.refund_allocation(bytes);
                     let cancelled = || budget.is_cancelled();
                     let mut meter = stdlib_data::csv_columns::Meter {
                         charge: &mut charge,
+                        release: &mut release,
                         cancelled: &cancelled,
                     };
                     stdlib_data::csv_columns::read_csv_columns(

@@ -18,7 +18,7 @@ use std::{
 /// Size of the read buffer.
 const BUFFER_BYTES: usize = 64 * 1024;
 /// Rows between checks of the allocation budget and the cancel flag.
-const SETTLE_ROWS: usize = 4096;
+const SETTLE_BATCH: usize = 4096;
 /// Bytes of record text between those checks, for files with very long records.
 const SETTLE_BYTES: usize = 1 << 20;
 /// What a dictionary entry costs beyond its text: the `String` itself.
@@ -93,6 +93,8 @@ pub enum ColumnsError {
 pub struct Meter<'a> {
     /// Charges this many bytes to the allocation budget; false when it is exhausted.
     pub charge: &'a mut dyn FnMut(usize) -> bool,
+    /// Gives back bytes that were charged for buffers since freed.
+    pub release: &'a mut dyn FnMut(usize),
     pub cancelled: &'a dyn Fn() -> bool,
 }
 
@@ -646,7 +648,7 @@ impl Settler<'_, '_> {
     fn note(&mut self, record_bytes: usize) -> bool {
         self.rows += 1;
         self.bytes += record_bytes;
-        self.rows >= SETTLE_ROWS || self.bytes >= SETTLE_BYTES
+        self.rows >= SETTLE_BATCH || self.bytes >= SETTLE_BYTES
     }
 
     fn settle(&mut self, builders: &[Builder], buffers: usize) -> Result<(), ColumnsError> {
@@ -776,6 +778,15 @@ pub fn read_csv_columns(
         .iter()
         .map(|builder| builder.name.clone())
         .collect();
+    // The first pass's buffers for the columns that are read again are freed below; what stays
+    // charged is what the kept columns hold, and the second pass is charged on top of it.
+    let retained = builders
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !again.contains(index))
+        .map(|(_, builder)| builder.accounted_bytes())
+        .fold(0usize, usize::saturating_add);
+    (settler.meter.release)(settler.charged.saturating_sub(retained));
     for (index, builder) in builders.into_iter().enumerate() {
         columns.push(if again.contains(&index) {
             None
@@ -794,7 +805,7 @@ pub fn read_csv_columns(
         let mut buffers = BUFFER_BYTES;
         let mut settler = Settler {
             meter: settler.meter,
-            charged: settler.charged,
+            charged: 0,
             rows: 0,
             bytes: 0,
         };

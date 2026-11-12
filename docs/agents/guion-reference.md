@@ -754,6 +754,7 @@ E_ARTIFACT_VERSION
 E_ASSIGN_IMMUTABLE
 E_AUTH_INVALID
 E_BASE64_INVALID
+E_BATCH
 E_BLOCK_EMPTY
 E_BLOCK_UNCLOSED
 E_BRIDGE_ARGS
@@ -991,7 +992,6 @@ E_RESULT_TRY_FUNCTION
 E_RESULT_TRY_TYPE
 E_RETURN_MISSING
 E_ROOT
-E_ROWS
 E_SAFEPOINT_TEXT_LIST_TAG
 E_SAMPLE_RATE_FRAMES
 E_SCHEMA_VERSION
@@ -1429,4 +1429,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:aa18dd6bbe8de3b67553009fc917371b2a37e93fa83280030f928f1fb58dc897. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:df36a44e4f1f1b783aafc9ebf400b74effaf3a1de5a76567e1fbf18b0b93f510. Validated by `cargo xtask agent-reference --check`. -->
