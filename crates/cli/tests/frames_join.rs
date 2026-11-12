@@ -116,3 +116,14 @@ fn join_rejects_bad_keys() {
         "E_FRAME_KIND\nE_FRAME_COLUMN\nE_FRAME_KIND\nE_FRAME_COLUMN\n"
     );
 }
+
+#[test]
+fn a_taken_right_suffix_gets_a_counter() {
+    let out = run(
+        "suffix",
+        "k,v,v_right,v_right_2\na,1,2,3\n",
+        "k,v\na,9\n",
+        "dump(unwrap(frame_join(left, right, [\"k\"], \"inner\")))",
+    );
+    assert_eq!(out, "k,v,v_right,v_right_2,v_right_3\na,1,2,3,9\n");
+}

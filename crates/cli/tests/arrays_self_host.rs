@@ -38,8 +38,9 @@ fn guion(dir: &Path, args: &[&str]) -> std::process::Output {
         .expect("guion starts")
 }
 
-/// Compiles `entry` with the self-hosted compiler and runs the result.
-fn self_hosted_stdout(project: &Project, entry: &str) -> String {
+/// Compiles `entry` with the self-hosted compiler and assembles the result; returns the path of
+/// the artifact.
+fn self_hosted_artifact(project: &Project, entry: &str) -> PathBuf {
     let compiled = guion(&project.0, &["run", "compiler.gu", entry]);
     assert!(
         compiled.status.success(),
@@ -64,6 +65,12 @@ fn self_hosted_stdout(project: &Project, entry: &str) -> String {
         "{}",
         String::from_utf8_lossy(&assembled.stderr)
     );
+    artifact
+}
+
+/// Compiles `entry` with the self-hosted compiler and runs the result.
+fn self_hosted_stdout(project: &Project, entry: &str) -> String {
+    let artifact = self_hosted_artifact(project, entry);
     let ran = guion(&project.0, &["run", artifact.to_str().unwrap()]);
     assert!(
         ran.status.success(),
@@ -71,6 +78,24 @@ fn self_hosted_stdout(project: &Project, entry: &str) -> String {
         String::from_utf8_lossy(&ran.stderr)
     );
     String::from_utf8_lossy(&ran.stdout).into_owned()
+}
+
+/// Every function's instructions, as text, in the order the compiler emitted them.
+fn instructions(artifact: &guion_model::Artifact) -> Vec<(String, Vec<String>)> {
+    artifact
+        .functions
+        .iter()
+        .map(|function| {
+            (
+                function.name.clone(),
+                function
+                    .code
+                    .iter()
+                    .map(|instruction| format!("{:?}", instruction.op))
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 const PROGRAM: &str = r#"fn total(a: Array[i64]) -> Int:
@@ -185,5 +210,232 @@ fn self_hosted_compiler_rejects_what_the_rust_compiler_rejects() {
         "{} vs {}",
         rust.code,
         String::from_utf8_lossy(&compiled.stdout)
+    );
+}
+
+const ELEMENT_LIST: &str =
+    "Array element type must be one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool";
+
+fn assert_both_report_type_error(
+    project: &Project,
+    name: &str,
+    source: &str,
+    code: &str,
+    message: &str,
+) {
+    let entry = format!("{name}.gu");
+    std::fs::write(project.0.join(&entry), source).unwrap();
+    let rust = guion_compiler::compile_project(&project.0.join(&entry), &project.0)
+        .expect_err("the Rust compiler must reject the program");
+    assert_eq!((rust.code.as_str(), rust.message.as_str()), (code, message));
+    let compiled = guion(&project.0, &["run", "compiler.gu", &entry]);
+    let diagnostic = String::from_utf8_lossy(&compiled.stdout);
+    assert!(
+        diagnostic.contains(&format!("\"code\":\"{code}\""))
+            && diagnostic.contains(&format!("\"message\":\"{message}\"")),
+        "{name}: expected {code} {message}, got {diagnostic}"
+    );
+}
+
+#[test]
+fn both_compilers_report_the_same_array_element_type_errors() {
+    let project = project("element-types");
+    let main = "fn main() -> Unit:\n    print(1)\n";
+    assert_both_report_type_error(
+        &project,
+        "unknown",
+        &format!("fn f(x: Array[i128]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `i128`",
+    );
+    assert_both_report_type_error(
+        &project,
+        "nested",
+        &format!("fn f(x: Array[Array[f64]]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "list-of-element",
+        &format!("fn f(x: Array[List[f64]]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "map-of-element",
+        &format!("fn f(x: Array[Map[Text, i32]]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `i32`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "int",
+        &format!("fn f(x: Array[Int]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "record",
+        &format!(
+            "record Point:\n    x: Int\n\nfn f(x: Array[Point]) -> Int:\n    return 1\n\n{main}"
+        ),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-param",
+        &format!("fn f(x: f64) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-let",
+        "fn main() -> Unit:\n    let x: f64 = 1.0\n    print(x)\n",
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    // A bare element type is reported wherever a type is written: a result, a record field,
+    // an external signature and a type inside another type.
+    assert_both_report_type_error(
+        &project,
+        "bare-result",
+        &format!("fn f() -> f64:\n    return 1.0\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-field",
+        &format!("record Point:\n    x: f64\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-external",
+        &format!("extern python \"math:sqrt\" fn root(value: f64) -> Int\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-in-list",
+        &format!("fn f(x: List[f64]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "array-field",
+        &format!("record Point:\n    x: Array[i128]\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `i128`",
+    );
+    assert_both_report_type_error(
+        &project,
+        "array-result",
+        &format!("fn f() -> Array[Int]:\n    return array_i32([1])\n\n{main}"),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "let-unknown",
+        "fn main() -> Unit:\n    let x: Array[i128] = array_i32([1])\n    print(1)\n",
+        "E_TYPE_UNKNOWN",
+        "unknown type `i128`",
+    );
+}
+
+const CSV_PROGRAM: &str = r#"record CsvColumn:
+    name: Text
+    kind: Text
+    ints: Array[i64]
+    floats: Array[f64]
+    flags: Array[bool]
+    codes: Array[i64]
+    dictionary: List[Text]
+    valid: Array[bool]
+
+fn main() -> Unit:
+    let none: Map[Text, Text] = {}
+    let columns = unwrap(csv_read_columns("data.csv", none))
+    for column in columns:
+        print(column.name + " " + column.kind)
+        print(column.valid)
+    let fixed: Map[Text, Text] = {"a": "f64"}
+    print(array_sum(unwrap(csv_read_columns("data.csv", fixed))[0].floats))
+"#;
+
+#[test]
+fn self_hosted_csv_read_columns_program_matches_the_rust_compiler() {
+    let project = project("csv-columns");
+    std::fs::write(
+        project.0.join("guion.toml"),
+        format!(
+            "{}\n[capabilities]\nfiles = [\"read\"]\n",
+            std::fs::read_to_string(project.0.join("guion.toml")).unwrap()
+        ),
+    )
+    .unwrap();
+    std::fs::write(project.0.join("data.csv"), "a,b\n1,x\n,y\n3,\n").unwrap();
+    std::fs::write(project.0.join("cols.gu"), CSV_PROGRAM).unwrap();
+    let rust = guion(&project.0, &["run", "cols.gu"]);
+    assert!(
+        rust.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rust.stdout),
+        String::from_utf8_lossy(&rust.stderr)
+    );
+    let expected = String::from_utf8_lossy(&rust.stdout).into_owned();
+    assert!(expected.contains("a i64"), "{expected}");
+    assert!(expected.contains("b text"), "{expected}");
+    assert_eq!(self_hosted_stdout(&project, "cols.gu"), expected);
+    // Not only the same output: the same instructions, so the new operation is encoded as the
+    // Rust compiler encodes it.
+    let rust_artifact = guion_compiler::compile_project(&project.0.join("cols.gu"), &project.0)
+        .expect("the Rust compiler compiles the program");
+    let self_hosted = guion_model::Artifact::from_bytes(
+        &std::fs::read(self_hosted_artifact(&project, "cols.gu")).unwrap(),
+    )
+    .expect("the assembled artifact decodes");
+    let rust_instructions = instructions(&rust_artifact);
+    assert_eq!(
+        rust_instructions
+            .iter()
+            .flat_map(|(_, ops)| ops)
+            .filter(|op| op.starts_with("CsvReadColumns"))
+            .count(),
+        2
+    );
+    assert_eq!(instructions(&self_hosted), rust_instructions);
+}
+
+#[test]
+fn self_hosted_compiler_emits_array_set_local_like_the_rust_compiler() {
+    let project = project("set-local");
+    let source = "fn main() -> Unit:\n    var v = array_f64_zeros([3])\n    set v = array_set(v, 1, 2.5)\n    var w = array_i32([1, 2])\n    set w = array_set(w, 0, 7)\n    print(v)\n    print(w)\n";
+    std::fs::write(project.0.join("set.gu"), source).unwrap();
+    let compiled = guion(&project.0, &["run", "compiler.gu", "set.gu"]);
+    assert!(compiled.status.success());
+    let ir = String::from_utf8_lossy(&compiled.stdout).into_owned();
+    assert_eq!(ir.matches("ArraySetLocal").count(), 2, "{ir}");
+    let rust_count = guion_compiler::compile_project(&project.0.join("set.gu"), &project.0)
+        .expect("compiles")
+        .functions
+        .iter()
+        .flat_map(|function| function.code.iter())
+        .filter(|instruction| matches!(instruction.op, guion_model::Op::ArraySetLocal(_)))
+        .count();
+    assert_eq!(rust_count, 2);
+    let rust = guion(&project.0, &["run", "set.gu"]);
+    assert_eq!(
+        self_hosted_stdout(&project, "set.gu"),
+        String::from_utf8_lossy(&rust.stdout)
     );
 }

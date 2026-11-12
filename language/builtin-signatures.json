@@ -1405,6 +1405,15 @@
       "operation": "CsvOpen"
     },
     {
+      "name": "csv_read_columns",
+      "parameters": [
+        "Text",
+        "Map[Text, Text]"
+      ],
+      "result": "Result[List[Record[CsvColumn]], FileError]",
+      "operation": "CsvReadColumns"
+    },
+    {
       "name": "env",
       "parameters": [
         "Text"

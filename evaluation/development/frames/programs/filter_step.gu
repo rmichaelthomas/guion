@@ -1,0 +1,23 @@
+import "pkg:frames/src/lib.gu"
+
+fn step(frame: Frame) -> Float64:
+    let kept = unwrap(frame_filter(frame, unwrap(column_compare(unwrap(frame_column(frame, "x")), ">", 0.5))))
+    return column_sum(unwrap(frame_column(kept, "y")))
+
+fn main() -> Unit:
+    let frame = unwrap(frame_read_csv("data/rows.csv"))
+    let batch = 20
+    let samples = 15
+    var total = 0.0
+    var round = 0
+    while round < samples + 1:
+        let start = unix_time_ms()
+        var rep = 0
+        while rep < batch:
+            set total = total + step(frame)
+            set rep = rep + 1
+        let elapsed = unix_time_ms() - start
+        if round > 0:
+            print(elapsed)
+        set round = round + 1
+    print(total)

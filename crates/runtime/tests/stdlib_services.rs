@@ -479,6 +479,45 @@ fn calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data() {
     assert!(reversed.message.contains("one"));
 }
 
+/// libical keeps its time zone tables in process-wide state that it fills in on first use and does
+/// not protect, and tests, parallel workers and servers all call `calendar_parse` side by side.
+/// Parsing events in many zones from many threads at once must give what one thread gives.
+#[test]
+fn calendar_parse_gives_the_same_answer_from_many_threads_at_once() {
+    const ZONES: [&str; 8] = [
+        "America/Los_Angeles",
+        "America/New_York",
+        "Europe/Paris",
+        "Europe/London",
+        "Asia/Tokyo",
+        "Asia/Kolkata",
+        "Australia/Sydney",
+        "Pacific/Auckland",
+    ];
+    let source = |zone: &str| {
+        format!(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{zone}\r\nDTSTART;TZID={zone}:20261101T013000\r\nDTEND;TZID={zone}:20261101T023000\r\nSUMMARY:Zone\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+    };
+    let summary = |zone: &str| {
+        let events = calendar_parse(&source(zone)).unwrap();
+        let start = events[0].start_resolution.as_ref().unwrap();
+        (start.kind, start.unix_microseconds.clone())
+    };
+    let expected: Vec<_> = ZONES.iter().map(|zone| summary(zone)).collect();
+    std::thread::scope(|scope| {
+        for offset in 0..16 {
+            let expected = &expected;
+            scope.spawn(move || {
+                for round in 0..40 {
+                    let index = (offset + round) % ZONES.len();
+                    assert_eq!(summary(ZONES[index]), expected[index], "{}", ZONES[index]);
+                }
+            });
+        }
+    });
+}
+
 #[test]
 fn embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier() {
     let source = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VTIMEZONE\r\nTZID:America/Los_Angeles\r\nBEGIN:STANDARD\r\nDTSTART:19700101T000000\r\nTZOFFSETFROM:-0500\r\nTZOFFSETTO:-0500\r\nTZNAME:Embedded\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nUID:embedded\r\nDTSTART;TZID=America/Los_Angeles:20261024T090000\r\nDTEND;TZID=America/Los_Angeles:20261024T100000\r\nSUMMARY:Embedded zone wins\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";

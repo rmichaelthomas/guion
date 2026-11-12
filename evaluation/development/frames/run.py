@@ -44,6 +44,10 @@ def setup():
     if not os.path.exists(os.path.join(PROGRAMS, "guion.lock")):
         package = os.path.join(ROOT, "packages", "frames")
         subprocess.run([GUION, "add", "frames", "--path", package], cwd=PROGRAMS, check=True)
+    else:
+        # The programs import `pkg:frames`, a snapshot of the package taken when it was added;
+        # refresh it so the run measures the package as it is now.
+        subprocess.run([GUION, "update"], cwd=PROGRAMS, check=True, capture_output=True)
 
 
 def run(command):

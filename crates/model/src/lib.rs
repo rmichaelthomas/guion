@@ -3821,6 +3821,7 @@ pub enum Op {
     Tls(TlsFunction),
     Array(ArrayFunction, ElementType),
     ArraySetLocal(usize),
+    CsvReadColumns,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3978,7 +3979,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 63;
+    pub const CURRENT_VERSION: u32 = 64;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4266,6 +4267,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "grouping and joining array instructions require artifact format 63",
+            ));
+        }
+        if self.format_version < 64 && artifact_uses_csv_read_columns(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "csv_read_columns requires artifact format 64",
             ));
         }
         if self.format_version < 61 && artifact_uses_random_bits(self) {
@@ -4587,6 +4594,7 @@ impl Artifact {
                     Op::CsvOpen => w.u8(112),
                     Op::CsvNext => w.u8(113),
                     Op::CsvEncode => w.u8(114),
+                    Op::CsvReadColumns => w.u8(195),
                     Op::JsonTryGet => w.u8(115),
                     Op::JsonTryIndex => w.u8(116),
                     Op::JsonTryText => w.u8(117),
@@ -5097,6 +5105,13 @@ impl Artifact {
                         Op::Array(function, element)
                     }
                     194 if format_version >= 62 => Op::ArraySetLocal(r.count()?),
+                    195 if format_version >= 64 => Op::CsvReadColumns,
+                    195 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "csv_read_columns requires artifact format 64",
+                        ));
+                    }
                     193 | 194 => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
@@ -5758,6 +5773,15 @@ fn artifact_uses_format_63_arrays(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_csv_read_columns(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::CsvReadColumns))
+    })
+}
+
 fn artifact_uses_random_bits(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -6185,6 +6209,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::FileClose
                         | Op::CsvOpen
                         | Op::CsvNext
+                        | Op::CsvReadColumns
                         | Op::FsWalk
                         | Op::ParallelMap(_) => {
                             return Err(format!(

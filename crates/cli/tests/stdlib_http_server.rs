@@ -1,13 +1,11 @@
+mod common;
+
+use common::{connect_to, free_port, output, spawn};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
-
-fn free_port() -> u16 {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap().port()
-}
 
 fn project(name: &str, source: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("guion-{name}-{}", std::process::id()));
@@ -18,20 +16,21 @@ fn project(name: &str, source: &str) -> std::path::PathBuf {
 }
 
 fn spawn_guion(dir: &Path, flags: &[&str]) -> Child {
-    Command::new(env!("CARGO_BIN_EXE_guion"))
-        .arg("run")
-        .args(flags)
-        .arg("main.gu")
-        .current_dir(dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("guion starts")
+    spawn(
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .arg("run")
+            .args(flags)
+            .arg("main.gu")
+            .current_dir(dir)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped()),
+    )
+    .expect("guion starts")
 }
 
 fn connect(port: u16) -> TcpStream {
     for _ in 0..100 {
-        if let Ok(stream) = TcpStream::connect(("127.0.0.1", port)) {
+        if let Ok(stream) = connect_to(port) {
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
@@ -338,11 +337,12 @@ fn main() -> Int:
 "##
     );
     let client_dir = project("ws-pair-client", &client);
-    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
-        .args(["run", "--allow-connect", "127.0.0.1:*", "main.gu"])
-        .current_dir(&client_dir)
-        .output()
-        .unwrap();
+    let output = output(
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", "--allow-connect", "127.0.0.1:*", "main.gu"])
+            .current_dir(&client_dir),
+    )
+    .unwrap();
     assert!(
         String::from_utf8_lossy(&output.stdout).contains("client-ok"),
         "{}{}",
@@ -371,11 +371,12 @@ fn main() -> Int:
     return 0
 "##,
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
-        .args(["run", "main.gu"])
-        .current_dir(&dir)
-        .output()
-        .unwrap();
+    let output = output(
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", "main.gu"])
+            .current_dir(&dir),
+    )
+    .unwrap();
     let _ = std::fs::remove_dir_all(&dir);
     assert!(
         output.status.success(),

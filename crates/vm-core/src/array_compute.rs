@@ -1,11 +1,15 @@
 //! Arithmetic, comparison, logic, math, reduction, ordering, linear-algebra and generator
 //! kernels for `Op::Array`.
 
+use std::borrow::Cow;
+
 use guion_model::{
-    shape_size, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared, Value,
+    shape_size, ArrayData, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared,
+    Value,
 };
 
-use crate::array::{float_value, with_element, ArrayError, Charge, Element};
+use crate::array::{float_value, with_element, ArrayError, Charge, Element, Release};
+use crate::matmul;
 
 fn error<T>(code: &'static str, message: impl Into<String>) -> Result<T, ArrayError> {
     Err((code, message.into()))
@@ -67,6 +71,29 @@ trait Numeric: Element {
     fn abs(self) -> Result<Self, &'static str>;
     fn zero() -> Self {
         Self::default()
+    }
+    /// `add`, `sub` and `mul` without the per-element finiteness check; the kernels then call
+    /// `first_nonfinite` once on the finished result. Integers check overflow as usual.
+    #[inline]
+    fn add_raw(self, other: Self) -> Result<Self, &'static str> {
+        self.add(other)
+    }
+    #[inline]
+    fn sub_raw(self, other: Self) -> Result<Self, &'static str> {
+        self.sub(other)
+    }
+    #[inline]
+    fn mul_raw(self, other: Self) -> Result<Self, &'static str> {
+        self.mul(other)
+    }
+    /// Whether a result of the `_raw` operations is acceptable (always true for integers).
+    #[inline]
+    fn acceptable(self) -> bool {
+        true
+    }
+    /// The first element of a result produced by the `_raw` operations that is not finite.
+    fn first_nonfinite(_items: &[Self]) -> Option<usize> {
+        None
     }
 }
 
@@ -135,6 +162,29 @@ macro_rules! float_numeric {
             }
             fn abs(self) -> Result<Self, &'static str> {
                 Ok(self.abs())
+            }
+            #[inline]
+            fn add_raw(self, other: Self) -> Result<Self, &'static str> {
+                Ok(self + other)
+            }
+            #[inline]
+            fn sub_raw(self, other: Self) -> Result<Self, &'static str> {
+                Ok(self - other)
+            }
+            #[inline]
+            fn mul_raw(self, other: Self) -> Result<Self, &'static str> {
+                Ok(self * other)
+            }
+            #[inline]
+            fn acceptable(self) -> bool {
+                self.is_finite()
+            }
+            fn first_nonfinite(items: &[Self]) -> Option<usize> {
+                if items.iter().all(|item| item.is_finite()) {
+                    None
+                } else {
+                    items.iter().position(|item| !item.is_finite())
+                }
             }
         }
     )*};
@@ -275,35 +325,171 @@ fn map<A: Element, R: Element>(
     finish(array.shape.clone(), out)
 }
 
+/// Whether `value` is an array of `shape` that nothing else holds, so a kernel may overwrite
+/// its buffer with the result.
+fn reusable(value: &Value, shape: &[usize]) -> bool {
+    matches!(value, Value::Array(array) if Shared::strong_count(array) == 1 && array.shape == shape)
+}
+
+/// `map` that overwrites the operand's buffer when nothing else holds it.
+fn map_owned<T: Element>(
+    args: &mut [Value],
+    charge: &mut Charge<'_>,
+    what: &str,
+    f: impl Fn(T) -> Result<T, ArrayError>,
+) -> Result<Value, ArrayError> {
+    let shape = array_arg(args, 0)?.shape.clone();
+    if !reusable(&args[0], &shape) {
+        return map(array_arg(args, 0)?, charge, what, f);
+    }
+    let Value::Array(mut owned) = std::mem::replace(&mut args[0], Value::Unit) else {
+        unreachable!("checked by reusable")
+    };
+    let target = Shared::get_mut(&mut owned).expect("a unique array");
+    for (index, slot) in T::items_mut(&mut target.data).iter_mut().enumerate() {
+        *slot = f(*slot).map_err(|(code, message)| {
+            if message.is_empty() {
+                element_error(code, what, T::TYPE, index)
+            } else {
+                (code, message)
+            }
+        })?;
+    }
+    Ok(Value::Array(owned))
+}
+
+/// Same-type arithmetic with broadcasting. When an operand is an unshared array already of the
+/// result's shape, its buffer receives the result; float results are checked for finiteness
+/// once, after the loop. `f` is one of the `_raw` operations (`raw` is true) when it leaves
+/// that check to the loop's end, and a checked operation (division, minimum, maximum) when
+/// each result is already known to be acceptable.
+fn zip_numeric<T: Numeric>(
+    args: &mut [Value],
+    scalar: Option<ArrayValue>,
+    charge: &mut Charge<'_>,
+    what: &str,
+    raw: bool,
+    f: impl Fn(T, T) -> Result<T, &'static str>,
+) -> Result<Value, ArrayError> {
+    let (reuse, shape) = {
+        let left = array_arg(args, 0)?;
+        let right = match &scalar {
+            Some(scalar) => scalar,
+            None => array_arg(args, 1)?,
+        };
+        let shape = if left.shape == right.shape {
+            left.shape.clone()
+        } else {
+            broadcast_shape(&left.shape, &right.shape)?
+        };
+        let fits = |other: &ArrayValue| other.shape == shape || other.size() == 1;
+        let reuse = if reusable(&args[0], &shape) && fits(right) {
+            Some(0)
+        } else if scalar.is_none() && reusable(&args[1], &shape) && fits(left) {
+            Some(1)
+        } else {
+            None
+        };
+        (reuse, shape)
+    };
+    let Some(which) = reuse else {
+        let left = array_arg(args, 0)?;
+        let right = match &scalar {
+            Some(scalar) => scalar,
+            None => array_arg(args, 1)?,
+        };
+        if left.shape == right.shape {
+            charge(array_bytes(T::TYPE, shape.len(), left.size()))?;
+            let mut out: Vec<T> = Vec::with_capacity(left.size());
+            let mut unacceptable = false;
+            let fail = |code, index| element_error(code, what, T::TYPE, index);
+            for (index, (x, y)) in T::items(&left.data)
+                .iter()
+                .zip(T::items(&right.data))
+                .enumerate()
+            {
+                let value = f(*x, *y).map_err(|code| fail(code, index))?;
+                unacceptable |= !value.acceptable();
+                out.push(value);
+            }
+            if unacceptable {
+                if let Some(index) = T::first_nonfinite(&out) {
+                    return Err(fail(NONFINITE, index));
+                }
+            }
+            return finish(shape, out);
+        }
+        let result = zip_with(left, right, charge, what, &f)?;
+        if let (true, Value::Array(array)) = (raw, &result) {
+            if let Some(index) = T::first_nonfinite(T::items(&array.data)) {
+                return Err(element_error(NONFINITE, what, T::TYPE, index));
+            }
+        }
+        return Ok(result);
+    };
+    let Value::Array(mut owned) = std::mem::replace(&mut args[which], Value::Unit) else {
+        unreachable!("checked by reusable")
+    };
+    let other = match (&scalar, which) {
+        (Some(scalar), _) => scalar,
+        (None, 0) => array_arg(args, 1)?,
+        (None, _) => array_arg(args, 0)?,
+    };
+    let other = T::items(&other.data);
+    let target = Shared::get_mut(&mut owned).expect("a unique array");
+    let items = T::items_mut(&mut target.data);
+    debug_assert_eq!(shape_size(&shape), Some(items.len()));
+    let fail = |code, index| element_error(code, what, T::TYPE, index);
+    let apply = |x: T, y: T| if which == 0 { f(x, y) } else { f(y, x) };
+    // Finiteness is accumulated without branching so the loop stays tight; only a result
+    // that failed it is searched for the offending element.
+    let mut unacceptable = false;
+    if other.len() == items.len() {
+        for (index, (slot, y)) in items.iter_mut().zip(other).enumerate() {
+            let value = apply(*slot, *y).map_err(|code| fail(code, index))?;
+            unacceptable |= !value.acceptable();
+            *slot = value;
+        }
+    } else {
+        let y = other[0];
+        for (index, slot) in items.iter_mut().enumerate() {
+            let value = apply(*slot, y).map_err(|code| fail(code, index))?;
+            unacceptable |= !value.acceptable();
+            *slot = value;
+        }
+    }
+    if unacceptable {
+        if let Some(index) = T::first_nonfinite(items) {
+            return Err(fail(NONFINITE, index));
+        }
+    }
+    Ok(Value::Array(owned))
+}
+
 fn scalar_array<T: Element>(value: &Value) -> Result<ArrayValue, ArrayError> {
     ArrayValue::new(vec![], T::wrap(vec![T::from_value(value)?]))
 }
 
 fn arithmetic<T: Numeric>(
     function: ArrayFunction,
-    args: &[Value],
+    args: &mut [Value],
     charge: &mut Charge<'_>,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
-    let left = array_arg(args, 0)?;
-    let scalar;
-    let right = match function {
-        AddScalar | SubScalar | MulScalar | DivScalar => {
-            scalar = scalar_array::<T>(&args[1])?;
-            &scalar
-        }
-        _ => array_arg(args, 1)?,
+    let scalar = match function {
+        AddScalar | SubScalar | MulScalar | DivScalar => Some(scalar_array::<T>(&args[1])?),
+        _ => None,
     };
-    let name = function.op_name();
+    let name = &function.guest_name();
     match function {
-        Add | AddScalar => zip_with(left, right, charge, name, T::add),
-        Sub | SubScalar => zip_with(left, right, charge, name, T::sub),
-        Mul | MulScalar => zip_with(left, right, charge, name, T::mul),
-        Div | DivScalar => zip_with(left, right, charge, name, T::div),
-        Minimum => zip_with(left, right, charge, name, |x: T, y: T| {
+        Add | AddScalar => zip_numeric(args, scalar, charge, name, true, T::add_raw),
+        Sub | SubScalar => zip_numeric(args, scalar, charge, name, true, T::sub_raw),
+        Mul | MulScalar => zip_numeric(args, scalar, charge, name, true, T::mul_raw),
+        Div | DivScalar => zip_numeric(args, scalar, charge, name, false, T::div),
+        Minimum => zip_numeric(args, scalar, charge, name, false, |x: T, y: T| {
             Ok(if y < x { y } else { x })
         }),
-        Maximum => zip_with(left, right, charge, name, |x: T, y: T| {
+        Maximum => zip_numeric(args, scalar, charge, name, false, |x: T, y: T| {
             Ok(if y > x { y } else { x })
         }),
         _ => unreachable!("arithmetic dispatch"),
@@ -325,7 +511,7 @@ fn compare<T: Element>(
         }
         _ => array_arg(args, 1)?,
     };
-    let name = function.op_name();
+    let name = &function.guest_name();
     let test: fn(&T, &T) -> bool = match function {
         Eq | EqScalar => |x, y| x == y,
         Ne | NeScalar => |x, y| x != y,
@@ -364,18 +550,18 @@ fn math_function(function: ArrayFunction) -> Option<MathFunction> {
 
 fn float_math<T: Element>(
     function: ArrayFunction,
-    args: &[Value],
+    args: &mut [Value],
     charge: &mut Charge<'_>,
 ) -> Result<Value, ArrayError> {
-    let array = array_arg(args, 0)?;
+    array_arg(args, 0)?;
     let exponent = if function == ArrayFunction::Pow {
         float_arg(args, 1)?
     } else {
         0.0
     };
     let math = math_function(function);
-    let name = function.op_name();
-    map(array, charge, name, |x: T| {
+    let name = &function.guest_name();
+    map_owned(args, charge, name, |x: T| {
         let x = x.to_f64();
         let result = match math {
             Some(math) => crate::apply_math(math, x, exponent)
@@ -465,12 +651,20 @@ fn select<T: Element>(
     let flags = bool::items(&mask.data);
     let count = flags.iter().filter(|flag| **flag).count();
     charge(array_bytes(T::TYPE, 1, count))?;
-    let mut out = Vec::with_capacity(count);
-    for (item, flag) in T::items(&array.data).iter().zip(flags) {
-        if *flag {
-            out.push(*item);
-        }
+    let items = T::items(&array.data);
+    let Some(first) = items.first() else {
+        return finish(vec![0], Vec::<T>::new());
+    };
+    // Branch-free compaction: every item is written to the next free slot and the slot only
+    // advances for a kept item, so a mask with no pattern costs no branch mispredictions. One
+    // spare slot takes the write of a dropped item at the end.
+    let mut out = vec![*first; count + 1];
+    let mut next = 0;
+    for (item, flag) in items.iter().zip(flags) {
+        out[next] = *item;
+        next += usize::from(*flag);
     }
+    out.truncate(count);
     finish(vec![count], out)
 }
 
@@ -524,7 +718,7 @@ fn reduce<T: Element>(function: ArrayFunction, args: &[Value]) -> Result<Value, 
     use ArrayFunction::*;
     let array = array_arg(args, 0)?;
     let items = T::items(&array.data);
-    let name = function.op_name();
+    let name = &function.guest_name();
     match function {
         Sum if T::TYPE.is_integer() => {
             let mut sum = ExactSum::default();
@@ -632,7 +826,7 @@ fn reduce_axis<T: Numeric>(
     let (outer, extent, inner, shape) = axis_parts(array, int_arg(args, 1)?)?;
     let items = T::items(&array.data);
     let size = outer * inner;
-    let name = function.op_name();
+    let name = &function.guest_name();
     if extent == 0 && size > 0 && function != SumAxis {
         return Err(empty_error(name));
     }
@@ -689,11 +883,12 @@ fn order<T: Numeric>(
     function: ArrayFunction,
     args: &[Value],
     charge: &mut Charge<'_>,
+    held: &mut usize,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
     let array = array_arg(args, 0)?;
     let items = T::items(&array.data);
-    let name = function.op_name();
+    let name = &function.guest_name();
     if function == Cumsum {
         charge(array_bytes(T::TYPE, 1, items.len()))?;
         let mut out = Vec::with_capacity(items.len());
@@ -715,6 +910,7 @@ fn order<T: Numeric>(
             ),
         );
     }
+    hold(charge, held, items.len().saturating_mul(size_of::<usize>()))?;
     let mut indices: Vec<usize> = (0..items.len()).collect();
     // Elements are finite, so `partial_cmp` is total here; `sort_by` is stable.
     indices.sort_by(|a, b| items[*a].partial_cmp(&items[*b]).expect("finite elements"));
@@ -762,9 +958,52 @@ fn dot<T: Element>(args: &[Value]) -> Result<Value, ArrayError> {
     )
 }
 
-const MATMUL_BLOCK: usize = 64;
+/// Sums one block of the inner dimension into a row of the result, each step fused:
+/// `cells[j] = scales[p] * right[p * m + j] + cells[j]` for `p` in order. On x86_64 with FMA the
+/// whole loop is compiled with the instruction enabled, so it is vectorised (and a column, where
+/// `m` is 1, is one `vfmadd` per step); otherwise `mul_add` is a library call. The results are
+/// identical, every step being correctly rounded.
+type FusedBlock = fn(&mut [f64], &[f64], &[f64]);
 
-fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+#[inline(always)]
+fn fused_block_body(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    let m = cells.len();
+    for (p, scale) in scales.iter().enumerate() {
+        for (cell, value) in cells.iter_mut().zip(&right[p * m..]) {
+            *cell = scale.mul_add(*value, *cell);
+        }
+    }
+}
+
+fn fused_block_plain(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    fused_block_body(cells, scales, right)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "fma")]
+unsafe fn fused_block_fma_inner(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    fused_block_body(cells, scales, right)
+}
+
+#[cfg(target_arch = "x86_64")]
+fn fused_block_fma(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    // SAFETY: only chosen by `fused_blocks` after `fma` was detected at run time.
+    unsafe { fused_block_fma_inner(cells, scales, right) }
+}
+
+fn fused_blocks() -> FusedBlock {
+    #[cfg(target_arch = "x86_64")]
+    if is_x86_feature_detected!("fma") {
+        return fused_block_fma;
+    }
+    fused_block_plain
+}
+
+fn matmul<T: Element>(
+    args: &[Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
+) -> Result<Value, ArrayError> {
     let (a, b) = (array_arg(args, 0)?, array_arg(args, 1)?);
     let (n, k) = match a.shape.as_slice() {
         [n, k] => (*n, *k),
@@ -801,6 +1040,7 @@ fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, 
     charge(array_bytes(T::TYPE, shape.len(), n * m))?;
     let (x, y) = (T::items(&a.data), T::items(&b.data));
     if T::TYPE.is_integer() {
+        hold(charge, held, (n * m).saturating_mul(size_of::<i128>()))?;
         let mut acc = vec![0i128; n * m];
         for i in 0..n {
             for p in 0..k {
@@ -827,29 +1067,81 @@ fn matmul<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, 
         }
         return finish(shape, out);
     }
-    let left: Vec<f64> = x.iter().map(|item| item.to_f64()).collect();
-    let right: Vec<f64> = y.iter().map(|item| item.to_f64()).collect();
+    // Float64 operands are borrowed as they are; other float types are widened once.
+    let native = match (&a.data, &b.data) {
+        (ArrayData::F64(x), ArrayData::F64(y)) => Some((x.as_slice(), y.as_slice())),
+        _ => None,
+    };
+    // For Float64 the accumulator becomes the result's storage, which the output charge above
+    // already covers; for other types it is a temporary, held along with the widened operands.
+    let temporaries = if native.is_some() {
+        0
+    } else {
+        x.len() + y.len() + n * m
+    };
+    hold(charge, held, temporaries.saturating_mul(size_of::<f64>()))?;
+    let (left, right) = match native {
+        Some(pair) => (Cow::Borrowed(pair.0), Cow::Borrowed(pair.1)),
+        None => (
+            Cow::Owned(x.iter().map(|item| item.to_f64()).collect::<Vec<f64>>()),
+            Cow::Owned(y.iter().map(|item| item.to_f64()).collect::<Vec<f64>>()),
+        ),
+    };
     let mut acc = vec![0.0f64; n * m];
-    for i0 in (0..n).step_by(MATMUL_BLOCK) {
-        for p0 in (0..k).step_by(MATMUL_BLOCK) {
-            for j0 in (0..m).step_by(MATMUL_BLOCK) {
-                let (i1, p1, j1) = (
-                    (i0 + MATMUL_BLOCK).min(n),
-                    (p0 + MATMUL_BLOCK).min(k),
-                    (j0 + MATMUL_BLOCK).min(m),
+    if n == 1 || m == 1 {
+        // A single row or column cannot fill a register tile, so it is summed here the way the
+        // tile kernels sum every element: blocks of `KC` in the inner dimension in order, each
+        // block fused from zero and then added to the result. A slice of a product therefore
+        // equals the matching part of the whole product bit for bit.
+        let mut block = if k > matmul::KC {
+            hold(charge, held, m.saturating_mul(size_of::<f64>()))?;
+            vec![0.0f64; m]
+        } else {
+            Vec::new()
+        };
+        let fused = fused_blocks();
+        for i in 0..n {
+            let row = &mut acc[i * m..(i + 1) * m];
+            for (index, start) in (0..k).step_by(matmul::KC).enumerate() {
+                let end = k.min(start + matmul::KC);
+                // The first block can sum straight into the zeroed row. Adding it to zero changes
+                // nothing but the sign of a zero (the tile kernels add every block to +0.0), so
+                // that is normalised after it.
+                let cells: &mut [f64] = if index == 0 { &mut *row } else { &mut block };
+                if index > 0 {
+                    cells.fill(0.0);
+                }
+                fused(
+                    cells,
+                    &left[i * k + start..i * k + end],
+                    &right[start * m..],
                 );
-                for i in i0..i1 {
-                    for p in p0..p1 {
-                        let scale = left[i * k + p];
-                        let row = &mut acc[i * m + j0..i * m + j1];
-                        let column = &right[p * m + j0..p * m + j1];
-                        for (cell, value) in row.iter_mut().zip(column) {
-                            *cell += scale * value;
-                        }
+                if index > 0 {
+                    for (cell, partial) in row.iter_mut().zip(&block) {
+                        *cell += partial;
+                    }
+                } else {
+                    for cell in row.iter_mut() {
+                        *cell += 0.0;
                     }
                 }
             }
         }
+    } else {
+        let dims = (n, k, m);
+        let threads = matmul::threads_for(dims);
+        hold(charge, held, matmul::scratch_bytes(dims, threads))?;
+        matmul::matmul_f64(&left, &right, &mut acc, dims, threads, matmul::native_isa());
+    }
+    if T::TYPE == ElementType::F64 {
+        // The accumulator is already the result's storage: check it and hand it over.
+        if let Some(index) = acc.iter().position(|value| !value.is_finite()) {
+            return Err(element_error(NONFINITE, "array_matmul", T::TYPE, index));
+        }
+        return Ok(Value::Array(Shared::new(ArrayValue::new(
+            shape,
+            ArrayData::F64(acc),
+        )?)));
     }
     let mut out = Vec::with_capacity(n * m);
     for (index, value) in acc.into_iter().enumerate() {
@@ -871,21 +1163,33 @@ fn generate(
         Range => {
             let (start, stop, step) = (int_arg(args, 0)?, int_arg(args, 1)?, int_arg(args, 2)?);
             if step == 0 {
-                return error("R_ARRAY_SHAPE", "array_i64_range step must not be 0");
+                return error("R_ARRAY_ARGUMENT", "array_i64_range step must not be 0");
             }
-            let span = stop - start;
-            let count = if (span > 0) == (step > 0) && span != 0 {
-                ((span.abs() + step.abs() - 1) / step.abs()) as usize
+            let overflow = || {
+                (
+                    "R_ARRAY_CONVERSION",
+                    "array_i64_range values must fit in i64".to_string(),
+                )
+            };
+            // Operands are i128, so the span, the count and the last value are all checked.
+            let span = stop.checked_sub(start).ok_or_else(overflow)?;
+            let count_wide: u128 = if (span > 0) == (step > 0) && span != 0 {
+                let (distance, stride) = (span.unsigned_abs(), step.unsigned_abs());
+                distance / stride + u128::from(distance % stride != 0)
             } else {
                 0
             };
-            if i64::try_from(start).is_err()
-                || i64::try_from(start + step * (count as i128 - 1).max(0)).is_err()
-            {
-                return error(
-                    "R_ARRAY_CONVERSION",
-                    "array_i64_range values must fit in i64",
-                );
+            let count = usize::try_from(count_wide).map_err(|_| overflow())?;
+            let last = match count_wide.checked_sub(1) {
+                Some(steps) => i128::try_from(steps)
+                    .ok()
+                    .and_then(|steps| step.checked_mul(steps))
+                    .and_then(|offset| start.checked_add(offset))
+                    .ok_or_else(overflow)?,
+                None => start,
+            };
+            if i64::try_from(start).is_err() || i64::try_from(last).is_err() {
+                return Err(overflow());
             }
             charge(array_bytes(ElementType::I64, 1, count))?;
             let out: Vec<i64> = (0..count)
@@ -1023,11 +1327,33 @@ macro_rules! with_numeric {
     };
 }
 
+/// Charges a transient buffer and notes it in `held`, so `apply` can release it however the
+/// kernel ends.
+fn hold(charge: &mut Charge<'_>, held: &mut usize, bytes: usize) -> Result<(), ArrayError> {
+    charge(bytes)?;
+    *held = held.saturating_add(bytes);
+    Ok(())
+}
+
 pub fn apply(
     function: ArrayFunction,
     element: ElementType,
     args: &mut [Value],
     charge: &mut Charge<'_>,
+    release: &mut Release<'_>,
+) -> Result<Value, ArrayError> {
+    let mut held = 0usize;
+    let result = apply_kernel(function, element, args, charge, &mut held);
+    release(held);
+    result
+}
+
+fn apply_kernel(
+    function: ArrayFunction,
+    element: ElementType,
+    args: &mut [Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
     if !function.element_class().accepts(element) {
@@ -1035,7 +1361,7 @@ pub fn apply(
             "R_TYPE_INVALID",
             format!(
                 "{} does not accept {} arrays",
-                function.op_name(),
+                function.guest_name_for(element),
                 element.name()
             ),
         );
@@ -1043,18 +1369,18 @@ pub fn apply(
     match function {
         Add | Sub | Mul | Div | Minimum | Maximum | AddScalar | SubScalar | MulScalar
         | DivScalar => with_numeric!(element, T => arithmetic::<T>(function, args, charge)),
-        Neg => with_numeric!(element, T => map(array_arg(args, 0)?, charge, "array_neg", |x: T| {
+        Neg => with_numeric!(element, T => map_owned(args, charge, "array_neg", |x: T| {
             Numeric::neg(x).map_err(|code| (code, String::new()))
         })),
-        Abs => with_numeric!(element, T => map(array_arg(args, 0)?, charge, "array_abs", |x: T| {
+        Abs => with_numeric!(element, T => map_owned(args, charge, "array_abs", |x: T| {
             Numeric::abs(x).map_err(|code| (code, String::new()))
         })),
         Clip => with_numeric!(element, T => {
             let (low, high) = (T::from_value(&args[1])?, T::from_value(&args[2])?);
             if low > high {
-                return error("R_ARRAY_SHAPE", "array_clip needs low <= high");
+                return error("R_ARRAY_ARGUMENT", "array_clip needs low <= high");
             }
-            map(array_arg(args, 0)?, charge, "array_clip", |x: T| {
+            map_owned(args, charge, "array_clip", |x: T| {
                 Ok(if x < low { low } else if x > high { high } else { x })
             })
         }),
@@ -1073,20 +1399,25 @@ pub fn apply(
         SumAxis | MinAxis | MaxAxis | MeanAxis => {
             with_numeric!(element, T => reduce_axis::<T>(function, args, charge))
         }
-        Sort | Argsort | Cumsum => with_numeric!(element, T => order::<T>(function, args, charge)),
+        Sort | Argsort | Cumsum => {
+            with_numeric!(element, T => order::<T>(function, args, charge, held))
+        }
         Dot => with_numeric!(element, T => dot::<T>(args)),
-        Matmul => with_numeric!(element, T => matmul::<T>(args, charge)),
+        Matmul => with_numeric!(element, T => matmul::<T>(args, charge, held)),
         Range | Linspace | Random | Normal => generate(function, args, charge),
         Take => with_element!(element, T => take::<T>(args, charge)),
-        Factorize => with_element!(element, T => factorize::<T>(args, charge)),
+        Factorize => with_element!(element, T => factorize::<T>(args, charge, held)),
         FirstIndex | CountBy => by_code(function, args, charge),
         SumBy | MinBy | MaxBy | MeanBy => {
             with_numeric!(element, T => reduce_by::<T>(function, args, charge))
         }
-        JoinIndex => join_index(args, charge),
+        JoinIndex => join_index(args, charge, held),
         _ => error(
             "R_TYPE_INVALID",
-            format!("{} is not a compute instruction", function.op_name()),
+            format!(
+                "{} is not a compute instruction",
+                function.guest_name_for(element)
+            ),
         ),
     }
 }
@@ -1205,7 +1536,11 @@ fn element_key<T: Element>(item: T) -> i128 {
     }
 }
 
-fn factorize<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+fn factorize<T: Element>(
+    args: &[Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
+) -> Result<Value, ArrayError> {
     let source = rank1(array_arg(args, 0)?, "array_factorize")?;
     let items = T::items(&source.data);
     charge(array_bytes(ElementType::I64, 1, items.len()))?;
@@ -1213,10 +1548,15 @@ fn factorize<T: Element>(args: &[Value], charge: &mut Charge<'_>) -> Result<Valu
     let mut out = Vec::with_capacity(items.len());
     for item in items {
         let next = codes.len() as i64;
-        let code = *codes.entry(element_key(*item)).or_insert_with(|| next);
-        if code == next {
-            charge(48)?;
-        }
+        // A new key is charged before it is inserted, so the table never outgrows its charge.
+        let code = match codes.entry(element_key(*item)) {
+            std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                hold(charge, held, 48)?;
+                entry.insert(next);
+                next
+            }
+        };
         out.push(code);
     }
     finish(vec![items.len()], out)
@@ -1341,13 +1681,19 @@ fn reduce_by<T: Numeric>(
     }
 }
 
-fn join_index(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayError> {
+fn join_index(
+    args: &[Value],
+    charge: &mut Charge<'_>,
+    held: &mut usize,
+) -> Result<Value, ArrayError> {
     let name = "array_join_index";
     let left = i64_items(array_arg(args, 0)?, name)?;
     let right = i64_items(array_arg(args, 1)?, name)?;
     let keep_unmatched = matches!(args[2], Value::Bool(true));
     // Right rows grouped by code, in right order: `slots[code]` indexes `starts`.
-    charge(right.len().saturating_mul(40))?;
+    // Per right row: its slot (8), a count (8), its table entry (about 24), its place in the
+    // grouped rows (8), the group's start (8) and a fill cursor (8).
+    hold(charge, held, right.len().saturating_mul(64))?;
     let mut slots: KeyMap<i64, usize> = KeyMap::default();
     let mut counts: Vec<usize> = Vec::new();
     let mut slot_of_row = Vec::with_capacity(right.len());
@@ -1428,4 +1774,372 @@ fn join_index(args: &[Value], charge: &mut Charge<'_>) -> Result<Value, ArrayErr
         }
     }
     finish(vec![length], out)
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use std::cell::Cell;
+
+    fn array(element: ElementType, shape: Vec<usize>, fill: impl Fn(usize) -> i64) -> Value {
+        let size: usize = shape.iter().product();
+        let data = match element {
+            ElementType::F64 => crate::array::Element::wrap(
+                (0..size)
+                    .map(|index| fill(index) as f64)
+                    .collect::<Vec<f64>>(),
+            ),
+            ElementType::F32 => crate::array::Element::wrap(
+                (0..size)
+                    .map(|index| fill(index) as f32)
+                    .collect::<Vec<f32>>(),
+            ),
+            _ => crate::array::Element::wrap((0..size).map(&fill).collect::<Vec<i64>>()),
+        };
+        Value::Array(Shared::new(ArrayValue::new(shape, data).expect("array")))
+    }
+
+    /// Runs a kernel against a simulated in-use budget of `limit` bytes. Returns the result
+    /// and the bytes still charged afterwards.
+    fn run(
+        function: ArrayFunction,
+        element: ElementType,
+        mut args: Vec<Value>,
+        limit: usize,
+        used: &Cell<usize>,
+    ) -> Result<Value, ArrayError> {
+        let mut charge = |bytes: usize| {
+            if used.get().saturating_add(bytes) > limit {
+                Err(("R_ALLOCATION_LIMIT", "limit".to_string()))
+            } else {
+                used.set(used.get() + bytes);
+                Ok(())
+            }
+        };
+        let mut release = |bytes: usize| used.set(used.get() - bytes);
+        crate::array::apply(function, element, &mut args, &mut charge, &mut release)
+    }
+
+    fn assert_limit(result: Result<Value, ArrayError>, what: &str) {
+        match result {
+            Err((code, _)) => assert_eq!(code, "R_ALLOCATION_LIMIT", "{what}"),
+            Ok(_) => panic!("{what}: fit in a budget that holds only its output"),
+        }
+    }
+
+    #[test]
+    fn matmul_temporaries_do_not_fit_a_budget_that_holds_only_the_output() {
+        for element in [ElementType::F64, ElementType::I64] {
+            let a = array(element, vec![16, 16], |i| i as i64 % 7);
+            let b = array(element, vec![16, 16], |i| i as i64 % 5);
+            let output = array_bytes(element, 2, 256);
+            let used = Cell::new(0);
+            let result = run(ArrayFunction::Matmul, element, vec![a, b], output, &used);
+            assert_limit(result, "matmul");
+            assert_eq!(
+                used.get(),
+                output,
+                "a failed matmul leaves only its output charge"
+            );
+        }
+    }
+
+    #[test]
+    fn matmul_packing_buffers_are_charged_and_released() {
+        let (a, b) = (
+            array(ElementType::F64, vec![16, 16], |i| i as i64 % 7),
+            array(ElementType::F64, vec![16, 16], |i| i as i64 % 5),
+        );
+        let output = array_bytes(ElementType::F64, 2, 256);
+        // Float64 operands are borrowed and the accumulator is the output: only the packed panels
+        // are held on top of the output.
+        let dims = (16, 16, 16);
+        let scratch = matmul::scratch_bytes(dims, matmul::threads_for(dims));
+        assert!(scratch > 0);
+        let copies = output + scratch - 1;
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Matmul,
+            ElementType::F64,
+            vec![a.clone(), b.clone()],
+            copies,
+            &used,
+        );
+        assert_limit(result, "matmul packing buffers");
+        assert_eq!(used.get(), output, "a failed matmul leaves only its output");
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Matmul,
+            ElementType::F64,
+            vec![a, b],
+            1 << 30,
+            &used,
+        );
+        assert!(result.is_ok());
+        assert_eq!(used.get(), output, "packing buffers are released");
+    }
+
+    #[test]
+    fn a_single_row_keeps_the_sign_of_a_zero_the_tile_kernels_give() {
+        // -1e-200 * 1e-200 underflows to -0.0; the tile kernels add every block to +0.0.
+        let (rows, columns) = (8usize, 8usize);
+        let left = array(ElementType::F64, vec![rows, 2], |_| 0);
+        let right = array(ElementType::F64, vec![2, columns], |_| 0);
+        let fill = |value: &Value, number: f64| {
+            let Value::Array(source) = value else {
+                unreachable!()
+            };
+            Value::Array(Shared::new(
+                ArrayValue::new(
+                    source.shape.clone(),
+                    ArrayData::F64(vec![number; source.shape.iter().product()]),
+                )
+                .unwrap(),
+            ))
+        };
+        let (a, b) = (fill(&left, -1e-200), fill(&right, 1e-200));
+        let product = |a: Value, b: Value| {
+            let used = Cell::new(0usize);
+            match run(
+                ArrayFunction::Matmul,
+                ElementType::F64,
+                vec![a, b],
+                1 << 30,
+                &used,
+            ) {
+                Ok(Value::Array(product)) => match &product.data {
+                    ArrayData::F64(items) => items.clone(),
+                    _ => panic!("not f64"),
+                },
+                other => panic!("matmul failed: {other:?}"),
+            }
+        };
+        let whole = product(a, b.clone());
+        let one_row = Value::Array(Shared::new(
+            ArrayValue::new(vec![1, 2], ArrayData::F64(vec![-1e-200; 2])).unwrap(),
+        ));
+        let single = product(one_row, b);
+        for (slice, tile) in single.iter().zip(&whole) {
+            assert_eq!(slice.to_bits(), tile.to_bits());
+        }
+        assert_eq!(whole[0].to_bits(), 0.0f64.to_bits());
+    }
+
+    #[test]
+    fn matmul_widening_copies_of_float32_operands_are_charged() {
+        let (a, b) = (
+            array(ElementType::F32, vec![16, 16], |i| i as i64 % 7),
+            array(ElementType::F32, vec![16, 16], |i| i as i64 % 5),
+        );
+        let output = array_bytes(ElementType::F32, 2, 256);
+        // Float32 operands are widened to f64 copies, so the same limit as the Float64 case
+        // (output plus accumulator) is no longer enough.
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Matmul,
+            ElementType::F32,
+            vec![a, b],
+            output + 256 * 8,
+            &used,
+        );
+        assert_limit(result, "matmul widened copies");
+        assert_eq!(used.get(), output);
+    }
+
+    #[test]
+    fn sort_and_argsort_index_vectors_are_charged() {
+        for (function, out_element) in [
+            (ArrayFunction::Sort, ElementType::I64),
+            (ArrayFunction::Argsort, ElementType::I64),
+        ] {
+            let a = array(ElementType::I64, vec![512], |i| (i as i64 * 7919) % 513);
+            let output = array_bytes(out_element, 1, 512);
+            let used = Cell::new(0);
+            let result = run(function, ElementType::I64, vec![a], output, &used);
+            assert_limit(result, "sort index vector");
+        }
+    }
+
+    #[test]
+    fn factorize_hash_table_is_released() {
+        let a = array(ElementType::I64, vec![256], |i| i as i64);
+        let output = array_bytes(ElementType::I64, 1, 256);
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Factorize,
+            ElementType::I64,
+            vec![a],
+            1 << 30,
+            &used,
+        );
+        assert!(result.is_ok());
+        assert_eq!(used.get(), output, "only the output stays charged");
+    }
+
+    /// A product with a single row or column is summed the way every element of a larger
+    /// product is: in order of k, each step fused. So a slice of a product equals the matching
+    /// part of the whole product to the last bit.
+    #[test]
+    fn a_single_row_or_column_matches_the_same_part_of_the_whole_product() {
+        let value = |index: usize, salt: usize| {
+            ((index * 7919 + salt * 104_729) % 100_003) as f64 / 99_991.0 - 0.37
+        };
+        let matrix = |rows: usize, columns: usize, salt: usize| {
+            Value::Array(Shared::new(
+                ArrayValue::new(
+                    vec![rows, columns],
+                    ArrayData::F64((0..rows * columns).map(|i| value(i, salt)).collect()),
+                )
+                .unwrap(),
+            ))
+        };
+        for (n, k, m) in [(9, 61, 7), (5, 600, 4)] {
+            let (a, b) = (matrix(n, k, 1), matrix(k, m, 2));
+            let multiply = |left: Value, right: Value| {
+                let used = Cell::new(0usize);
+                match run(
+                    ArrayFunction::Matmul,
+                    ElementType::F64,
+                    vec![left, right],
+                    1 << 30,
+                    &used,
+                ) {
+                    Ok(Value::Array(product)) => match &product.data {
+                        ArrayData::F64(items) => items.clone(),
+                        _ => panic!("not f64"),
+                    },
+                    other => panic!("matmul failed: {other:?}"),
+                }
+            };
+            let whole = multiply(a.clone(), b.clone());
+            // Each row on its own.
+            for row in 0..n {
+                let Value::Array(source) = &a else {
+                    unreachable!()
+                };
+                let ArrayData::F64(items) = &source.data else {
+                    unreachable!()
+                };
+                let single = Value::Array(Shared::new(
+                    ArrayValue::new(
+                        vec![1, k],
+                        ArrayData::F64(items[row * k..(row + 1) * k].to_vec()),
+                    )
+                    .unwrap(),
+                ));
+                assert_eq!(
+                    multiply(single, b.clone()),
+                    whole[row * m..(row + 1) * m].to_vec(),
+                    "row {row}"
+                );
+            }
+            // Each column on its own.
+            for column in 0..m {
+                let Value::Array(source) = &b else {
+                    unreachable!()
+                };
+                let ArrayData::F64(items) = &source.data else {
+                    unreachable!()
+                };
+                let single = Value::Array(Shared::new(
+                    ArrayValue::new(
+                        vec![k, 1],
+                        ArrayData::F64((0..k).map(|p| items[p * m + column]).collect()),
+                    )
+                    .unwrap(),
+                ));
+                let got = multiply(a.clone(), single);
+                let want: Vec<f64> = (0..n).map(|row| whole[row * m + column]).collect();
+                assert_eq!(got, want, "column {column}");
+            }
+        }
+    }
+
+    #[test]
+    fn factorize_charges_each_new_key_and_gives_the_charge_back_on_failure() {
+        let a = array(ElementType::I64, vec![256], |i| i as i64);
+        let output = array_bytes(ElementType::I64, 1, 256);
+        // Room for ten keys: the eleventh is refused, and what was held is released.
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Factorize,
+            ElementType::I64,
+            vec![a],
+            output + 48 * 10,
+            &used,
+        );
+        assert_limit(result, "factorize keys");
+        assert_eq!(
+            used.get(),
+            output,
+            "a failed factorize leaves only its output"
+        );
+    }
+
+    #[test]
+    fn join_index_tables_are_charged_and_released() {
+        let left = array(ElementType::I64, vec![128], |i| i as i64 % 40);
+        let right = array(ElementType::I64, vec![128], |i| i as i64 % 40);
+        let args = || vec![left.clone(), right.clone(), Value::Bool(false)];
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::JoinIndex,
+            ElementType::I64,
+            args(),
+            1 << 30,
+            &used,
+        );
+        let Ok(Value::Array(out)) = result else {
+            panic!("join_index failed");
+        };
+        assert_eq!(used.get(), array_bytes(ElementType::I64, 1, out.size()));
+        // A budget that holds the output but not the tables raises the limit.
+        let tight = Cell::new(0);
+        let result = run(
+            ArrayFunction::JoinIndex,
+            ElementType::I64,
+            args(),
+            array_bytes(ElementType::I64, 1, out.size()),
+            &tight,
+        );
+        assert_limit(result, "join_index");
+    }
+
+    #[test]
+    fn a_thousand_argsorts_under_a_small_budget_complete() {
+        let a = array(ElementType::I64, vec![64], |i| (i as i64 * 31) % 64);
+        let output = array_bytes(ElementType::I64, 1, 64);
+        let temporary = 64 * 8;
+        let used = Cell::new(0usize);
+        let peak = Cell::new(0usize);
+        for _ in 0..1000 {
+            let mut charge = |bytes: usize| {
+                if used.get().saturating_add(bytes) > output + temporary {
+                    return Err(("R_ALLOCATION_LIMIT", "limit".to_string()));
+                }
+                used.set(used.get() + bytes);
+                peak.set(peak.get().max(used.get()));
+                Ok(())
+            };
+            let mut release = |bytes: usize| used.set(used.get() - bytes);
+            let result = crate::array::apply(
+                ArrayFunction::Argsort,
+                ElementType::I64,
+                &mut [a.clone()],
+                &mut charge,
+                &mut release,
+            );
+            assert!(result.is_ok(), "argsort ran out of budget");
+            // The kernel releases its own temporary. Its output stays charged until the
+            // owner of the budget reclaims it, which the loop stands in for here (the command
+            // line does it by measuring live memory).
+            assert_eq!(used.get(), output, "the temporary must be released");
+            used.set(used.get() - output);
+        }
+        assert_eq!(
+            peak.get(),
+            output + temporary,
+            "the temporary is charged while the kernel runs"
+        );
+    }
 }

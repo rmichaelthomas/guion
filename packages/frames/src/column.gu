@@ -45,9 +45,26 @@ pub fn column_from_f64(name: Text, values: Array[f64], valid: Array[bool]) -> Co
 pub fn column_from_bool(name: Text, values: Array[bool], valid: Array[bool]) -> Column:
     return Column(name, "bool", no_ints(), no_floats(), values, no_ints(), no_texts(), tidy_valid(valid))
 
-# A text column from codes into `dictionary`; a missing slot holds code 0.
-pub fn column_from_codes(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Column:
+# A text column from codes known to be in range.
+fn text_column(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Column:
     return Column(name, "text", no_ints(), no_floats(), no_flags(), codes, dictionary, tidy_valid(valid))
+
+# A text column from codes into `dictionary`; a missing slot holds code 0 (whatever code is
+# passed there is replaced by 0). A present row whose code is outside `0..len(dictionary)`,
+# or a mask of a different length from the codes, is `E_FRAME_SHAPE`.
+pub fn column_from_codes(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Result[Column, StdError]:
+    let count = array_size(codes)
+    if array_size(valid) != 0 and array_size(valid) != count:
+        return Err(frame_error("E_FRAME_SHAPE", "column `" + name + "` has " + int_to_text(count) + " codes and a mask of " + int_to_text(array_size(valid)) + " values"))
+    var outside = array_or(array_lt_scalar(codes, 0), array_ge_scalar(codes, len(dictionary)))
+    if array_size(valid) != 0:
+        set outside = array_and(outside, valid)
+    if array_any(outside):
+        let row = array_argmax(array_to_i64(outside))
+        return Err(frame_error("E_FRAME_SHAPE", "column `" + name + "` row " + int_to_text(row) + " has code " + int_to_text(array_get(codes, row)) + ", outside the dictionary of " + int_to_text(len(dictionary))))
+    if array_size(valid) != 0:
+        return Ok(text_column(name, array_where(valid, codes, array_i64_zeros([count])), dictionary, valid))
+    return Ok(text_column(name, codes, dictionary, valid))
 
 pub fn column_i64(name: Text, values: List[Int]) -> Column:
     return column_from_i64(name, array_i64(values), no_flags())
@@ -70,7 +87,7 @@ pub fn column_text(name: Text, values: List[Text]) -> Column:
                 set seen = map_set(seen, value, len(dictionary))
                 set codes = list_push(codes, len(dictionary))
                 set dictionary = list_push(dictionary, value)
-    return column_from_codes(name, array_i64(codes), dictionary, no_flags())
+    return text_column(name, array_i64(codes), dictionary, no_flags())
 
 pub fn column_i64_opt(name: Text, values: List[Option[Int]]) -> Column:
     var items: List[Int] = []
@@ -117,7 +134,7 @@ pub fn column_text_opt(name: Text, values: List[Option[Text]]) -> Column:
             None:
                 set codes = list_push(codes, 0)
                 set valid = list_push(valid, false)
-    return column_from_codes(name, array_i64(codes), dictionary, array_bool(valid))
+    return text_column(name, array_i64(codes), dictionary, array_bool(valid))
 
 pub fn column_name(column: Column) -> Text:
     return column.name
@@ -214,12 +231,59 @@ pub fn column_get_text(column: Column, row: Int) -> Option[Text]:
         return no_text()
     return some_text(column.dictionary[array_get(column.codes, row)])
 
-# Float text that always reads back as a float: `1` becomes `1.0`.
+# The text of a float that always reads back as a float: `1` becomes `1.0`, and a magnitude of
+# 1e16 or more or (other than zero) under 1e-4 is in shortest exponent form (`1e+20`,
+# `1.5e-07`), as Python's `repr` writes it.
 pub fn float_cell(value: Float64) -> Text:
     let text = float_to_text(value)
-    if text_find(text, ".", 0) >= 0 or text_find(text, "e", 0) >= 0 or text_find(text, "E", 0) >= 0:
+    if text_find(text, "e", 0) >= 0 or text_find(text, "E", 0) >= 0:
         return text
-    return text + ".0"
+    # The common case, a plain decimal between 1e-4 and 1e16 (or zero), needs no rewriting.
+    var size = value
+    if size < 0.0:
+        set size = -size
+    if size == 0.0 or (size >= 0.0001 and size < 1.0e16):
+        if text_find(text, ".", 0) >= 0:
+            return text
+        return text + ".0"
+    var sign = ""
+    var plain = text
+    if text_slice(text, 0, 1) == "-":
+        set sign = "-"
+        set plain = text_slice(text, 1, len(text))
+    let dot = text_find(plain, ".", 0)
+    var whole = plain
+    var fraction = ""
+    if dot >= 0:
+        set whole = text_slice(plain, 0, dot)
+        set fraction = text_slice(plain, dot + 1, len(plain))
+    var digits = whole + fraction
+    var exponent = len(whole) - 1
+    var lead = 0
+    while lead < len(digits) - 1 and text_slice(digits, lead, lead + 1) == "0":
+        set lead = lead + 1
+    set exponent = exponent - lead
+    set digits = text_slice(digits, lead, len(digits))
+    var end = len(digits)
+    while end > 1 and text_slice(digits, end - 1, end) == "0":
+        set end = end - 1
+    set digits = text_slice(digits, 0, end)
+    if digits == "0" or (exponent < 16 and exponent >= -4):
+        if dot >= 0:
+            return text
+        return text + ".0"
+    var mantissa = text_slice(digits, 0, 1)
+    if len(digits) > 1:
+        set mantissa = mantissa + "." + text_slice(digits, 1, len(digits))
+    var magnitude = exponent
+    var exponent_sign = "+"
+    if exponent < 0:
+        set magnitude = -exponent
+        set exponent_sign = "-"
+    var exponent_text = int_to_text(magnitude)
+    if magnitude < 10:
+        set exponent_text = "0" + exponent_text
+    return sign + mantissa + "e" + exponent_sign + exponent_text
 
 # The value at `row` as display text; `NA` when missing.
 pub fn column_cell_text(column: Column, row: Int) -> Text:
@@ -248,7 +312,7 @@ pub fn column_take(column: Column, rows: Array[i64]) -> Column:
         return column_from_f64(column.name, array_take(column.floats, rows), take_mask(column.valid, rows))
     if column.kind == "bool":
         return column_from_bool(column.name, array_take(column.flags, rows), take_mask(column.valid, rows))
-    return column_from_codes(column.name, array_take(column.codes, rows), column.dictionary, take_mask(column.valid, rows))
+    return text_column(column.name, array_take(column.codes, rows), column.dictionary, take_mask(column.valid, rows))
 
 # Rows by index where -1 gives a missing value (unmatched rows of a left join).
 pub fn column_take_or_missing(column: Column, rows: Array[i64]) -> Column:
@@ -264,7 +328,7 @@ pub fn column_take_or_missing(column: Column, rows: Array[i64]) -> Column:
             return column_from_f64(column.name, array_f64_zeros([count]), valid)
         if column.kind == "bool":
             return column_from_bool(column.name, array_bool_zeros([count]), valid)
-        return column_from_codes(column.name, array_i64_zeros([count]), column.dictionary, valid)
+        return text_column(column.name, array_i64_zeros([count]), column.dictionary, valid)
     let safe = array_clip(rows, 0, column_len(column) - 1)
     let taken = column_take(column, safe)
     let valid = array_and(found, column_valid(taken))
@@ -274,7 +338,7 @@ pub fn column_take_or_missing(column: Column, rows: Array[i64]) -> Column:
         return column_from_f64(column.name, array_where(found, taken.floats, array_f64_zeros([count])), valid)
     if taken.kind == "bool":
         return column_from_bool(column.name, array_where(found, taken.flags, array_bool_zeros([count])), valid)
-    return column_from_codes(column.name, array_where(found, taken.codes, array_i64_zeros([count])), column.dictionary, valid)
+    return text_column(column.name, array_where(found, taken.codes, array_i64_zeros([count])), column.dictionary, valid)
 
 fn filter_mask(valid: Array[bool], mask: Array[bool]) -> Array[bool]:
     if array_size(valid) == 0:
@@ -288,7 +352,7 @@ pub fn column_filter(column: Column, mask: Array[bool]) -> Column:
         return column_from_f64(column.name, array_filter(column.floats, mask), filter_mask(column.valid, mask))
     if column.kind == "bool":
         return column_from_bool(column.name, array_filter(column.flags, mask), filter_mask(column.valid, mask))
-    return column_from_codes(column.name, array_filter(column.codes, mask), column.dictionary, filter_mask(column.valid, mask))
+    return text_column(column.name, array_filter(column.codes, mask), column.dictionary, filter_mask(column.valid, mask))
 
 fn kind_error(column: Column, wanted: Text) -> StdError:
     return frame_error("E_FRAME_KIND", "column `" + column.name + "` is " + column.kind + ", expected " + wanted)

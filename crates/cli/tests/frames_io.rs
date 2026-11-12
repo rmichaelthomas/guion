@@ -76,7 +76,7 @@ fn csv_kinds_are_inferred_from_every_value() {
     );
     assert_eq!(
         stdout(&app),
-        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:i64:3 n:f64:0 \n1|true|x\nNA\n1.0\n1.0\n"
+        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:text:3 n:f64:0 \n1|true|x\nNA\n1.0\n1.0\n"
     );
 }
 
@@ -95,14 +95,20 @@ fn csv_errors_name_the_line_and_column() {
     let out = stdout(&app);
     let lines: Vec<&str> = out.lines().collect();
     assert!(
-        lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 3"),
+        lines[0].starts_with("E_FRAME_PARSE")
+            && lines[0].contains("ragged.csv")
+            && lines[0].contains("line 3"),
         "{out}"
     );
-    assert!(lines[1].starts_with("E_FRAME_PARSE"), "{out}");
+    assert!(
+        lines[1].starts_with("E_FRAME_PARSE") && lines[1].contains("empty.csv"),
+        "{out}"
+    );
     assert!(lines[2].starts_with("E_FRAME_COLUMN"), "{out}");
     assert!(lines[3].starts_with("R_FILE_NOT_FOUND"), "{out}");
     assert!(
         lines[4].starts_with("E_FRAME_PARSE")
+            && lines[4].contains("people.csv")
             && lines[4].contains("line 2")
             && lines[4].contains("`name`"),
         "{out}"
@@ -124,7 +130,7 @@ fn csv_round_trips_kinds_values_and_missing_values() {
     );
     assert_eq!(
         stdout(&app),
-        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:i64:3 n:f64:0 \ntrue\n"
+        "3\nid:i64:0 score:f64:1 flag:bool:0 name:text:1 big:f64:0 mixed:text:0 blank:text:3 n:f64:0 \ntrue\n"
     );
     let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
     assert_eq!(
@@ -164,7 +170,7 @@ fn many_rows_cross_reading_chunks() {
 }
 
 #[test]
-fn jsonl_columns_come_from_the_first_object() {
+fn jsonl_columns_are_the_keys_of_every_object() {
     let app = app(
         "jsonl",
         &[(
@@ -175,13 +181,28 @@ fn jsonl_columns_come_from_the_first_object() {
     );
     let out = stdout(&app);
     let lines: Vec<&str> = out.lines().collect();
-    assert_eq!(lines[0], "a:f64:0 b:text:1 c:f64:1 ");
+    assert_eq!(lines[0], "a:f64:0 b:text:1 c:f64:1 d:bool:2 ");
     assert_eq!(lines[1], "1.0");
     assert_eq!(lines[2], "y");
     assert!(
         lines[3].starts_with("E_FRAME_PARSE") && lines[3].contains("line 2"),
         "{out}"
     );
+}
+
+// A line with as many keys as the columns so far, but one of them new, still adds its column; a
+// line that repeats the same keys adds none.
+#[test]
+fn jsonl_a_line_with_the_same_number_of_keys_but_a_new_one_adds_a_column() {
+    let app = app(
+        "jsonl-same-count",
+        &[(
+            "rows.jsonl",
+            "{\"a\": 1, \"b\": 2}\n{\"a\": 3, \"b\": 4}\n{\"a\": 5, \"c\": 6}\n{\"b\": 7, \"a\": 8}\n",
+        )],
+        "let frame = unwrap(frame_read_jsonl(\"rows.jsonl\"))\nprint(kinds(frame))\nprint(frame_rows(frame))",
+    );
+    assert_eq!(stdout(&app), "a:i64:0 b:i64:1 c:i64:3 \n4\n");
 }
 
 #[test]
@@ -238,13 +259,13 @@ fn jsonl_line_that_is_not_an_object_is_a_parse_error() {
 }
 
 #[test]
-fn csv_blank_lines_are_skipped() {
+fn csv_blank_lines_are_skipped_except_in_a_one_column_file() {
     let app = app(
         "blank",
         &[("wide.csv", "a,b\n1,2\n\n3,4\n\n"), ("narrow.csv", "a\n1\n\n2\n")],
-        "print(frame_rows(unwrap(frame_read_csv(\"wide.csv\"))))\nprint(kinds(unwrap(frame_read_csv(\"narrow.csv\"))))",
+        "print(frame_rows(unwrap(frame_read_csv(\"wide.csv\"))))\nprint(frame_rows(unwrap(frame_read_csv(\"narrow.csv\"))))",
     );
-    assert_eq!(stdout(&app), "2\na:i64:0 \n");
+    assert_eq!(stdout(&app), "2\n3\n");
 }
 
 #[test]
@@ -255,4 +276,144 @@ fn csv_byte_order_mark_is_not_part_of_the_first_name() {
         "print(text_join_native(frame_names(unwrap(frame_read_csv(\"bom.csv\"))), \"|\"))",
     );
     assert_eq!(stdout(&app), "a|b\n");
+}
+
+#[test]
+fn csv_empty_text_round_trips_distinct_from_missing() {
+    let app = app(
+        "emptytext",
+        &[("in.csv", "name,n\nann,1\n\"\",2\n,3\nbob,\n")],
+        "let frame = unwrap(frame_read_csv(\"in.csv\"))\nlet name = unwrap(frame_column(frame, \"name\"))\nprint(column_missing(name))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nlet back = unwrap(frame_column(again, \"name\"))\nprint(column_missing(back))\nprint(array_to_list(column_valid(back)) == array_to_list(column_valid(name)))\nprint(frame_show(again, 10) == frame_show(frame, 10))",
+    );
+    assert_eq!(stdout(&app), "1\n4\n1\ntrue\ntrue\n");
+    let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
+    assert_eq!(written, "name,n\nann,1\n\"\",2\n,3\nbob,\n");
+}
+
+#[test]
+fn csv_reads_files_above_a_small_max_file_bytes() {
+    let mut csv = String::from("k,t\n");
+    for row in 0..2_000 {
+        csv.push_str(&format!("{row},value-{}\n", row % 13));
+    }
+    let app = app(
+        "smalllimit",
+        &[("big.csv", &csv)],
+        "let frame = unwrap(frame_read_csv(\"big.csv\"))\nprint(frame_rows(frame))\nprint(column_sum(unwrap(frame_column(frame, \"k\"))))",
+    );
+    let manifest = app.0.join("guion.toml");
+    let mut toml = std::fs::read_to_string(&manifest).unwrap();
+    toml.push_str("\n[runtime]\nmax_file_bytes = 4096\n");
+    std::fs::write(&manifest, toml).unwrap();
+    assert!(csv.len() > 4096);
+    assert_eq!(stdout(&app), "2000\n1999000\n");
+}
+
+#[test]
+fn show_aligns_wide_characters_by_display_width() {
+    let app = app(
+        "show-width",
+        &[],
+        "let frame = unwrap(frame_new([column_text(\"t\", [\"日本\", \"ab\", \"e\\u{301}\", \"a\\nb\", \"c\\td\"]), column_i64(\"n\", [1, 2, 3, 4, 5])]))\nprint(frame_show(frame, 10))",
+    );
+    assert_eq!(
+        stdout(&app),
+        concat!(
+            "t     n\n",
+            "日本  1\n",
+            "ab    2\n",
+            "e\u{301}     3\n",
+            "a\\nb  4\n",
+            "c\\td  5\n",
+            "[5 rows x 2 columns]\n",
+        )
+    );
+}
+
+// Emoji that are two columns wide in a terminal but lie outside the CJK blocks: the transport
+// and symbol blocks, the Unicode 12 to 15 additions, and the single wide symbols in the BMP.
+#[test]
+fn show_aligns_every_wide_emoji_by_display_width() {
+    let app = app(
+        "show-emoji",
+        &[],
+        "let frame = unwrap(frame_new([column_text(\"t\", [\"\u{1F680}\", \"\u{2705}\", \"\u{2B50}\", \"\u{1F7E0}\", \"\u{1FA70}\", \"\u{26A1}\", \"\u{1F947}\", \"ab\", \"\u{2764}\"]), column_i64(\"n\", [1, 2, 3, 4, 5, 6, 7, 8, 9])]))\nprint(frame_show(frame, 20))",
+    );
+    // Each of the first seven cells is two columns wide, like `ab`; U+2764 (a text-style
+    // heart) is one column wide.
+    assert_eq!(
+        stdout(&app),
+        concat!(
+            "t   n\n",
+            "\u{1F680}  1\n",
+            "\u{2705}  2\n",
+            "\u{2B50}  3\n",
+            "\u{1F7E0}  4\n",
+            "\u{1FA70}  5\n",
+            "\u{26A1}  6\n",
+            "\u{1F947}  7\n",
+            "ab  8\n",
+            "\u{2764}   9\n",
+            "[9 rows x 2 columns]\n",
+        )
+    );
+}
+
+#[test]
+fn csv_writes_extreme_floats_in_exponent_form_that_reads_back() {
+    let app = app(
+        "exponent",
+        &[],
+        "let values = [1e20, 1.5e-7, 0.0, 1e16, 0.0001, 0.00001, -2.5e-10, 1e300, 123456789012345680.0, 1.0, 1234.5, -1e22]\nlet frame = unwrap(frame_new([column_f64(\"x\", values)]))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nlet x = unwrap(frame_column(again, \"x\"))\nprint(column_kind(x))\nprint(array_to_list(column_floats(x)) == values)",
+    );
+    assert_eq!(stdout(&app), "12\nf64\ntrue\n");
+    let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
+    assert_eq!(
+        written,
+        "x\n1e+20\n1.5e-07\n0.0\n1e+16\n0.0001\n1e-05\n-2.5e-10\n1e+300\n1.2345678901234568e+17\n1.0\n1234.5\n-1e+22\n"
+    );
+}
+
+#[test]
+fn jsonl_keys_that_first_appear_later_become_columns() {
+    let app = app(
+        "jsonl-union",
+        &[(
+            "rows.jsonl",
+            "{\"b\": 1, \"a\": 2}\n{\"a\": 3, \"z\": \"s\", \"c\": true}\n{\"y\": 1.5, \"b\": 4}\n",
+        )],
+        "let frame = unwrap(frame_read_jsonl(\"rows.jsonl\"))\nprint(text_join_native(frame_names(frame), \"|\"))\nprint(kinds(frame))\nprint(column_cell_text(unwrap(frame_column(frame, \"z\")), 0) + \"|\" + column_cell_text(unwrap(frame_column(frame, \"z\")), 1))",
+    );
+    assert_eq!(
+        stdout(&app),
+        "a|b|c|z|y\na:i64:1 b:i64:1 c:bool:2 z:text:2 y:f64:2 \nNA|s\n"
+    );
+}
+
+#[test]
+fn a_one_column_csv_keeps_a_missing_value_through_a_round_trip() {
+    let app = app(
+        "one-column",
+        &[("in.csv", "n\n1\n\n3\n")],
+        "let frame = unwrap(frame_read_csv(\"in.csv\"))\nprint(frame_rows(frame))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nprint(frame_rows(again))\nprint(column_missing(unwrap(frame_column(again, \"n\"))))\nprint(frame_show(again, 10) == frame_show(frame, 10))",
+    );
+    assert_eq!(stdout(&app), "3\n3\n3\n1\ntrue\n");
+}
+
+#[test]
+fn a_one_column_frame_keeps_a_missing_first_or_last_row_through_a_round_trip() {
+    let app = app(
+        "one-column-edges",
+        &[],
+        "let last = unwrap(frame_new([column_i64_opt(\"n\", [si(1), si(2), no()])]))\nlet first = unwrap(frame_new([column_i64_opt(\"n\", [no(), si(2), si(3)])]))\nprint(unwrap(frame_write_csv(last, \"last.csv\")))\nprint(unwrap(frame_write_csv(first, \"first.csv\")))\nlet a = unwrap(frame_read_csv(\"last.csv\"))\nlet b = unwrap(frame_read_csv(\"first.csv\"))\nprint(frame_rows(a))\nprint(frame_rows(b))\nprint(array_to_list(column_valid(unwrap(frame_column(a, \"n\")))))\nprint(array_to_list(column_valid(unwrap(frame_column(b, \"n\")))))",
+    );
+    let mut source = std::fs::read_to_string(app.0.join("src/main.gu")).unwrap();
+    source.push_str("\nfn si(value: Int) -> Option[Int]:\n    return Some(value)\n\nfn no() -> Option[Int]:\n    return None\n");
+    std::fs::write(app.0.join("src/main.gu"), source).unwrap();
+    assert_eq!(
+        stdout(&app),
+        "3\n3\n3\n3\n[true, true, false]\n[false, true, true]\n"
+    );
+    let written = std::fs::read_to_string(app.0.join("last.csv")).unwrap();
+    assert_eq!(written, "n\n1\n2\n\n");
 }

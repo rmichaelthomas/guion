@@ -2,7 +2,10 @@
 use std::{
     collections::{HashMap, HashSet},
     path::{Component, Path, PathBuf},
-    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 
@@ -1416,7 +1419,14 @@ impl Drop for IcalText {
     }
 }
 
+/// libical fills its time zone tables, which are process-wide, the first time a zone is named, and
+/// it does not protect them. Calls into it are taken one at a time.
+static ICAL_ACCESS: Mutex<()> = Mutex::new(());
+
 pub fn calendar_parse(source: &str) -> Result<Vec<CalendarEvent>, ServiceError> {
+    let _one_at_a_time = ICAL_ACCESS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if source.len() > 16 * 1024 * 1024 {
         return Err(ServiceError::new(
             "E_ICAL_LIMIT",

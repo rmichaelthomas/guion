@@ -870,6 +870,36 @@ fn valid_type(type_node: Json, records: List[RecordSignature]) -> Bool:
         return count == 2 and valid_type(json_index(arguments, 0), records) and valid_type(json_index(arguments, 1), records)
     return false
 
+# The failure for an element type name written outside `Array[...]`, or for something other
+# than an element type inside it; null when the type has neither problem.
+fn element_type_failure(type_node: Json, records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    let name = json_as_text(json_get(type_node, "name"))
+    let arguments = json_get(type_node, "arguments")
+    let count = json_len(arguments)
+    if count == 0 and record_index(records, name) < 0 and array_element_scalar(name) != "":
+        return failure_at_node("E_TYPE_UNKNOWN", "unknown type `" + name + "`; element types are only valid inside Array[...]", type_node, source_name, source, len(name))
+    if name == "Array" and count == 1:
+        let element = json_index(arguments, 0)
+        let element_name = json_as_text(json_get(element, "name"))
+        if json_len(json_get(element, "arguments")) == 0 and array_element_scalar(element_name) != "":
+            return json_null()
+        if json_len(json_get(element, "arguments")) == 0 and not known_primitive_type(element_name) and record_index(records, element_name) < 0:
+            return failure_at_node("E_TYPE_UNKNOWN", "unknown type `" + element_name + "`", element, source_name, source, len(element_name))
+        var inner = 0
+        while element_name != "Array" and inner < json_len(json_get(element, "arguments")):
+            let inside = element_type_failure(json_index(json_get(element, "arguments"), inner), records, source_name, source)
+            if not json_is_null(inside):
+                return inside
+            set inner = inner + 1
+        return failure_at_node("E_TYPE_ANNOTATION", "Array element type must be one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool", element, source_name, source, len(element_name))
+    var cursor = 0
+    while cursor < count:
+        let nested = element_type_failure(json_index(arguments, cursor), records, source_name, source)
+        if not json_is_null(nested):
+            return nested
+        set cursor = cursor + 1
+    return json_null()
+
 fn python_bridge_type(type_node: Json) -> Bool:
     let name = json_as_text(json_get(type_node, "name"))
     let arguments = json_get(type_node, "arguments")
@@ -932,6 +962,19 @@ fn is_local_json_set(value: Json, name: Text) -> Bool:
     if json_as_text(json_get(value, "kind")) != "Call":
         return false
     if json_as_text(json_get(value, "callee")) != "json_set":
+        return false
+    let arguments = json_get(value, "arguments")
+    if json_len(arguments) != 3:
+        return false
+    let first = json_index(arguments, 0)
+    return json_as_text(json_get(first, "kind")) == "Name" and json_as_text(json_get(first, "text")) == name
+
+fn is_local_array_set(value: Json, name: Text) -> Bool:
+    if json_as_text(json_get(value, "kind")) != "Call":
+        return false
+    if json_as_text(json_get(value, "callee")) != "array_set":
+        return false
+    if json_len(json_get(value, "keywords")) != 0:
         return false
     let arguments = json_get(value, "arguments")
     if json_len(arguments) != 3:
@@ -1398,19 +1441,28 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
                 set next_code = append_code(code, expression_code(item))
                 set next_code = append_code(next_code, singleton(ir_integer("JsonPushLocal", "local", slot)))
             else:
-                if is_local_list_push(value_node, name):
+                if array_tag(local_type(locals, name)) != "" and is_local_array_set(value_node, name):
                     let arguments = json_get(value_node, "arguments")
-                    let item_type = list_element_type(local_type(locals, name), records)
-                    let item = expression(json_index(arguments, 1), state, functions, records, item_type)
-                    set next_code = append_code(code, expression_code(item))
-                    set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+                    let tag = array_tag(local_type(locals, name))
+                    let index = expression(json_index(arguments, 1), state, functions, records, "Int")
+                    let item = expression(json_index(arguments, 2), state, functions, records, array_element_scalar(tag))
+                    set next_code = append_code(code, expression_code(index))
+                    set next_code = append_code(next_code, expression_code(item))
+                    set next_code = append_code(next_code, singleton(ir_integer("ArraySetLocal", "local", slot)))
                 else:
-                    var value_tree = value_node
-                    if local_type(locals, name) == "Text":
-                        set value_tree = regroup_local_text_append(value_node, name)
-                    let value = expression(value_tree, state, functions, records, local_type(locals, name))
-                    set next_code = append_code(code, expression_code(value))
-                    set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
+                    if is_local_list_push(value_node, name):
+                        let arguments = json_get(value_node, "arguments")
+                        let item_type = list_element_type(local_type(locals, name), records)
+                        let item = expression(json_index(arguments, 1), state, functions, records, item_type)
+                        set next_code = append_code(code, expression_code(item))
+                        set next_code = append_code(next_code, singleton(ir_integer("ListPushLocal", "local", slot)))
+                    else:
+                        var value_tree = value_node
+                        if local_type(locals, name) == "Text":
+                            set value_tree = regroup_local_text_append(value_node, name)
+                        let value = expression(value_tree, state, functions, records, local_type(locals, name))
+                        set next_code = append_code(code, expression_code(value))
+                        set next_code = append_code(next_code, singleton(ir_integer("Store", "local", slot)))
         return state_with_code(state, next_code)
     if kind == "Return":
         var next_code = append_code(code, expression_code(expression(json_get(statement, "value"), state, functions, records, state.return_type)))
@@ -2346,9 +2398,11 @@ fn find_type_error_in_block(statements: Json, state: CompilerState, functions: L
             let annotation = json_get(statement, "annotation")
             var expected = ""
             if not json_is_null(annotation):
+                set failure = element_type_failure(annotation, records, source_name, source)
                 set expected = type_name(annotation, records)
             let value = json_get(statement, "value")
-            set failure = find_type_error_expression(value, current, functions, records, source_name, source, expected)
+            if json_is_null(failure):
+                set failure = find_type_error_expression(value, current, functions, records, source_name, source, expected)
             if json_is_null(failure):
                 let actual = expression_type(expression(value, current, functions, records, expected))
                 if expected != "" and actual != expected:
@@ -2575,6 +2629,9 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
         while field_cursor < json_len(fields):
             let field = json_index(fields, field_cursor)
             let field_type = json_get(field, "type")
+            let field_type_failure = element_type_failure(field_type, visible_records, record_source_name, record_source)
+            if not json_is_null(field_type_failure):
+                return field_type_failure
             if not valid_type(field_type, visible_records):
                 let unknown = json_as_text(json_get(field_type, "name"))
                 return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", field_type, record_source_name, record_source, len(unknown))
@@ -2600,6 +2657,9 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
                     return failure_at_node("E_NAME_DUPLICATE", "external parameter `" + parameter_name + "` is declared more than once", parameter, external_source_name, external_source, len(parameter_name))
                 set previous_parameter = previous_parameter + 1
             let parameter_type = json_get(parameter, "type")
+            let parameter_type_failure = element_type_failure(parameter_type, visible_records, external_source_name, external_source)
+            if not json_is_null(parameter_type_failure):
+                return parameter_type_failure
             if not valid_type(parameter_type, visible_records):
                 let unknown = json_as_text(json_get(parameter_type, "name"))
                 return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", parameter_type, external_source_name, external_source, len(unknown))
@@ -2607,6 +2667,9 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
                 return failure_at_node("E_EXTERN_TYPE", "external declarations support scalar values, Json, and nested List/Map values", parameter_type, external_source_name, external_source, len(json_as_text(json_get(parameter_type, "name"))))
             set external_parameter_cursor = external_parameter_cursor + 1
         let external_result = json_get(external, "result")
+        let external_result_failure = element_type_failure(external_result, visible_records, external_source_name, external_source)
+        if not json_is_null(external_result_failure):
+            return external_result_failure
         if not valid_type(external_result, visible_records):
             let unknown = json_as_text(json_get(external_result, "name"))
             return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", external_result, external_source_name, external_source, len(unknown))
@@ -2633,11 +2696,17 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
         while type_cursor < json_len(parameters):
             let parameter = json_index(parameters, type_cursor)
             let parameter_type = json_get(parameter, "type")
+            let parameter_type_failure = element_type_failure(parameter_type, visible_records, function_source_name, function_source)
+            if not json_is_null(parameter_type_failure):
+                return parameter_type_failure
             if not valid_type(parameter_type, visible_records):
                 let unknown = json_as_text(json_get(parameter_type, "name"))
                 return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", parameter_type, function_source_name, function_source, len(unknown))
             set type_cursor = type_cursor + 1
         let result_type_node = json_get(function, "result")
+        let result_type_failure = element_type_failure(result_type_node, visible_records, function_source_name, function_source)
+        if not json_is_null(result_type_failure):
+            return result_type_failure
         if not valid_type(result_type_node, visible_records):
             let unknown = json_as_text(json_get(result_type_node, "name"))
             return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", result_type_node, function_source_name, function_source, len(unknown))

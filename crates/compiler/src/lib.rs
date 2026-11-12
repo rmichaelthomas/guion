@@ -566,6 +566,7 @@ struct Program {
     externals: Vec<ExternalAst>,
     records: Vec<RecordAst>,
     imports: Vec<ImportAst>,
+    array_elements: Vec<(usize, String, Span)>,
 }
 #[derive(Clone, Debug)]
 struct ImportAst {
@@ -690,10 +691,16 @@ fn regroup_local_text_append(value: &Expr, name: &str) -> Option<Expr> {
     ))
 }
 
+const ARRAY_ELEMENT_TYPES_MESSAGE: &str =
+    "Array element type must be one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool";
+
 struct Parser {
     tokens: Vec<Token>,
     at: usize,
     module_id: usize,
+    /// Names written where an `Array[...]` element type belongs, with the module that wrote
+    /// them: a record name or an unknown one, told apart after every module is loaded.
+    array_elements: Vec<(usize, String, Span)>,
 }
 impl Parser {
     fn cur(&self) -> &Token {
@@ -743,20 +750,35 @@ impl Parser {
             "Json" => Ok(Type::Json),
             "Array" => {
                 self.expect("[")?;
-                let tag = self.name()?;
+                if self.cur().kind == Kind::Name {
+                    if let Some(element) = guion_model::ElementType::from_name(&self.cur().text) {
+                        self.advance();
+                        self.expect("]")?;
+                        return Ok(Type::Array(element));
+                    }
+                }
+                let inner_span = self.cur().span;
+                let inner = self.ty()?;
                 self.expect("]")?;
-                guion_model::ElementType::from_name(&tag.text)
-                    .map(Type::Array)
-                    .ok_or_else(|| {
-                        diagnostic(
-                            "E_TYPE_UNKNOWN",
-                            format!(
-                                "unknown array element type `{}`; use one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool",
-                                tag.text
-                            ),
-                            tag.span,
-                        )
-                    })
+                match inner {
+                    // Whether the name is a record is only known once every module is
+                    // loaded; `compile_program` reports it with the right code.
+                    Type::Record(name) => {
+                        self.array_elements.push((self.module_id, name, inner_span));
+                        // A placeholder: `Array[Bool]` is not a type a program can write, and
+                        // every name recorded above is checked after parsing, which always
+                        // fails (`E_TYPE_UNKNOWN` or `E_TYPE_ANNOTATION`). A parse path that
+                        // skipped that check would accept the program with this type, so
+                        // every route to a finished program must go through
+                        // `compile_program`.
+                        Ok(Type::Array(guion_model::ElementType::Bool))
+                    }
+                    _ => Err(diagnostic(
+                        "E_TYPE_ANNOTATION",
+                        ARRAY_ELEMENT_TYPES_MESSAGE,
+                        inner_span,
+                    )),
+                }
             }
             "List" => {
                 self.expect("[")?;
@@ -793,7 +815,19 @@ impl Parser {
                 self.expect("]")?;
                 Ok(Type::Result(Box::new(ok), Box::new(error)))
             }
-            _ => Ok(Type::Record(t.text)),
+            _ => {
+                if guion_model::ElementType::from_name(&t.text).is_some() {
+                    return Err(diagnostic(
+                        "E_TYPE_UNKNOWN",
+                        format!(
+                            "unknown type `{}`; element types are only valid inside Array[...]",
+                            t.text
+                        ),
+                        t.span,
+                    ));
+                }
+                Ok(Type::Record(t.text))
+            }
         }
     }
     fn record(&mut self, public: bool) -> Result<RecordAst, Diagnostic> {
@@ -991,6 +1025,7 @@ impl Parser {
             externals,
             records,
             imports,
+            array_elements: std::mem::take(&mut self.array_elements),
         })
     }
     fn parameters(&mut self) -> Result<Vec<(String, Type, Span)>, Diagnostic> {
@@ -1450,6 +1485,39 @@ impl<'a> FnCompiler<'a> {
                 .iter()
                 .any(|spec| spec.contains(variable))
         });
+        // Every type this signature can produce must resolve before any argument is compiled:
+        // returning `Ok(None)` after emitting argument code would leave that code behind.
+        if (variable.is_none() && fixed.is_none()) || args.len() != signature.parameters.len() {
+            return Ok(None);
+        }
+        let candidates: Vec<Option<guion_model::ElementType>> = match variable {
+            Some(variable) => guion_model::ElementType::ALL
+                .into_iter()
+                .filter(|element| {
+                    builtin_catalog::element_variable_accepts(variable, *element) == Some(true)
+                })
+                .map(Some)
+                .collect(),
+            None => vec![None],
+        };
+        for candidate in candidates {
+            let resolves = signature
+                .parameters
+                .iter()
+                .chain([&signature.result])
+                .all(|spec| {
+                    let spec = match (variable, candidate) {
+                        (Some(variable), Some(element)) => {
+                            builtin_catalog::substitute_element(spec, variable, element)
+                        }
+                        _ => spec.clone(),
+                    };
+                    builtin_catalog::concrete_type(&spec).is_some()
+                });
+            if !resolves {
+                return Ok(None);
+            }
+        }
         let mut bound: Option<guion_model::ElementType> = None;
         for (argument, spec) in args.iter().zip(&signature.parameters) {
             let expected = match (variable, bound) {
@@ -1500,9 +1568,8 @@ impl<'a> FnCompiler<'a> {
                 bound = Some(element);
                 continue;
             };
-            let Some(expected) = builtin_catalog::concrete_type(&expected) else {
-                return Ok(None);
-            };
+            let expected = builtin_catalog::concrete_type(&expected)
+                .expect("signature types were resolved before compiling arguments");
             let actual = self.expr_with_expected(argument, Some(&expected))?;
             if actual != expected {
                 return Err(diagnostic(
@@ -1512,18 +1579,17 @@ impl<'a> FnCompiler<'a> {
                 ));
             }
         }
-        let Some(element) = fixed.or(bound) else {
-            return Ok(None);
-        };
+        let element = fixed
+            .or(bound)
+            .expect("an array builtin has a fixed element or binds one from an argument");
         let result = match (variable, bound) {
             (Some(variable), Some(bound)) => {
                 builtin_catalog::substitute_element(&signature.result, variable, bound)
             }
             _ => signature.result.clone(),
         };
-        let Some(result) = builtin_catalog::concrete_type(&result) else {
-            return Ok(None);
-        };
+        let result = builtin_catalog::concrete_type(&result)
+            .expect("signature types were resolved before compiling arguments");
         self.emit(Op::Array(function, element), span);
         Ok(Some(result))
     }
@@ -3391,6 +3457,7 @@ fn parse_program(source: &str, source_id: u32) -> Result<Program, Diagnostic> {
         tokens,
         at: 0,
         module_id: source_id as usize,
+        array_elements: Vec::new(),
     }
     .program()
 }
@@ -3871,11 +3938,15 @@ fn compile_project_with_roots_inner(
         externals: Vec::new(),
         records: Vec::new(),
         imports: Vec::new(),
+        array_elements: Vec::new(),
     };
     for node in &nodes {
         program.functions.extend(node.program.functions.clone());
         program.externals.extend(node.program.externals.clone());
         program.records.extend(node.program.records.clone());
+        program
+            .array_elements
+            .extend(node.program.array_elements.clone());
     }
     let mut public_exports = HashMap::new();
     for module_id in 0..nodes.len() {
@@ -3982,6 +4053,13 @@ fn compile_program(
                 record.span,
             ));
         }
+    }
+    if let Some((module_id, name, span)) = program.array_elements.first() {
+        return Err(if scopes[module_id].records.contains(name) {
+            diagnostic("E_TYPE_ANNOTATION", ARRAY_ELEMENT_TYPES_MESSAGE, *span)
+        } else {
+            diagnostic("E_TYPE_UNKNOWN", format!("unknown type `{name}`"), *span)
+        });
     }
     for record in &program.records {
         let visible = &scopes[&record.module_id].records;

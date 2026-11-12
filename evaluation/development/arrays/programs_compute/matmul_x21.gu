@@ -1,0 +1,10 @@
+fn main() -> Unit:
+    let n = 512
+    let a = array_reshape(array_f64_linspace(0.0, 1.0, n * n), [n, n])
+    let b = array_reshape(array_f64_linspace(1.0, 2.0, n * n), [n, n])
+    var total = 0.0
+    var i = 0
+    while i < 21:
+        set total = total + array_sum(array_matmul(a, b))
+        set i = i + 1
+    print(total)

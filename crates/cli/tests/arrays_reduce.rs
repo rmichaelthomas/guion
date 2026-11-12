@@ -197,7 +197,7 @@ fn main() -> Unit:
         stdout,
         "[0, 3, 6, 9]\n[5, 3, 1]\n[]\n[0, 0.25, 0.5, 0.75, 1]\n[2]\ntrue\n[2, 3]\ntrue\ntrue\n-2.5000674933698677\n"
     );
-    assert!(error_of("range-step", "print(array_i64_range(0, 10, 0))").contains("R_ARRAY_SHAPE"));
+    assert!(error_of("range-step", "print(array_i64_range(0, 10, 0))").contains("R_ARRAY_ARGUMENT"));
     assert!(
         error_of("linspace-count", "print(array_f64_linspace(0.0, 1.0, -1))")
             .contains("R_ARRAY_SHAPE")

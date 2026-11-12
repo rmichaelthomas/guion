@@ -4,6 +4,19 @@ pub record CsvRow:
     start_line: Int
     fields: List[Text]
 
+# One column of a CSV file read by `csv_read_columns`. Only the storage for `kind` has the
+# column's length (for text, `codes` and `dictionary`); the others are empty. `valid` is true
+# where a value is present; a missing row holds 0, 0.0, false or code 0.
+pub record CsvColumn:
+    name: Text
+    kind: Text
+    ints: Array[i64]
+    floats: Array[f64]
+    flags: Array[bool]
+    codes: Array[i64]
+    dictionary: List[Text]
+    valid: Array[bool]
+
 pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]:
     return csv_open(path)
 

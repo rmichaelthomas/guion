@@ -25,6 +25,7 @@ use std::{
 
 pub mod array;
 mod array_compute;
+mod matmul;
 mod register;
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
@@ -2720,12 +2721,31 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     args[slot] = pop!();
                 }
                 let span = instruction.span;
+                // `set a = array_<fn>(a, ...)` stores straight back into the local it read.
+                // Releasing that local first leaves the kernel the only owner, so it can
+                // update the buffer in place; a variable that also holds the array keeps it.
+                // This relies on `Store` coming right after `Op::Array`; if they don't match, the only loss is the optimisation.
+                if let (Some(Op::Store(slot)), Value::Array(operand)) =
+                    (f.code.get(ip).map(|next| &next.op), &args[0])
+                {
+                    if matches!(&locals[*slot], Value::Array(local) if Shared::ptr_eq(local, operand))
+                    {
+                        drop_value_fast(std::mem::replace(&mut locals[*slot], Value::Unit));
+                    }
+                }
                 let mut charge = |bytes: usize| {
                     charge_allocation(budget.as_ref(), bytes, span)
                         .map_err(|error| ("R_ALLOCATION_LIMIT", error.message))
                 };
-                let result = array::apply(*function, *element, &mut args[..arity], &mut charge)
-                    .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
+                let mut release = |bytes: usize| budget.refund_allocation(bytes);
+                let result = array::apply(
+                    *function,
+                    *element,
+                    &mut args[..arity],
+                    &mut charge,
+                    &mut release,
+                )
+                .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
                 if !matches!(result, Value::Array(_)) {
                     if let Some(error) = value_limit_error(&result, limits, span) {
                         return Err(error);
@@ -5064,6 +5084,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CsvOpen => "CsvOpen",
         Op::CsvNext => "CsvNext",
         Op::CsvEncode => "CsvEncode",
+        Op::CsvReadColumns => "CsvReadColumns",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -5527,16 +5548,21 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
     }
 }
 
+/// Said at the end of every allocation-limit message, so the person who hits the limit
+/// learns which setting raises it.
+pub const ALLOCATION_LIMIT_HINT: &str =
+    "; raise `allocation_limit_bytes` under `[runtime]` in guion.toml";
+
 #[cold]
 pub fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
     let remaining = budget.allocation.remaining();
     let message = match live_memory() {
         Some(held) => format!(
-            "memory limit reached: {held} bytes in use of {} allowed (requested {bytes} more)",
+            "memory limit reached: {held} bytes in use of {} allowed (requested {bytes} more){ALLOCATION_LIMIT_HINT}",
             budget.allocation.limit()
         ),
         None => format!(
-            "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain)"
+            "cumulative allocation budget exhausted during this invocation (requested {bytes} bytes; {remaining} remain){ALLOCATION_LIMIT_HINT}"
         ),
     };
     RuntimeError::new("R_ALLOCATION_LIMIT", message, span)
@@ -8149,6 +8175,19 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 state
                     .stack
                     .push(Type::Result(Box::new(result), Box::new(Type::FileError)));
+            }
+            Op::CsvReadColumns => {
+                if pop_type(&mut state.stack, pc)? != Type::Map(Box::new(Type::Text))
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "csv_read_columns requires a Text path and Map[Text, Text] kinds at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::List(Box::new(Type::Record("CsvColumn".into())))),
+                    Box::new(Type::FileError),
+                ));
             }
             Op::CsvEncode => {
                 if pop_type(&mut state.stack, pc)?

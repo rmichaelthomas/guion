@@ -1013,3 +1013,591 @@ fn main() -> Int:
     assert_eq!(native.invoke("main", vec![]).unwrap(), expected);
     let _ = std::fs::remove_dir_all(root);
 }
+
+// ---- csv_read_columns -------------------------------------------------------------------
+
+const CSV_COLUMN_RECORDS: &str = r#"record FileReader:
+    owner: Int
+    id: Int
+record CsvRow:
+    start_line: Int
+    fields: List[Text]
+record CsvColumn:
+    name: Text
+    kind: Text
+    ints: Array[i64]
+    floats: Array[f64]
+    flags: Array[bool]
+    codes: Array[i64]
+    dictionary: List[Text]
+    valid: Array[bool]
+"#;
+
+/// Runs `main` of a program that may call `csv_read_columns`, with the given files in a fresh
+/// project root, once with machine code off and once with it on. The two outputs must match.
+fn run_csv_program(
+    tag: &str,
+    files: &[(&str, &[u8])],
+    source: &str,
+    adjust: impl Fn(&mut HostPolicy),
+) -> String {
+    let root = std::env::temp_dir().join(format!("guion-csv-columns-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    for (name, bytes) in files {
+        std::fs::write(root.join(name), bytes).unwrap();
+    }
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}"))
+        .unwrap_or_else(|error| panic!("{tag}: {}", error.message));
+    let mut outputs = Vec::new();
+    for vm_only in [true, false] {
+        let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+        adjust(&mut policy);
+        let mut runtime = if vm_only {
+            Runtime::vm_only()
+        } else {
+            Runtime::new()
+        }
+        .load(artifact.clone(), policy)
+        .unwrap();
+        if let Err(error) = runtime.invoke("main", vec![]) {
+            panic!("{tag}: {} {}", error.code, error.message);
+        }
+        outputs.push(runtime.take_output());
+        assert_eq!(runtime.open_file_reader_count(), 0);
+    }
+    let _ = std::fs::remove_dir_all(&root);
+    assert_eq!(
+        outputs[0], outputs[1],
+        "{tag}: machine code changed the result"
+    );
+    outputs.remove(0)
+}
+
+const NO_KINDS: &str = r#"fn no_kinds() -> Map[Text, Text]:
+    let none: Map[Text, Text] = {}
+    return none
+"#;
+
+#[test]
+fn csv_read_columns_infers_kinds_at_the_boundaries() {
+    let csv = "i,big,sci,dot,flag,cap,gap,holes,word,weird\n\
+               1,1,1e5,.5,true,true,,1,a,1\n\
+               2,9223372036854775808,2,1,false,True,,,b,inf\n\
+               -0,3,3,2,true,false,,3,a,2\n\
+               9223372036854775807,4,4,3,false,true,,,c,nan\n";
+    let source = format!(
+        r#"{NO_KINDS}
+fn column(columns: List[CsvColumn], name: Text) -> CsvColumn:
+    for c in columns:
+        if c.name == name:
+            return c
+    return columns[0]
+
+fn only_storage(c: CsvColumn, ints: Bool, floats: Bool, flags: Bool, text: Bool) -> Bool:
+    var want_ints = 0
+    var want_floats = 0
+    var want_flags = 0
+    var want_codes = 0
+    if ints:
+        set want_ints = 4
+    if floats:
+        set want_floats = 4
+    if flags:
+        set want_flags = 4
+    if text:
+        set want_codes = 4
+    return array_size(c.ints) == want_ints and array_size(c.floats) == want_floats and array_size(c.flags) == want_flags and array_size(c.codes) == want_codes
+
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("t.csv", no_kinds()))
+    assert(len(columns) == 10)
+    let i = column(columns, "i")
+    assert(i.kind == "i64")
+    assert(i.ints == array_i64([1, 2, 0, 9223372036854775807]))
+    assert(only_storage(i, true, false, false, false))
+    assert(len(i.dictionary) == 0)
+    assert(i.valid == array_bool([true, true, true, true]))
+    let big = column(columns, "big")
+    assert(big.kind == "f64")
+    assert(big.floats == array_f64([1.0, 9223372036854775808.0, 3.0, 4.0]))
+    assert(only_storage(big, false, true, false, false))
+    let sci = column(columns, "sci")
+    assert(sci.kind == "f64")
+    assert(sci.floats == array_f64([100000.0, 2.0, 3.0, 4.0]))
+    let dot = column(columns, "dot")
+    assert(dot.kind == "f64")
+    assert(dot.floats == array_f64([0.5, 1.0, 2.0, 3.0]))
+    let flag = column(columns, "flag")
+    assert(flag.kind == "bool")
+    assert(flag.flags == array_bool([true, false, true, false]))
+    assert(only_storage(flag, false, false, true, false))
+    let cap = column(columns, "cap")
+    assert(cap.kind == "text")
+    assert(cap.codes == array_i64([0, 1, 2, 0]))
+    assert(cap.dictionary == ["true", "True", "false"])
+    assert(only_storage(cap, false, false, false, true))
+    let gap = column(columns, "gap")
+    assert(gap.kind == "text")
+    assert(gap.codes == array_i64([0, 0, 0, 0]))
+    assert(len(gap.dictionary) == 0)
+    assert(gap.valid == array_bool([false, false, false, false]))
+    let holes = column(columns, "holes")
+    assert(holes.kind == "i64")
+    assert(holes.ints == array_i64([1, 0, 3, 0]))
+    assert(holes.valid == array_bool([true, false, true, false]))
+    let word = column(columns, "word")
+    assert(word.codes == array_i64([0, 1, 0, 2]))
+    assert(word.dictionary == ["a", "b", "c"])
+    let weird = column(columns, "weird")
+    assert(weird.kind == "text")
+    assert(weird.dictionary == ["1", "inf", "2", "nan"])
+    assert(weird.codes == array_i64([0, 1, 2, 3]))
+    print("ok")
+"#
+    );
+    let out = run_csv_program("infer", &[("t.csv", csv.as_bytes())], &source, |_| {});
+    assert_eq!(out, "ok\n");
+}
+
+#[test]
+fn csv_read_columns_splits_quoted_fields_like_csv_next() {
+    let csv = "a,b,c\n\"x,y\",\"he said \"\"hi\"\"\",\"line1\nline2\"\nplain,\"\",tail\n\"x,y\",z,\"\"\"\"\n";
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("q.csv", no_kinds()))
+    let reader = unwrap(csv_open("q.csv"))
+    let header = unwrap(unwrap(csv_next(reader)))
+    assert(len(header.fields) == len(columns))
+    var row = 0
+    var running = true
+    while running:
+        let next = unwrap(csv_next(reader))
+        if is_some(next):
+            let fields = unwrap(next).fields
+            var j = 0
+            while j < len(columns):
+                let c = columns[j]
+                assert(c.kind == "text")
+                assert(c.dictionary[array_get(c.codes, row)] == fields[j])
+                set j = j + 1
+            set row = row + 1
+        else:
+            set running = false
+    unwrap(file_close(reader))
+    assert(row == 3)
+    assert(columns[0].dictionary == ["x,y", "plain"])
+    assert(columns[1].dictionary == ["he said \"hi\"", "", "z"])
+    assert(columns[2].dictionary == ["line1\nline2", "tail", "\""])
+    print(row)
+"#
+    );
+    let out = run_csv_program("quoted", &[("q.csv", csv.as_bytes())], &source, |_| {});
+    assert_eq!(out, "3\n");
+}
+
+#[test]
+fn csv_read_columns_drops_a_bom_and_skips_blank_lines() {
+    let csv = b"\xEF\xBB\xBFn,v\r\n\r\n1,2\r\n\n3,4\r\n";
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("b.csv", no_kinds()))
+    assert(columns[0].name == "n")
+    assert(columns[1].name == "v")
+    assert(columns[0].ints == array_i64([1, 3]))
+    assert(columns[1].ints == array_i64([2, 4]))
+    print("ok")
+"#
+    );
+    let out = run_csv_program("bom", &[("b.csv", csv)], &source, |_| {});
+    assert_eq!(out, "ok\n");
+}
+
+#[test]
+fn csv_read_columns_reads_a_blank_line_as_a_missing_value_in_a_one_column_file() {
+    let csv = b"n\n1\n\n3\r\n\r\n5\n";
+    let wide = b"n,v\n1,2\n\n3,4\n";
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("one.csv", no_kinds()))
+    assert(columns[0].kind == "i64")
+    assert(columns[0].ints == array_i64([1, 0, 3, 0, 5]))
+    assert(columns[0].valid == array_bool([true, false, true, false, true]))
+    let two = unwrap(csv_read_columns("two.csv", no_kinds()))
+    assert(two[0].ints == array_i64([1, 3]))
+    print("ok")
+"#
+    );
+    let out = run_csv_program(
+        "one-column",
+        &[("one.csv", csv), ("two.csv", wide)],
+        &source,
+        |_| {},
+    );
+    assert_eq!(out, "ok\n");
+}
+
+#[test]
+fn csv_read_columns_treats_quoted_empty_as_text_in_text_columns_only() {
+    let csv = "t,n,q,m\n\"\",\"\",\"\",1\nx,5,\"\",\"\"\n,6,\"\",x\n";
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("e.csv", no_kinds()))
+    let t = columns[0]
+    assert(t.kind == "text")
+    assert(t.dictionary == ["", "x"])
+    assert(t.codes == array_i64([0, 1, 0]))
+    assert(t.valid == array_bool([true, true, false]))
+    let n = columns[1]
+    assert(n.kind == "i64")
+    assert(n.ints == array_i64([0, 5, 6]))
+    assert(n.valid == array_bool([false, true, true]))
+    let q = columns[2]
+    assert(q.kind == "text")
+    assert(q.dictionary == [""])
+    assert(q.codes == array_i64([0, 0, 0]))
+    assert(q.valid == array_bool([true, true, true]))
+    let m = columns[3]
+    assert(m.kind == "text")
+    assert(m.dictionary == ["1", "", "x"])
+    assert(m.codes == array_i64([0, 1, 2]))
+    assert(m.valid == array_bool([true, true, true]))
+    print("ok")
+"#
+    );
+    let out = run_csv_program("empty", &[("e.csv", csv.as_bytes())], &source, |_| {});
+    assert_eq!(out, "ok\n");
+}
+
+#[test]
+fn csv_read_columns_fixes_kinds_by_name_and_reports_bad_values() {
+    let source = format!(
+        r#"{NO_KINDS}
+fn fixed(a: Text, b: Text, c: Text) -> Map[Text, Text]:
+    return {{"a": a, "b": b, "c": c}}
+
+fn report(path: Text, kinds: Map[Text, Text]) -> Unit:
+    let result = csv_read_columns(path, kinds)
+    assert(not(is_ok(result)))
+    let problem = error(result)
+    print(file_error_code(problem) + " " + int_to_text(file_error_line(problem)) + ":" + int_to_text(file_error_column(problem)) + " " + file_error_message(problem))
+
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("k.csv", fixed("f64", "text", "bool")))
+    assert(columns[0].kind == "f64")
+    assert(columns[0].floats == array_f64([1.0, 0.0]))
+    assert(columns[0].valid == array_bool([true, false]))
+    assert(columns[1].kind == "text")
+    assert(columns[1].dictionary == ["007", "x"])
+    assert(columns[2].kind == "bool")
+    assert(columns[2].flags == array_bool([true, false]))
+    assert(columns[2].valid == array_bool([true, false]))
+    report("bad.csv", {{"a": "i64"}})
+    report("k.csv", {{"c": "i64"}})
+    report("bool.csv", {{"c": "bool"}})
+    report("k.csv", {{"zzz": "i64"}})
+    report("k.csv", {{"a": "decimal"}})
+    report("ragged.csv", no_kinds())
+"#
+    );
+    let out = run_csv_program(
+        "fixed",
+        &[
+            ("k.csv", b"a,b,c\n1,007,true\n,x,\n"),
+            ("bad.csv", b"a,b\n1,2\n1.5,3\n"),
+            ("bool.csv", b"a,b,c\n1,2,true\n1,2,\n1,2,True\n"),
+            ("ragged.csv", b"a,b\n1,2\n3\n"),
+        ],
+        &source,
+        |_| {},
+    );
+    assert_eq!(
+        out,
+        "E_CSV_VALUE 3:1 column `a`: `1.5` is not i64\n\
+         E_CSV_VALUE 2:3 column `c`: `true` is not i64\n\
+         E_CSV_VALUE 4:3 column `c`: `True` is not bool\n\
+         E_CSV_VALUE 1:0 no column named `zzz`\n\
+         E_CSV_VALUE 1:0 unknown kind `decimal`\n\
+         R_CSV_MALFORMED 3:0 CSV record has 1 fields, expected 2\n"
+    );
+}
+
+#[test]
+fn csv_read_columns_needs_the_file_read_capability() {
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = csv_read_columns("t.csv", no_kinds())
+    let reader = csv_open("t.csv")
+    assert(not(is_ok(columns)))
+    assert(not(is_ok(reader)))
+    assert(file_error_code(error(columns)) == file_error_code(error(reader)))
+    print(file_error_code(error(columns)))
+"#
+    );
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    let mut runtime = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .unwrap();
+    runtime.invoke("main", vec![]).unwrap();
+    assert_eq!(runtime.take_output(), "R_HOST_DENIED\n");
+}
+
+#[test]
+fn streaming_reads_ignore_max_file_bytes_but_whole_file_reads_keep_it() {
+    let mut csv = String::from("id,name\n");
+    for row in 0..400 {
+        csv.push_str(&format!("{row},row{row}\n"));
+    }
+    assert!(csv.len() > 3000);
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("big.csv", no_kinds()))
+    print(array_size(columns[0].ints))
+    let reader = unwrap(csv_open("big.csv"))
+    var count = 0
+    var running = true
+    while running:
+        let next = unwrap(csv_next(reader))
+        if is_some(next):
+            set count = count + 1
+        else:
+            set running = false
+    unwrap(file_close(reader))
+    print(count)
+    let lines = unwrap(file_open_lines("big.csv"))
+    var seen = 0
+    var more = true
+    while more:
+        let line = unwrap(file_next_line(lines))
+        if is_some(line):
+            set seen = seen + 1
+        else:
+            set more = false
+    unwrap(file_close(lines))
+    print(seen)
+    print(unwrap(read_text("big.csv")))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-limit-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("big.csv"), &csv).unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+    policy.max_file_bytes = 1024;
+    let mut runtime = Runtime::new().load(artifact, policy).unwrap();
+    let error = runtime.invoke("main", vec![]).unwrap_err();
+    assert_eq!(error.code, "R_FILE_LIMIT");
+    assert_eq!(runtime.take_output(), "400\n401\n401\n");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn csv_read_columns_charges_the_allocation_budget_and_names_the_setting() {
+    let mut csv = String::from("id,score,name\n");
+    for row in 0..20000 {
+        csv.push_str(&format!("{row},{row}.5,row{row}\n"));
+    }
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("big.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-alloc-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("big.csv"), &csv).unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    for vm_only in [true, false] {
+        let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+        policy.allocation_limit_bytes = 200_000;
+        let mut runtime = if vm_only {
+            Runtime::vm_only()
+        } else {
+            Runtime::new()
+        }
+        .load(artifact.clone(), policy)
+        .unwrap();
+        let error = runtime.invoke("main", vec![]).unwrap_err();
+        assert_eq!(error.code, "R_ALLOCATION_LIMIT");
+        assert!(
+            error
+                .message
+                .ends_with("; raise `allocation_limit_bytes` under `[runtime]` in guion.toml"),
+            "{}",
+            error.message
+        );
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn csv_read_columns_reads_files_larger_than_its_buffer_and_rereads_late_text() {
+    let rows = 20000;
+    let mut csv = String::from("n,m,q,late\n");
+    for row in 0..rows {
+        let late = if row == rows - 1 {
+            "z".to_string()
+        } else {
+            row.to_string()
+        };
+        csv.push_str(&format!("{row},{},\"a,{}\",{late}\n", row % 7, row % 5));
+    }
+    assert!(csv.len() > 3 * 64 * 1024 / 2);
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("long.csv", no_kinds()))
+    assert(columns[0].kind == "i64")
+    assert(array_size(columns[0].ints) == 20000)
+    assert(array_sum(columns[0].ints) == 199990000)
+    assert(columns[1].kind == "i64")
+    assert(array_sum(columns[1].ints) == 59997)
+    assert(columns[2].kind == "text")
+    assert(len(columns[2].dictionary) == 5)
+    assert(columns[2].dictionary[3] == "a,3")
+    assert(columns[3].kind == "text")
+    assert(len(columns[3].dictionary) == 20000)
+    assert(columns[3].dictionary[19999] == "z")
+    assert(array_size(columns[3].ints) == 0)
+    print("ok")
+"#
+    );
+    let out = run_csv_program("long", &[("long.csv", csv.as_bytes())], &source, |_| {});
+    assert_eq!(out, "ok\n");
+}
+
+#[test]
+fn csv_read_columns_charges_the_text_pass_in_addition_to_the_numeric_pass() {
+    let rows = 20000;
+    let mut csv = String::from("a,b,c,d,e,f,late\n");
+    for row in 0..rows {
+        let late = if row == rows - 1 {
+            "z".to_string()
+        } else {
+            format!("{row}")
+        };
+        csv.push_str(&format!("{row},{row},{row},{row},{row},{row},{late}\n"));
+    }
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("late.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-twopass-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("late.csv"), &csv).unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    let run = |limit: usize| {
+        let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+        policy.allocation_limit_bytes = limit;
+        let mut runtime = Runtime::vm_only().load(artifact.clone(), policy).unwrap();
+        runtime.invoke("main", vec![]).map(|_| ())
+    };
+    // Six numeric columns stay charged while the text column is read again, so the two passes' buffers add up to more than either alone (about 2.4 MB for the second pass by itself).
+    assert!(run(8_000_000).is_ok());
+    let error = run(3_500_000).unwrap_err();
+    assert_eq!(error.code, "R_ALLOCATION_LIMIT");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+// A read that succeeds but whose result then breaks a limit must still close its effect record.
+#[test]
+fn csv_read_columns_closes_its_effect_when_the_result_breaks_a_limit() {
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("words.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-effect-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("words.csv"), "w\na\nb\nc\nd\n").unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+    // The dictionary of four words is a list longer than this.
+    policy.max_collection_items = 2;
+    let mut runtime = Runtime::vm_only().load(artifact, policy).unwrap();
+    let error = runtime.invoke("main", vec![]).unwrap_err();
+    assert_eq!(error.code, "R_COLLECTION_LIMIT", "{}", error.message);
+    let effects = runtime.effect_report();
+    assert_eq!(effects.len(), 1);
+    assert_eq!(
+        effects[0].outcome,
+        guion_runtime::EffectOutcome::ReturnedError
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+// The read's last charge covers the names and records of the result. When the budget refuses it,
+// the error is raised and the effect record is still closed.
+#[test]
+fn csv_read_columns_closes_its_effect_when_the_result_does_not_fit_the_budget() {
+    let columns = 3000usize;
+    let header: Vec<String> = (0..columns).map(|index| format!("c{index:04}")).collect();
+    let row = vec!["1"; columns];
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("wide.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-produced-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("wide.csv"),
+        format!("{}\n{}\n", header.join(","), row.join(",")),
+    )
+    .unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    // 256 bytes and the name for each column's record.
+    let produced = columns * (256 + 5);
+    let mut refused_at_the_result = 0;
+    for limit in (1..=40).map(|step| step * 50_000) {
+        let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+        policy.allocation_limit_bytes = limit;
+        let mut runtime = Runtime::vm_only().load(artifact.clone(), policy).unwrap();
+        let outcome = runtime.invoke("main", vec![]);
+        let effects: Vec<_> = runtime
+            .effect_report()
+            .iter()
+            .filter(|effect| effect.kind == guion_runtime::EffectKind::FileRead)
+            .cloned()
+            .collect();
+        assert_eq!(effects.len(), 1, "limit {limit}: {effects:?} {outcome:?}");
+        match outcome {
+            Ok(_) => assert_eq!(effects[0].outcome, guion_runtime::EffectOutcome::Returned),
+            Err(error) => {
+                assert_eq!(error.code, "R_ALLOCATION_LIMIT", "limit {limit}");
+                assert_eq!(
+                    effects[0].outcome,
+                    guion_runtime::EffectOutcome::ReturnedError,
+                    "limit {limit}: the effect record was left open"
+                );
+                if error.message.contains(&format!("requested {produced} ")) {
+                    refused_at_the_result += 1;
+                }
+            }
+        }
+    }
+    assert!(
+        refused_at_the_result > 0,
+        "no limit refused the result's own charge"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -2,6 +2,8 @@
 //! the reference registry (registry/) running locally under `wrangler dev --local` on loopback.
 //! Nothing here touches the network beyond the local machine or any Cloudflare account.
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 
@@ -44,14 +46,6 @@ fn wrangler_available() -> bool {
         .is_ok_and(|status| status.success())
 }
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 /// Each test starts its own `wrangler dev`; several starting at once on a busy machine can
 /// exceed the start-up wait, so the tests take turns.
 static ONE_REGISTRY_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -64,24 +58,25 @@ fn start_registry(name: &str) -> LocalRegistry {
     let state = std::env::temp_dir().join(format!("guion-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&state);
     std::fs::create_dir_all(&state).unwrap();
-    let port = free_port();
+    let port = common::free_port();
     let registry_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../registry");
-    let child = Command::new("wrangler")
-        .args([
-            "dev",
-            "--local",
-            "--port",
-            &port.to_string(),
-            "--persist-to",
-        ])
-        .arg(&state)
-        .args(["--var", &format!("ADMIN_TOKEN:{ADMIN_TOKEN}")])
-        .args(["--var", &format!("SIGNING_KEY:{SIGNING_KEY}")])
-        .current_dir(registry_dir)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("wrangler starts");
+    let child = common::spawn(
+        Command::new("wrangler")
+            .args([
+                "dev",
+                "--local",
+                "--port",
+                &port.to_string(),
+                "--persist-to",
+            ])
+            .arg(&state)
+            .args(["--var", &format!("ADMIN_TOKEN:{ADMIN_TOKEN}")])
+            .args(["--var", &format!("SIGNING_KEY:{SIGNING_KEY}")])
+            .current_dir(registry_dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null()),
+    )
+    .expect("wrangler starts");
     let url = format!("http://127.0.0.1:{port}");
     let registry = LocalRegistry {
         child,
@@ -99,10 +94,7 @@ fn start_registry(name: &str) -> LocalRegistry {
 }
 
 fn curl(arguments: &[&str]) -> String {
-    let output = Command::new("curl")
-        .args(arguments)
-        .output()
-        .expect("curl runs");
+    let output = common::output(Command::new("curl").args(arguments)).expect("curl runs");
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 

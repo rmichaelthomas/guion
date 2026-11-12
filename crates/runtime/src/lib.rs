@@ -292,7 +292,7 @@ struct NativeListArena {
     native_record_fields: Vec<Box<[i64]>>,
     native_record_indices: HashMap<i64, usize>,
     values: Vec<Value>,
-    constant_values: Vec<Value>,
+    constant_values: Arc<Vec<Value>>,
     inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
     inline_tagged_value_len: usize,
     tagged_values: Vec<Vec<NativeTaggedValue>>,
@@ -383,7 +383,7 @@ impl NativeListArena {
             native_record_fields: Vec::new(),
             native_record_indices: HashMap::new(),
             values: Vec::new(),
-            constant_values: Vec::new(),
+            constant_values: Arc::new(Vec::new()),
             inline_tagged_values: [NativeTaggedValue {
                 kind: 0,
                 payload_tag: 0,
@@ -524,7 +524,10 @@ impl NativeListArena {
             self.host_error = Some(if self.budget.is_null() {
                 RuntimeError::new(
                     "R_ALLOCATION_LIMIT",
-                    "cumulative allocation budget exhausted during this invocation",
+                    format!(
+                        "cumulative allocation budget exhausted during this invocation{}",
+                        guion_vm_core::ALLOCATION_LIMIT_HINT
+                    ),
                     span,
                 )
             } else {
@@ -1262,18 +1265,11 @@ impl NativeListArena {
         &mut self,
         instance: *mut Instance,
         artifact: Arc<Artifact>,
+        constants: Arc<Vec<Value>>,
         budget: Arc<Budget>,
         limits: VmLimits,
     ) {
-        self.constant_values = artifact
-            .functions
-            .iter()
-            .flat_map(|function| function.code.iter())
-            .filter_map(|instruction| match &instruction.op {
-                Op::Const(value @ (Value::Text(_) | Value::Bytes(_))) => Some(value.clone()),
-                _ => None,
-            })
-            .collect();
+        self.constant_values = constants;
         self.runtime_context = Some(NativeRuntimeContext {
             instance,
             artifact,
@@ -3003,6 +2999,24 @@ fn local_date_from_unix_time_ms(_unix_time_ms: i64) -> Result<(i32, i32, i32), S
     Err("local date lookup is supported on Unix hosts only".into())
 }
 
+/// The text and byte constants native code addresses by handle. They depend only on the
+/// artifact, so an instance builds the table once, not on every native entry.
+fn native_constant_table(artifact: &Artifact) -> Arc<Vec<Value>> {
+    #[cfg(test)]
+    ARTIFACT_SCAN_TALLY.with(|scans| scans.set(scans.get() + 1));
+    Arc::new(
+        artifact
+            .functions
+            .iter()
+            .flat_map(|function| function.code.iter())
+            .filter_map(|instruction| match &instruction.op {
+                Op::Const(value @ (Value::Text(_) | Value::Bytes(_))) => Some(value.clone()),
+                _ => None,
+            })
+            .collect(),
+    )
+}
+
 fn share_artifact(artifact: Artifact) -> Arc<Artifact> {
     Arc::new(artifact)
 }
@@ -3086,9 +3100,11 @@ impl Runtime {
         let mut artifact = artifact;
         inline_host_forwarders(&mut artifact);
         let registers = Arc::new(build_register_programs(&artifact));
+        let native_constants = native_constant_table(&artifact);
         let artifact = share_artifact(artifact);
         Ok(Instance {
             artifact,
+            native_constants,
             registers,
             native: None,
             native_code: None,
@@ -3103,10 +3119,7 @@ impl Runtime {
             native_deoptimization_sites: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             native_compilations: Arc::new(AtomicUsize::new(0)),
             native_entry_copy_dominated: Vec::new(),
-            readers: stdlib_data::FileReaderRegistry::new(
-                policy.max_file_bytes,
-                policy.max_file_bytes,
-            ),
+            readers: stdlib_data::FileReaderRegistry::new(usize::MAX, policy.max_file_bytes),
             sockets: net_ops::SocketTable::default(),
             databases: stdlib_services::DatabaseRegistry::with_roots(
                 database_roots,
@@ -3136,6 +3149,7 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     artifact: Arc<Artifact>,
+    native_constants: Arc<Vec<Value>>,
     registers: Arc<RegisterPrograms>,
     native: Option<NativeBackend>,
     native_code: Option<Arc<NativeCode>>,
@@ -3193,6 +3207,36 @@ fn source_line_record_name() -> guion_model::RecordName {
     static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
     NAME.get_or_init(|| guion_model::RecordName::immortal("SourceLine"))
         .clone()
+}
+
+fn csv_column_record_name() -> guion_model::RecordName {
+    static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| guion_model::RecordName::immortal("CsvColumn"))
+        .clone()
+}
+
+fn csv_column_value(column: stdlib_data::csv_columns::Column) -> Value {
+    use guion_model::{ArrayData, ArrayValue};
+    let array = |data: ArrayData| Value::Array(Shared::new(ArrayValue::vector(data)));
+    Value::Record(
+        csv_column_record_name(),
+        Shared::new(vec![
+            Value::Text(column.name.into()),
+            Value::Text(column.kind.name().into()),
+            array(ArrayData::I64(column.ints)),
+            array(ArrayData::F64(column.floats)),
+            array(ArrayData::Bool(column.flags)),
+            array(ArrayData::I64(column.codes)),
+            Value::from_list_items(
+                column
+                    .dictionary
+                    .into_iter()
+                    .map(|text| Value::Text(text.into()))
+                    .collect(),
+            ),
+            array(ArrayData::Bool(column.valid)),
+        ]),
+    )
 }
 
 fn csv_row_record_name() -> guion_model::RecordName {
@@ -4515,6 +4559,133 @@ impl VmHost for Instance {
                             }
                             push_stack!(file_error_result(error));
                         }
+                    }
+                }
+            }
+            Op::CsvReadColumns => {
+                let kinds = pop!();
+                let path = pop!();
+                let (Value::Text(path), Value::Map(kinds)) = (path, kinds) else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "csv_read_columns requires a Text path and Map[Text, Text] kinds",
+                        instruction.span,
+                    ));
+                };
+                let mut fixed = std::collections::BTreeMap::new();
+                for (name, kind) in kinds.iter() {
+                    let Value::Text(kind) = kind else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "csv_read_columns kinds must be Map[Text, Text]",
+                            instruction.span,
+                        ));
+                    };
+                    fixed.insert(name.to_string(), kind.to_string());
+                }
+                let resolved = match host_file_path(&self.policy, &path, false, instruction.span) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        push_stack!(file_error_result(error));
+                        return Ok(());
+                    }
+                };
+                let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
+                let read = {
+                    let budget = budget.as_ref();
+                    let mut charge = |bytes: usize| budget.allocate(bytes);
+                    let mut release = |bytes: usize| budget.refund_allocation(bytes);
+                    let cancelled = || budget.is_cancelled();
+                    let mut meter = stdlib_data::csv_columns::Meter {
+                        charge: &mut charge,
+                        release: &mut release,
+                        cancelled: &cancelled,
+                    };
+                    stdlib_data::csv_columns::read_csv_columns(
+                        &resolved,
+                        &fixed,
+                        self.policy.max_file_bytes,
+                        &mut meter,
+                    )
+                };
+                use stdlib_data::csv_columns::ColumnsError;
+                match read {
+                    Ok(columns) => {
+                        // The names and records the result holds, beyond the arrays and
+                        // dictionary text that were charged as they grew.
+                        let produced = stdlib_data::csv_columns::result_overhead(&columns);
+                        if let Err(error) =
+                            charge_allocation(budget.as_ref(), produced, instruction.span)
+                        {
+                            self.finish_effect(effect, EffectOutcome::ReturnedError);
+                            return Err(error);
+                        }
+                        let result = Value::ResultOk(Box::new(Value::from_list_items(
+                            columns.into_iter().map(csv_column_value).collect(),
+                        )));
+                        if let Some(error) =
+                            value_limit_error(&result, &self.policy, instruction.span)
+                        {
+                            self.finish_effect(effect, EffectOutcome::ReturnedError);
+                            return Err(error);
+                        }
+                        self.finish_effect(effect, EffectOutcome::Returned);
+                        push_stack!(result);
+                    }
+                    Err(ColumnsError::Allocation(bytes)) => {
+                        self.finish_effect(effect, EffectOutcome::ReturnedError);
+                        return Err(guion_vm_core::allocation_limit_error(
+                            budget.as_ref(),
+                            bytes,
+                            instruction.span,
+                        ));
+                    }
+                    Err(ColumnsError::Cancelled) => {
+                        self.finish_effect(effect, EffectOutcome::Interrupted);
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        self.finish_effect(effect, EffectOutcome::ReturnedError);
+                        let (code, line, column, message) = match error {
+                            ColumnsError::Reader(error) => {
+                                let error = reader_runtime_error(
+                                    error.kind,
+                                    error.message,
+                                    error.line,
+                                    error.column,
+                                    instruction.span,
+                                );
+                                if error.code == "R_FILE_LIMIT" {
+                                    return Err(error);
+                                }
+                                push_stack!(file_error_result(error));
+                                return Ok(());
+                            }
+                            ColumnsError::Malformed {
+                                line,
+                                column,
+                                message,
+                            } => ("R_CSV_MALFORMED", line, column, message),
+                            ColumnsError::Value {
+                                line,
+                                column,
+                                message,
+                            } => ("E_CSV_VALUE", line, column, message),
+                            ColumnsError::Allocation(_) | ColumnsError::Cancelled => {
+                                unreachable!("handled above")
+                            }
+                        };
+                        // The error's first position is the place in the file, which is what
+                        // `file_error_line` and `file_error_column` report.
+                        let mut error = RuntimeError::new(code, message, instruction.span);
+                        if line > 0 {
+                            error.trace = vec![Span {
+                                line,
+                                column,
+                                ..instruction.span
+                            }];
+                        }
+                        push_stack!(file_error_result(error));
                     }
                 }
             }
@@ -7978,6 +8149,7 @@ impl Instance {
         native_arena.attach_runtime_context(
             self as *mut Instance,
             Arc::clone(&artifact),
+            Arc::clone(&self.native_constants),
             budget.clone(),
             self.policy.vm_limits(),
         );
@@ -8273,9 +8445,7 @@ impl Instance {
                 match outcome.status {
                     0 => {
                         let value = match &f.result {
-                            Type::Int => {
-                                Value::Int(BigInt::parse(&outcome.value.to_string()).unwrap())
-                            }
+                            Type::Int => Value::Int(BigInt::from_i64(outcome.value)),
                             Type::Float64 => Value::Float64(
                                 Float64::new(f64::from_bits(outcome.value as u64)).unwrap(),
                             ),
@@ -8936,6 +9106,7 @@ impl Instance {
         let cancelled = Arc::new(AtomicBool::new(false));
         let artifact = Arc::clone(&self.artifact);
         let registers = Arc::clone(&self.registers);
+        let native_constants = Arc::clone(&self.native_constants);
         let policy = self.policy.clone();
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
@@ -8965,6 +9136,7 @@ impl Instance {
             let cancelled = cancelled.clone();
             let artifact = artifact.clone();
             let registers = registers.clone();
+            let native_constants = native_constants.clone();
             let policy = policy.clone();
             let values = values.clone();
             let budget = worker_budget.clone();
@@ -8999,6 +9171,7 @@ impl Instance {
                     database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
                         artifact: Arc::clone(&artifact),
+                        native_constants: Arc::clone(&native_constants),
                         registers: Arc::clone(&registers),
                         native: None,
                         native_code: native_code.clone(),
@@ -9016,7 +9189,7 @@ impl Instance {
                         policy: policy.clone(),
                         http: http.clone(),
                         readers: stdlib_data::FileReaderRegistry::new(
-                            policy.max_file_bytes,
+                            usize::MAX,
                             policy.max_file_bytes,
                         ),
                         sockets: sockets.share(),
@@ -12123,6 +12296,48 @@ mod native_small_list_tests {
 
         assert!(invalid.is_null());
         assert_eq!(profile.to_json()["list_set"]["operations"], 0);
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static ARTIFACT_SCAN_TALLY: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+mod native_entry_cost_tests {
+    use super::*;
+
+    /// A small native-eligible helper called from an interpreted loop must not rescan the whole
+    /// artifact for text constants on every entry.
+    #[test]
+    fn native_entry_does_not_rescan_the_artifact_per_call() {
+        let source = r#"fn chunk_rows() -> Int:
+    return 65536
+
+record Row:
+    fields: List[Text]
+    line: Int
+
+fn main() -> Int:
+    var rows: List[Row] = []
+    var seen = 0
+    while len(rows) < chunk_rows() and seen < 3000:
+        set rows = list_push(rows, Row(["a", "b"], seen))
+        set seen = seen + 1
+    return len(rows)
+"#;
+        let artifact = guion_compiler::compile("entry-cost.gu", source).expect("compiles");
+        let mut instance = Runtime::new()
+            .load(artifact, HostPolicy::default())
+            .expect("loads");
+        ARTIFACT_SCAN_TALLY.with(|scans| scans.set(0));
+        instance.invoke("main", vec![]).expect("runs");
+        let scans = ARTIFACT_SCAN_TALLY.with(|scans| scans.get());
+        assert!(
+            scans <= 2,
+            "artifact scanned {scans} times for 3000 helper calls"
+        );
     }
 }
 

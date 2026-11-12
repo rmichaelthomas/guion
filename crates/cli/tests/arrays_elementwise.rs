@@ -176,3 +176,70 @@ print(array_all(array_bool_zeros([0])))"#,
     )
     .contains("R_ARRAY_SHAPE"));
 }
+
+#[test]
+fn array_filter_edges_keep_order_and_every_kind() {
+    let out = stdout_of(
+        "filter-edges",
+        r#"let a = array_f64([1.5, 2.5, 3.5, 4.5])
+print(array_filter(a, array_bool([false, false, false, false])))
+print(array_filter(a, array_bool([true, true, true, true])))
+print(array_filter(a, array_bool([false, true, false, true])))
+print(array_filter(a, array_bool([true, false, false, false])))
+print(array_filter(array_i64([7, 8, 9]), array_bool([false, true, true])))
+print(array_filter(array_bool([true, false, true]), array_bool([true, true, false])))
+print(array_size(array_filter(array_f64_zeros([0]), array_bool_zeros([0]))))"#,
+    );
+    assert_eq!(
+        out,
+        "[]\n[1.5, 2.5, 3.5, 4.5]\n[2.5, 4.5]\n[1.5]\n[8, 9]\n[true, false]\n0\n"
+    );
+}
+
+#[test]
+fn reused_buffers_never_change_a_value_another_variable_holds() {
+    let out = stdout_of(
+        "reuse-alias",
+        r#"let a = array_i32([1, 2, 3])
+let b = a
+let c = array_add(a, array_i32([10, 10, 10]))
+print(a)
+print(b)
+print(c)
+var d = array_f64([1.0, 2.0])
+let e = d
+set d = array_mul(d, array_f64([3.0, 3.0]))
+print(d)
+print(e)
+let f = array_neg(array_add(e, e))
+print(f)
+print(e)
+var g = array_i64([1, 2, 3])
+set g = array_add(g, g)
+set g = array_mul(g, g)
+print(g)"#,
+    );
+    assert_eq!(
+        out,
+        "[1, 2, 3]\n[1, 2, 3]\n[11, 12, 13]\n[3, 6]\n[1, 2]\n[-2, -4]\n[1, 2]\n[4, 16, 36]\n"
+    );
+}
+
+#[test]
+fn a_nonfinite_result_in_a_reused_buffer_still_raises() {
+    let err = error_of(
+        "reuse-nonfinite",
+        "let big = array_f64_full([2], 1.0e308)\nprint(array_add(array_add(big, big), big))",
+    );
+    assert!(err.contains("R_FLOAT_NONFINITE"), "{err}");
+}
+
+#[test]
+fn a_nonfinite_result_assigned_back_to_its_local_still_raises() {
+    let err = error_of(
+        "reuse-local-nonfinite",
+        "var x = array_f64([1.0, 1.0e308, 1.0e308])\nset x = array_add(x, x)\nprint(x)",
+    );
+    assert!(err.contains("R_FLOAT_NONFINITE"), "{err}");
+    assert!(err.contains("element 1"), "{err}");
+}

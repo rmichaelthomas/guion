@@ -130,7 +130,7 @@ pub fn frame_tail(frame: Frame, count: Int) -> Frame:
     return frame_slice(frame, frame.rows - count, frame.rows)
 
 # Remaps text codes from several dictionaries onto one merged dictionary, in first-seen order.
-fn merge_text(columns: List[Column]) -> Column:
+fn merge_text(columns: List[Column]) -> Result[Column, StdError]:
     var seen: Map[Text, Int] = {}
     var dictionary: List[Text] = []
     var parts: List[Array[i64]] = []
@@ -151,7 +151,7 @@ fn merge_text(columns: List[Column]) -> Column:
         set masks = list_push(masks, column_valid(column))
     return column_from_codes(column_name(columns[0]), array_concat(parts), dictionary, array_concat(masks))
 
-fn concat_columns(columns: List[Column]) -> Column:
+fn concat_columns(columns: List[Column]) -> Result[Column, StdError]:
     let first = columns[0]
     var masks: List[Array[bool]] = []
     for column in columns:
@@ -161,17 +161,17 @@ fn concat_columns(columns: List[Column]) -> Column:
         var parts: List[Array[i64]] = []
         for column in columns:
             set parts = list_push(parts, column_ints(column))
-        return column_from_i64(column_name(first), array_concat(parts), valid)
+        return Ok(column_from_i64(column_name(first), array_concat(parts), valid))
     if column_kind(first) == "f64":
         var parts: List[Array[f64]] = []
         for column in columns:
             set parts = list_push(parts, column_floats(column))
-        return column_from_f64(column_name(first), array_concat(parts), valid)
+        return Ok(column_from_f64(column_name(first), array_concat(parts), valid))
     if column_kind(first) == "bool":
         var parts: List[Array[bool]] = []
         for column in columns:
             set parts = list_push(parts, column_flags(column))
-        return column_from_bool(column_name(first), array_concat(parts), valid)
+        return Ok(column_from_bool(column_name(first), array_concat(parts), valid))
     return merge_text(columns)
 
 # Stacks frames with the same column names and kinds, in order.
@@ -198,7 +198,7 @@ pub fn frame_concat(frames: List[Frame]) -> Result[Frame, StdError]:
         var parts: List[Column] = []
         for frame in frames:
             set parts = list_push(parts, frame.columns[index])
-        set columns = list_push(columns, concat_columns(parts))
+        set columns = list_push(columns, concat_columns(parts)?)
         set index = index + 1
     return Ok(Frame(columns, rows))
 
@@ -251,4 +251,4 @@ pub fn frame_fill_text(frame: Frame, name: Text, value: Text) -> Result[Frame, S
         set code = len(dictionary)
         set dictionary = list_push(dictionary, value)
     let filled = array_where(column_valid(column), column_codes(column), array_i64_full([frame.rows], code))
-    return frame_with_column(frame, column_from_codes(name, filled, dictionary, no_mask()))
+    return frame_with_column(frame, column_from_codes(name, filled, dictionary, no_mask())?)

@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **63**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **64**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 63. The current writer emits 63. |
+| Format version | `u32` | Reader accepts versions 14 through 64. The current writer emits 64. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -274,6 +274,7 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 191 | `RandomUnitFloat` | — (format 61: pops a state `Int`, pushes the top 53 bits of the SplitMix64 output divided by 2^53, a `Float64` in `[0, 1)`) |
 | 192 | `RandomBelow` | — (format 61: pops a state `Int` and a range size `Int`, pushes the SplitMix64 output reduced modulo the size, or `-1` when the output falls in the rejected tail at or above `2^64 - (2^64 mod size)`; a size outside `1..=2^64` raises `R_RANDOM_RANGE`) |
 | 193 | `Array` | function code (`u8`) then element code (`u8`; format 62). Function codes are positions in `ArrayFunction::ALL` in `crates/model/src/array.rs`, and the operand and result types for each function and element type are `ArrayFunction::signature`. For constructors and `Convert` the element code is the result's element type; otherwise it is the element type of the first array operand. A reader rejects tag 193 below format 62 |
+| 195 | `CsvReadColumns` | — (format 64: pops a `Map[Text, Text]` of fixed column kinds and a `Text` path, pushes `Result[List[Record[CsvColumn]], FileError]`; a reader rejects tag 195 below format 64) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -289,11 +290,13 @@ Format 46 adds `TextSlice` (tag 166), which returns a half-open range of Unicode
 
 Format 47 adds `HttpResponseJson` (tag 167), which validates the response body's configured text-size ceiling and UTF-8 encoding, then parses JSON directly from the existing response bytes. It preserves the `StdError` codes and messages returned by `std:http.http_response_json`, including duplicate-key diagnostics. The operation retains the existing guest allocation charge for the response-text conversion while avoiding the intermediate `Text` allocation. Format-46 artifacts remain readable and cannot contain this instruction.
 
+Format 51 adds native text search and rewriting. `TextFind` (tag 173) returns the Unicode scalar index of the first occurrence of a needle at or after a scalar start index, or -1 when there is none; an empty needle matches at the start, and a start past the end of the text is `R_INDEX_BOUNDS`. `TextSplit` (tag 174) splits on every non-overlapping occurrence of a delimiter from left to right and returns the whole text as one field for an empty delimiter. `TextReplace` (tag 175) replaces every non-overlapping occurrence from left to right and returns the text unchanged for an empty needle. `TextTrim` (tag 176) removes leading and trailing Unicode `White_Space` scalars. Each operation runs in one pass over the text, checks the collection and text-size ceilings before allocating, and charges its output against the guest allocation budget. Format-50 artifacts remain readable and cannot contain these instructions.
+
 Format 62 adds native arrays: type tag 18 and instruction tag 193. An artifact below format 62 that mentions either is rejected; formats 14 through 61 remain readable.
 
 Format 63 appends array function codes for gathering, grouping and joining (`Take`, `Factorize`, `FirstIndex`, `CountBy`, `SumBy`, `MinBy`, `MaxBy`, `MeanBy`, `JoinIndex`) to instruction tag 193. A reader rejects any of these function codes below format 63; formats 14 through 62 remain readable.
 
-Format 51 adds native text search and rewriting. `TextFind` (tag 173) returns the Unicode scalar index of the first occurrence of a needle at or after a scalar start index, or -1 when there is none; an empty needle matches at the start, and a start past the end of the text is `R_INDEX_BOUNDS`. `TextSplit` (tag 174) splits on every non-overlapping occurrence of a delimiter from left to right and returns the whole text as one field for an empty delimiter. `TextReplace` (tag 175) replaces every non-overlapping occurrence from left to right and returns the text unchanged for an empty needle. `TextTrim` (tag 176) removes leading and trailing Unicode `White_Space` scalars. Each operation runs in one pass over the text, checks the collection and text-size ceilings before allocating, and charges its output against the guest allocation budget. Format-50 artifacts remain readable and cannot contain these instructions.
+Format 64 adds `CsvReadColumns` (tag 195), which reads a whole CSV file into typed columns in one native operation. An artifact below format 64 that uses it is rejected; formats 14 through 63 remain readable.
 
 ## Build metadata and reproducibility
 

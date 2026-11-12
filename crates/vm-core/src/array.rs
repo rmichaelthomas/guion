@@ -14,6 +14,9 @@ pub type ArrayError = (&'static str, String);
 /// Charges bytes against the allocation budget before they are allocated.
 pub type Charge<'a> = dyn FnMut(usize) -> Result<(), ArrayError> + 'a;
 
+/// Gives bytes charged for a transient buffer back to the allocation budget once it is freed.
+pub type Release<'a> = dyn FnMut(usize) + 'a;
+
 fn error<T>(code: &'static str, message: impl Into<String>) -> Result<T, ArrayError> {
     Err((code, message.into()))
 }
@@ -766,6 +769,7 @@ pub fn apply(
     element: ElementType,
     args: &mut [Value],
     charge: &mut Charge<'_>,
+    release: &mut Release<'_>,
 ) -> Result<Value, ArrayError> {
     use ArrayFunction::*;
     match function {
@@ -856,6 +860,6 @@ pub fn apply(
         }
         ToList => to_list(array_arg(args, 0)?, charge),
         ToBytes => to_bytes(array_arg(args, 0)?, charge),
-        _ => crate::array_compute::apply(function, element, args, charge),
+        _ => crate::array_compute::apply(function, element, args, charge, release),
     }
 }
