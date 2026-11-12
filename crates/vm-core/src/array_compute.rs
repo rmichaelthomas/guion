@@ -958,6 +958,47 @@ fn dot<T: Element>(args: &[Value]) -> Result<Value, ArrayError> {
     )
 }
 
+/// Sums one block of the inner dimension into a row of the result, each step fused:
+/// `cells[j] = scales[p] * right[p * m + j] + cells[j]` for `p` in order. On x86_64 with FMA the
+/// whole loop is compiled with the instruction enabled, so it is vectorised (and a column, where
+/// `m` is 1, is one `vfmadd` per step); otherwise `mul_add` is a library call. The results are
+/// identical, every step being correctly rounded.
+type FusedBlock = fn(&mut [f64], &[f64], &[f64]);
+
+#[inline(always)]
+fn fused_block_body(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    let m = cells.len();
+    for (p, scale) in scales.iter().enumerate() {
+        for (cell, value) in cells.iter_mut().zip(&right[p * m..]) {
+            *cell = scale.mul_add(*value, *cell);
+        }
+    }
+}
+
+fn fused_block_plain(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    fused_block_body(cells, scales, right)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "fma")]
+unsafe fn fused_block_fma_inner(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    fused_block_body(cells, scales, right)
+}
+
+#[cfg(target_arch = "x86_64")]
+fn fused_block_fma(cells: &mut [f64], scales: &[f64], right: &[f64]) {
+    // SAFETY: only chosen by `fused_blocks` after `fma` was detected at run time.
+    unsafe { fused_block_fma_inner(cells, scales, right) }
+}
+
+fn fused_blocks() -> FusedBlock {
+    #[cfg(target_arch = "x86_64")]
+    if is_x86_feature_detected!("fma") {
+        return fused_block_fma;
+    }
+    fused_block_plain
+}
+
 fn matmul<T: Element>(
     args: &[Value],
     charge: &mut Charge<'_>,
@@ -1031,16 +1072,14 @@ fn matmul<T: Element>(
         (ArrayData::F64(x), ArrayData::F64(y)) => Some((x.as_slice(), y.as_slice())),
         _ => None,
     };
-    let widened = if native.is_some() {
+    // For Float64 the accumulator becomes the result's storage, which the output charge above
+    // already covers; for other types it is a temporary, held along with the widened operands.
+    let temporaries = if native.is_some() {
         0
     } else {
-        x.len() + y.len()
+        x.len() + y.len() + n * m
     };
-    hold(
-        charge,
-        held,
-        (widened + n * m).saturating_mul(size_of::<f64>()),
-    )?;
+    hold(charge, held, temporaries.saturating_mul(size_of::<f64>()))?;
     let (left, right) = match native {
         Some(pair) => (Cow::Borrowed(pair.0), Cow::Borrowed(pair.1)),
         None => (
@@ -1060,25 +1099,30 @@ fn matmul<T: Element>(
         } else {
             Vec::new()
         };
+        let fused = fused_blocks();
         for i in 0..n {
             let row = &mut acc[i * m..(i + 1) * m];
             for (index, start) in (0..k).step_by(matmul::KC).enumerate() {
                 let end = k.min(start + matmul::KC);
-                // The first block can sum straight into the zeroed row: adding it to zero
-                // changes nothing.
+                // The first block can sum straight into the zeroed row. Adding it to zero changes
+                // nothing but the sign of a zero (the tile kernels add every block to +0.0), so
+                // that is normalised after it.
                 let cells: &mut [f64] = if index == 0 { &mut *row } else { &mut block };
                 if index > 0 {
                     cells.fill(0.0);
                 }
-                for p in start..end {
-                    let scale = left[i * k + p];
-                    for (cell, value) in cells.iter_mut().zip(&right[p * m..]) {
-                        *cell = scale.mul_add(*value, *cell);
-                    }
-                }
+                fused(
+                    cells,
+                    &left[i * k + start..i * k + end],
+                    &right[start * m..],
+                );
                 if index > 0 {
                     for (cell, partial) in row.iter_mut().zip(&block) {
                         *cell += partial;
+                    }
+                } else {
+                    for cell in row.iter_mut() {
+                        *cell += 0.0;
                     }
                 }
             }
@@ -1807,9 +1851,12 @@ mod budget_tests {
             array(ElementType::F64, vec![16, 16], |i| i as i64 % 5),
         );
         let output = array_bytes(ElementType::F64, 2, 256);
-        // Float64 operands are borrowed: holds the output and the accumulator, but not the
-        // packed panels.
-        let copies = output + 256 * 8;
+        // Float64 operands are borrowed and the accumulator is the output: only the packed panels
+        // are held on top of the output.
+        let dims = (16, 16, 16);
+        let scratch = matmul::scratch_bytes(dims, matmul::threads_for(dims));
+        assert!(scratch > 0);
+        let copies = output + scratch - 1;
         let used = Cell::new(0);
         let result = run(
             ArrayFunction::Matmul,
@@ -1830,6 +1877,52 @@ mod budget_tests {
         );
         assert!(result.is_ok());
         assert_eq!(used.get(), output, "packing buffers are released");
+    }
+
+    #[test]
+    fn a_single_row_keeps_the_sign_of_a_zero_the_tile_kernels_give() {
+        // -1e-200 * 1e-200 underflows to -0.0; the tile kernels add every block to +0.0.
+        let (rows, columns) = (8usize, 8usize);
+        let left = array(ElementType::F64, vec![rows, 2], |_| 0);
+        let right = array(ElementType::F64, vec![2, columns], |_| 0);
+        let fill = |value: &Value, number: f64| {
+            let Value::Array(source) = value else {
+                unreachable!()
+            };
+            Value::Array(Shared::new(
+                ArrayValue::new(
+                    source.shape.clone(),
+                    ArrayData::F64(vec![number; source.shape.iter().product()]),
+                )
+                .unwrap(),
+            ))
+        };
+        let (a, b) = (fill(&left, -1e-200), fill(&right, 1e-200));
+        let product = |a: Value, b: Value| {
+            let used = Cell::new(0usize);
+            match run(
+                ArrayFunction::Matmul,
+                ElementType::F64,
+                vec![a, b],
+                1 << 30,
+                &used,
+            ) {
+                Ok(Value::Array(product)) => match &product.data {
+                    ArrayData::F64(items) => items.clone(),
+                    _ => panic!("not f64"),
+                },
+                other => panic!("matmul failed: {other:?}"),
+            }
+        };
+        let whole = product(a, b.clone());
+        let one_row = Value::Array(Shared::new(
+            ArrayValue::new(vec![1, 2], ArrayData::F64(vec![-1e-200; 2])).unwrap(),
+        ));
+        let single = product(one_row, b);
+        for (slice, tile) in single.iter().zip(&whole) {
+            assert_eq!(slice.to_bits(), tile.to_bits());
+        }
+        assert_eq!(whole[0].to_bits(), 0.0f64.to_bits());
     }
 
     #[test]
