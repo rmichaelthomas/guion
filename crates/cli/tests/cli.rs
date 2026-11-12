@@ -1,8 +1,9 @@
+mod common;
+
 use sha2::{Digest, Sha256};
 use std::{
     fs,
     io::{Read, Write},
-    net::TcpListener,
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
     thread,
@@ -1599,7 +1600,7 @@ fn package_launcher_uses_and_cleans_a_temporary_uv_cache_when_bundle_is_read_onl
 
 #[test]
 fn project_network_manifest_grants_only_the_listed_host() {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = common::listen().unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().unwrap();
@@ -1624,10 +1625,11 @@ fn project_network_manifest_grants_only_the_listed_host() {
         ),
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
-        .args(["run", dir.join("main.gu").to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output = common::output(
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", dir.join("main.gu").to_str().unwrap()]),
+    )
+    .unwrap();
     server.join().unwrap();
     assert!(
         output.status.success(),
@@ -1640,7 +1642,7 @@ fn project_network_manifest_grants_only_the_listed_host() {
 
 #[test]
 fn run_accepts_an_explicit_one_invocation_http_host_grant() {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = common::listen().unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().unwrap();
@@ -1681,15 +1683,13 @@ fn run_accepts_an_explicit_one_invocation_http_host_grant() {
         ),
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
-        .args([
-            "run",
-            "--allow-http-host",
-            "127.0.0.1",
-            file.to_str().unwrap(),
-        ])
-        .output()
-        .unwrap();
+    let output = common::output(Command::new(env!("CARGO_BIN_EXE_guion")).args([
+        "run",
+        "--allow-http-host",
+        "127.0.0.1",
+        file.to_str().unwrap(),
+    ]))
+    .unwrap();
     assert!(
         output.status.success(),
         "{}",

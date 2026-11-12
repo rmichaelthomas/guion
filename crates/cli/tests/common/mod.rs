@@ -39,10 +39,12 @@ fn exclusive() -> std::sync::MutexGuard<'static, ()> {
 /// by side do not start from the same port, and checked to be free when it is chosen.
 pub fn free_port() -> u16 {
     let _exclusive = exclusive();
-    let start = (std::process::id() % u32::from(SPAN)) as u16;
+    let start = std::process::id() % u32::from(SPAN);
     for _ in 0..SPAN {
-        let step = NEXT.fetch_add(1, Ordering::Relaxed);
-        let port = FIRST + (start.wrapping_add(step.wrapping_mul(7))) % SPAN;
+        // In `u32` and reduced by `SPAN`, so the walk steps through the whole range (7 and
+        // `SPAN` share no factor) instead of jumping where a 16-bit counter would wrap.
+        let step = u32::from(NEXT.fetch_add(1, Ordering::Relaxed));
+        let port = FIRST + ((start + step * 7) % u32::from(SPAN)) as u16;
         if TcpListener::bind(("127.0.0.1", port)).is_ok() {
             return port;
         }
@@ -51,9 +53,19 @@ pub fn free_port() -> u16 {
 }
 
 /// Opens a connection to a local port.
+///
+/// The attempt is bounded: the lock is held while it runs, and a connection that stalls (a full
+/// accept backlog) would otherwise hold up every other test in the binary.
 pub fn connect_to(port: u16) -> io::Result<TcpStream> {
     let _exclusive = exclusive();
-    TcpStream::connect(("127.0.0.1", port))
+    let address = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    TcpStream::connect_timeout(&address, std::time::Duration::from_secs(2))
+}
+
+/// Opens a listener on a free port the system picks, for a test that plays the server itself.
+pub fn listen() -> io::Result<TcpListener> {
+    let _exclusive = exclusive();
+    TcpListener::bind("127.0.0.1:0")
 }
 
 /// Starts a process without letting it inherit a socket another thread is creating.

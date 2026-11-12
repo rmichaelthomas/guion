@@ -8075,7 +8075,7 @@ fn filesystem_functions_are_denied_without_a_policy_grant_and_confined_with_one(
 /// Without the command line's live-memory refill, the budget is cumulative: the virtual machine
 /// charges each kernel's output for good and must give back each kernel's temporary. A thousand
 /// argsorts hold 1,000 outputs and no temporaries; with the temporaries left charged they would
-/// need half as much again.
+/// need about twice as much (an argsort's index temporary is as large as its output).
 #[test]
 fn the_vm_releases_array_kernel_temporaries_to_the_budget() {
     let source = r#"fn main() -> Int:
