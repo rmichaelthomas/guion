@@ -1181,26 +1181,59 @@ mod tests {
         );
     }
 
+    /// A dictionary's text is charged where it is built and nowhere else: what the budget
+    /// holds after a read is the text plus a bounded cost per entry, not the text twice.
     #[test]
     fn dictionary_text_is_charged_once() {
-        let small = column_of_texts(10);
-        let large = column_of_texts(10_000);
-        assert_eq!(result_overhead(&small), result_overhead(&large));
-    }
-
-    fn column_of_texts(distinct: usize) -> Vec<Column> {
+        let distinct = 300;
+        let width = 4000;
         let mut body = String::from("s\n");
         for row in 0..distinct {
-            body.push_str(&format!("word{row}\n"));
+            body.push_str(&format!("w{row:0>width$}\n", width = width - 1));
         }
-        let path = temp_csv(&format!("dictionary-{distinct}"), &body);
+        let path = temp_csv("dictionary-once", &body);
         let pool = Pool {
             limit: 1 << 30,
             ..Pool::default()
         };
         let columns = pooled(&pool, &path, &BTreeMap::new(), || {}).unwrap();
         let _ = std::fs::remove_file(&path);
-        columns
+        let text = distinct * width;
+        let held = pool.used.get();
+        assert!(held >= text, "the text must be charged: {held} < {text}");
+        // Per entry: the list slot, the hash table, a code and a mask byte; and the fixed
+        // buffers. Nothing near a second copy of the text.
+        let per_entry = ENTRY_OVERHEAD + 8 * 4 + 16;
+        assert!(
+            held <= text + distinct * per_entry + 2 * BUFFER_BYTES,
+            "the text is charged more than once: {held} for {text} bytes of text"
+        );
+        // The result's own charge adds names and records, never the dictionary text.
+        assert_eq!(result_overhead(&columns), "s".len() + 256);
+    }
+
+    /// An Int column that turns out to hold a float is copied; a budget that holds the ints but
+    /// not their copy refuses the copy and gives back everything the read charged.
+    #[test]
+    fn a_budget_that_cannot_hold_the_promotion_copy_refuses_it() {
+        let mut body = String::from("x\n");
+        for row in 0..1000 {
+            body.push_str(&format!("{row}\n"));
+        }
+        body.push_str("1.5\n");
+        let path = temp_csv("promote-refused", &body);
+        // Room for the fixed buffers but not the 8,000-byte copy of the ints.
+        let pool = Pool {
+            limit: BUFFER_BYTES + 4000,
+            ..Pool::default()
+        };
+        let result = pooled(&pool, &path, &BTreeMap::new(), || {});
+        let _ = std::fs::remove_file(&path);
+        assert!(
+            matches!(result, Err(ColumnsError::Allocation(8000))),
+            "expected the copy to be refused"
+        );
+        assert_eq!(pool.used.get(), 0, "a refused read keeps no charge");
     }
 
     #[test]

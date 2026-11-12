@@ -1541,3 +1541,62 @@ fn main() -> Unit:
     );
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// The read's last charge covers the names and records of the result. When the budget refuses it,
+// the error is raised and the effect record is still closed.
+#[test]
+fn csv_read_columns_closes_its_effect_when_the_result_does_not_fit_the_budget() {
+    let columns = 3000usize;
+    let header: Vec<String> = (0..columns).map(|index| format!("c{index:04}")).collect();
+    let row = vec!["1"; columns];
+    let source = format!(
+        r#"{NO_KINDS}
+fn main() -> Unit:
+    let columns = unwrap(csv_read_columns("wide.csv", no_kinds()))
+    print(len(columns))
+"#
+    );
+    let root = std::env::temp_dir().join(format!("guion-csv-produced-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("wide.csv"),
+        format!("{}\n{}\n", header.join(","), row.join(",")),
+    )
+    .unwrap();
+    let artifact = compile("columns.gu", &format!("{CSV_COLUMN_RECORDS}{source}")).unwrap();
+    // 256 bytes and the name for each column's record.
+    let produced = columns * (256 + 5);
+    let mut refused_at_the_result = 0;
+    for limit in (1..=40).map(|step| step * 50_000) {
+        let mut policy = HostPolicy::default().with_file_access(&root, true, false);
+        policy.allocation_limit_bytes = limit;
+        let mut runtime = Runtime::vm_only().load(artifact.clone(), policy).unwrap();
+        let outcome = runtime.invoke("main", vec![]);
+        let effects: Vec<_> = runtime
+            .effect_report()
+            .into_iter()
+            .filter(|effect| effect.kind == guion_runtime::EffectKind::FileRead)
+            .collect();
+        assert_eq!(effects.len(), 1, "limit {limit}: {effects:?} {outcome:?}");
+        match outcome {
+            Ok(_) => assert_eq!(effects[0].outcome, guion_runtime::EffectOutcome::Returned),
+            Err(error) => {
+                assert_eq!(error.code, "R_ALLOCATION_LIMIT", "limit {limit}");
+                assert_eq!(
+                    effects[0].outcome,
+                    guion_runtime::EffectOutcome::ReturnedError,
+                    "limit {limit}: the effect record was left open"
+                );
+                if error.message.contains(&format!("requested {produced} ")) {
+                    refused_at_the_result += 1;
+                }
+            }
+        }
+    }
+    assert!(
+        refused_at_the_result > 0,
+        "no limit refused the result's own charge"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
