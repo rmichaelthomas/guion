@@ -192,3 +192,39 @@ fn show_prints_an_aligned_table() {
         )
     );
 }
+
+#[test]
+fn jsonl_line_that_is_not_an_object_is_a_parse_error() {
+    let app = app(
+        "jsonl-shape",
+        &[
+            ("later.jsonl", "{\"a\": 1}\n5\n"),
+            ("first.jsonl", "[\"a\", \"b\"]\n{\"a\": 1}\n"),
+        ],
+        "print(code(frame_read_jsonl(\"later.jsonl\")))\nprint(code(frame_read_jsonl(\"first.jsonl\")))",
+    );
+    let out = stdout(&app);
+    let lines: Vec<&str> = out.lines().collect();
+    assert!(lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 2"), "{out}");
+    assert!(lines[1].starts_with("E_FRAME_PARSE") && lines[1].contains("line 1"), "{out}");
+}
+
+#[test]
+fn csv_blank_lines_are_skipped() {
+    let app = app(
+        "blank",
+        &[("wide.csv", "a,b\n1,2\n\n3,4\n\n"), ("narrow.csv", "a\n1\n\n2\n")],
+        "print(frame_rows(unwrap(frame_read_csv(\"wide.csv\"))))\nprint(kinds(unwrap(frame_read_csv(\"narrow.csv\"))))",
+    );
+    assert_eq!(stdout(&app), "2\na:i64:0 \n");
+}
+
+#[test]
+fn csv_byte_order_mark_is_not_part_of_the_first_name() {
+    let app = app(
+        "bom",
+        &[("bom.csv", "\u{feff}a,b\n1,2\n")],
+        "print(text_join_native(frame_names(unwrap(frame_read_csv(\"bom.csv\"))), \"|\"))",
+    );
+    assert_eq!(stdout(&app), "a|b\n");
+}

@@ -337,10 +337,12 @@ fn read_rows(path: Text, builders: List[Builder], only: List[Int]) -> Result[Lis
             let maybe = unwrap(next)
             if is_some(maybe):
                 let row = unwrap(maybe)
-                if len(row.fields) != width:
-                    return Err(frame_error("E_FRAME_PARSE", "line " + int_to_text(row.start_line) + " has " + int_to_text(len(row.fields)) + " fields, expected " + int_to_text(width)))
-                set rows = list_push(rows, row)
-                set lines = list_push(lines, row.start_line)
+                # A blank line is not a row.
+                if len(row.fields) != 1 or row.fields[0] != "":
+                    if len(row.fields) != width:
+                        return Err(frame_error("E_FRAME_PARSE", "line " + int_to_text(row.start_line) + " has " + int_to_text(len(row.fields)) + " fields, expected " + int_to_text(width)))
+                    set rows = list_push(rows, row)
+                    set lines = list_push(lines, row.start_line)
             else:
                 set done = true
         if len(rows) > 0:
@@ -365,7 +367,10 @@ fn read_csv_kinds(path: Text, kinds: Map[Text, Text]) -> Result[Frame, StdError]
     let maybe_header = unwrap(first)
     if not is_some(maybe_header):
         return Err(frame_error("E_FRAME_PARSE", path + " has no header row"))
-    let header = unwrap(maybe_header).fields
+    var header = unwrap(maybe_header).fields
+    if len(header) > 0 and text_slice(header[0], 0, 1) == "\u{feff}":
+        # A UTF-8 byte-order mark, as spreadsheet exports write it, is not part of the name.
+        set header = list_set(header, 0, text_slice(header[0], 1, len(header[0])))
     var seen: Map[Text, Int] = {}
     var builders: List[Builder] = []
     for name in header:
@@ -525,6 +530,8 @@ fn jsonl_objects(path: Text) -> Result[List[Json], StdError]:
             if text_trim_native(line.raw) != "":
                 if not is_some(line.value):
                     return Err(jsonl_failure(line, path))
+                if text_slice(json_stringify(unwrap(line.value)), 0, 1) != "{":
+                    return Err(frame_error("E_FRAME_PARSE", path + " line " + int_to_text(line.number) + ": expected a JSON object"))
                 set objects = list_push(objects, unwrap(line.value))
         else:
             set done = true
