@@ -383,4 +383,16 @@ mod tests {
             assert_eq!(first, scalar, "{n}x{k}x{m} scalar fallback");
         }
     }
+
+    /// Reports which kernel `native_isa` picks. Setting `GUION_EXPECT_ISA` (for example
+    /// `Avx2`) makes the test fail when the machine picks something else, so an emulated or
+    /// remote run can prove the SIMD path really executed.
+    #[test]
+    fn reports_the_kernel_path() {
+        let isa = native_isa();
+        eprintln!("matmul kernel path: {isa:?}");
+        if let Ok(expected) = std::env::var("GUION_EXPECT_ISA") {
+            assert_eq!(format!("{isa:?}"), expected);
+        }
+    }
 }
