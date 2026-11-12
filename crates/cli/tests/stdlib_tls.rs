@@ -1,3 +1,6 @@
+mod common;
+
+use common::{free_port, output, spawn};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::time::Duration;
@@ -37,11 +40,6 @@ fn guion(dir: &Path, flags: &[&str]) -> Command {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     command
-}
-
-fn free_port() -> u16 {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap().port()
 }
 
 const SERVER: &str = r#"import "std:net"
@@ -88,14 +86,12 @@ fn main() -> Int:
 fn exchange(name: &str, ca_file: &str) -> (Output, Output) {
     let port = free_port();
     let dir = project(name, &SERVER.replace("PORT", &port.to_string()));
-    let mut server = guion(&dir, &["--allow-bind", "127.0.0.1:*"])
-        .spawn()
-        .expect("server starts");
+    let mut server =
+        spawn(&mut guion(&dir, &["--allow-bind", "127.0.0.1:*"])).expect("server starts");
     let client_dir = project(&format!("{name}-client"), &client(ca_file, port));
     let mut result = None;
     for _ in 0..50 {
-        let output = guion(&client_dir, &["--allow-connect", "127.0.0.1:*"])
-            .output()
+        let output = output(&mut guion(&client_dir, &["--allow-connect", "127.0.0.1:*"]))
             .expect("client starts");
         if !String::from_utf8_lossy(&output.stdout).contains("E_NET_REFUSED") {
             result = Some(output);
@@ -139,7 +135,7 @@ fn untrusted_issuers_are_rejected_with_a_certificate_error() {
 #[test]
 fn tls_needs_the_same_connect_grant_as_tcp() {
     let dir = project("tls-deny", &client("ca.pem", 9));
-    let output = guion(&dir, &[]).output().unwrap();
+    let output = output(&mut guion(&dir, &[])).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout).trim(),
@@ -194,14 +190,12 @@ fn main() -> Int:
 fn mutual_exchange(name: &str, identity: &str) -> (Output, Output) {
     let port = free_port();
     let dir = project(name, &VERIFYING_SERVER.replace("PORT", &port.to_string()));
-    let mut server = guion(&dir, &["--allow-bind", "127.0.0.1:*"])
-        .spawn()
-        .expect("server starts");
+    let mut server =
+        spawn(&mut guion(&dir, &["--allow-bind", "127.0.0.1:*"])).expect("server starts");
     let client_dir = project(&format!("{name}-client"), &identity_client(identity, port));
     let mut result = None;
     for _ in 0..50 {
-        let output = guion(&client_dir, &["--allow-connect", "127.0.0.1:*"])
-            .output()
+        let output = output(&mut guion(&client_dir, &["--allow-connect", "127.0.0.1:*"]))
             .expect("client starts");
         if !String::from_utf8_lossy(&output.stdout).contains("E_NET_REFUSED") {
             result = Some(output);
