@@ -874,7 +874,8 @@ fn encode_wire_value(
         | Value::JsonError(_)
         | Value::FileError(_)
         | Value::HttpError(_)
-        | Value::NativeResource(_) => Err(AbiFailure::new(
+        | Value::NativeResource(_)
+        | Value::Array(_) => Err(AbiFailure::new(
             "E_ABI_VALUE_UNSUPPORTED",
             "this runtime value cannot cross the browser ABI",
         )),

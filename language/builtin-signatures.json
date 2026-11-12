@@ -48,6 +48,1221 @@
       "operation": "Assert"
     },
     {
+      "name": "array_i8",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i8]",
+      "operation": "ArrayFromList.i8"
+    },
+    {
+      "name": "array_i8_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[i8]",
+      "operation": "ArrayFull.i8"
+    },
+    {
+      "name": "array_i8_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i8]",
+      "operation": "ArrayZeros.i8"
+    },
+    {
+      "name": "array_to_i8",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[i8]",
+      "operation": "ArrayConvert.i8"
+    },
+    {
+      "name": "array_i8_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[i8]",
+      "operation": "ArrayFromBytes.i8"
+    },
+    {
+      "name": "array_i16",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i16]",
+      "operation": "ArrayFromList.i16"
+    },
+    {
+      "name": "array_i16_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[i16]",
+      "operation": "ArrayFull.i16"
+    },
+    {
+      "name": "array_i16_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i16]",
+      "operation": "ArrayZeros.i16"
+    },
+    {
+      "name": "array_to_i16",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[i16]",
+      "operation": "ArrayConvert.i16"
+    },
+    {
+      "name": "array_i16_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[i16]",
+      "operation": "ArrayFromBytes.i16"
+    },
+    {
+      "name": "array_i32",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i32]",
+      "operation": "ArrayFromList.i32"
+    },
+    {
+      "name": "array_i32_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[i32]",
+      "operation": "ArrayFull.i32"
+    },
+    {
+      "name": "array_i32_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i32]",
+      "operation": "ArrayZeros.i32"
+    },
+    {
+      "name": "array_to_i32",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[i32]",
+      "operation": "ArrayConvert.i32"
+    },
+    {
+      "name": "array_i32_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[i32]",
+      "operation": "ArrayFromBytes.i32"
+    },
+    {
+      "name": "array_i64",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayFromList.i64"
+    },
+    {
+      "name": "array_i64_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayFull.i64"
+    },
+    {
+      "name": "array_i64_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayZeros.i64"
+    },
+    {
+      "name": "array_to_i64",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayConvert.i64"
+    },
+    {
+      "name": "array_i64_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayFromBytes.i64"
+    },
+    {
+      "name": "array_u8",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u8]",
+      "operation": "ArrayFromList.u8"
+    },
+    {
+      "name": "array_u8_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[u8]",
+      "operation": "ArrayFull.u8"
+    },
+    {
+      "name": "array_u8_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u8]",
+      "operation": "ArrayZeros.u8"
+    },
+    {
+      "name": "array_to_u8",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[u8]",
+      "operation": "ArrayConvert.u8"
+    },
+    {
+      "name": "array_u8_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[u8]",
+      "operation": "ArrayFromBytes.u8"
+    },
+    {
+      "name": "array_u16",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u16]",
+      "operation": "ArrayFromList.u16"
+    },
+    {
+      "name": "array_u16_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[u16]",
+      "operation": "ArrayFull.u16"
+    },
+    {
+      "name": "array_u16_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u16]",
+      "operation": "ArrayZeros.u16"
+    },
+    {
+      "name": "array_to_u16",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[u16]",
+      "operation": "ArrayConvert.u16"
+    },
+    {
+      "name": "array_u16_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[u16]",
+      "operation": "ArrayFromBytes.u16"
+    },
+    {
+      "name": "array_u32",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u32]",
+      "operation": "ArrayFromList.u32"
+    },
+    {
+      "name": "array_u32_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[u32]",
+      "operation": "ArrayFull.u32"
+    },
+    {
+      "name": "array_u32_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u32]",
+      "operation": "ArrayZeros.u32"
+    },
+    {
+      "name": "array_to_u32",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[u32]",
+      "operation": "ArrayConvert.u32"
+    },
+    {
+      "name": "array_u32_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[u32]",
+      "operation": "ArrayFromBytes.u32"
+    },
+    {
+      "name": "array_u64",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u64]",
+      "operation": "ArrayFromList.u64"
+    },
+    {
+      "name": "array_u64_full",
+      "parameters": [
+        "List[Int]",
+        "Int"
+      ],
+      "result": "Array[u64]",
+      "operation": "ArrayFull.u64"
+    },
+    {
+      "name": "array_u64_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[u64]",
+      "operation": "ArrayZeros.u64"
+    },
+    {
+      "name": "array_to_u64",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[u64]",
+      "operation": "ArrayConvert.u64"
+    },
+    {
+      "name": "array_u64_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[u64]",
+      "operation": "ArrayFromBytes.u64"
+    },
+    {
+      "name": "array_f32",
+      "parameters": [
+        "List[Float64]"
+      ],
+      "result": "Array[f32]",
+      "operation": "ArrayFromList.f32"
+    },
+    {
+      "name": "array_f32_full",
+      "parameters": [
+        "List[Int]",
+        "Float64"
+      ],
+      "result": "Array[f32]",
+      "operation": "ArrayFull.f32"
+    },
+    {
+      "name": "array_f32_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[f32]",
+      "operation": "ArrayZeros.f32"
+    },
+    {
+      "name": "array_to_f32",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[f32]",
+      "operation": "ArrayConvert.f32"
+    },
+    {
+      "name": "array_f32_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[f32]",
+      "operation": "ArrayFromBytes.f32"
+    },
+    {
+      "name": "array_f64",
+      "parameters": [
+        "List[Float64]"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayFromList.f64"
+    },
+    {
+      "name": "array_f64_full",
+      "parameters": [
+        "List[Int]",
+        "Float64"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayFull.f64"
+    },
+    {
+      "name": "array_f64_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayZeros.f64"
+    },
+    {
+      "name": "array_to_f64",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayConvert.f64"
+    },
+    {
+      "name": "array_f64_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayFromBytes.f64"
+    },
+    {
+      "name": "array_bool",
+      "parameters": [
+        "List[Bool]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayFromList.bool"
+    },
+    {
+      "name": "array_bool_full",
+      "parameters": [
+        "List[Int]",
+        "Bool"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayFull.bool"
+    },
+    {
+      "name": "array_bool_zeros",
+      "parameters": [
+        "List[Int]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayZeros.bool"
+    },
+    {
+      "name": "array_to_bool",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayConvert.bool"
+    },
+    {
+      "name": "array_bool_from_bytes",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayFromBytes.bool"
+    },
+    {
+      "name": "array_i64_range",
+      "parameters": [
+        "Int",
+        "Int",
+        "Int"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayRange.i64"
+    },
+    {
+      "name": "array_f64_linspace",
+      "parameters": [
+        "Float64",
+        "Float64",
+        "Int"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayLinspace.f64"
+    },
+    {
+      "name": "array_f64_random",
+      "parameters": [
+        "Int",
+        "List[Int]"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayRandom.f64"
+    },
+    {
+      "name": "array_f64_normal",
+      "parameters": [
+        "Int",
+        "List[Int]"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayNormal.f64"
+    },
+    {
+      "name": "array_shape",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "List[Int]",
+      "operation": "ArrayShape"
+    },
+    {
+      "name": "array_ndim",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Int",
+      "operation": "ArrayNdim"
+    },
+    {
+      "name": "array_size",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Int",
+      "operation": "ArraySize"
+    },
+    {
+      "name": "array_equal",
+      "parameters": [
+        "Array[$A]",
+        "Array[$A]"
+      ],
+      "result": "Bool",
+      "operation": "ArrayEqual"
+    },
+    {
+      "name": "array_get",
+      "parameters": [
+        "Array[$A]",
+        "Int"
+      ],
+      "result": "Elem[$A]",
+      "operation": "ArrayGet"
+    },
+    {
+      "name": "array_get_at",
+      "parameters": [
+        "Array[$A]",
+        "List[Int]"
+      ],
+      "result": "Elem[$A]",
+      "operation": "ArrayGetAt"
+    },
+    {
+      "name": "array_set",
+      "parameters": [
+        "Array[$A]",
+        "Int",
+        "Elem[$A]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArraySet"
+    },
+    {
+      "name": "array_set_at",
+      "parameters": [
+        "Array[$A]",
+        "List[Int]",
+        "Elem[$A]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArraySetAt"
+    },
+    {
+      "name": "array_reshape",
+      "parameters": [
+        "Array[$A]",
+        "List[Int]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayReshape"
+    },
+    {
+      "name": "array_flatten",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayFlatten"
+    },
+    {
+      "name": "array_transpose",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayTranspose"
+    },
+    {
+      "name": "array_slice",
+      "parameters": [
+        "Array[$A]",
+        "Int",
+        "Int"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArraySlice"
+    },
+    {
+      "name": "array_concat",
+      "parameters": [
+        "List[Array[$A]]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayConcat"
+    },
+    {
+      "name": "array_stack",
+      "parameters": [
+        "List[Array[$A]]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayStack"
+    },
+    {
+      "name": "array_to_list",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "List[Elem[$A]]",
+      "operation": "ArrayToList"
+    },
+    {
+      "name": "array_to_bytes",
+      "parameters": [
+        "Array[$A]"
+      ],
+      "result": "Bytes",
+      "operation": "ArrayToBytes"
+    },
+    {
+      "name": "array_add",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayAdd"
+    },
+    {
+      "name": "array_sub",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArraySub"
+    },
+    {
+      "name": "array_mul",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMul"
+    },
+    {
+      "name": "array_div",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayDiv"
+    },
+    {
+      "name": "array_minimum",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMinimum"
+    },
+    {
+      "name": "array_maximum",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMaximum"
+    },
+    {
+      "name": "array_add_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayAddScalar"
+    },
+    {
+      "name": "array_sub_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArraySubScalar"
+    },
+    {
+      "name": "array_mul_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMulScalar"
+    },
+    {
+      "name": "array_div_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayDivScalar"
+    },
+    {
+      "name": "array_neg",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayNeg"
+    },
+    {
+      "name": "array_abs",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayAbs"
+    },
+    {
+      "name": "array_clip",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayClip"
+    },
+    {
+      "name": "array_sqrt",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArraySqrt"
+    },
+    {
+      "name": "array_exp",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayExp"
+    },
+    {
+      "name": "array_log",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayLog"
+    },
+    {
+      "name": "array_log10",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayLog10"
+    },
+    {
+      "name": "array_log2",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayLog2"
+    },
+    {
+      "name": "array_sin",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArraySin"
+    },
+    {
+      "name": "array_cos",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayCos"
+    },
+    {
+      "name": "array_tan",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayTan"
+    },
+    {
+      "name": "array_asin",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayAsin"
+    },
+    {
+      "name": "array_acos",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayAcos"
+    },
+    {
+      "name": "array_atan",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayAtan"
+    },
+    {
+      "name": "array_sinh",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArraySinh"
+    },
+    {
+      "name": "array_cosh",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayCosh"
+    },
+    {
+      "name": "array_tanh",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayTanh"
+    },
+    {
+      "name": "array_floor",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayFloor"
+    },
+    {
+      "name": "array_ceil",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayCeil"
+    },
+    {
+      "name": "array_round",
+      "parameters": [
+        "Array[$F]"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayRound"
+    },
+    {
+      "name": "array_pow",
+      "parameters": [
+        "Array[$F]",
+        "Float64"
+      ],
+      "result": "Array[$F]",
+      "operation": "ArrayPow"
+    },
+    {
+      "name": "array_eq",
+      "parameters": [
+        "Array[$A]",
+        "Array[$A]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayEq"
+    },
+    {
+      "name": "array_eq_scalar",
+      "parameters": [
+        "Array[$A]",
+        "Elem[$A]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayEqScalar"
+    },
+    {
+      "name": "array_ne",
+      "parameters": [
+        "Array[$A]",
+        "Array[$A]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayNe"
+    },
+    {
+      "name": "array_ne_scalar",
+      "parameters": [
+        "Array[$A]",
+        "Elem[$A]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayNeScalar"
+    },
+    {
+      "name": "array_lt",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayLt"
+    },
+    {
+      "name": "array_lt_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayLtScalar"
+    },
+    {
+      "name": "array_le",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayLe"
+    },
+    {
+      "name": "array_le_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayLeScalar"
+    },
+    {
+      "name": "array_gt",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayGt"
+    },
+    {
+      "name": "array_gt_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayGtScalar"
+    },
+    {
+      "name": "array_ge",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayGe"
+    },
+    {
+      "name": "array_ge_scalar",
+      "parameters": [
+        "Array[$N]",
+        "Elem[$N]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayGeScalar"
+    },
+    {
+      "name": "array_and",
+      "parameters": [
+        "Array[bool]",
+        "Array[bool]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayAnd.bool"
+    },
+    {
+      "name": "array_or",
+      "parameters": [
+        "Array[bool]",
+        "Array[bool]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayOr.bool"
+    },
+    {
+      "name": "array_not",
+      "parameters": [
+        "Array[bool]"
+      ],
+      "result": "Array[bool]",
+      "operation": "ArrayNot.bool"
+    },
+    {
+      "name": "array_any",
+      "parameters": [
+        "Array[bool]"
+      ],
+      "result": "Bool",
+      "operation": "ArrayAny.bool"
+    },
+    {
+      "name": "array_all",
+      "parameters": [
+        "Array[bool]"
+      ],
+      "result": "Bool",
+      "operation": "ArrayAll.bool"
+    },
+    {
+      "name": "array_count",
+      "parameters": [
+        "Array[bool]"
+      ],
+      "result": "Int",
+      "operation": "ArrayCount.bool"
+    },
+    {
+      "name": "array_where",
+      "parameters": [
+        "Array[bool]",
+        "Array[$A]",
+        "Array[$A]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayWhere"
+    },
+    {
+      "name": "array_filter",
+      "parameters": [
+        "Array[$A]",
+        "Array[bool]"
+      ],
+      "result": "Array[$A]",
+      "operation": "ArrayFilter"
+    },
+    {
+      "name": "array_sum",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Elem[$N]",
+      "operation": "ArraySum"
+    },
+    {
+      "name": "array_prod",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Elem[$N]",
+      "operation": "ArrayProd"
+    },
+    {
+      "name": "array_min",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Elem[$N]",
+      "operation": "ArrayMin"
+    },
+    {
+      "name": "array_max",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Elem[$N]",
+      "operation": "ArrayMax"
+    },
+    {
+      "name": "array_argmin",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Int",
+      "operation": "ArrayArgmin"
+    },
+    {
+      "name": "array_argmax",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Int",
+      "operation": "ArrayArgmax"
+    },
+    {
+      "name": "array_mean",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Float64",
+      "operation": "ArrayMean"
+    },
+    {
+      "name": "array_var",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Float64",
+      "operation": "ArrayVar"
+    },
+    {
+      "name": "array_std",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Float64",
+      "operation": "ArrayStd"
+    },
+    {
+      "name": "array_sum_axis",
+      "parameters": [
+        "Array[$N]",
+        "Int"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArraySumAxis"
+    },
+    {
+      "name": "array_min_axis",
+      "parameters": [
+        "Array[$N]",
+        "Int"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMinAxis"
+    },
+    {
+      "name": "array_max_axis",
+      "parameters": [
+        "Array[$N]",
+        "Int"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMaxAxis"
+    },
+    {
+      "name": "array_mean_axis",
+      "parameters": [
+        "Array[$N]",
+        "Int"
+      ],
+      "result": "Array[f64]",
+      "operation": "ArrayMeanAxis"
+    },
+    {
+      "name": "array_sort",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArraySort"
+    },
+    {
+      "name": "array_argsort",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Array[i64]",
+      "operation": "ArrayArgsort"
+    },
+    {
+      "name": "array_cumsum",
+      "parameters": [
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayCumsum"
+    },
+    {
+      "name": "array_dot",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Elem[$N]",
+      "operation": "ArrayDot"
+    },
+    {
+      "name": "array_matmul",
+      "parameters": [
+        "Array[$N]",
+        "Array[$N]"
+      ],
+      "result": "Array[$N]",
+      "operation": "ArrayMatmul"
+    },
+    {
       "name": "bytes_from_ints",
       "parameters": [
         "List[Int]"

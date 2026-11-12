@@ -1,6 +1,6 @@
 use guion_model::{
-    CodecFunction, FsFunction, MathFunction, NetFunction, Op, ProcessFunction, RegexFunction,
-    TlsFunction, Type,
+    ArrayFunction, CodecFunction, ElementType, FsFunction, MathFunction, NetFunction, Op,
+    ProcessFunction, RegexFunction, TlsFunction, Type,
 };
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -125,6 +125,12 @@ pub(crate) fn concrete_type(spec: &str) -> Option<Type> {
             });
         }
     }
+    if let Some(tag) = spec
+        .strip_prefix("Array[")
+        .and_then(|rest| rest.strip_suffix(']'))
+    {
+        return ElementType::from_name(tag).map(Type::Array);
+    }
     if spec.starts_with("Result[") && spec.ends_with(']') {
         let parts = split_types(&spec[7..spec.len() - 1])?;
         if parts.len() != 2 {
@@ -138,7 +144,46 @@ pub(crate) fn concrete_type(spec: &str) -> Option<Type> {
     None
 }
 
+/// An array catalog operation: `ArrayAdd` (element bound at the call) or `ArrayFull.f64`.
+pub(crate) fn array_operation(name: &str) -> Option<(ArrayFunction, Option<ElementType>)> {
+    match name.split_once('.') {
+        Some((function, element)) => Some((
+            ArrayFunction::from_op_name(function)?,
+            Some(ElementType::from_name(element)?),
+        )),
+        None => Some((ArrayFunction::from_op_name(name)?, None)),
+    }
+}
+
+/// The element variables array signatures use, and the element types each accepts.
+pub(crate) fn element_variable_accepts(variable: &str, element: ElementType) -> Option<bool> {
+    match variable {
+        "$A" => Some(true),
+        "$N" => Some(element.is_numeric()),
+        "$F" => Some(element.is_float()),
+        _ => None,
+    }
+}
+
+/// Replaces an element variable in a signature type: `Elem[$X]` becomes the element's scalar
+/// type and `$X` the element's name.
+pub(crate) fn substitute_element(spec: &str, variable: &str, element: ElementType) -> String {
+    let scalar = match element.scalar_type() {
+        Type::Float64 => "Float64",
+        Type::Bool => "Bool",
+        _ => "Int",
+    };
+    spec.replace(&format!("Elem[{variable}]"), scalar)
+        .replace(variable, element.name())
+}
+
 pub(crate) fn operation(name: &str) -> Option<Op> {
+    if name.starts_with("Array") {
+        return match array_operation(name)? {
+            (function, Some(element)) => Some(Op::Array(function, element)),
+            (_, None) => None,
+        };
+    }
     Some(match name {
         "MakeSome" => Op::MakeSome,
         "MakeOk" => Op::MakeOk,
@@ -321,6 +366,73 @@ mod tests {
     }
 
     #[test]
+    fn array_catalog_matches_the_model_operand_table() {
+        use guion_model::{ArrayOperand, ElementType};
+        let mut checked = 0;
+        for (name, signature) in signatures() {
+            let Some((function, fixed)) = super::array_operation(&signature.operation) else {
+                continue;
+            };
+            let specs: Vec<&String> = signature
+                .parameters
+                .iter()
+                .chain([&signature.result])
+                .collect();
+            let variable = ["$A", "$N", "$F"]
+                .into_iter()
+                .find(|variable| specs.iter().any(|spec| spec.contains(variable)));
+            assert!(
+                variable.is_some() || fixed.is_some(),
+                "{name}: an array builtin needs an element variable or a fixed element"
+            );
+            for element in ElementType::ALL {
+                let accepted = match variable {
+                    Some(variable) => super::element_variable_accepts(variable, element).unwrap(),
+                    None => Some(element) == fixed,
+                };
+                let op_element = fixed.unwrap_or(element);
+                if fixed.is_none() {
+                    assert_eq!(
+                        accepted,
+                        function.element_class().accepts(element),
+                        "{name}: element variable disagrees with the model for {element:?}"
+                    );
+                }
+                if !accepted {
+                    continue;
+                }
+                assert!(function.element_class().accepts(op_element), "{name}");
+                let concrete = |spec: &str| {
+                    let spec = match variable {
+                        Some(variable) => super::substitute_element(spec, variable, element),
+                        None => spec.to_string(),
+                    };
+                    concrete_type(&spec).unwrap_or_else(|| panic!("{name}: cannot parse {spec}"))
+                };
+                let (operands, result) = function.signature(op_element);
+                assert_eq!(operands.len(), signature.parameters.len(), "{name}");
+                for (operand, spec) in operands.iter().zip(&signature.parameters) {
+                    let actual = concrete(spec);
+                    match operand {
+                        ArrayOperand::Exact(expected) => {
+                            assert_eq!(&actual, expected, "{name} {element:?}")
+                        }
+                        ArrayOperand::AnyArray => {
+                            assert!(matches!(actual, Type::Array(_)), "{name}")
+                        }
+                    }
+                }
+                assert_eq!(concrete(&signature.result), result, "{name} {element:?}");
+                checked += 1;
+            }
+        }
+        assert!(
+            checked > 500,
+            "only {checked} array signatures were checked"
+        );
+    }
+
+    #[test]
     fn concrete_signature_types_parse_nested_generics() {
         assert_eq!(
             concrete_type("Result[List[Int],JsonError]"),
@@ -340,6 +452,7 @@ mod tests {
         for (name, signature) in signatures() {
             assert!(
                 operation(&signature.operation).is_some()
+                    || super::array_operation(&signature.operation).is_some()
                     || signature.operation == "ParallelMap"
                     || signature.operation == "SortBy"
                     || signature.operation == "SortByIntKey"

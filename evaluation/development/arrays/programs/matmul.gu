@@ -1,0 +1,5 @@
+fn main() -> Unit:
+    let n = 256
+    let a = array_reshape(array_f64_linspace(0.0, 1.0, n * n), [n, n])
+    let b = array_reshape(array_f64_linspace(1.0, 2.0, n * n), [n, n])
+    print(array_sum(array_matmul(a, b)))

@@ -18,6 +18,294 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:ArgsFrom:List[Text]:Int"
         if name == "assert":
             return "1:Assert:Unit:Bool"
+        if name == "array_i8":
+            return "1:ArrayFromList.i8:Array[i8]:List[Int]"
+        if name == "array_i8_full":
+            return "2:ArrayFull.i8:Array[i8]:List[Int];Int"
+        if name == "array_i8_zeros":
+            return "1:ArrayZeros.i8:Array[i8]:List[Int]"
+        if name == "array_to_i8":
+            return "1:ArrayConvert.i8:Array[i8]:Array[$A]"
+        if name == "array_i8_from_bytes":
+            return "1:ArrayFromBytes.i8:Array[i8]:Bytes"
+        if name == "array_i16":
+            return "1:ArrayFromList.i16:Array[i16]:List[Int]"
+        if name == "array_i16_full":
+            return "2:ArrayFull.i16:Array[i16]:List[Int];Int"
+        if name == "array_i16_zeros":
+            return "1:ArrayZeros.i16:Array[i16]:List[Int]"
+        if name == "array_to_i16":
+            return "1:ArrayConvert.i16:Array[i16]:Array[$A]"
+        if name == "array_i16_from_bytes":
+            return "1:ArrayFromBytes.i16:Array[i16]:Bytes"
+        if name == "array_i32":
+            return "1:ArrayFromList.i32:Array[i32]:List[Int]"
+        if name == "array_i32_full":
+            return "2:ArrayFull.i32:Array[i32]:List[Int];Int"
+        if name == "array_i32_zeros":
+            return "1:ArrayZeros.i32:Array[i32]:List[Int]"
+        if name == "array_to_i32":
+            return "1:ArrayConvert.i32:Array[i32]:Array[$A]"
+        if name == "array_i32_from_bytes":
+            return "1:ArrayFromBytes.i32:Array[i32]:Bytes"
+        if name == "array_i64":
+            return "1:ArrayFromList.i64:Array[i64]:List[Int]"
+        if name == "array_i64_full":
+            return "2:ArrayFull.i64:Array[i64]:List[Int];Int"
+        if name == "array_i64_zeros":
+            return "1:ArrayZeros.i64:Array[i64]:List[Int]"
+        if name == "array_to_i64":
+            return "1:ArrayConvert.i64:Array[i64]:Array[$A]"
+        if name == "array_i64_from_bytes":
+            return "1:ArrayFromBytes.i64:Array[i64]:Bytes"
+        if name == "array_u8":
+            return "1:ArrayFromList.u8:Array[u8]:List[Int]"
+        if name == "array_u8_full":
+            return "2:ArrayFull.u8:Array[u8]:List[Int];Int"
+        if name == "array_u8_zeros":
+            return "1:ArrayZeros.u8:Array[u8]:List[Int]"
+        if name == "array_to_u8":
+            return "1:ArrayConvert.u8:Array[u8]:Array[$A]"
+        if name == "array_u8_from_bytes":
+            return "1:ArrayFromBytes.u8:Array[u8]:Bytes"
+        if name == "array_u16":
+            return "1:ArrayFromList.u16:Array[u16]:List[Int]"
+        if name == "array_u16_full":
+            return "2:ArrayFull.u16:Array[u16]:List[Int];Int"
+        if name == "array_u16_zeros":
+            return "1:ArrayZeros.u16:Array[u16]:List[Int]"
+        if name == "array_to_u16":
+            return "1:ArrayConvert.u16:Array[u16]:Array[$A]"
+        if name == "array_u16_from_bytes":
+            return "1:ArrayFromBytes.u16:Array[u16]:Bytes"
+        if name == "array_u32":
+            return "1:ArrayFromList.u32:Array[u32]:List[Int]"
+        if name == "array_u32_full":
+            return "2:ArrayFull.u32:Array[u32]:List[Int];Int"
+        if name == "array_u32_zeros":
+            return "1:ArrayZeros.u32:Array[u32]:List[Int]"
+        if name == "array_to_u32":
+            return "1:ArrayConvert.u32:Array[u32]:Array[$A]"
+        if name == "array_u32_from_bytes":
+            return "1:ArrayFromBytes.u32:Array[u32]:Bytes"
+        if name == "array_u64":
+            return "1:ArrayFromList.u64:Array[u64]:List[Int]"
+        if name == "array_u64_full":
+            return "2:ArrayFull.u64:Array[u64]:List[Int];Int"
+        if name == "array_u64_zeros":
+            return "1:ArrayZeros.u64:Array[u64]:List[Int]"
+        if name == "array_to_u64":
+            return "1:ArrayConvert.u64:Array[u64]:Array[$A]"
+        if name == "array_u64_from_bytes":
+            return "1:ArrayFromBytes.u64:Array[u64]:Bytes"
+        if name == "array_f32":
+            return "1:ArrayFromList.f32:Array[f32]:List[Float64]"
+        if name == "array_f32_full":
+            return "2:ArrayFull.f32:Array[f32]:List[Int];Float64"
+        if name == "array_f32_zeros":
+            return "1:ArrayZeros.f32:Array[f32]:List[Int]"
+        if name == "array_to_f32":
+            return "1:ArrayConvert.f32:Array[f32]:Array[$A]"
+        if name == "array_f32_from_bytes":
+            return "1:ArrayFromBytes.f32:Array[f32]:Bytes"
+        if name == "array_f64":
+            return "1:ArrayFromList.f64:Array[f64]:List[Float64]"
+        if name == "array_f64_full":
+            return "2:ArrayFull.f64:Array[f64]:List[Int];Float64"
+        if name == "array_f64_zeros":
+            return "1:ArrayZeros.f64:Array[f64]:List[Int]"
+        if name == "array_to_f64":
+            return "1:ArrayConvert.f64:Array[f64]:Array[$A]"
+        if name == "array_f64_from_bytes":
+            return "1:ArrayFromBytes.f64:Array[f64]:Bytes"
+        if name == "array_bool":
+            return "1:ArrayFromList.bool:Array[bool]:List[Bool]"
+        if name == "array_bool_full":
+            return "2:ArrayFull.bool:Array[bool]:List[Int];Bool"
+        if name == "array_bool_zeros":
+            return "1:ArrayZeros.bool:Array[bool]:List[Int]"
+        if name == "array_to_bool":
+            return "1:ArrayConvert.bool:Array[bool]:Array[$A]"
+        if name == "array_bool_from_bytes":
+            return "1:ArrayFromBytes.bool:Array[bool]:Bytes"
+        if name == "array_i64_range":
+            return "3:ArrayRange.i64:Array[i64]:Int;Int;Int"
+        if name == "array_f64_linspace":
+            return "3:ArrayLinspace.f64:Array[f64]:Float64;Float64;Int"
+        if name == "array_f64_random":
+            return "2:ArrayRandom.f64:Array[f64]:Int;List[Int]"
+        if name == "array_f64_normal":
+            return "2:ArrayNormal.f64:Array[f64]:Int;List[Int]"
+        if name == "array_shape":
+            return "1:ArrayShape:List[Int]:Array[$A]"
+        if name == "array_ndim":
+            return "1:ArrayNdim:Int:Array[$A]"
+        if name == "array_size":
+            return "1:ArraySize:Int:Array[$A]"
+        if name == "array_equal":
+            return "2:ArrayEqual:Bool:Array[$A];Array[$A]"
+        if name == "array_get":
+            return "2:ArrayGet:Elem[$A]:Array[$A];Int"
+        if name == "array_get_at":
+            return "2:ArrayGetAt:Elem[$A]:Array[$A];List[Int]"
+        if name == "array_set":
+            return "3:ArraySet:Array[$A]:Array[$A];Int;Elem[$A]"
+        if name == "array_set_at":
+            return "3:ArraySetAt:Array[$A]:Array[$A];List[Int];Elem[$A]"
+        if name == "array_reshape":
+            return "2:ArrayReshape:Array[$A]:Array[$A];List[Int]"
+        if name == "array_flatten":
+            return "1:ArrayFlatten:Array[$A]:Array[$A]"
+        if name == "array_transpose":
+            return "1:ArrayTranspose:Array[$A]:Array[$A]"
+        if name == "array_slice":
+            return "3:ArraySlice:Array[$A]:Array[$A];Int;Int"
+        if name == "array_concat":
+            return "1:ArrayConcat:Array[$A]:List[Array[$A]]"
+        if name == "array_stack":
+            return "1:ArrayStack:Array[$A]:List[Array[$A]]"
+        if name == "array_to_list":
+            return "1:ArrayToList:List[Elem[$A]]:Array[$A]"
+        if name == "array_to_bytes":
+            return "1:ArrayToBytes:Bytes:Array[$A]"
+        if name == "array_add":
+            return "2:ArrayAdd:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_sub":
+            return "2:ArraySub:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_mul":
+            return "2:ArrayMul:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_div":
+            return "2:ArrayDiv:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_minimum":
+            return "2:ArrayMinimum:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_maximum":
+            return "2:ArrayMaximum:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_add_scalar":
+            return "2:ArrayAddScalar:Array[$N]:Array[$N];Elem[$N]"
+        if name == "array_sub_scalar":
+            return "2:ArraySubScalar:Array[$N]:Array[$N];Elem[$N]"
+        if name == "array_mul_scalar":
+            return "2:ArrayMulScalar:Array[$N]:Array[$N];Elem[$N]"
+        if name == "array_div_scalar":
+            return "2:ArrayDivScalar:Array[$N]:Array[$N];Elem[$N]"
+        if name == "array_neg":
+            return "1:ArrayNeg:Array[$N]:Array[$N]"
+        if name == "array_abs":
+            return "1:ArrayAbs:Array[$N]:Array[$N]"
+        if name == "array_clip":
+            return "3:ArrayClip:Array[$N]:Array[$N];Elem[$N];Elem[$N]"
+        if name == "array_sqrt":
+            return "1:ArraySqrt:Array[$F]:Array[$F]"
+        if name == "array_exp":
+            return "1:ArrayExp:Array[$F]:Array[$F]"
+        if name == "array_log":
+            return "1:ArrayLog:Array[$F]:Array[$F]"
+        if name == "array_log10":
+            return "1:ArrayLog10:Array[$F]:Array[$F]"
+        if name == "array_log2":
+            return "1:ArrayLog2:Array[$F]:Array[$F]"
+        if name == "array_sin":
+            return "1:ArraySin:Array[$F]:Array[$F]"
+        if name == "array_cos":
+            return "1:ArrayCos:Array[$F]:Array[$F]"
+        if name == "array_tan":
+            return "1:ArrayTan:Array[$F]:Array[$F]"
+        if name == "array_asin":
+            return "1:ArrayAsin:Array[$F]:Array[$F]"
+        if name == "array_acos":
+            return "1:ArrayAcos:Array[$F]:Array[$F]"
+        if name == "array_atan":
+            return "1:ArrayAtan:Array[$F]:Array[$F]"
+        if name == "array_sinh":
+            return "1:ArraySinh:Array[$F]:Array[$F]"
+        if name == "array_cosh":
+            return "1:ArrayCosh:Array[$F]:Array[$F]"
+        if name == "array_tanh":
+            return "1:ArrayTanh:Array[$F]:Array[$F]"
+        if name == "array_floor":
+            return "1:ArrayFloor:Array[$F]:Array[$F]"
+        if name == "array_ceil":
+            return "1:ArrayCeil:Array[$F]:Array[$F]"
+        if name == "array_round":
+            return "1:ArrayRound:Array[$F]:Array[$F]"
+        if name == "array_pow":
+            return "2:ArrayPow:Array[$F]:Array[$F];Float64"
+        if name == "array_eq":
+            return "2:ArrayEq:Array[bool]:Array[$A];Array[$A]"
+        if name == "array_eq_scalar":
+            return "2:ArrayEqScalar:Array[bool]:Array[$A];Elem[$A]"
+        if name == "array_ne":
+            return "2:ArrayNe:Array[bool]:Array[$A];Array[$A]"
+        if name == "array_ne_scalar":
+            return "2:ArrayNeScalar:Array[bool]:Array[$A];Elem[$A]"
+        if name == "array_lt":
+            return "2:ArrayLt:Array[bool]:Array[$N];Array[$N]"
+        if name == "array_lt_scalar":
+            return "2:ArrayLtScalar:Array[bool]:Array[$N];Elem[$N]"
+        if name == "array_le":
+            return "2:ArrayLe:Array[bool]:Array[$N];Array[$N]"
+        if name == "array_le_scalar":
+            return "2:ArrayLeScalar:Array[bool]:Array[$N];Elem[$N]"
+        if name == "array_gt":
+            return "2:ArrayGt:Array[bool]:Array[$N];Array[$N]"
+        if name == "array_gt_scalar":
+            return "2:ArrayGtScalar:Array[bool]:Array[$N];Elem[$N]"
+        if name == "array_ge":
+            return "2:ArrayGe:Array[bool]:Array[$N];Array[$N]"
+        if name == "array_ge_scalar":
+            return "2:ArrayGeScalar:Array[bool]:Array[$N];Elem[$N]"
+        if name == "array_and":
+            return "2:ArrayAnd.bool:Array[bool]:Array[bool];Array[bool]"
+        if name == "array_or":
+            return "2:ArrayOr.bool:Array[bool]:Array[bool];Array[bool]"
+        if name == "array_not":
+            return "1:ArrayNot.bool:Array[bool]:Array[bool]"
+        if name == "array_any":
+            return "1:ArrayAny.bool:Bool:Array[bool]"
+        if name == "array_all":
+            return "1:ArrayAll.bool:Bool:Array[bool]"
+        if name == "array_count":
+            return "1:ArrayCount.bool:Int:Array[bool]"
+        if name == "array_where":
+            return "3:ArrayWhere:Array[$A]:Array[bool];Array[$A];Array[$A]"
+        if name == "array_filter":
+            return "2:ArrayFilter:Array[$A]:Array[$A];Array[bool]"
+        if name == "array_sum":
+            return "1:ArraySum:Elem[$N]:Array[$N]"
+        if name == "array_prod":
+            return "1:ArrayProd:Elem[$N]:Array[$N]"
+        if name == "array_min":
+            return "1:ArrayMin:Elem[$N]:Array[$N]"
+        if name == "array_max":
+            return "1:ArrayMax:Elem[$N]:Array[$N]"
+        if name == "array_argmin":
+            return "1:ArrayArgmin:Int:Array[$N]"
+        if name == "array_argmax":
+            return "1:ArrayArgmax:Int:Array[$N]"
+        if name == "array_mean":
+            return "1:ArrayMean:Float64:Array[$N]"
+        if name == "array_var":
+            return "1:ArrayVar:Float64:Array[$N]"
+        if name == "array_std":
+            return "1:ArrayStd:Float64:Array[$N]"
+        if name == "array_sum_axis":
+            return "2:ArraySumAxis:Array[$N]:Array[$N];Int"
+        if name == "array_min_axis":
+            return "2:ArrayMinAxis:Array[$N]:Array[$N];Int"
+        if name == "array_max_axis":
+            return "2:ArrayMaxAxis:Array[$N]:Array[$N];Int"
+        if name == "array_mean_axis":
+            return "2:ArrayMeanAxis:Array[f64]:Array[$N];Int"
+        if name == "array_sort":
+            return "1:ArraySort:Array[$N]:Array[$N]"
+        if name == "array_argsort":
+            return "1:ArrayArgsort:Array[i64]:Array[$N]"
+        if name == "array_cumsum":
+            return "1:ArrayCumsum:Array[$N]:Array[$N]"
+        if name == "array_dot":
+            return "2:ArrayDot:Elem[$N]:Array[$N];Array[$N]"
+        if name == "array_matmul":
+            return "2:ArrayMatmul:Array[$N]:Array[$N];Array[$N]"
     if name[0] == "b":
         if name == "bytes_from_ints":
             return "1:BytesFromInts:Bytes:List[Int]"
@@ -509,3 +797,219 @@ pub fn builtin_catalog_result(name: Text) -> Text:
 pub fn builtin_catalog_parameter_type(name: Text, index: Int) -> Text:
     let parameters = builtin_catalog_part(builtin_catalog_signature(name), ":", 3)
     return builtin_catalog_part(parameters, ";", index)
+
+pub fn builtin_array_function_code(name: Text) -> Int:
+    if name == "ArrayFromList":
+        return 0
+    if name == "ArrayFull":
+        return 1
+    if name == "ArrayZeros":
+        return 2
+    if name == "ArrayConvert":
+        return 3
+    if name == "ArrayFromBytes":
+        return 4
+    if name == "ArrayRange":
+        return 5
+    if name == "ArrayLinspace":
+        return 6
+    if name == "ArrayRandom":
+        return 7
+    if name == "ArrayNormal":
+        return 8
+    if name == "ArrayShape":
+        return 9
+    if name == "ArrayNdim":
+        return 10
+    if name == "ArraySize":
+        return 11
+    if name == "ArrayEqual":
+        return 12
+    if name == "ArrayGet":
+        return 13
+    if name == "ArrayGetAt":
+        return 14
+    if name == "ArraySet":
+        return 15
+    if name == "ArraySetAt":
+        return 16
+    if name == "ArrayReshape":
+        return 17
+    if name == "ArrayFlatten":
+        return 18
+    if name == "ArrayTranspose":
+        return 19
+    if name == "ArraySlice":
+        return 20
+    if name == "ArrayConcat":
+        return 21
+    if name == "ArrayStack":
+        return 22
+    if name == "ArrayToList":
+        return 23
+    if name == "ArrayToBytes":
+        return 24
+    if name == "ArrayAdd":
+        return 25
+    if name == "ArraySub":
+        return 26
+    if name == "ArrayMul":
+        return 27
+    if name == "ArrayDiv":
+        return 28
+    if name == "ArrayMinimum":
+        return 29
+    if name == "ArrayMaximum":
+        return 30
+    if name == "ArrayAddScalar":
+        return 31
+    if name == "ArraySubScalar":
+        return 32
+    if name == "ArrayMulScalar":
+        return 33
+    if name == "ArrayDivScalar":
+        return 34
+    if name == "ArrayNeg":
+        return 35
+    if name == "ArrayAbs":
+        return 36
+    if name == "ArrayClip":
+        return 37
+    if name == "ArraySqrt":
+        return 38
+    if name == "ArrayExp":
+        return 39
+    if name == "ArrayLog":
+        return 40
+    if name == "ArrayLog10":
+        return 41
+    if name == "ArrayLog2":
+        return 42
+    if name == "ArraySin":
+        return 43
+    if name == "ArrayCos":
+        return 44
+    if name == "ArrayTan":
+        return 45
+    if name == "ArrayAsin":
+        return 46
+    if name == "ArrayAcos":
+        return 47
+    if name == "ArrayAtan":
+        return 48
+    if name == "ArraySinh":
+        return 49
+    if name == "ArrayCosh":
+        return 50
+    if name == "ArrayTanh":
+        return 51
+    if name == "ArrayFloor":
+        return 52
+    if name == "ArrayCeil":
+        return 53
+    if name == "ArrayRound":
+        return 54
+    if name == "ArrayPow":
+        return 55
+    if name == "ArrayEq":
+        return 56
+    if name == "ArrayNe":
+        return 57
+    if name == "ArrayLt":
+        return 58
+    if name == "ArrayLe":
+        return 59
+    if name == "ArrayGt":
+        return 60
+    if name == "ArrayGe":
+        return 61
+    if name == "ArrayEqScalar":
+        return 62
+    if name == "ArrayNeScalar":
+        return 63
+    if name == "ArrayLtScalar":
+        return 64
+    if name == "ArrayLeScalar":
+        return 65
+    if name == "ArrayGtScalar":
+        return 66
+    if name == "ArrayGeScalar":
+        return 67
+    if name == "ArrayAnd":
+        return 68
+    if name == "ArrayOr":
+        return 69
+    if name == "ArrayNot":
+        return 70
+    if name == "ArrayAny":
+        return 71
+    if name == "ArrayAll":
+        return 72
+    if name == "ArrayCount":
+        return 73
+    if name == "ArrayWhere":
+        return 74
+    if name == "ArrayFilter":
+        return 75
+    if name == "ArraySum":
+        return 76
+    if name == "ArrayProd":
+        return 77
+    if name == "ArrayMin":
+        return 78
+    if name == "ArrayMax":
+        return 79
+    if name == "ArrayArgmin":
+        return 80
+    if name == "ArrayArgmax":
+        return 81
+    if name == "ArrayMean":
+        return 82
+    if name == "ArrayVar":
+        return 83
+    if name == "ArrayStd":
+        return 84
+    if name == "ArraySumAxis":
+        return 85
+    if name == "ArrayMinAxis":
+        return 86
+    if name == "ArrayMaxAxis":
+        return 87
+    if name == "ArrayMeanAxis":
+        return 88
+    if name == "ArraySort":
+        return 89
+    if name == "ArrayArgsort":
+        return 90
+    if name == "ArrayCumsum":
+        return 91
+    if name == "ArrayDot":
+        return 92
+    if name == "ArrayMatmul":
+        return 93
+    return -1
+
+pub fn builtin_array_element_code(name: Text) -> Int:
+    if name == "i8":
+        return 0
+    if name == "i16":
+        return 1
+    if name == "i32":
+        return 2
+    if name == "i64":
+        return 3
+    if name == "u8":
+        return 4
+    if name == "u16":
+        return 5
+    if name == "u32":
+        return 6
+    if name == "u64":
+        return 7
+    if name == "f32":
+        return 8
+    if name == "f64":
+        return 9
+    if name == "bool":
+        return 10
+    return -1

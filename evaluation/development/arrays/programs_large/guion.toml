@@ -1,0 +1,7 @@
+[project]
+name = "array-benchmarks"
+version = "0.1.0"
+entry = "null.gu"
+
+[runtime]
+allocation_limit_bytes = 2147483648

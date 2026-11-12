@@ -1604,8 +1604,13 @@ mod tests {
     }
 }
 
+mod array;
 mod shared;
 
+pub use array::{
+    shape_size, ArrayData, ArrayFunction, ArrayOperand, ArrayValue, ElementClass, ElementType,
+    MAX_ARRAY_RANK,
+};
 use shared::HybridCount;
 pub use shared::{ShareAcrossThreads, Shared};
 use std::{
@@ -2371,6 +2376,7 @@ impl ShareAcrossThreads for Value {
             Value::Text(text) => text.share_across_threads(),
             Value::List(items) => items.share_across_threads(),
             Value::Float64List(items) => items.share_across_threads(),
+            Value::Array(array) => array.share_across_threads(),
             Value::Map(items) => items.share_across_threads(),
             Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
                 value.share_across_threads()
@@ -2907,6 +2913,7 @@ pub enum Value {
     Text(SharedText),
     List(Shared<Vec<Value>>),
     Float64List(Shared<Vec<Float64>>),
+    Array(Shared<ArrayValue>),
     Map(Shared<TextMap>),
     OptionNone,
     OptionSome(Box<Value>),
@@ -2979,6 +2986,7 @@ impl PartialEq for Value {
                 left_name == right_name && left == right
             }
             (Value::Bytes(left), Value::Bytes(right)) => left == right,
+            (Value::Array(left), Value::Array(right)) => left == right,
             (Value::Bool(left), Value::Bool(right)) => left == right,
             (Value::Text(left), Value::Text(right)) => left == right,
             (Value::List(left), Value::List(right)) => left == right,
@@ -3060,6 +3068,7 @@ impl fmt::Display for Value {
             Value::Int(i) => write!(f, "{i}"),
             Value::Float64(value) => write!(f, "{}", value.get()),
             Value::Bytes(value) => write!(f, "Bytes({})", value.len()),
+            Value::Array(array) => write!(f, "{array}"),
             Value::Record(name, fields) => {
                 write!(f, "{name}(")?;
                 for (index, field) in fields.iter().enumerate() {
@@ -3139,6 +3148,7 @@ pub enum Type {
     FileError,
     HttpError,
     NativeResource(String),
+    Array(ElementType),
     Unit,
 }
 
@@ -3809,6 +3819,8 @@ pub enum Op {
     Process(ProcessFunction),
     Net(NetFunction),
     Tls(TlsFunction),
+    Array(ArrayFunction, ElementType),
+    ArraySetLocal(usize),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3966,7 +3978,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 61;
+    pub const CURRENT_VERSION: u32 = 62;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4244,6 +4256,12 @@ impl Artifact {
                 "mutual TLS instructions require artifact format 61",
             ));
         }
+        if self.format_version < 62 && artifact_uses_arrays(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "arrays require artifact format 62",
+            ));
+        }
         if self.format_version < 61 && artifact_uses_random_bits(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -4494,6 +4512,17 @@ impl Artifact {
                     Op::Math(function) => {
                         w.u8(177);
                         w.u8(function.code());
+                    }
+                    Op::Array(function, element) => {
+                        w.u8(193);
+                        w.u8(function.code());
+                        w.u8(element.code());
+                    }
+                    // `set a = array_set(a, index, value)` on a local array: updated in place
+                    // when unshared.
+                    Op::ArraySetLocal(slot) => {
+                        w.u8(194);
+                        w.count(*slot)?;
                     }
                     Op::Codec(function) => {
                         w.u8(182);
@@ -5034,6 +5063,30 @@ impl Artifact {
                     190 if format_version >= 61 => Op::RandomBits,
                     191 if format_version >= 61 => Op::RandomUnitFloat,
                     192 if format_version >= 61 => Op::RandomBelow,
+                    193 if format_version >= 62 => {
+                        let code = r.u8()?;
+                        let function = ArrayFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("array instruction has unknown function code {code}"),
+                            )
+                        })?;
+                        let code = r.u8()?;
+                        let element = ElementType::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("array instruction has unknown element code {code}"),
+                            )
+                        })?;
+                        Op::Array(function, element)
+                    }
+                    194 if format_version >= 62 => Op::ArraySetLocal(r.count()?),
+                    193 | 194 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "array instructions require artifact format 62",
+                        ));
+                    }
                     188..=192 => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
@@ -5477,6 +5530,12 @@ impl Artifact {
                 "direct JSON decoding from HTTP response bytes requires artifact format 47",
             ));
         }
+        if format_version < 62 && artifact_uses_arrays(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "arrays require artifact format 62",
+            ));
+        }
         if format_version < 48 && artifact_uses_time_format_utc_date(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -5641,6 +5700,37 @@ fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
                 Op::Math(_) | Op::IntToFloat | Op::FloatToInt | Op::NumberToText | Op::RandomMix
             )
         })
+    })
+}
+
+fn type_mentions_array(ty: &Type) -> bool {
+    match ty {
+        Type::Array(_) => true,
+        Type::List(item) | Type::Map(item) | Type::Option(item) => type_mentions_array(item),
+        Type::Result(ok, err) => type_mentions_array(ok) || type_mentions_array(err),
+        _ => false,
+    }
+}
+
+fn artifact_uses_arrays(artifact: &Artifact) -> bool {
+    artifact.records.iter().any(|record| {
+        record
+            .fields
+            .iter()
+            .any(|field| type_mentions_array(&field.ty))
+    }) || artifact.externals.iter().any(|external| {
+        external.parameters.iter().any(type_mentions_array) || type_mentions_array(&external.result)
+    }) || artifact.functions.iter().any(|function| {
+        function.parameters.iter().any(type_mentions_array)
+            || type_mentions_array(&function.result)
+            || function
+                .code
+                .iter()
+                .any(|instruction| match &instruction.op {
+                    Op::Array(_, _) | Op::ArraySetLocal(_) => true,
+                    Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => type_mentions_array(ty),
+                    _ => false,
+                })
     })
 }
 
@@ -6236,6 +6326,10 @@ impl Writer {
                 self.u8(17);
                 self.string(name)?;
             }
+            Type::Array(element) => {
+                self.u8(18);
+                self.u8(element.code());
+            }
         }
         Ok(())
     }
@@ -6374,6 +6468,12 @@ impl Writer {
                     "native resource handles cannot be serialized as constants",
                 ));
             }
+            Value::Array(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_VALUE",
+                    "arrays cannot be serialized as constants",
+                ));
+            }
         }
         Ok(())
     }
@@ -6467,6 +6567,17 @@ impl<'a> Reader<'a> {
             14 => Ok(Type::Bytes),
             15 => Ok(Type::HttpError),
             17 => Ok(Type::NativeResource(self.string()?)),
+            18 => {
+                let code = self.u8()?;
+                ElementType::from_code(code)
+                    .map(Type::Array)
+                    .ok_or_else(|| {
+                        ArtifactError::new(
+                            "E_ARTIFACT_TYPE",
+                            format!("unknown array element code {code}"),
+                        )
+                    })
+            }
             _ => Err(ArtifactError::new("E_ARTIFACT_TYPE", "unknown type tag")),
         }
     }

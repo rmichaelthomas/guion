@@ -10163,6 +10163,9 @@ fn input_value_allocation(value: &Value) -> usize {
         Value::Float64List(items) => size_of::<Value>()
             .saturating_add(size_of::<Vec<Float64>>())
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
+        Value::Array(array) => {
+            size_of::<Value>().saturating_add(guion_vm_core::array_allocation(array))
+        }
         Value::Map(items) => size_of::<Value>().saturating_add(
             items
                 .iter()

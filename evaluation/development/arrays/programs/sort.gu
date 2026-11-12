@@ -1,0 +1,8 @@
+fn main() -> Unit:
+    let n = 1000000
+    let m = array_mul_scalar(array_i64_range(0, n, 1), 7919)
+    let x = array_to_f64(array_sub(m, array_mul_scalar(array_div_scalar(m, 1000003), 1000003)))
+    let s = array_sort(x)
+    print(array_get(s, 0))
+    print(array_get(s, 500000))
+    print(array_get(s, n - 1))

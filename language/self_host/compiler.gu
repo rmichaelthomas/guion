@@ -694,6 +694,121 @@ fn record_scope(records: List[RecordSignature], source_module: Text, imports: Js
         set cursor = cursor + 1
     return scope
 
+fn array_element_scalar(tag: Text) -> Text:
+    if tag == "f32" or tag == "f64":
+        return "Float64"
+    if tag == "bool":
+        return "Bool"
+    if tag == "i8" or tag == "i16" or tag == "i32" or tag == "i64":
+        return "Int"
+    if tag == "u8" or tag == "u16" or tag == "u32" or tag == "u64":
+        return "Int"
+    return ""
+
+# "Array[f64]" gives "f64"; any other type gives "".
+fn array_tag(ty: Text) -> Text:
+    if len(ty) > 7 and starts_with(ty, "Array[") and ty[len(ty) - 1] == "]":
+        let tag = text_slice(ty, 6, len(ty) - 1)
+        if array_element_scalar(tag) != "":
+            return tag
+    return ""
+
+# "List[Array[f64]]" gives "f64".
+fn array_list_tag(ty: Text) -> Text:
+    if len(ty) > 6 and starts_with(ty, "List[") and ty[len(ty) - 1] == "]":
+        return array_tag(text_slice(ty, 5, len(ty) - 1))
+    return ""
+
+# The element variable of a generic array builtin ("$A", "$N" or "$F"), or "".
+fn array_variable(callee: Text) -> Text:
+    if not starts_with(builtin_catalog_operation(callee), "Array"):
+        return ""
+    let signature = builtin_catalog_signature(callee)
+    if text_find(signature, "$A", 0) >= 0:
+        return "$A"
+    if text_find(signature, "$N", 0) >= 0:
+        return "$N"
+    if text_find(signature, "$F", 0) >= 0:
+        return "$F"
+    return ""
+
+fn array_variable_accepts(variable: Text, tag: Text) -> Bool:
+    if variable == "$F":
+        return tag == "f32" or tag == "f64"
+    if variable == "$N":
+        return array_element_scalar(tag) != "" and tag != "bool"
+    return array_element_scalar(tag) != ""
+
+fn array_substitute(spec: Text, variable: Text, tag: Text) -> Text:
+    let scalar = array_element_scalar(tag)
+    return text_replace_native(text_replace_native(spec, "Elem[" + variable + "]", scalar), variable, tag)
+
+# The element tag a generic array call binds: from the first argument whose catalog
+# parameter mentions the element variable.
+fn array_call_tag(callee: Text, arguments: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> Text:
+    let variable = array_variable(callee)
+    var cursor = 0
+    while cursor < json_len(arguments):
+        let spec = builtin_catalog_parameter_type(callee, cursor)
+        if text_find(spec, variable, 0) >= 0:
+            let actual = expression_type(expression(json_index(arguments, cursor), state, functions, records, ""))
+            if starts_with(spec, "List["):
+                return array_list_tag(actual)
+            return array_tag(actual)
+        set cursor = cursor + 1
+    return ""
+
+fn array_call_type_error(node: Json, callee: Text, arguments: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+    let variable = array_variable(callee)
+    var tag = ""
+    var cursor = 0
+    while cursor < json_len(arguments):
+        let spec = builtin_catalog_parameter_type(callee, cursor)
+        let argument = json_index(arguments, cursor)
+        if tag == "" and text_find(spec, variable, 0) >= 0:
+            let failure = find_type_error_expression(argument, state, functions, records, source_name, source, "")
+            if not json_is_null(failure):
+                return failure
+            let actual = expression_type(expression(argument, state, functions, records, ""))
+            var found = array_tag(actual)
+            if starts_with(spec, "List["):
+                set found = array_list_tag(actual)
+            if found == "":
+                return failure_at_node("E_TYPE_ARGUMENT", "argument to `" + callee + "` must be an array", argument, source_name, source, 1)
+            if not array_variable_accepts(variable, found):
+                var wanted = "a numeric"
+                if variable == "$F":
+                    set wanted = "a float (f32 or f64)"
+                return failure_at_node("E_TYPE_ARGUMENT", "`" + callee + "` requires " + wanted + " array, got Array[" + found + "]", argument, source_name, source, 1)
+            set tag = found
+        else:
+            var expected = spec
+            if tag != "":
+                set expected = array_substitute(spec, variable, tag)
+            let failure = find_type_error_expression(argument, state, functions, records, source_name, source, expected)
+            if not json_is_null(failure):
+                return failure
+            if expression_type(expression(argument, state, functions, records, expected)) != expected:
+                return failure_at_node("E_TYPE_ARGUMENT", "argument to `" + callee + "` has an incompatible type", argument, source_name, source, 1)
+        set cursor = cursor + 1
+    return json_null()
+
+fn array_call_expression(callee: Text, arguments: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> ExpressionResult:
+    let variable = array_variable(callee)
+    let tag = array_call_tag(callee, arguments, state, functions, records)
+    var code = empty_code()
+    var cursor = 0
+    while cursor < json_len(arguments):
+        let expected = array_substitute(builtin_catalog_parameter_type(callee, cursor), variable, tag)
+        let argument = expression(json_index(arguments, cursor), state, functions, records, expected)
+        set code = append_code(code, expression_code(argument))
+        set cursor = cursor + 1
+    var operation = builtin_catalog_operation(callee)
+    if text_find(operation, ".", 0) < 0:
+        set operation = operation + "." + tag
+    let result_type = array_substitute(builtin_catalog_result(callee), variable, tag)
+    return expression_result(append_code(code, singleton(ir_instruction(operation))), result_type)
+
 fn known_primitive_type(name: Text) -> Bool:
     if name == "Int" or name == "Float64" or name == "Bool" or name == "Text" or name == "Bytes" or name == "Unit":
         return true
@@ -741,6 +856,11 @@ fn valid_type(type_node: Json, records: List[RecordSignature]) -> Bool:
         return known_primitive_type(name) or record_index(records, name) >= 0
     if name == "List" or name == "Option":
         return count == 1 and valid_type(json_index(arguments, 0), records)
+    if name == "Array":
+        if count != 1:
+            return false
+        let element = json_index(arguments, 0)
+        return json_len(json_get(element, "arguments")) == 0 and array_element_scalar(json_as_text(json_get(element, "name"))) != ""
     if name == "Map":
         if count != 2:
             return false
@@ -1154,6 +1274,8 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             var merge_code = expression_code(values)
             set merge_code = append_code(merge_code, singleton(ir_text("MergeSortedByIntKey", "function", functions[key_index].symbol)))
             return expression_result(merge_code, list_element_type(expression_type(values), records))
+        if known_index < 0 and array_variable(callee) != "":
+            return array_call_expression(callee, arguments, state, functions, records)
         var code = empty_code()
         var cursor = 0
         while cursor < json_len(arguments):
@@ -1915,6 +2037,8 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
                 if expression_type(expression(value_node, state, functions, records, expected_value)) != expected_value:
                     return failure_at_node("E_TYPE_ARGUMENT", "map_record_set value must match the record field type", value_node, source_name, source, 1)
             return json_null()
+        if known_index < 0 and array_variable(callee) != "":
+            return array_call_type_error(node, callee, arguments, state, functions, records, source_name, source)
         var cursor = 0
         while cursor < json_len(arguments):
             var argument_expected = ""

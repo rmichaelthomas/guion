@@ -23,6 +23,8 @@ use std::{
     time::Instant,
 };
 
+pub mod array;
+mod array_compute;
 mod register;
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
@@ -2711,6 +2713,45 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Array(function, element) => {
+                let arity = function.arity();
+                let mut args = [Value::Unit, Value::Unit, Value::Unit];
+                for slot in (0..arity).rev() {
+                    args[slot] = pop!();
+                }
+                let span = instruction.span;
+                let mut charge = |bytes: usize| {
+                    charge_allocation(budget.as_ref(), bytes, span)
+                        .map_err(|error| ("R_ALLOCATION_LIMIT", error.message))
+                };
+                let result = array::apply(*function, *element, &mut args[..arity], &mut charge)
+                    .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
+                if !matches!(result, Value::Array(_)) {
+                    if let Some(error) = value_limit_error(&result, limits, span) {
+                        return Err(error);
+                    }
+                }
+                push_stack!(result);
+            }
+            Op::ArraySetLocal(slot) => {
+                let value = pop!();
+                let index = pop!();
+                let span = instruction.span;
+                let local = locals.get_mut(*slot).ok_or_else(|| {
+                    RuntimeError::new(
+                        "R_LOCAL_UNINITIALIZED",
+                        "array_set assignment targets an uninitialized local",
+                        span,
+                    )
+                })?;
+                if let Value::Array(array) = &*local {
+                    if Shared::strong_count(array) > 1 {
+                        charge_allocation(budget.as_ref(), array_allocation(array), span)?;
+                    }
+                }
+                array::set_local(local, &index, &value)
+                    .map_err(|(code, message)| RuntimeError::new(code, message, span))?;
+            }
             Op::Math(function) => {
                 let function = *function;
                 let right = if function.arity() == 2 {
@@ -4915,6 +4956,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::ListPushLocal(_) => "ListPushLocal",
         Op::ListSet => "ListSet",
         Op::ListSetLocal(_) => "ListSetLocal",
+        Op::ArraySetLocal(_) => "ArraySetLocal",
         Op::Divide => "Divide",
         Op::FloatSqrt => "FloatSqrt",
         Op::JsonAsFloat => "JsonAsFloat",
@@ -4996,6 +5038,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextReplace => "TextReplace",
         Op::TextTrim => "TextTrim",
         Op::Math(function) => function.op_name(),
+        Op::Array(function, _) => function.op_name(),
         Op::Codec(function) => function.op_name(),
         Op::Fs(function) => function.op_name(),
         Op::Regex(function) => function.op_name(),
@@ -5550,6 +5593,7 @@ pub fn new_value_allocation(value: &Value) -> usize {
         Value::Bytes(bytes) => size_of::<Vec<u8>>().saturating_add(bytes.capacity()),
         Value::Float64List(items) => size_of::<Vec<Float64>>()
             .saturating_add(items.len().saturating_mul(size_of::<Float64>())),
+        Value::Array(array) => array_allocation(array),
         // Records own a fresh field-vector, but nested Lists, Maps, and JSON
         // remain shared. Their payloads were charged when first created.
         Value::Record(name, fields) => size_of::<Vec<Value>>()
@@ -5577,6 +5621,13 @@ pub fn new_value_allocation(value: &Value) -> usize {
         }
         _ => 0,
     }
+}
+
+/// Bytes charged for an array: its header, shape and element storage.
+pub fn array_allocation(array: &guion_model::ArrayValue) -> usize {
+    size_of::<guion_model::ArrayValue>()
+        .saturating_add(array.shape.len().saturating_mul(size_of::<usize>()))
+        .saturating_add(array.data.byte_len())
 }
 
 #[inline]
@@ -6013,6 +6064,7 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
                             .all(|(value, field)| value_matches(value, &field.ty, records))
                 })
         }
+        (Value::Array(array), Type::Array(element)) => array.element() == *element,
         (Value::TaskError(_), Type::TaskError) => true,
         (Value::Json(_), Type::Json) => true,
         (Value::JsonError(_), Type::JsonError) => true,
@@ -6361,6 +6413,7 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 Op::Load(s)
                 | Op::Store(s)
                 | Op::ListSetLocal(s)
+                | Op::ArraySetLocal(s)
                 | Op::ListPushLocal(s)
                 | Op::JsonPushLocal(s)
                 | Op::JsonSetLocal(s)
@@ -6487,6 +6540,7 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::JsonError
         | Type::FileError
         | Type::HttpError
+        | Type::Array(_)
         | Type::Unit => true,
     }
 }
@@ -6525,6 +6579,7 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::Bool(_) => Type::Bool,
         Value::Text(_) => Type::Text,
         Value::Bytes(_) => Type::Bytes,
+        Value::Array(array) => Type::Array(array.element()),
         Value::Unit => Type::Unit,
         Value::List(items) => {
             let first = items.first()?;
@@ -6655,6 +6710,21 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 };
                 if item.as_ref() != &value {
                     return Err(format!("list_set item type mismatch at instruction {pc}"));
+                }
+            }
+            Op::ArraySetLocal(slot) => {
+                let value = pop_type(&mut state.stack, pc)?;
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("array_set index requires Int at instruction {pc}"));
+                }
+                let Some(Type::Array(element)) = state.locals.get(*slot).and_then(Option::as_ref)
+                else {
+                    return Err(format!(
+                        "array_set local is not an array at instruction {pc}"
+                    ));
+                };
+                if element.scalar_type() != value {
+                    return Err(format!("array_set value type mismatch at instruction {pc}"));
                 }
             }
             Op::Pop | Op::Print | Op::PrintErr => {
@@ -7032,6 +7102,30 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     return Err(format!("sqrt requires Float64 at instruction {pc}"));
                 }
                 state.stack.push(Type::Float64);
+            }
+            Op::Array(function, element) => {
+                if !function.element_class().accepts(*element) {
+                    return Err(format!(
+                        "{} does not accept {} arrays at instruction {pc}",
+                        function.op_name(),
+                        element.name()
+                    ));
+                }
+                let (operands, result) = function.signature(*element);
+                for operand in operands.iter().rev() {
+                    let actual = pop_type(&mut state.stack, pc)?;
+                    let matches = match operand {
+                        guion_model::ArrayOperand::Exact(expected) => actual == *expected,
+                        guion_model::ArrayOperand::AnyArray => matches!(actual, Type::Array(_)),
+                    };
+                    if !matches {
+                        return Err(format!(
+                            "{} expects {operand:?}, found {actual:?} at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(result);
             }
             Op::Math(function) => {
                 for _ in 0..function.arity() {
