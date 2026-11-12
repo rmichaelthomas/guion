@@ -12,7 +12,7 @@ This list covers open problems only. Each row has a status and the batch that wi
 | 6 | Large files need the project to raise `max_file_bytes`, and the allocation-limit error does not say how to raise it. | fixed in c071ffd | Batch 1 |
 | 7 | `array_i64_range` can panic in debug builds on extreme operands. | fixed in 6fb8d20 | Batch 2 |
 | 8 | Temporary buffers in matmul, sort and argsort, factorize and join_index are not charged to the allocation budget. | fixed in 6fb8d20 | Batch 2 |
-| 9 | Array error messages use internal operation names. `array_clip` with low greater than high raises `R_ARRAY_SHAPE`. | open | Batch 2 |
+| 9 | Array error messages use internal operation names. `array_clip` with low greater than high raises `R_ARRAY_SHAPE`. | fixed in be924e7 | Batch 2 |
 | 10 | The Rust and self-hosted compilers give different error codes for `Array[i128]` and `Array[Array[f64]]`. | open | Batch 2 |
 | 11 | The spec says element types outside `Array[...]` should give `E_TYPE_UNKNOWN`. Both compilers give `E_TYPE_ANNOTATION`. | open | Batch 2 |
 | 12 | `catalog_array_builtin` can return `Ok(None)` after it has emitted argument code. Only a test guards this. | open | Batch 2 |
