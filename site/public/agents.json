@@ -1,6 +1,6 @@
 {
   "product": "Guion",
-  "status": "Pre-release. The second preview build, v0.1.0-preview.2, is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon).",
+  "status": "Pre-1.0. Release 0.2.0 is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon). It is the first release that is not a preview,.",
   "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",
@@ -8,15 +8,15 @@
   "whereGuionIsBehind": [
     {
       "heading": "Libraries and packages",
-      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 27 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. Nothing has been published to the registry yet."
+      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 27 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. The registry is live, and its first package is frames, a data-frame library."
     },
     {
       "heading": "Arrays and data science",
-      "body": "NumPy and pandas make Python the default for numeric and data work. Guion does not have a native array type yet."
+      "body": "NumPy and pandas make Python the default for numeric and data work. Guion now has native arrays and a first-party data-frame library, frames, but both are young. In the project's reports on one Mac, the frames workloads took several times as long as pandas from reading a large CSV to the result, and Guion's array compute was still slower than NumPy's."
     },
     {
       "heading": "A release you can use",
-      "body": "Guion's second public build is a pre-release, v0.1.0-preview.2, for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It was built on 5 November from the current code, including the package registry client. The Mac build is signed and notarized by Apple, so it opens without a warning. Python is a released language with a long track record."
+      "body": "Guion 0.2.0 is the first release that is not a preview, for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It has a written stability policy, a live package registry and native arrays. The Mac build is signed and notarized by Apple, so it opens without a warning; the first launch checks with Apple and needs an internet connection. Guion is still pre-1.0, and Python is a released language with a long track record."
     },
     {
       "heading": "Learning it",
@@ -28,7 +28,7 @@
     }
   ],
   "cli": {
-    "version": "guion 0.1.0 (artifact format 61, timezone data 2026c)",
+    "version": "guion 0.2.0 (artifact format 64, timezone data 2026c)",
     "commands": [
       "new",
       "check",

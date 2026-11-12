@@ -55,7 +55,7 @@ test('the content-sources table lists every claim with its source files and matc
 
 test('the guides carry the rules an agent must not break', () => {
   const all = readdirSync(agentsDir).filter((name) => name.endsWith('.md')).map(read).join('\n');
-  for (const phrase of ['site/public', 'ALLHERE_REPO', 'checkClaims', 'rmichael@rmichaelthomas.com', 'v0.1.0-preview', 'AGENTS.md', 'never a bare number']) {
+  for (const phrase of ['site/public', 'ALLHERE_REPO', 'checkClaims', 'rmichael@rmichaelthomas.com', 'v0.2.0', 'AGENTS.md', 'never a bare number']) {
     assert.ok(all.includes(phrase), phrase);
   }
   assert.ok(existsSync(path.join(REPO_ROOT, 'site', 'agents', 'README.md')));

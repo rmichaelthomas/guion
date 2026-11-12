@@ -10,7 +10,7 @@ Builders, and the assistants who advise them. The project's own goal is a langua
 
 ## Status wording
 
-Always: **the second preview build, v0.1.0-preview.2, is out for Linux and macOS (Apple Silicon); the Mac build is signed and notarized by Apple.** The page links the GitHub repository and the release page; cite evidence by the published files on the evidence page, not by repository URLs.
+Always: **release 0.2.0 is out for Linux and macOS (Apple Silicon); it is the first release that is not a preview, and it is still pre-1.0; the Mac build is signed and notarized by Apple.** Earlier previews (v0.1.0-preview and v0.1.0-preview.2) stay on the release page as history. The page links the GitHub repository and the release page; cite evidence by the published files on the evidence page, not by repository URLs.
 
 ## Voice
 
