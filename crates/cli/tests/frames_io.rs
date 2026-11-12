@@ -266,7 +266,7 @@ fn csv_empty_text_round_trips_distinct_from_missing() {
     );
     assert_eq!(stdout(&app), "1\n4\n1\ntrue\ntrue\n");
     let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
-    assert_eq!(written, "name,n\nann,1\n\"\",2\n,3\nbob,");
+    assert_eq!(written, "name,n\nann,1\n\"\",2\n,3\nbob,\n");
 }
 
 #[test]
@@ -320,7 +320,7 @@ fn csv_writes_extreme_floats_in_exponent_form_that_reads_back() {
     let written = std::fs::read_to_string(app.0.join("out.csv")).unwrap();
     assert_eq!(
         written,
-        "x\n1e+20\n1.5e-07\n0.0\n1e+16\n0.0001\n1e-05\n-2.5e-10\n1e+300\n1.2345678901234568e+17\n1.0\n1234.5\n-1e+22"
+        "x\n1e+20\n1.5e-07\n0.0\n1e+16\n0.0001\n1e-05\n-2.5e-10\n1e+300\n1.2345678901234568e+17\n1.0\n1234.5\n-1e+22\n"
     );
 }
 
@@ -348,4 +348,22 @@ fn a_one_column_csv_keeps_a_missing_value_through_a_round_trip() {
         "let frame = unwrap(frame_read_csv(\"in.csv\"))\nprint(frame_rows(frame))\nprint(unwrap(frame_write_csv(frame, \"out.csv\")))\nlet again = unwrap(frame_read_csv(\"out.csv\"))\nprint(frame_rows(again))\nprint(column_missing(unwrap(frame_column(again, \"n\"))))\nprint(frame_show(again, 10) == frame_show(frame, 10))",
     );
     assert_eq!(stdout(&app), "3\n3\n3\n1\ntrue\n");
+}
+
+#[test]
+fn a_one_column_frame_keeps_a_missing_first_or_last_row_through_a_round_trip() {
+    let app = app(
+        "one-column-edges",
+        &[],
+        "let last = unwrap(frame_new([column_i64_opt(\"n\", [si(1), si(2), no()])]))\nlet first = unwrap(frame_new([column_i64_opt(\"n\", [no(), si(2), si(3)])]))\nprint(unwrap(frame_write_csv(last, \"last.csv\")))\nprint(unwrap(frame_write_csv(first, \"first.csv\")))\nlet a = unwrap(frame_read_csv(\"last.csv\"))\nlet b = unwrap(frame_read_csv(\"first.csv\"))\nprint(frame_rows(a))\nprint(frame_rows(b))\nprint(array_to_list(column_valid(unwrap(frame_column(a, \"n\")))))\nprint(array_to_list(column_valid(unwrap(frame_column(b, \"n\")))))",
+    );
+    let mut source = std::fs::read_to_string(app.0.join("src/main.gu")).unwrap();
+    source.push_str("\nfn si(value: Int) -> Option[Int]:\n    return Some(value)\n\nfn no() -> Option[Int]:\n    return None\n");
+    std::fs::write(app.0.join("src/main.gu"), source).unwrap();
+    assert_eq!(
+        stdout(&app),
+        "3\n3\n3\n3\n[true, true, false]\n[false, true, true]\n"
+    );
+    let written = std::fs::read_to_string(app.0.join("last.csv")).unwrap();
+    assert_eq!(written, "n\n1\n2\n\n");
 }

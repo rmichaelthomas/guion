@@ -144,7 +144,7 @@ pub fn frame_write_csv(frame: Frame, path: Text) -> Result[Int, StdError]:
                 return Err(file_failure(error(encoded), path))
             set lines = list_push(lines, unwrap(encoded))
         set row = row + 1
-    let written = write_text(path, text_join_native(lines, "\n"))
+    let written = write_text(path, text_join_native(lines, "\n") + "\n")
     if not is_ok(written):
         return Err(file_failure(error(written), path))
     return Ok(frame_rows(frame))
