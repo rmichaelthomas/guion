@@ -1,0 +1,254 @@
+# Frames: named columns of equal length.
+
+import "column.gu"
+
+pub record Frame:
+    columns: List[Column]
+    rows: Int
+
+fn no_columns() -> List[Column]:
+    let none: List[Column] = []
+    return none
+
+fn unknown_column(name: Text) -> StdError:
+    return frame_error("E_FRAME_COLUMN", "no column named `" + name + "`")
+
+pub fn frame_new(columns: List[Column]) -> Result[Frame, StdError]:
+    var rows = 0
+    if len(columns) > 0:
+        set rows = column_len(columns[0])
+    var seen: Map[Text, Int] = {}
+    for column in columns:
+        if map_has(seen, column_name(column)):
+            return Err(frame_error("E_FRAME_COLUMN", "duplicate column name `" + column_name(column) + "`"))
+        set seen = map_set(seen, column_name(column), 1)
+        if column_len(column) != rows:
+            return Err(frame_error("E_FRAME_SHAPE", "column `" + column_name(column) + "` has " + int_to_text(column_len(column)) + " rows, expected " + int_to_text(rows)))
+    return Ok(Frame(columns, rows))
+
+pub fn frame_empty() -> Frame:
+    return Frame(no_columns(), 0)
+
+pub fn frame_rows(frame: Frame) -> Int:
+    return frame.rows
+
+pub fn frame_width(frame: Frame) -> Int:
+    return len(frame.columns)
+
+pub fn frame_columns(frame: Frame) -> List[Column]:
+    return frame.columns
+
+pub fn frame_names(frame: Frame) -> List[Text]:
+    var names: List[Text] = []
+    for column in frame.columns:
+        set names = list_push(names, column_name(column))
+    return names
+
+# The position of a column, or -1.
+pub fn frame_index(frame: Frame, name: Text) -> Int:
+    var index = 0
+    while index < len(frame.columns):
+        if column_name(frame.columns[index]) == name:
+            return index
+        set index = index + 1
+    return -1
+
+pub fn frame_has(frame: Frame, name: Text) -> Bool:
+    return frame_index(frame, name) >= 0
+
+pub fn frame_column(frame: Frame, name: Text) -> Result[Column, StdError]:
+    let index = frame_index(frame, name)
+    if index < 0:
+        return Err(unknown_column(name))
+    return Ok(frame.columns[index])
+
+pub fn frame_select(frame: Frame, names: List[Text]) -> Result[Frame, StdError]:
+    var columns: List[Column] = []
+    for name in names:
+        set columns = list_push(columns, frame_column(frame, name)?)
+    return frame_new(columns)
+
+pub fn frame_drop(frame: Frame, names: List[Text]) -> Result[Frame, StdError]:
+    var dropped: Map[Text, Int] = {}
+    for name in names:
+        if not frame_has(frame, name):
+            return Err(unknown_column(name))
+        set dropped = map_set(dropped, name, 1)
+    var columns: List[Column] = []
+    for column in frame.columns:
+        if not map_has(dropped, column_name(column)):
+            set columns = list_push(columns, column)
+    return Ok(Frame(columns, frame.rows))
+
+pub fn frame_rename(frame: Frame, old: Text, new: Text) -> Result[Frame, StdError]:
+    let index = frame_index(frame, old)
+    if index < 0:
+        return Err(unknown_column(old))
+    if old != new and frame_has(frame, new):
+        return Err(frame_error("E_FRAME_COLUMN", "a column named `" + new + "` already exists"))
+    return Ok(Frame(list_set(frame.columns, index, column_rename(frame.columns[index], new)), frame.rows))
+
+# Replaces the column with the same name, or appends it.
+pub fn frame_with_column(frame: Frame, column: Column) -> Result[Frame, StdError]:
+    if len(frame.columns) > 0 and column_len(column) != frame.rows:
+        return Err(frame_error("E_FRAME_SHAPE", "column `" + column_name(column) + "` has " + int_to_text(column_len(column)) + " rows, the frame has " + int_to_text(frame.rows)))
+    let index = frame_index(frame, column_name(column))
+    if index < 0:
+        return Ok(Frame(list_push(frame.columns, column), column_len(column)))
+    return Ok(Frame(list_set(frame.columns, index, column), frame.rows))
+
+pub fn frame_filter(frame: Frame, mask: Array[bool]) -> Result[Frame, StdError]:
+    if array_size(mask) != frame.rows or array_ndim(mask) != 1:
+        return Err(frame_error("E_FRAME_SHAPE", "the mask has " + int_to_text(array_size(mask)) + " rows, the frame has " + int_to_text(frame.rows)))
+    var columns: List[Column] = []
+    for column in frame.columns:
+        set columns = list_push(columns, column_filter(column, mask))
+    return Ok(Frame(columns, array_count(mask)))
+
+# Rows by index, in the given order; an index out of range raises R_ARRAY_INDEX.
+pub fn frame_take(frame: Frame, rows: Array[i64]) -> Frame:
+    var columns: List[Column] = []
+    for column in frame.columns:
+        set columns = list_push(columns, column_take(column, rows))
+    return Frame(columns, array_size(rows))
+
+pub fn frame_slice(frame: Frame, start: Int, end: Int) -> Frame:
+    var low = start
+    if low < 0:
+        set low = 0
+    var high = end
+    if high > frame.rows:
+        set high = frame.rows
+    if high < low:
+        set high = low
+    return frame_take(frame, array_i64_range(low, high, 1))
+
+pub fn frame_head(frame: Frame, count: Int) -> Frame:
+    return frame_slice(frame, 0, count)
+
+pub fn frame_tail(frame: Frame, count: Int) -> Frame:
+    return frame_slice(frame, frame.rows - count, frame.rows)
+
+# Remaps text codes from several dictionaries onto one merged dictionary, in first-seen order.
+fn merge_text(columns: List[Column]) -> Column:
+    var seen: Map[Text, Int] = {}
+    var dictionary: List[Text] = []
+    var parts: List[Array[i64]] = []
+    var masks: List[Array[bool]] = []
+    for column in columns:
+        var mapping: List[Int] = []
+        for value in column_dictionary(column):
+            match map_get(seen, value):
+                Some(code):
+                    set mapping = list_push(mapping, code)
+                None:
+                    set seen = map_set(seen, value, len(dictionary))
+                    set mapping = list_push(mapping, len(dictionary))
+                    set dictionary = list_push(dictionary, value)
+        if len(mapping) == 0:
+            set mapping = list_push(mapping, 0)
+        set parts = list_push(parts, array_take(array_i64(mapping), column_codes(column)))
+        set masks = list_push(masks, column_valid(column))
+    return column_from_codes(column_name(columns[0]), array_concat(parts), dictionary, array_concat(masks))
+
+fn concat_columns(columns: List[Column]) -> Column:
+    let first = columns[0]
+    var masks: List[Array[bool]] = []
+    for column in columns:
+        set masks = list_push(masks, column_valid(column))
+    let valid = array_concat(masks)
+    if column_kind(first) == "i64":
+        var parts: List[Array[i64]] = []
+        for column in columns:
+            set parts = list_push(parts, column_ints(column))
+        return column_from_i64(column_name(first), array_concat(parts), valid)
+    if column_kind(first) == "f64":
+        var parts: List[Array[f64]] = []
+        for column in columns:
+            set parts = list_push(parts, column_floats(column))
+        return column_from_f64(column_name(first), array_concat(parts), valid)
+    if column_kind(first) == "bool":
+        var parts: List[Array[bool]] = []
+        for column in columns:
+            set parts = list_push(parts, column_flags(column))
+        return column_from_bool(column_name(first), array_concat(parts), valid)
+    return merge_text(columns)
+
+# Stacks frames with the same column names and kinds, in order.
+pub fn frame_concat(frames: List[Frame]) -> Result[Frame, StdError]:
+    if len(frames) == 0:
+        return Ok(frame_empty())
+    let first = frames[0]
+    for frame in frames:
+        if len(frame.columns) != len(first.columns):
+            return Err(frame_error("E_FRAME_SHAPE", "frames to concatenate have different columns"))
+        var index = 0
+        while index < len(first.columns):
+            let a = first.columns[index]
+            let b = frame.columns[index]
+            if column_name(a) != column_name(b) or column_kind(a) != column_kind(b):
+                return Err(frame_error("E_FRAME_SHAPE", "frames to concatenate differ at column " + int_to_text(index) + ": `" + column_name(a) + "` " + column_kind(a) + " and `" + column_name(b) + "` " + column_kind(b)))
+            set index = index + 1
+    var columns: List[Column] = []
+    var rows = 0
+    for frame in frames:
+        set rows = rows + frame.rows
+    var index = 0
+    while index < len(first.columns):
+        var parts: List[Column] = []
+        for frame in frames:
+            set parts = list_push(parts, frame.columns[index])
+        set columns = list_push(columns, concat_columns(parts))
+        set index = index + 1
+    return Ok(Frame(columns, rows))
+
+# Drops rows with a missing value in any of `names` (every column when `names` is empty).
+pub fn frame_drop_missing(frame: Frame, names: List[Text]) -> Result[Frame, StdError]:
+    var mask = array_bool_full([frame.rows], true)
+    var checked = names
+    if len(names) == 0:
+        set checked = frame_names(frame)
+    for name in checked:
+        let column = frame_column(frame, name)?
+        if column_missing(column) > 0:
+            set mask = array_and(mask, column_valid(column))
+    return frame_filter(frame, mask)
+
+fn fillable(frame: Frame, name: Text, kind: Text) -> Result[Column, StdError]:
+    let column = frame_column(frame, name)?
+    if column_kind(column) != kind:
+        return Err(frame_error("E_FRAME_KIND", "column `" + name + "` is " + column_kind(column) + ", expected " + kind))
+    return Ok(column)
+
+fn no_mask() -> Array[bool]:
+    return array_bool_zeros([0])
+
+pub fn frame_fill_f64(frame: Frame, name: Text, value: Float64) -> Result[Frame, StdError]:
+    let column = fillable(frame, name, "f64")?
+    let filled = array_where(column_valid(column), column_floats(column), array_f64_full([frame.rows], value))
+    return frame_with_column(frame, column_from_f64(name, filled, no_mask()))
+
+pub fn frame_fill_i64(frame: Frame, name: Text, value: Int) -> Result[Frame, StdError]:
+    let column = fillable(frame, name, "i64")?
+    let filled = array_where(column_valid(column), column_ints(column), array_i64_full([frame.rows], value))
+    return frame_with_column(frame, column_from_i64(name, filled, no_mask()))
+
+pub fn frame_fill_bool(frame: Frame, name: Text, value: Bool) -> Result[Frame, StdError]:
+    let column = fillable(frame, name, "bool")?
+    let filled = array_where(column_valid(column), column_flags(column), array_bool_full([frame.rows], value))
+    return frame_with_column(frame, column_from_bool(name, filled, no_mask()))
+
+pub fn frame_fill_text(frame: Frame, name: Text, value: Text) -> Result[Frame, StdError]:
+    let column = fillable(frame, name, "text")?
+    var dictionary = column_dictionary(column)
+    var code = -1
+    var index = 0
+    while index < len(dictionary):
+        if dictionary[index] == value:
+            set code = index
+        set index = index + 1
+    if code < 0:
+        set code = len(dictionary)
+        set dictionary = list_push(dictionary, value)
+    let filled = array_where(column_valid(column), column_codes(column), array_i64_full([frame.rows], code))
+    return frame_with_column(frame, column_from_codes(name, filled, dictionary, no_mask()))

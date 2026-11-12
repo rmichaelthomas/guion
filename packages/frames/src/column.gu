@@ -1,0 +1,364 @@
+# Columns: one record per column, with a kind tag and one storage field per kind.
+# Unused storage fields hold empty arrays. `valid` is the missing-value mask; an empty
+# mask means no value is missing.
+
+pub import "std:types"
+
+pub record Column:
+    name: Text
+    kind: Text
+    ints: Array[i64]
+    floats: Array[f64]
+    flags: Array[bool]
+    codes: Array[i64]
+    dictionary: List[Text]
+    valid: Array[bool]
+
+pub fn frame_error(code: Text, message: Text) -> StdError:
+    return StdError(code, message, "", 0, 0)
+
+fn no_ints() -> Array[i64]:
+    return array_i64_zeros([0])
+
+fn no_floats() -> Array[f64]:
+    return array_f64_zeros([0])
+
+fn no_flags() -> Array[bool]:
+    return array_bool_zeros([0])
+
+fn no_texts() -> List[Text]:
+    let none: List[Text] = []
+    return none
+
+# Normalizes a mask: an all-true mask is stored as the empty mask.
+fn tidy_valid(valid: Array[bool]) -> Array[bool]:
+    if array_size(valid) == 0 or array_all(valid):
+        return no_flags()
+    return valid
+
+pub fn column_from_i64(name: Text, values: Array[i64], valid: Array[bool]) -> Column:
+    return Column(name, "i64", values, no_floats(), no_flags(), no_ints(), no_texts(), tidy_valid(valid))
+
+pub fn column_from_f64(name: Text, values: Array[f64], valid: Array[bool]) -> Column:
+    return Column(name, "f64", no_ints(), values, no_flags(), no_ints(), no_texts(), tidy_valid(valid))
+
+pub fn column_from_bool(name: Text, values: Array[bool], valid: Array[bool]) -> Column:
+    return Column(name, "bool", no_ints(), no_floats(), values, no_ints(), no_texts(), tidy_valid(valid))
+
+# A text column from codes into `dictionary`; a missing slot holds code 0.
+pub fn column_from_codes(name: Text, codes: Array[i64], dictionary: List[Text], valid: Array[bool]) -> Column:
+    return Column(name, "text", no_ints(), no_floats(), no_flags(), codes, dictionary, tidy_valid(valid))
+
+pub fn column_i64(name: Text, values: List[Int]) -> Column:
+    return column_from_i64(name, array_i64(values), no_flags())
+
+pub fn column_f64(name: Text, values: List[Float64]) -> Column:
+    return column_from_f64(name, array_f64(values), no_flags())
+
+pub fn column_bool(name: Text, values: List[Bool]) -> Column:
+    return column_from_bool(name, array_bool(values), no_flags())
+
+pub fn column_text(name: Text, values: List[Text]) -> Column:
+    var codes: List[Int] = []
+    var seen: Map[Text, Int] = {}
+    var dictionary: List[Text] = []
+    for value in values:
+        match map_get(seen, value):
+            Some(code):
+                set codes = list_push(codes, code)
+            None:
+                set seen = map_set(seen, value, len(dictionary))
+                set codes = list_push(codes, len(dictionary))
+                set dictionary = list_push(dictionary, value)
+    return column_from_codes(name, array_i64(codes), dictionary, no_flags())
+
+pub fn column_i64_opt(name: Text, values: List[Option[Int]]) -> Column:
+    var items: List[Int] = []
+    var valid: List[Bool] = []
+    for value in values:
+        match value:
+            Some(item):
+                set items = list_push(items, item)
+                set valid = list_push(valid, true)
+            None:
+                set items = list_push(items, 0)
+                set valid = list_push(valid, false)
+    return column_from_i64(name, array_i64(items), array_bool(valid))
+
+pub fn column_f64_opt(name: Text, values: List[Option[Float64]]) -> Column:
+    var items: List[Float64] = []
+    var valid: List[Bool] = []
+    for value in values:
+        match value:
+            Some(item):
+                set items = list_push(items, item)
+                set valid = list_push(valid, true)
+            None:
+                set items = list_push(items, 0.0)
+                set valid = list_push(valid, false)
+    return column_from_f64(name, array_f64(items), array_bool(valid))
+
+pub fn column_text_opt(name: Text, values: List[Option[Text]]) -> Column:
+    var codes: List[Int] = []
+    var valid: List[Bool] = []
+    var seen: Map[Text, Int] = {}
+    var dictionary: List[Text] = []
+    for value in values:
+        match value:
+            Some(item):
+                set valid = list_push(valid, true)
+                match map_get(seen, item):
+                    Some(code):
+                        set codes = list_push(codes, code)
+                    None:
+                        set seen = map_set(seen, item, len(dictionary))
+                        set codes = list_push(codes, len(dictionary))
+                        set dictionary = list_push(dictionary, item)
+            None:
+                set codes = list_push(codes, 0)
+                set valid = list_push(valid, false)
+    return column_from_codes(name, array_i64(codes), dictionary, array_bool(valid))
+
+pub fn column_name(column: Column) -> Text:
+    return column.name
+
+pub fn column_kind(column: Column) -> Text:
+    return column.kind
+
+pub fn column_len(column: Column) -> Int:
+    if column.kind == "i64":
+        return array_size(column.ints)
+    if column.kind == "f64":
+        return array_size(column.floats)
+    if column.kind == "bool":
+        return array_size(column.flags)
+    return array_size(column.codes)
+
+# The full missing-value mask: true where a value is present.
+pub fn column_valid(column: Column) -> Array[bool]:
+    if array_size(column.valid) == 0:
+        return array_bool_full([column_len(column)], true)
+    return column.valid
+
+pub fn column_missing(column: Column) -> Int:
+    if array_size(column.valid) == 0:
+        return 0
+    return column_len(column) - array_count(column.valid)
+
+pub fn column_rename(column: Column, name: Text) -> Column:
+    return Column(name, column.kind, column.ints, column.floats, column.flags, column.codes, column.dictionary, column.valid)
+
+pub fn column_ints(column: Column) -> Array[i64]:
+    return column.ints
+
+pub fn column_floats(column: Column) -> Array[f64]:
+    return column.floats
+
+pub fn column_flags(column: Column) -> Array[bool]:
+    return column.flags
+
+pub fn column_codes(column: Column) -> Array[i64]:
+    return column.codes
+
+pub fn column_dictionary(column: Column) -> List[Text]:
+    return column.dictionary
+
+fn present(column: Column, row: Int) -> Bool:
+    if array_size(column.valid) == 0:
+        return true
+    return array_get(column.valid, row)
+
+fn no_int() -> Option[Int]:
+    return None
+
+fn no_float() -> Option[Float64]:
+    return None
+
+fn no_bool() -> Option[Bool]:
+    return None
+
+fn no_text() -> Option[Text]:
+    return None
+
+fn some_int(value: Int) -> Option[Int]:
+    return Some(value)
+
+fn some_float(value: Float64) -> Option[Float64]:
+    return Some(value)
+
+fn some_bool(value: Bool) -> Option[Bool]:
+    return Some(value)
+
+fn some_text(value: Text) -> Option[Text]:
+    return Some(value)
+
+pub fn column_get_i64(column: Column, row: Int) -> Option[Int]:
+    if column.kind != "i64" or not present(column, row):
+        return no_int()
+    return some_int(array_get(column.ints, row))
+
+pub fn column_get_f64(column: Column, row: Int) -> Option[Float64]:
+    if column.kind == "i64" and present(column, row):
+        return some_float(int_to_float(array_get(column.ints, row)))
+    if column.kind != "f64" or not present(column, row):
+        return no_float()
+    return some_float(array_get(column.floats, row))
+
+pub fn column_get_bool(column: Column, row: Int) -> Option[Bool]:
+    if column.kind != "bool" or not present(column, row):
+        return no_bool()
+    return some_bool(array_get(column.flags, row))
+
+pub fn column_get_text(column: Column, row: Int) -> Option[Text]:
+    if column.kind != "text" or not present(column, row):
+        return no_text()
+    return some_text(column.dictionary[array_get(column.codes, row)])
+
+# The value at `row` as display text; `NA` when missing.
+pub fn column_cell_text(column: Column, row: Int) -> Text:
+    if not present(column, row):
+        return "NA"
+    if column.kind == "i64":
+        return int_to_text(array_get(column.ints, row))
+    if column.kind == "f64":
+        return float_to_text(array_get(column.floats, row))
+    if column.kind == "bool":
+        if array_get(column.flags, row):
+            return "true"
+        return "false"
+    return column.dictionary[array_get(column.codes, row)]
+
+fn take_mask(valid: Array[bool], rows: Array[i64]) -> Array[bool]:
+    if array_size(valid) == 0:
+        return valid
+    return array_take(valid, rows)
+
+# Rows by index; every index must be in range.
+pub fn column_take(column: Column, rows: Array[i64]) -> Column:
+    if column.kind == "i64":
+        return column_from_i64(column.name, array_take(column.ints, rows), take_mask(column.valid, rows))
+    if column.kind == "f64":
+        return column_from_f64(column.name, array_take(column.floats, rows), take_mask(column.valid, rows))
+    if column.kind == "bool":
+        return column_from_bool(column.name, array_take(column.flags, rows), take_mask(column.valid, rows))
+    return column_from_codes(column.name, array_take(column.codes, rows), column.dictionary, take_mask(column.valid, rows))
+
+# Rows by index where -1 gives a missing value (unmatched rows of a left join).
+pub fn column_take_or_missing(column: Column, rows: Array[i64]) -> Column:
+    let found = array_ge_scalar(rows, 0)
+    if array_all(found):
+        return column_take(column, rows)
+    let count = array_size(rows)
+    if column_len(column) == 0:
+        let valid = array_bool_zeros([count])
+        if column.kind == "i64":
+            return column_from_i64(column.name, array_i64_zeros([count]), valid)
+        if column.kind == "f64":
+            return column_from_f64(column.name, array_f64_zeros([count]), valid)
+        if column.kind == "bool":
+            return column_from_bool(column.name, array_bool_zeros([count]), valid)
+        return column_from_codes(column.name, array_i64_zeros([count]), column.dictionary, valid)
+    let safe = array_clip(rows, 0, column_len(column) - 1)
+    let taken = column_take(column, safe)
+    let valid = array_and(found, column_valid(taken))
+    if taken.kind == "i64":
+        return column_from_i64(column.name, array_where(found, taken.ints, array_i64_zeros([count])), valid)
+    if taken.kind == "f64":
+        return column_from_f64(column.name, array_where(found, taken.floats, array_f64_zeros([count])), valid)
+    if taken.kind == "bool":
+        return column_from_bool(column.name, array_where(found, taken.flags, array_bool_zeros([count])), valid)
+    return column_from_codes(column.name, array_where(found, taken.codes, array_i64_zeros([count])), column.dictionary, valid)
+
+fn filter_mask(valid: Array[bool], mask: Array[bool]) -> Array[bool]:
+    if array_size(valid) == 0:
+        return valid
+    return array_filter(valid, mask)
+
+pub fn column_filter(column: Column, mask: Array[bool]) -> Column:
+    if column.kind == "i64":
+        return column_from_i64(column.name, array_filter(column.ints, mask), filter_mask(column.valid, mask))
+    if column.kind == "f64":
+        return column_from_f64(column.name, array_filter(column.floats, mask), filter_mask(column.valid, mask))
+    if column.kind == "bool":
+        return column_from_bool(column.name, array_filter(column.flags, mask), filter_mask(column.valid, mask))
+    return column_from_codes(column.name, array_filter(column.codes, mask), column.dictionary, filter_mask(column.valid, mask))
+
+fn kind_error(column: Column, wanted: Text) -> StdError:
+    return frame_error("E_FRAME_KIND", "column `" + column.name + "` is " + column.kind + ", expected " + wanted)
+
+# A mask of rows where the numeric value compares true against `value`; missing rows are false.
+# `op` is one of `<`, `<=`, `>`, `>=`, `==`, `!=`.
+pub fn column_compare(column: Column, op: Text, value: Float64) -> Result[Array[bool], StdError]:
+    var values = array_f64_zeros([0])
+    if column.kind == "f64":
+        set values = column.floats
+    else:
+        if column.kind == "i64":
+            set values = array_to_f64(column.ints)
+        else:
+            return Err(kind_error(column, "i64 or f64"))
+    var mask = array_bool_zeros([0])
+    if op == "<":
+        set mask = array_lt_scalar(values, value)
+    else:
+        if op == "<=":
+            set mask = array_le_scalar(values, value)
+        else:
+            if op == ">":
+                set mask = array_gt_scalar(values, value)
+            else:
+                if op == ">=":
+                    set mask = array_ge_scalar(values, value)
+                else:
+                    if op == "==":
+                        set mask = array_eq_scalar(values, value)
+                    else:
+                        if op == "!=":
+                            set mask = array_ne_scalar(values, value)
+                        else:
+                            return Err(frame_error("E_FRAME_KIND", "unknown comparison `" + op + "`"))
+    if array_size(column.valid) == 0:
+        return Ok(mask)
+    return Ok(array_and(mask, column.valid))
+
+# A mask of rows whose text equals `value`; missing rows are false.
+pub fn column_text_equals(column: Column, value: Text) -> Result[Array[bool], StdError]:
+    if column.kind != "text":
+        return Err(kind_error(column, "text"))
+    var code = -1
+    var index = 0
+    while index < len(column.dictionary):
+        if column.dictionary[index] == value:
+            set code = index
+            set index = len(column.dictionary)
+        set index = index + 1
+    let mask = array_eq_scalar(column.codes, code)
+    if array_size(column.valid) == 0:
+        return Ok(mask)
+    return Ok(array_and(mask, column.valid))
+
+# Present values as Float64, for numeric reductions.
+fn present_floats(column: Column) -> Array[f64]:
+    var values = column.floats
+    if column.kind == "i64":
+        set values = array_to_f64(column.ints)
+    if array_size(column.valid) == 0:
+        return values
+    return array_filter(values, column.valid)
+
+# Sum of the present values of a numeric column (0.0 for none, and for other kinds).
+pub fn column_sum(column: Column) -> Float64:
+    if column.kind != "f64" and column.kind != "i64":
+        return 0.0
+    return array_sum(present_floats(column))
+
+pub fn column_mean(column: Column) -> Option[Float64]:
+    if column.kind != "f64" and column.kind != "i64":
+        return no_float()
+    let values = present_floats(column)
+    if array_size(values) == 0:
+        return no_float()
+    return some_float(array_mean(values))
+
+pub fn column_count(column: Column) -> Int:
+    return column_len(column) - column_missing(column)
