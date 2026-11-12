@@ -41,6 +41,41 @@ fn bare_tag_rejected() {
 }
 
 #[test]
+fn array_element_type_errors_have_one_code_and_message_per_case() {
+    let main = "fn main() -> Unit:\n    print(1)\n";
+    let check = |param: &str, code: &str, message: &str| {
+        let error = compile(
+            "arrays.gu",
+            &format!("fn f(x: {param}) -> Int:\n    return 1\n\n{main}"),
+        )
+        .expect_err("source must not compile");
+        assert_eq!(
+            (error.code.as_str(), error.message.as_str()),
+            (code, message)
+        );
+    };
+    let list =
+        "Array element type must be one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool";
+    check("Array[i128]", "E_TYPE_UNKNOWN", "unknown type `i128`");
+    check("Array[Array[f64]]", "E_TYPE_ANNOTATION", list);
+    check("Array[Int]", "E_TYPE_ANNOTATION", list);
+    check("Array[List[Int]]", "E_TYPE_ANNOTATION", list);
+    check(
+        "f64",
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    let error = compile_main("    let x: f64 = 1.0\n    print(x)\n").unwrap_err();
+    assert_eq!(error.code, "E_TYPE_UNKNOWN");
+}
+
+#[test]
+fn array_builtin_with_the_wrong_argument_count_is_an_arity_error() {
+    let error = compile_main("    print(array_add(array_i32([1])))\n").unwrap_err();
+    assert_eq!(error.code, "E_CALL_ARITY");
+}
+
+#[test]
 fn generic_binds_and_returns_scalar() {
     compile_main("    let a = array_i32([1, 2])\n    let x: Int = array_get(a, 0) + 1\n    let f: Float64 = array_get(array_f32([1.5]), 0) + 1.0\n    let b: Bool = array_get(array_bool([true]), 0)\n    print(x)\n    print(f)\n    print(b)\n").unwrap();
     assert_eq!(

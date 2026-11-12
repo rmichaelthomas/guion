@@ -188,6 +188,87 @@ fn self_hosted_compiler_rejects_what_the_rust_compiler_rejects() {
     );
 }
 
+const ELEMENT_LIST: &str =
+    "Array element type must be one of i8, i16, i32, i64, u8, u16, u32, u64, f32, f64, bool";
+
+fn assert_both_report_type_error(
+    project: &Project,
+    name: &str,
+    source: &str,
+    code: &str,
+    message: &str,
+) {
+    let entry = format!("{name}.gu");
+    std::fs::write(project.0.join(&entry), source).unwrap();
+    let rust = guion_compiler::compile_project(&project.0.join(&entry), &project.0)
+        .expect_err("the Rust compiler must reject the program");
+    assert_eq!((rust.code.as_str(), rust.message.as_str()), (code, message));
+    let compiled = guion(&project.0, &["run", "compiler.gu", &entry]);
+    let diagnostic = String::from_utf8_lossy(&compiled.stdout);
+    assert!(
+        diagnostic.contains(&format!("\"code\":\"{code}\""))
+            && diagnostic.contains(&format!("\"message\":\"{message}\"")),
+        "{name}: expected {code} {message}, got {diagnostic}"
+    );
+}
+
+#[test]
+fn both_compilers_report_the_same_array_element_type_errors() {
+    let project = project("element-types");
+    let main = "fn main() -> Unit:\n    print(1)\n";
+    assert_both_report_type_error(
+        &project,
+        "unknown",
+        &format!("fn f(x: Array[i128]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `i128`",
+    );
+    assert_both_report_type_error(
+        &project,
+        "nested",
+        &format!("fn f(x: Array[Array[f64]]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "int",
+        &format!("fn f(x: Array[Int]) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "record",
+        &format!(
+            "record Point:\n    x: Int\n\nfn f(x: Array[Point]) -> Int:\n    return 1\n\n{main}"
+        ),
+        "E_TYPE_ANNOTATION",
+        ELEMENT_LIST,
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-param",
+        &format!("fn f(x: f64) -> Int:\n    return 1\n\n{main}"),
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "bare-let",
+        "fn main() -> Unit:\n    let x: f64 = 1.0\n    print(x)\n",
+        "E_TYPE_UNKNOWN",
+        "unknown type `f64`; element types are only valid inside Array[...]",
+    );
+    assert_both_report_type_error(
+        &project,
+        "let-unknown",
+        "fn main() -> Unit:\n    let x: Array[i128] = array_i32([1])\n    print(1)\n",
+        "E_TYPE_UNKNOWN",
+        "unknown type `i128`",
+    );
+}
+
 const CSV_PROGRAM: &str = r#"record CsvColumn:
     name: Text
     kind: Text
