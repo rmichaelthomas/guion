@@ -187,3 +187,49 @@ fn self_hosted_compiler_rejects_what_the_rust_compiler_rejects() {
         String::from_utf8_lossy(&compiled.stdout)
     );
 }
+
+const CSV_PROGRAM: &str = r#"record CsvColumn:
+    name: Text
+    kind: Text
+    ints: Array[i64]
+    floats: Array[f64]
+    flags: Array[bool]
+    codes: Array[i64]
+    dictionary: List[Text]
+    valid: Array[bool]
+
+fn main() -> Unit:
+    let none: Map[Text, Text] = {}
+    let columns = unwrap(csv_read_columns("data.csv", none))
+    for column in columns:
+        print(column.name + " " + column.kind)
+        print(column.valid)
+    let fixed: Map[Text, Text] = {"a": "f64"}
+    print(array_sum(unwrap(csv_read_columns("data.csv", fixed))[0].floats))
+"#;
+
+#[test]
+fn self_hosted_csv_read_columns_program_matches_the_rust_compiler() {
+    let project = project("csv-columns");
+    std::fs::write(
+        project.0.join("guion.toml"),
+        format!(
+            "{}\n[capabilities]\nfiles = [\"read\"]\n",
+            std::fs::read_to_string(project.0.join("guion.toml")).unwrap()
+        ),
+    )
+    .unwrap();
+    std::fs::write(project.0.join("data.csv"), "a,b\n1,x\n,y\n3,\n").unwrap();
+    std::fs::write(project.0.join("cols.gu"), CSV_PROGRAM).unwrap();
+    let rust = guion(&project.0, &["run", "cols.gu"]);
+    assert!(
+        rust.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&rust.stdout),
+        String::from_utf8_lossy(&rust.stderr)
+    );
+    let expected = String::from_utf8_lossy(&rust.stdout).into_owned();
+    assert!(expected.contains("a i64"), "{expected}");
+    assert!(expected.contains("b text"), "{expected}");
+    assert_eq!(self_hosted_stdout(&project, "cols.gu"), expected);
+}

@@ -1,4 +1,6 @@
 //! Portable, deterministic pieces of the data standard library.
+#[path = "csv_columns.rs"]
+pub mod csv_columns;
 #[path = "resources.rs"]
 pub mod resources;
 

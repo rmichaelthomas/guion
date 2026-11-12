@@ -2121,7 +2121,7 @@ fn both_compilers_consume_fixed_builtin_types_from_the_shared_catalog() {
     let project = TempProject::new();
     install_self_host_compiler(&project);
     let mut source = String::from(
-        "record CalendarEvent:\n    uid: Text\n\nrecord Date:\n    year: Int\n\nrecord DirectoryEntry:\n    path: Text\n\nrecord HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nrecord Instant:\n    seconds: Int\n\nrecord SemVer:\n    major: Int\n\nrecord StdError:\n    code: Text\n\nfn worker(value: Int) -> Int:\n    return value\n\n",
+        "record CalendarEvent:\n    uid: Text\n\nrecord CsvColumn:\n    name: Text\n\nrecord Date:\n    year: Int\n\nrecord DirectoryEntry:\n    path: Text\n\nrecord HttpResponse:\n    status: Int\n    headers: Map[Text, Text]\n    body: Bytes\n\nrecord Instant:\n    seconds: Int\n\nrecord SemVer:\n    major: Int\n\nrecord StdError:\n    code: Text\n\nfn worker(value: Int) -> Int:\n    return value\n\n",
     );
     for (index, (name, _, result, arguments)) in cases.iter().enumerate() {
         let wrapper = format!("catalog_call_{index}");

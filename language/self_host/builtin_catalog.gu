@@ -340,6 +340,8 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "1:CsvNext:Result[Option[Record[CsvRow]], FileError]:FileReader"
         if name == "csv_open":
             return "1:CsvOpen:Result[FileReader, FileError]:Text"
+        if name == "csv_read_columns":
+            return "2:CsvReadColumns:Result[List[Record[CsvColumn]], FileError]:Text;Map[Text, Text]"
     if name[0] == "e":
         if name == "env":
             return "1:Environment:Option[Text]:Text"

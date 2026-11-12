@@ -37,7 +37,12 @@ pub struct ReaderError {
 }
 
 impl ReaderError {
-    fn new(kind: ReaderErrorKind, message: impl Into<String>, line: usize, column: usize) -> Self {
+    pub(super) fn new(
+        kind: ReaderErrorKind,
+        message: impl Into<String>,
+        line: usize,
+        column: usize,
+    ) -> Self {
         Self {
             kind,
             message: message.into(),
@@ -96,19 +101,38 @@ impl CsvError {
 }
 
 #[derive(Debug)]
-struct ReaderResource {
+pub(super) struct ReaderResource {
     mode: ReaderMode,
-    reader: BufReader<File>,
-    bytes_read: usize,
-    max_file_bytes: usize,
-    max_record_bytes: usize,
-    physical_line: usize,
-    eof: bool,
+    pub(super) reader: BufReader<File>,
+    pub(super) bytes_read: usize,
+    pub(super) max_file_bytes: usize,
+    pub(super) max_record_bytes: usize,
+    pub(super) physical_line: usize,
+    pub(super) eof: bool,
     failed: bool,
     /// Holds the record being read, kept between reads so each one needs no new buffer.
     record: Vec<u8>,
     /// Fields in the last CSV record, which is nearly always how many the next one has.
     last_field_count: usize,
+}
+
+impl ReaderResource {
+    /// A reader that belongs to no registry, for one whole-file read. It checks each record
+    /// against `max_record_bytes` and the file as a whole against nothing.
+    pub(super) fn standalone(file: File, buffer_bytes: usize, max_record_bytes: usize) -> Self {
+        Self {
+            mode: ReaderMode::Csv,
+            reader: BufReader::with_capacity(buffer_bytes.max(1), file),
+            bytes_read: 0,
+            max_file_bytes: usize::MAX,
+            max_record_bytes,
+            physical_line: 1,
+            eof: false,
+            failed: false,
+            record: Vec::new(),
+            last_field_count: 0,
+        }
+    }
 }
 
 /// Owns native readers. Handles are scoped to this registry and become stale when it closes.
@@ -437,7 +461,9 @@ fn read_plain_csv_record(resource: &mut ReaderResource) -> Option<Vec<SharedText
     Some(fields)
 }
 
-fn read_csv_record(resource: &mut ReaderResource) -> Result<Option<Vec<u8>>, ReaderError> {
+pub(super) fn read_csv_record(
+    resource: &mut ReaderResource,
+) -> Result<Option<Vec<u8>>, ReaderError> {
     let mut output = Vec::new();
     let mut state = CsvState::Start;
     let mut newlines = 0usize;
@@ -606,7 +632,7 @@ fn parse_csv_record(
     Ok(fields)
 }
 
-fn io_error(error: io::Error, line: usize) -> ReaderError {
+pub(super) fn io_error(error: io::Error, line: usize) -> ReaderError {
     ReaderError::new(
         ReaderErrorKind::Io,
         format!("file read failed: {error}"),

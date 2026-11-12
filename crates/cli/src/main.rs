@@ -2567,7 +2567,12 @@ fn inspection_report(
                 Op::PrintErr => {
                     direct_effects[function_index].insert("output.stderr".into());
                 }
-                Op::ReadText | Op::ReadBytes | Op::FsWalk | Op::FileOpenLines | Op::CsvOpen => {
+                Op::ReadText
+                | Op::ReadBytes
+                | Op::FsWalk
+                | Op::FileOpenLines
+                | Op::CsvOpen
+                | Op::CsvReadColumns => {
                     direct_effects[function_index].insert("filesystem.read".into());
                 }
                 Op::Fs(function) => {

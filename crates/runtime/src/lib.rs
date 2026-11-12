@@ -524,7 +524,10 @@ impl NativeListArena {
             self.host_error = Some(if self.budget.is_null() {
                 RuntimeError::new(
                     "R_ALLOCATION_LIMIT",
-                    "cumulative allocation budget exhausted during this invocation",
+                    format!(
+                        "cumulative allocation budget exhausted during this invocation{}",
+                        guion_vm_core::ALLOCATION_LIMIT_HINT
+                    ),
                     span,
                 )
             } else {
@@ -3116,10 +3119,7 @@ impl Runtime {
             native_deoptimization_sites: Arc::new(std::sync::Mutex::new(BTreeMap::new())),
             native_compilations: Arc::new(AtomicUsize::new(0)),
             native_entry_copy_dominated: Vec::new(),
-            readers: stdlib_data::FileReaderRegistry::new(
-                policy.max_file_bytes,
-                policy.max_file_bytes,
-            ),
+            readers: stdlib_data::FileReaderRegistry::new(usize::MAX, policy.max_file_bytes),
             sockets: net_ops::SocketTable::default(),
             databases: stdlib_services::DatabaseRegistry::with_roots(
                 database_roots,
@@ -3207,6 +3207,36 @@ fn source_line_record_name() -> guion_model::RecordName {
     static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
     NAME.get_or_init(|| guion_model::RecordName::immortal("SourceLine"))
         .clone()
+}
+
+fn csv_column_record_name() -> guion_model::RecordName {
+    static NAME: std::sync::OnceLock<guion_model::RecordName> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| guion_model::RecordName::immortal("CsvColumn"))
+        .clone()
+}
+
+fn csv_column_value(column: stdlib_data::csv_columns::Column) -> Value {
+    use guion_model::{ArrayData, ArrayValue};
+    let array = |data: ArrayData| Value::Array(Shared::new(ArrayValue::vector(data)));
+    Value::Record(
+        csv_column_record_name(),
+        Shared::new(vec![
+            Value::Text(column.name.into()),
+            Value::Text(column.kind.name().into()),
+            array(ArrayData::I64(column.ints)),
+            array(ArrayData::F64(column.floats)),
+            array(ArrayData::Bool(column.flags)),
+            array(ArrayData::I64(column.codes)),
+            Value::from_list_items(
+                column
+                    .dictionary
+                    .into_iter()
+                    .map(|text| Value::Text(text.into()))
+                    .collect(),
+            ),
+            array(ArrayData::Bool(column.valid)),
+        ]),
+    )
 }
 
 fn csv_row_record_name() -> guion_model::RecordName {
@@ -4529,6 +4559,136 @@ impl VmHost for Instance {
                             }
                             push_stack!(file_error_result(error));
                         }
+                    }
+                }
+            }
+            Op::CsvReadColumns => {
+                let kinds = pop!();
+                let path = pop!();
+                let (Value::Text(path), Value::Map(kinds)) = (path, kinds) else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "csv_read_columns requires a Text path and Map[Text, Text] kinds",
+                        instruction.span,
+                    ));
+                };
+                let mut fixed = std::collections::BTreeMap::new();
+                for (name, kind) in kinds.iter() {
+                    let Value::Text(kind) = kind else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "csv_read_columns kinds must be Map[Text, Text]",
+                            instruction.span,
+                        ));
+                    };
+                    fixed.insert(name.to_string(), kind.to_string());
+                }
+                let resolved = match host_file_path(&self.policy, &path, false, instruction.span) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        push_stack!(file_error_result(error));
+                        return Ok(());
+                    }
+                };
+                let effect = self.begin_effect(EffectKind::FileRead, path.as_ref());
+                let read = {
+                    let budget = budget.as_ref();
+                    let mut charge = |bytes: usize| budget.allocate(bytes);
+                    let cancelled = || budget.is_cancelled();
+                    let mut meter = stdlib_data::csv_columns::Meter {
+                        charge: &mut charge,
+                        cancelled: &cancelled,
+                    };
+                    stdlib_data::csv_columns::read_csv_columns(
+                        &resolved,
+                        &fixed,
+                        self.policy.max_file_bytes,
+                        &mut meter,
+                    )
+                };
+                use stdlib_data::csv_columns::ColumnsError;
+                match read {
+                    Ok(columns) => {
+                        // The text and records the result holds, beyond the arrays that were
+                        // charged as they grew.
+                        let produced = columns
+                            .iter()
+                            .map(|column| {
+                                column
+                                    .dictionary
+                                    .iter()
+                                    .map(|text| text.len().saturating_add(32))
+                                    .sum::<usize>()
+                                    .saturating_add(column.name.len())
+                                    .saturating_add(256)
+                            })
+                            .sum::<usize>();
+                        charge_allocation(budget.as_ref(), produced, instruction.span)?;
+                        let result = Value::ResultOk(Box::new(Value::from_list_items(
+                            columns.into_iter().map(csv_column_value).collect(),
+                        )));
+                        if let Some(error) =
+                            value_limit_error(&result, &self.policy, instruction.span)
+                        {
+                            return Err(error);
+                        }
+                        self.finish_effect(effect, EffectOutcome::Returned);
+                        push_stack!(result);
+                    }
+                    Err(ColumnsError::Allocation(bytes)) => {
+                        self.finish_effect(effect, EffectOutcome::ReturnedError);
+                        return Err(guion_vm_core::allocation_limit_error(
+                            budget.as_ref(),
+                            bytes,
+                            instruction.span,
+                        ));
+                    }
+                    Err(ColumnsError::Cancelled) => {
+                        self.finish_effect(effect, EffectOutcome::Interrupted);
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        self.finish_effect(effect, EffectOutcome::ReturnedError);
+                        let (code, line, column, message) = match error {
+                            ColumnsError::Reader(error) => {
+                                let error = reader_runtime_error(
+                                    error.kind,
+                                    error.message,
+                                    error.line,
+                                    error.column,
+                                    instruction.span,
+                                );
+                                if error.code == "R_FILE_LIMIT" {
+                                    return Err(error);
+                                }
+                                push_stack!(file_error_result(error));
+                                return Ok(());
+                            }
+                            ColumnsError::Malformed {
+                                line,
+                                column,
+                                message,
+                            } => ("R_CSV_MALFORMED", line, column, message),
+                            ColumnsError::Value {
+                                line,
+                                column,
+                                message,
+                            } => ("E_CSV_VALUE", line, column, message),
+                            ColumnsError::Allocation(_) | ColumnsError::Cancelled => {
+                                unreachable!("handled above")
+                            }
+                        };
+                        // The error's first position is the place in the file, which is what
+                        // `file_error_line` and `file_error_column` report.
+                        let mut error = RuntimeError::new(code, message, instruction.span);
+                        if line > 0 {
+                            error.trace = vec![Span {
+                                line,
+                                column,
+                                ..instruction.span
+                            }];
+                        }
+                        push_stack!(file_error_result(error));
                     }
                 }
             }
@@ -9032,7 +9192,7 @@ impl Instance {
                         policy: policy.clone(),
                         http: http.clone(),
                         readers: stdlib_data::FileReaderRegistry::new(
-                            policy.max_file_bytes,
+                            usize::MAX,
                             policy.max_file_bytes,
                         ),
                         sockets: sockets.share(),
