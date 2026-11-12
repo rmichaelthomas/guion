@@ -95,14 +95,20 @@ fn csv_errors_name_the_line_and_column() {
     let out = stdout(&app);
     let lines: Vec<&str> = out.lines().collect();
     assert!(
-        lines[0].starts_with("E_FRAME_PARSE") && lines[0].contains("line 3"),
+        lines[0].starts_with("E_FRAME_PARSE")
+            && lines[0].contains("ragged.csv")
+            && lines[0].contains("line 3"),
         "{out}"
     );
-    assert!(lines[1].starts_with("E_FRAME_PARSE"), "{out}");
+    assert!(
+        lines[1].starts_with("E_FRAME_PARSE") && lines[1].contains("empty.csv"),
+        "{out}"
+    );
     assert!(lines[2].starts_with("E_FRAME_COLUMN"), "{out}");
     assert!(lines[3].starts_with("R_FILE_NOT_FOUND"), "{out}");
     assert!(
         lines[4].starts_with("E_FRAME_PARSE")
+            && lines[4].contains("people.csv")
             && lines[4].contains("line 2")
             && lines[4].contains("`name`"),
         "{out}"

@@ -23,9 +23,9 @@ fn read_failure(problem: FileError, path: Text) -> StdError:
             return frame_error("E_FRAME_COLUMN", message + " in " + path)
         if text_slice(message, 0, 12) == "unknown kind":
             return frame_error("E_FRAME_KIND", "unknown column " + message)
-        return frame_error("E_FRAME_PARSE", "line " + int_to_text(file_error_line(problem)) + ", " + message)
+        return frame_error("E_FRAME_PARSE", path + " line " + int_to_text(file_error_line(problem)) + ", " + message)
     if code == "R_CSV_MALFORMED":
-        return frame_error("E_FRAME_PARSE", "line " + int_to_text(file_error_line(problem)) + ": " + message)
+        return frame_error("E_FRAME_PARSE", path + " line " + int_to_text(file_error_line(problem)) + ": " + message)
     return file_failure(problem, path)
 
 fn kind_named(kinds: Map[Text, Text], name: Text) -> Text:
