@@ -1,8 +1,10 @@
 //! Arithmetic, comparison, logic, math, reduction, ordering, linear-algebra and generator
 //! kernels for `Op::Array`.
 
+use std::borrow::Cow;
+
 use guion_model::{
-    shape_size, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared, Value,
+    shape_size, ArrayData, ArrayFunction, ArrayValue, BigInt, ElementType, MathFunction, Shared, Value,
 };
 
 use crate::array::{float_value, with_element, ArrayError, Charge, Element, Release};
@@ -1020,13 +1022,24 @@ fn matmul<T: Element>(
         }
         return finish(shape, out);
     }
+    // Float64 operands are borrowed as they are; other float types are widened once.
+    let native = match (&a.data, &b.data) {
+        (ArrayData::F64(x), ArrayData::F64(y)) => Some((x.as_slice(), y.as_slice())),
+        _ => None,
+    };
+    let widened = if native.is_some() { 0 } else { x.len() + y.len() };
     hold(
         charge,
         held,
-        (x.len() + y.len() + n * m).saturating_mul(size_of::<f64>()),
+        (widened + n * m).saturating_mul(size_of::<f64>()),
     )?;
-    let left: Vec<f64> = x.iter().map(|item| item.to_f64()).collect();
-    let right: Vec<f64> = y.iter().map(|item| item.to_f64()).collect();
+    let (left, right) = match native {
+        Some(pair) => (Cow::Borrowed(pair.0), Cow::Borrowed(pair.1)),
+        None => (
+            Cow::Owned(x.iter().map(|item| item.to_f64()).collect::<Vec<f64>>()),
+            Cow::Owned(y.iter().map(|item| item.to_f64()).collect::<Vec<f64>>()),
+        ),
+    };
     let mut acc = vec![0.0f64; n * m];
     if n == 1 || m == 1 {
         // A single row or column cannot fill a register tile; sum each element in order of k.
@@ -1043,6 +1056,16 @@ fn matmul<T: Element>(
         let threads = matmul::threads_for(dims);
         hold(charge, held, matmul::scratch_bytes(dims, threads))?;
         matmul::matmul_f64(&left, &right, &mut acc, dims, threads, matmul::native_isa());
+    }
+    if T::TYPE == ElementType::F64 {
+        // The accumulator is already the result's storage: check it and hand it over.
+        if let Some(index) = acc.iter().position(|value| !value.is_finite()) {
+            return Err(element_error(NONFINITE, "array_matmul", T::TYPE, index));
+        }
+        return Ok(Value::Array(Shared::new(ArrayValue::new(
+            shape,
+            ArrayData::F64(acc),
+        )?)));
     }
     let mut out = Vec::with_capacity(n * m);
     for (index, value) in acc.into_iter().enumerate() {
@@ -1680,6 +1703,11 @@ mod budget_tests {
                     .map(|index| fill(index) as f64)
                     .collect::<Vec<f64>>(),
             ),
+            ElementType::F32 => crate::array::Element::wrap(
+                (0..size)
+                    .map(|index| fill(index) as f32)
+                    .collect::<Vec<f32>>(),
+            ),
             _ => crate::array::Element::wrap((0..size).map(&fill).collect::<Vec<i64>>()),
         };
         Value::Array(Shared::new(ArrayValue::new(shape, data).expect("array")))
@@ -1737,8 +1765,9 @@ mod budget_tests {
             array(ElementType::F64, vec![16, 16], |i| i as i64 % 5),
         );
         let output = array_bytes(ElementType::F64, 2, 256);
-        // Holds the output, both float copies and the accumulator, but not the packed panels.
-        let copies = output + 3 * 256 * 8;
+        // Float64 operands are borrowed: holds the output and the accumulator, but not the
+        // packed panels.
+        let copies = output + 256 * 8;
         let used = Cell::new(0);
         let result = run(
             ArrayFunction::Matmul,
@@ -1759,6 +1788,27 @@ mod budget_tests {
         );
         assert!(result.is_ok());
         assert_eq!(used.get(), output, "packing buffers are released");
+    }
+
+    #[test]
+    fn matmul_widening_copies_of_float32_operands_are_charged() {
+        let (a, b) = (
+            array(ElementType::F32, vec![16, 16], |i| i as i64 % 7),
+            array(ElementType::F32, vec![16, 16], |i| i as i64 % 5),
+        );
+        let output = array_bytes(ElementType::F32, 2, 256);
+        // Float32 operands are widened to f64 copies, so the same limit as the Float64 case
+        // (output plus accumulator) is no longer enough.
+        let used = Cell::new(0);
+        let result = run(
+            ArrayFunction::Matmul,
+            ElementType::F32,
+            vec![a, b],
+            output + 256 * 8,
+            &used,
+        );
+        assert_limit(result, "matmul widened copies");
+        assert_eq!(used.get(), output);
     }
 
     #[test]
