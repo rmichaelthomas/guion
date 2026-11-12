@@ -644,12 +644,20 @@ fn select<T: Element>(
     let flags = bool::items(&mask.data);
     let count = flags.iter().filter(|flag| **flag).count();
     charge(array_bytes(T::TYPE, 1, count))?;
-    let mut out = Vec::with_capacity(count);
-    for (item, flag) in T::items(&array.data).iter().zip(flags) {
-        if *flag {
-            out.push(*item);
-        }
+    let items = T::items(&array.data);
+    let Some(first) = items.first() else {
+        return finish(vec![0], Vec::<T>::new());
+    };
+    // Branch-free compaction: every item is written to the next free slot and the slot only
+    // advances for a kept item, so a mask with no pattern costs no branch mispredictions. One
+    // spare slot takes the write of a dropped item at the end.
+    let mut out = vec![*first; count + 1];
+    let mut next = 0;
+    for (item, flag) in items.iter().zip(flags) {
+        out[next] = *item;
+        next += usize::from(*flag);
     }
+    out.truncate(count);
     finish(vec![count], out)
 }
 

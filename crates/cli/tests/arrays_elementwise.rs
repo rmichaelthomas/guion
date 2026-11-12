@@ -178,6 +178,25 @@ print(array_all(array_bool_zeros([0])))"#,
 }
 
 #[test]
+fn array_filter_edges_keep_order_and_every_kind() {
+    let out = stdout_of(
+        "filter-edges",
+        r#"let a = array_f64([1.5, 2.5, 3.5, 4.5])
+print(array_filter(a, array_bool([false, false, false, false])))
+print(array_filter(a, array_bool([true, true, true, true])))
+print(array_filter(a, array_bool([false, true, false, true])))
+print(array_filter(a, array_bool([true, false, false, false])))
+print(array_filter(array_i64([7, 8, 9]), array_bool([false, true, true])))
+print(array_filter(array_bool([true, false, true]), array_bool([true, true, false])))
+print(array_size(array_filter(array_f64_zeros([0]), array_bool_zeros([0]))))"#,
+    );
+    assert_eq!(
+        out,
+        "[]\n[1.5, 2.5, 3.5, 4.5]\n[2.5, 4.5]\n[1.5]\n[8, 9]\n[true, false]\n0\n"
+    );
+}
+
+#[test]
 fn reused_buffers_never_change_a_value_another_variable_holds() {
     let out = stdout_of(
         "reuse-alias",
