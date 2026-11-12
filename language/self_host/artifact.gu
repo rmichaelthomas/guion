@@ -1,3 +1,5 @@
+import "builtin_catalog.gu"
+
 # Canonical Guion artifact encoder. This module owns field ordering and
 # opcode/value encodings; the Rust model remains the independent verifier.
 
@@ -118,6 +120,8 @@ fn ab_type(value: Text) -> Bytes:
         return ab_u8(15)
     if value == "FileReader" or value == "Db" or value == "Transaction" or value == "TomlDocument":
         return ab_join([ab_u8(17), ab_string(value)])
+    if ab_starts(value, "Array["):
+        return ab_join([ab_u8(18), ab_u8(builtin_array_element_code(ab_type_inner(value, 6)))])
     if ab_starts(value, "List["):
         return ab_join([ab_u8(4), ab_type(ab_type_inner(value, 5))])
     if ab_starts(value, "Result["):
@@ -856,6 +860,13 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
     let tls_code = ab_tls_code(name)
     if tls_code >= 0:
         return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(187), ab_u8(tls_code)])
+    if ab_starts(name, "Array"):
+        let dot = text_find(name, ".", 0)
+        if dot > 0:
+            let function_code = builtin_array_function_code(text_slice(name, 0, dot))
+            let element_code = builtin_array_element_code(text_slice(name, dot + 1, len(name)))
+            if function_code >= 0 and element_code >= 0:
+                return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(193), ab_u8(function_code), ab_u8(element_code)])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
