@@ -6,7 +6,7 @@ This list covers open problems only. Each row has a status. When an item is fixe
 |---|---------|--------|
 | 1 | Reading CSV files is about 45 times slower than pandas. | fixed in 8cdf52c |
 | 2 | Calling a small helper inside a large guest loop costs microseconds per call. | fixed in ae485c5 |
-| 3 | Multiplying two 512 by 512 f64 matrices is about 25 times slower than NumPy. | open |
+| 3 | Multiplying two 512 by 512 f64 matrices is about 25 times slower than NumPy. | fixed in 8d73df4 (512×512 f64 takes about 3 ms after start-up, down from 27 ms; compute-only estimate 1.86 ms against NumPy's 0.68 ms, about 2.8 times) |
 | 4 | Element-wise array maths costs about 2 times NumPy's cost per element. | fixed in db55344 (10M `a*b+c` compute estimate 1.45 times NumPy, down from 2.1; an in-place `set r = array_add(r, b)` loop runs at 0.86 times NumPy) |
 | 5 | The self-hosted compiler emits `ArraySet` where it could emit `ArraySetLocal`. | fixed in 4c19507 |
 | 6 | Large files need the project to raise `max_file_bytes`, and the allocation-limit error does not say how to raise it. | fixed in c071ffd |

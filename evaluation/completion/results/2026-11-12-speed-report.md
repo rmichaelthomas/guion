@@ -12,6 +12,7 @@ This batch fixed the slow spots that the earlier [data frames](2026-11-12-data-f
 | c071ffd, 8cdf52c | Native `csv_read_columns` (artifact format 64) and a `frames` reader built on it |
 | 4c19507, db55344 | Array kernels reuse unshared buffers; `set a = array_fn(a, ...)` updates in place; the self-hosted compiler emits `ArraySetLocal` |
 | 5d961e9 | Branch-free `array_filter` |
+| 8d73df4 | Packed, register-tiled matrix multiplication for `f64` and `f32`: NEON on aarch64, AVX2 with FMA on x86_64 (runtime detection), a scalar fallback, and threads above 2^21 multiply-adds |
 
 ## How each fix works
 
@@ -55,11 +56,11 @@ These are differences of two noisy end-to-end medians; pandas' filter part in pa
 | start-up only | 0.0151 | 0.0142 | 0.0610 | 0.223 | 0.233 |
 | `a*b+c`, 5 passes | 0.2209 | 0.1413 | 0.1508 | 1.330 | **0.925** (0.911–0.947) |
 | sum, 10 passes | 0.0599 | 0.0584 | 0.0955 | 0.588 | 0.612 (0.609–0.617) |
-| 512×512 matmul | 0.0421 | 0.0412 | 0.0636 | 0.623 | 0.644 (0.631–0.651) |
+| 512×512 matmul | 0.0421 | 0.0166 | 0.0648 | 0.623 | **0.258** (0.251–0.279) |
 | stable sort of 1M | 0.0499 | 0.0452 | 0.0809 | 0.572 | 0.559 (0.547–0.577) |
 | 1M `array_get` loop | 0.0886 | 0.0871 | 0.1970 | 0.428 | 0.446 (0.430–0.451) |
 
-Compute alone (start-up subtracted): `a*b+c` is 0.127 s for Guion against 0.090 s for NumPy, about **1.41 times NumPy**, down from about 2.1. Sum, matmul and sort are unchanged within noise (about 1.3, 10.5 and 1.6 times NumPy compute). An in-place loop of 60 `set a = array_add(a, b)` style updates measured 0.86 times NumPy in the task's own run.
+Compute alone (start-up subtracted): `a*b+c` is 0.127 s for Guion against 0.090 s for NumPy, about **1.41 times NumPy**, down from about 2.1. Sum and sort are unchanged within noise (about 1.3 and 1.6 times NumPy compute). Matrix multiplication is covered in its own section below. An in-place loop of 60 `set a = array_add(a, b)` style updates measured 0.86 times NumPy in the task's own run.
 
 ### Arrays at smaller sizes (4M elements, 256×256), with plain CPython
 
@@ -68,11 +69,27 @@ Compute alone (start-up subtracted): `a*b+c` is 0.127 s for Guion against 0.090 
 | start-up only | 0.0141 | 0.0628 | 0.0229 | 0.224 | 0.621 |
 | `a*b+c`, 5 passes | 0.0667 | 0.0988 | 1.5781 | 0.674 (0.657–0.694) | 0.042 |
 | sum, 10 passes | 0.0339 | 0.0768 | 0.3170 | 0.441 | 0.106 |
-| 256×256 matmul | 0.0185 | 0.0625 | 0.5798 | 0.289 | 0.031 |
+| 256×256 matmul | 0.0148 | 0.0615 | 0.5763 | 0.242 | 0.026 |
 | sort of 1M | 0.0456 | 0.0816 | 0.1808 | 0.563 | 0.254 |
 | 1M `array_get` loop | 0.0863 | 0.2002 | 0.1328 | 0.431 | 0.662 |
 
 Before this batch the `a*b+c` row was 0.0899 s (0.869 of NumPy).
+
+### Matrix multiplication (8d73df4)
+
+The kernel packs the operands into tiles, multiplies register-sized blocks (NEON on aarch64, AVX2 with FMA on x86_64 chosen at run time, scalar elsewhere), computes `f32` in `f64` and narrows, and splits the rows across threads when `m·n·k` is at least 2^21 (about 128×128×128). Output is bit-identical for every thread count. Integer element types keep the checked kernel. On this machine (`available_parallelism` 10) 512×512×512 (2^27) and 256×256×256 (2^24) both run threaded. The end-to-end rows come from the full 15-trial protocol on a release build of 8d73df4 (`evaluation/development/arrays/results_large.json` and `results.json`).
+
+| Measure | Before | After |
+|---|---|---|
+| 512×512 f64, end to end | 0.0421 s | 0.0166 s |
+| 512×512 f64, Guion work after start-up | ~27 ms | ~3.1 ms |
+| 256×256 f64, end to end | 0.0185 s | 0.0148 s |
+| 512×512 f64, Guion / NumPy end to end | 0.623 | 0.258 (0.251–0.279) |
+| 512×512 f64, compute only, Guion / NumPy | ~25 (earlier report) or ~10.5 (this report's method) | **~2.8** (1.86 ms against 0.68 ms per multiply) |
+
+Why NumPy's figure differs between reports. The earlier native-arrays report gave NumPy about 1 ms for this matmul by subtracting the start-up lane (`import numpy; print(0)`) from the end-to-end lane. Both lanes of the matmul workload include building the inputs (two `linspace` calls, a reshape, a sum), and NumPy's first multiply also pays the one-time start of its BLAS thread pool, so the difference of two medians a millisecond apart was noise-dominated and too low. In this run the same method gives NumPy about 2.9 ms (64.8 ms against 61.9 ms) and Guion about 3.1 ms (16.6 ms against 13.5 ms), a ratio of about 1.1 that is not a compute-only comparison.
+
+The compute-only figure comes from a separate pair of programs that perform the same 512×512 multiply once and 21 times, with the inputs built once in each. Median of 15 interleaved trials each, the per-multiply cost is (21-run time minus 1-run time) divided by 20: Guion 1.86 ms, NumPy 0.68 ms (the platform BLAS), so Guion is about **2.8 times NumPy**, inside the target of 3. Each multiply there also includes a 262,144-element `array_sum`, the same on both sides. This is one machine and one size; it varies by about 10% between runs.
 
 ### Helper-call cost
 
@@ -91,7 +108,7 @@ Before this batch the `a*b+c` row was 0.0899 s (0.869 of NumPy).
 
 ## What remains
 
-- Matrix multiplication is still about 10 times NumPy's compute (known issue 3, Batch 3), because NumPy uses the platform BLAS.
+- Matrix multiplication is about 2.8 times NumPy's compute at 512×512 (known issue 3, fixed in 8d73df4); NumPy still leads because the platform BLAS is tuned for this chip.
 - Reading CSV is about 3 times pandas' compute; the end-to-end win comes from start-up.
 - Filter after the read is a few times pandas (known issue 20).
 - A native call still costs about 0.2 µs. Skipping machine-code entry for loop-free, call-free functions called from the VM would take it to about 0.11 µs, but it changes the tier policy and broke 17 backend tests, so it was left out.

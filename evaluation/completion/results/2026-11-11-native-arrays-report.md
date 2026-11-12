@@ -76,6 +76,6 @@ Limits fixed by the speed batch are struck through; see [the speed report](2026-
 
 - **Memory limit.** The 10M-element `a*b+c` run needs about 486 MB (peak RSS), more than the 256 MiB default `allocation_limit_bytes`, and fails with `R_ALLOCATION_LIMIT` unless the project raises it. The large benchmark set raises it to 2 GiB in its `guion.toml`. NumPy has no such limit.
 - ~~**Elementwise kernels** are about twice NumPy's cost per element.~~ Fixed: kernels reuse unshared buffers, `set a = array_fn(a, ...)` updates in place and finiteness is checked without branching; `a*b+c` is about 1.4 times NumPy compute.
-- **Matrix multiplication** has no BLAS.
+- ~~**Matrix multiplication** has no BLAS.~~ Fixed in 8d73df4 by a packed, threaded SIMD kernel: 512×512 f64 takes about 3 ms after start-up instead of 27 ms, and about 2.8 times NumPy's compute (1.86 ms against 0.68 ms per multiply). The ~1 ms NumPy figure in the table above came from subtracting two noisy end-to-end medians; see [the speed report](2026-11-12-speed-report.md).
 - ~~**Self-hosted compiler** emits plain `ArraySet` rather than the in-place `ArraySetLocal`.~~ Fixed: it now emits `ArraySetLocal`.
 - Not provided: strided views, fancy indexing, complex numbers, operator syntax on arrays, and the Python bridge for arrays.
