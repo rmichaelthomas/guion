@@ -18,9 +18,9 @@ use std::{
 /// Size of the read buffer.
 const BUFFER_BYTES: usize = 64 * 1024;
 /// Rows between checks of the allocation budget and the cancel flag.
-const ROWS_PER_SETTLE: usize = 4096;
+const CHUNK_ROWS: usize = 4096;
 /// Bytes of record text between those checks, for files with very long records.
-const SETTLE_BYTES: usize = 1 << 20;
+const CHUNK_BYTES: usize = 1 << 20;
 /// What a dictionary entry costs beyond its text: the `String` itself.
 const ENTRY_OVERHEAD: usize = 24;
 
@@ -648,7 +648,7 @@ impl Settler<'_, '_> {
     fn note(&mut self, record_bytes: usize) -> bool {
         self.rows += 1;
         self.bytes += record_bytes;
-        self.rows >= ROWS_PER_SETTLE || self.bytes >= SETTLE_BYTES
+        self.rows >= CHUNK_ROWS || self.bytes >= CHUNK_BYTES
     }
 
     fn settle(&mut self, builders: &[Builder], buffers: usize) -> Result<(), ColumnsError> {
@@ -693,7 +693,28 @@ pub fn read_csv_columns(
     max_record_bytes: usize,
     meter: &mut Meter<'_>,
 ) -> Result<Vec<Column>, ColumnsError> {
+    read_csv_columns_between(path, kinds, max_record_bytes, meter, || {})
+}
+
+fn changed_while_read() -> ColumnsError {
+    ColumnsError::Malformed {
+        line: 0,
+        column: 0,
+        message: "the file changed while it was being read".into(),
+    }
+}
+
+/// `read_csv_columns` with a hook that runs between the first and second pass (a seam for
+/// tests; the production hook is empty and is compiled away).
+fn read_csv_columns_between(
+    path: &Path,
+    kinds: &BTreeMap<String, String>,
+    max_record_bytes: usize,
+    meter: &mut Meter<'_>,
+    between_passes: impl FnOnce(),
+) -> Result<Vec<Column>, ColumnsError> {
     let mut resource = open(path, max_record_bytes)?;
+    let mut records = 0usize;
     let mut builders: Vec<Builder> = Vec::new();
     let mut header_seen = false;
     let mut settler = Settler {
@@ -753,6 +774,7 @@ pub fn read_csv_columns(
                 return Err(bad_value(builder, field, line, index + 1));
             }
         }
+        records += 1;
         buffers = buffers.max(BUFFER_BYTES + text.len() * 2);
         if settler.note(text.len()) {
             settler.settle(&builders, buffers)?;
@@ -795,7 +817,9 @@ pub fn read_csv_columns(
         });
     }
     if !again.is_empty() {
-        // The columns that turned out to be text, read again as text.
+        // The columns that turned out to be text, read again as text. The second pass must see
+        // the file the first one saw: the same header and as many records.
+        between_passes();
         let mut resource = open(path, max_record_bytes)?;
         let mut texts: Vec<Builder> = again
             .iter()
@@ -809,11 +833,26 @@ pub fn read_csv_columns(
             rows: 0,
             bytes: 0,
         };
+        let mut again_records = 0usize;
         for_each_record(&mut resource, |line, text, spans| {
             if !header_seen {
                 header_seen = true;
-                return Ok(());
+                let same = spans.len() == names.len()
+                    && spans
+                        .iter()
+                        .zip(&names)
+                        .all(|(span, name)| &text[span.start..span.end] == name);
+                return if same {
+                    Ok(())
+                } else {
+                    Err(changed_while_read())
+                };
             }
+            if again_records == records {
+                // The file grew since the first pass.
+                return Err(changed_while_read());
+            }
+            again_records += 1;
             if spans.len() != names.len() {
                 return Err(ColumnsError::Malformed {
                     line,
@@ -836,6 +875,9 @@ pub fn read_csv_columns(
             }
             Ok(())
         })?;
+        if !header_seen || again_records != records {
+            return Err(changed_while_read());
+        }
         settler.settle(&texts, buffers)?;
         for (builder, &index) in texts.into_iter().zip(&again) {
             columns[index] = Some(builder.finish());
@@ -877,6 +919,69 @@ mod tests {
         assert_eq!(parse_f64("nan"), None);
         assert_eq!(parse_f64("1e999"), None);
         assert_eq!(parse_f64("true"), None);
+    }
+
+    fn read_with_hook(path: &Path, between: impl FnOnce()) -> Result<Vec<Column>, ColumnsError> {
+        let mut charge = |_: usize| true;
+        let mut release = |_: usize| {};
+        let cancelled = || false;
+        let mut meter = Meter {
+            charge: &mut charge,
+            release: &mut release,
+            cancelled: &cancelled,
+        };
+        read_csv_columns_between(path, &BTreeMap::new(), 1 << 20, &mut meter, between)
+    }
+
+    fn changed_file(name: &str, change: impl FnOnce(&Path)) -> Result<Vec<Column>, ColumnsError> {
+        let path = std::env::temp_dir().join(format!(
+            "guion-csv-columns-{}-{name}.csv",
+            std::process::id()
+        ));
+        std::fs::write(&path, "n,s\n1,a\n2,b\n").unwrap();
+        let result = read_with_hook(&path, || change(&path));
+        let _ = std::fs::remove_file(&path);
+        result
+    }
+
+    fn assert_changed(result: Result<Vec<Column>, ColumnsError>) {
+        match result {
+            Err(ColumnsError::Malformed { message, .. }) => {
+                assert_eq!(message, "the file changed while it was being read")
+            }
+            other => panic!(
+                "expected a changed-file error, got {:?}",
+                other.map(|c| c.len())
+            ),
+        }
+    }
+
+    #[test]
+    fn an_unchanged_file_reads_both_passes() {
+        let columns = changed_file("same", |_| {}).unwrap();
+        assert_eq!(columns[1].dictionary, ["a", "b"]);
+        assert_eq!(columns[1].codes.len(), columns[0].ints.len());
+    }
+
+    #[test]
+    fn a_file_that_grows_between_the_passes_is_an_error() {
+        assert_changed(changed_file("grows", |path| {
+            std::fs::write(path, "n,s\n1,a\n2,b\n3,c\n").unwrap()
+        }));
+    }
+
+    #[test]
+    fn a_file_that_shrinks_between_the_passes_is_an_error() {
+        assert_changed(changed_file("shrinks", |path| {
+            std::fs::write(path, "n,s\n1,a\n").unwrap()
+        }));
+    }
+
+    #[test]
+    fn a_file_with_a_new_header_between_the_passes_is_an_error() {
+        assert_changed(changed_file("header", |path| {
+            std::fs::write(path, "n,t\n1,a\n2,b\n").unwrap()
+        }));
     }
 
     #[test]

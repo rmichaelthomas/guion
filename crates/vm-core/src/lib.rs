@@ -2723,6 +2723,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 // `set a = array_<fn>(a, ...)` stores straight back into the local it read.
                 // Releasing that local first leaves the kernel the only owner, so it can
                 // update the buffer in place; a variable that also holds the array keeps it.
+                // This relies on `Store` coming right after `Op::Array`; if they don't match, the only loss is the optimisation.
                 if let (Some(Op::Store(slot)), Value::Array(operand)) =
                     (f.code.get(ip).map(|next| &next.op), &args[0])
                 {
