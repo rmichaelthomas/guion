@@ -1,0 +1,178 @@
+# Sorting rows and grouping with aggregation.
+
+import "column.gu"
+import "frame.gu"
+
+fn text_order(a: Text, b: Text) -> Int:
+    if a < b:
+        return -1
+    if a > b:
+        return 1
+    return 0
+
+# For each dictionary code, its position when the dictionary is sorted by text.
+fn text_ranks(dictionary: List[Text]) -> Array[i64]:
+    let sorted = sort_by(dictionary, text_order)
+    var position: Map[Text, Int] = {}
+    var index = 0
+    while index < len(sorted):
+        set position = map_set(position, sorted[index], index)
+        set index = index + 1
+    var ranks: List[Int] = []
+    for value in dictionary:
+        set ranks = list_push(ranks, unwrap(map_get(position, value)))
+    if len(ranks) == 0:
+        set ranks = list_push(ranks, 0)
+    return array_i64(ranks)
+
+# The key a stable ascending sort orders by. Descending keys are reversed without overflow:
+# `-1 - x` for integers, negation for floats.
+fn sort_key_i64(column: Column, ascending: Bool) -> Array[i64]:
+    var values = column_ints(column)
+    if column_kind(column) == "bool":
+        set values = array_to_i64(column_flags(column))
+    if column_kind(column) == "text":
+        set values = array_take(text_ranks(column_dictionary(column)), column_codes(column))
+    if ascending:
+        return values
+    return array_sub(array_i64_full([array_size(values)], -1), values)
+
+fn sort_key_f64(column: Column, ascending: Bool) -> Array[f64]:
+    if ascending:
+        return column_floats(column)
+    return array_neg(column_floats(column))
+
+# Sorts rows by `keys`, the first key most significant. `ascending` gives each key's
+# direction. The sort is stable and missing values sort last in either direction.
+pub fn frame_sort(frame: Frame, keys: List[Text], ascending: List[Bool]) -> Result[Frame, StdError]:
+    if len(keys) != len(ascending):
+        return Err(frame_error("E_FRAME_SHAPE", "frame_sort needs one direction per key, got " + int_to_text(len(keys)) + " keys and " + int_to_text(len(ascending)) + " directions"))
+    var columns: List[Column] = []
+    for key in keys:
+        set columns = list_push(columns, frame_column(frame, key)?)
+    var order = array_i64_range(0, frame_rows(frame), 1)
+    var index = len(keys) - 1
+    while index >= 0:
+        let column = columns[index]
+        if column_kind(column) == "f64":
+            set order = array_take(order, array_argsort(array_take(sort_key_f64(column, ascending[index]), order)))
+        else:
+            set order = array_take(order, array_argsort(array_take(sort_key_i64(column, ascending[index]), order)))
+        if column_missing(column) > 0:
+            let missing = array_to_i64(array_not(column_valid(column)))
+            set order = array_take(order, array_argsort(array_take(missing, order)))
+        set index = index - 1
+    return Ok(frame_take(frame, order))
+
+# Dense group codes for one column, in first-seen order; missing values form one group.
+fn column_group_codes(column: Column) -> Array[i64]:
+    var codes = column_codes(column)
+    if column_kind(column) == "i64":
+        set codes = array_factorize(column_ints(column))
+    else:
+        if column_kind(column) == "f64":
+            set codes = array_factorize(column_floats(column))
+        else:
+            if column_kind(column) == "bool":
+                set codes = array_factorize(column_flags(column))
+            else:
+                set codes = array_factorize(codes)
+    if column_missing(column) == 0:
+        return codes
+    return array_factorize(array_where(column_valid(column), codes, array_i64_full([array_size(codes)], -1)))
+
+fn group_total(codes: Array[i64]) -> Int:
+    if array_size(codes) == 0:
+        return 0
+    return array_max(codes) + 1
+
+# Dense first-seen codes for the combination of several columns.
+pub fn frame_group_codes(frame: Frame, keys: List[Text]) -> Result[Array[i64], StdError]:
+    var codes = array_i64_zeros([frame_rows(frame)])
+    for key in keys:
+        let next = column_group_codes(frame_column(frame, key)?)
+        let width = group_total(next)
+        set codes = array_factorize(array_add(array_mul_scalar(codes, width), next))
+    return Ok(codes)
+
+fn bad_aggregation(spec: Text, reason: Text) -> StdError:
+    return frame_error("E_FRAME_KIND", "aggregation `" + spec + "` " + reason)
+
+fn no_mask() -> Array[bool]:
+    return array_bool_zeros([0])
+
+# One aggregated column. `codes` are the group codes of every row and `groups` their count.
+fn aggregate(column: Column, how: Text, name: Text, codes: Array[i64], groups: Int) -> Result[Column, StdError]:
+    var present_codes = codes
+    let gaps = column_missing(column) > 0
+    if gaps:
+        set present_codes = array_filter(codes, column_valid(column))
+    let counts = array_count_by(present_codes, groups)
+    if how == "count":
+        return Ok(column_from_i64(name, counts, no_mask()))
+    let kind = column_kind(column)
+    if kind != "i64" and kind != "f64":
+        return Err(frame_error("E_FRAME_KIND", "column `" + column_name(column) + "` is " + kind + "; `" + how + "` needs i64 or f64"))
+    let filled = array_gt_scalar(counts, 0)
+    let empty = array_filter(array_i64_range(0, groups, 1), array_not(filled))
+    if kind == "i64":
+        var values = column_ints(column)
+        if gaps:
+            set values = array_filter(values, column_valid(column))
+        if how == "sum":
+            return Ok(column_from_i64(name, array_sum_by(values, present_codes, groups), no_mask()))
+        if how == "mean":
+            let sums = array_sum_by(array_to_f64(values), present_codes, groups)
+            let means = array_div(sums, array_to_f64(array_maximum(counts, array_i64_full([groups], 1))))
+            return Ok(column_from_f64(name, means, filled))
+        let padded_values = array_concat([values, array_i64_zeros([array_size(empty)])])
+        let padded_codes = array_concat([present_codes, empty])
+        if how == "min":
+            return Ok(column_from_i64(name, array_min_by(padded_values, padded_codes, groups), filled))
+        if how == "max":
+            return Ok(column_from_i64(name, array_max_by(padded_values, padded_codes, groups), filled))
+        return Err(bad_aggregation(column_name(column) + ":" + how, "is not one of sum, mean, min, max, count"))
+    var values = column_floats(column)
+    if gaps:
+        set values = array_filter(values, column_valid(column))
+    if how == "sum":
+        return Ok(column_from_f64(name, array_sum_by(values, present_codes, groups), no_mask()))
+    if how == "mean":
+        let sums = array_sum_by(values, present_codes, groups)
+        let means = array_div(sums, array_to_f64(array_maximum(counts, array_i64_full([groups], 1))))
+        return Ok(column_from_f64(name, means, filled))
+    let padded_values = array_concat([values, array_f64_zeros([array_size(empty)])])
+    let padded_codes = array_concat([present_codes, empty])
+    if how == "min":
+        return Ok(column_from_f64(name, array_min_by(padded_values, padded_codes, groups), filled))
+    if how == "max":
+        return Ok(column_from_f64(name, array_max_by(padded_values, padded_codes, groups), filled))
+    return Err(bad_aggregation(column_name(column) + ":" + how, "is not one of sum, mean, min, max, count"))
+
+# Groups rows by `keys` and aggregates. Each aggregation is `"column:function"` with function
+# `sum`, `mean`, `min`, `max` or `count`, and its result column is named `column_function`.
+# Groups appear in the order their first row appears; missing key values form their own
+# group. Aggregations skip missing values: `count` counts present values, `sum` of none is
+# 0, and `mean`, `min` and `max` of none are missing.
+pub fn frame_group(frame: Frame, keys: List[Text], aggregations: List[Text]) -> Result[Frame, StdError]:
+    var specs: List[List[Text]] = []
+    for spec in aggregations:
+        let colon = text_find(spec, ":", 0)
+        if colon < 0:
+            return Err(bad_aggregation(spec, "needs the form `column:function`"))
+        let name = text_slice(spec, 0, colon)
+        let how = text_slice(spec, colon + 1, len(spec))
+        if how != "sum" and how != "mean" and how != "min" and how != "max" and how != "count":
+            return Err(bad_aggregation(spec, "is not one of sum, mean, min, max, count"))
+        let checked = frame_column(frame, name)?
+        set specs = list_push(specs, [name, how])
+    let codes = frame_group_codes(frame, keys)?
+    let groups = group_total(codes)
+    let first = array_first_index(codes, groups)
+    var columns: List[Column] = []
+    for key in keys:
+        set columns = list_push(columns, column_take(frame_column(frame, key)?, first))
+    for spec in specs:
+        let column = frame_column(frame, spec[0])?
+        set columns = list_push(columns, aggregate(column, spec[1], spec[0] + "_" + spec[1], codes, groups)?)
+    return frame_new(columns)

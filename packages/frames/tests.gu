@@ -1,0 +1,126 @@
+import "src/lib.gu"
+
+fn main() -> Int:
+    return 0
+
+fn sf(value: Float64) -> Option[Float64]:
+    return Some(value)
+
+fn nf() -> Option[Float64]:
+    return None
+
+fn si(value: Int) -> Option[Int]:
+    return Some(value)
+
+fn st(value: Text) -> Option[Text]:
+    return Some(value)
+
+fn nt() -> Option[Text]:
+    return None
+
+fn sample() -> Frame:
+    let id = column_i64("id", [1, 2, 3, 4])
+    let x = column_f64_opt("x", [sf(0.5), nf(), sf(2.5), sf(-1.0)])
+    let name = column_text("name", ["a", "b", "a", "c"])
+    let flag = column_bool("flag", [true, false, true, false])
+    return unwrap(frame_new([id, x, name, flag]))
+
+fn error_code(result: Result[Frame, StdError]) -> Text:
+    match result:
+        Ok(frame):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+fn test_new_checks_names_and_lengths() -> Unit:
+    assert(frame_rows(sample()) == 4)
+    assert(frame_names(sample()) == ["id", "x", "name", "flag"])
+    assert(error_code(frame_new([column_i64("a", [1]), column_i64("a", [2])])) == "E_FRAME_COLUMN")
+    assert(error_code(frame_new([column_i64("a", [1]), column_i64("b", [2, 3])])) == "E_FRAME_SHAPE")
+
+fn test_column_lookup() -> Unit:
+    let frame = sample()
+    assert(column_kind(unwrap(frame_column(frame, "name"))) == "text")
+    match frame_column(frame, "missing"):
+        Ok(column):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_FRAME_COLUMN")
+
+fn test_select_drop_rename() -> Unit:
+    let frame = sample()
+    assert(frame_names(unwrap(frame_select(frame, ["name", "id"]))) == ["name", "id"])
+    assert(frame_names(unwrap(frame_drop(frame, ["x", "flag"]))) == ["id", "name"])
+    assert(frame_names(unwrap(frame_rename(frame, "x", "value"))) == ["id", "value", "name", "flag"])
+    assert(error_code(frame_select(frame, ["nope"])) == "E_FRAME_COLUMN")
+    assert(error_code(frame_rename(frame, "x", "id")) == "E_FRAME_COLUMN")
+
+fn test_with_column_replaces_or_appends() -> Unit:
+    let frame = sample()
+    let added = unwrap(frame_with_column(frame, column_i64("z", [9, 9, 9, 9])))
+    assert(frame_names(added) == ["id", "x", "name", "flag", "z"])
+    let replaced = unwrap(frame_with_column(frame, column_i64("id", [7, 7, 7, 7])))
+    assert(column_get_i64(unwrap(frame_column(replaced, "id")), 0) == si(7))
+    assert(error_code(frame_with_column(frame, column_i64("z", [1]))) == "E_FRAME_SHAPE")
+
+fn test_filter_take_and_missing_values() -> Unit:
+    let frame = sample()
+    let kept = unwrap(frame_filter(frame, array_bool([false, true, true, false])))
+    assert(frame_rows(kept) == 2)
+    let x = unwrap(frame_column(kept, "x"))
+    assert(column_get_f64(x, 0) == nf())
+    assert(column_get_f64(x, 1) == sf(2.5))
+    assert(column_get_text(unwrap(frame_column(kept, "name")), 1) == st("a"))
+    let taken = frame_take(frame, array_i64([3, 3, 0]))
+    assert(column_get_text(unwrap(frame_column(taken, "name")), 0) == st("c"))
+    assert(error_code(frame_filter(frame, array_bool([true]))) == "E_FRAME_SHAPE")
+
+fn test_head_and_slice() -> Unit:
+    let frame = sample()
+    assert(frame_rows(frame_head(frame, 2)) == 2)
+    assert(frame_rows(frame_head(frame, 10)) == 4)
+    let middle = frame_slice(frame, 1, 3)
+    assert(column_get_i64(unwrap(frame_column(middle, "id")), 0) == si(2))
+    assert(frame_rows(frame_slice(frame, 3, 1)) == 0)
+
+fn test_concat_merges_text_dictionaries() -> Unit:
+    let first = unwrap(frame_new([column_text("k", ["a", "b"]), column_i64("v", [1, 2])]))
+    let second = unwrap(frame_new([column_text("k", ["c", "a"]), column_i64("v", [3, 4])]))
+    let both = unwrap(frame_concat([first, second]))
+    assert(frame_rows(both) == 4)
+    let k = unwrap(frame_column(both, "k"))
+    assert(column_get_text(k, 2) == st("c"))
+    assert(column_get_text(k, 3) == st("a"))
+    let other = unwrap(frame_new([column_i64("k", [1]), column_i64("v", [1])]))
+    assert(error_code(frame_concat([first, other])) == "E_FRAME_SHAPE")
+
+fn test_drop_and_fill_missing() -> Unit:
+    let frame = sample()
+    assert(frame_rows(unwrap(frame_drop_missing(frame, ["x"]))) == 3)
+    let filled = unwrap(frame_fill_f64(frame, "x", 0.0))
+    assert(column_get_f64(unwrap(frame_column(filled, "x")), 1) == sf(0.0))
+    assert(column_missing(unwrap(frame_column(filled, "x"))) == 0)
+    match frame_fill_f64(frame, "name", 0.0):
+        Ok(done):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_FRAME_KIND")
+
+fn test_masks_and_reductions_skip_missing() -> Unit:
+    let frame = sample()
+    let x = unwrap(frame_column(frame, "x"))
+    assert(array_to_list(unwrap(column_compare(x, ">", 0.0))) == [true, false, true, false])
+    assert(column_sum(x) == 2.0)
+    assert(column_mean(x) == sf(0.6666666666666666))
+    assert(column_count(x) == 3)
+    assert(array_to_list(unwrap(column_text_equals(unwrap(frame_column(frame, "name")), "a"))) == [true, false, true, false])
+
+fn test_reads_and_writes_files() -> Unit:
+    let frame = unwrap(frame_read_csv("fixtures/small.csv"))
+    assert(frame_rows(frame) == 2)
+    assert(column_kind(unwrap(frame_column(frame, "x"))) == "f64")
+    assert(unwrap(frame_write_csv(frame, "fixtures/out.csv")) == 2)
+    let again = unwrap(frame_read_csv("fixtures/out.csv"))
+    assert(frame_show(again, 10) == frame_show(frame, 10))
+    let lines = unwrap(frame_read_jsonl("fixtures/small.jsonl"))
+    assert(column_missing(unwrap(frame_column(lines, "name"))) == 1)

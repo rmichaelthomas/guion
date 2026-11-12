@@ -1,0 +1,8 @@
+[package]
+name = "frames"
+version = "0.1.0"
+entry = "src/lib.gu"
+exports = ["src/lib.gu", "src/column.gu", "src/frame.gu", "src/io.gu", "src/show.gu", "src/group.gu", "src/join.gu"]
+
+[capabilities]
+files = ["read", "write"]

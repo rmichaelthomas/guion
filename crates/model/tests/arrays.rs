@@ -168,3 +168,28 @@ fn array_equality_compares_element_shape_and_contents() {
     assert_ne!(a, array(vec![2, 1], ArrayData::I32(vec![1, 2])));
     assert_ne!(a, array(vec![2], ArrayData::I32(vec![1, 3])));
 }
+
+#[test]
+fn format_62_rejects_format_63_array_functions() {
+    let mut artifact = artifact_with(
+        vec![Op::Array(ArrayFunction::Take, ElementType::F64)],
+        Type::Unit,
+        vec![],
+    );
+    let bytes = artifact.to_bytes().unwrap();
+    artifact.format_version = 62;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut legacy = bytes;
+    legacy[4..8].copy_from_slice(&62u32.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&legacy).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+    let mut older = artifact_with(
+        vec![Op::Array(ArrayFunction::Matmul, ElementType::F64)],
+        Type::Unit,
+        vec![],
+    );
+    older.format_version = 62;
+    assert!(older.to_bytes().is_ok());
+}

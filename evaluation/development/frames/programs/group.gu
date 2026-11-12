@@ -1,0 +1,10 @@
+import "pkg:frames/src/lib.gu"
+
+fn main() -> Unit:
+    let frame = unwrap(frame_read_csv("data/rows.csv"))
+    let groups = unwrap(frame_group(frame, ["group"], ["x:mean", "x:count"]))
+    let means = unwrap(frame_column(groups, "x_mean"))
+    print(frame_rows(groups))
+    print(column_sum(means))
+    print(column_sum(unwrap(frame_column(groups, "x_count"))))
+    print(unwrap(column_get_f64(means, 0)))

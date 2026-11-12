@@ -100,6 +100,13 @@ fn main() -> Unit:
     print(array_sort(array_f64([3.0, 1.0])))
     print(array_where(array_bool([true, false]), array_i8([1, 2]), array_i8([3, 4])))
     print(array_f64_random(3, [2]) == array_f64_random(3, [2]))
+    let codes = array_factorize(array_i64([7, 3, 7]))
+    print(array_take(array_f64([1.5, 2.5]), array_i64([1, 0, 1])))
+    print(array_sum_by(array_i32([1, 2, 3]), codes, 2))
+    print(array_mean_by(array_f64([1.0, 2.0, 4.0]), codes, 2))
+    print(array_count_by(codes, 2))
+    print(array_first_index(codes, 2))
+    print(array_join_index(codes, array_i64([1, -1]), true))
 "#;
 
 #[test]

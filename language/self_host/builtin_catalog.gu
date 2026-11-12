@@ -306,6 +306,24 @@ pub fn builtin_catalog_signature(name: Text) -> Text:
             return "2:ArrayDot:Elem[$N]:Array[$N];Array[$N]"
         if name == "array_matmul":
             return "2:ArrayMatmul:Array[$N]:Array[$N];Array[$N]"
+        if name == "array_take":
+            return "2:ArrayTake:Array[$A]:Array[$A];Array[i64]"
+        if name == "array_factorize":
+            return "1:ArrayFactorize:Array[i64]:Array[$A]"
+        if name == "array_first_index":
+            return "2:ArrayFirstIndex.i64:Array[i64]:Array[i64];Int"
+        if name == "array_count_by":
+            return "2:ArrayCountBy.i64:Array[i64]:Array[i64];Int"
+        if name == "array_sum_by":
+            return "3:ArraySumBy:Array[$N]:Array[$N];Array[i64];Int"
+        if name == "array_min_by":
+            return "3:ArrayMinBy:Array[$N]:Array[$N];Array[i64];Int"
+        if name == "array_max_by":
+            return "3:ArrayMaxBy:Array[$N]:Array[$N];Array[i64];Int"
+        if name == "array_mean_by":
+            return "3:ArrayMeanBy:Array[f64]:Array[$N];Array[i64];Int"
+        if name == "array_join_index":
+            return "3:ArrayJoinIndex.i64:Array[i64]:Array[i64];Array[i64];Bool"
     if name[0] == "b":
         if name == "bytes_from_ints":
             return "1:BytesFromInts:Bytes:List[Int]"
@@ -987,6 +1005,24 @@ pub fn builtin_array_function_code(name: Text) -> Int:
         return 92
     if name == "ArrayMatmul":
         return 93
+    if name == "ArrayTake":
+        return 94
+    if name == "ArrayFactorize":
+        return 95
+    if name == "ArrayFirstIndex":
+        return 96
+    if name == "ArrayCountBy":
+        return 97
+    if name == "ArraySumBy":
+        return 98
+    if name == "ArrayMinBy":
+        return 99
+    if name == "ArrayMaxBy":
+        return 100
+    if name == "ArrayMeanBy":
+        return 101
+    if name == "ArrayJoinIndex":
+        return 102
     return -1
 
 pub fn builtin_array_element_code(name: Text) -> Int:

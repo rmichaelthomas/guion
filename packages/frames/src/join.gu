@@ -1,0 +1,69 @@
+# Joining two frames on key columns.
+
+import "column.gu"
+import "frame.gu"
+
+fn key_values(column: Column) -> Array[i64]:
+    if column_kind(column) == "i64":
+        return array_factorize(column_ints(column))
+    if column_kind(column) == "f64":
+        return array_factorize(column_floats(column))
+    if column_kind(column) == "bool":
+        return array_factorize(column_flags(column))
+    return array_factorize(column_codes(column))
+
+fn total(codes: Array[i64]) -> Int:
+    if array_size(codes) == 0:
+        return 0
+    return array_max(codes) + 1
+
+# Joins `right` onto `left` where every key column is equal. `how` is `"inner"` (only rows
+# with a match) or `"left"` (every left row; unmatched rows get missing right values). Rows
+# keep the left frame's order, and a left row matching several right rows repeats in the
+# right frame's order. A missing key value never matches, not even another missing value.
+# The result has the left frame's columns, then the right frame's other columns; a right
+# column whose name is already taken gets the suffix `_right`.
+pub fn frame_join(left: Frame, right: Frame, keys: List[Text], how: Text) -> Result[Frame, StdError]:
+    if how != "inner" and how != "left":
+        return Err(frame_error("E_FRAME_KIND", "join kind `" + how + "` is not `inner` or `left`"))
+    if len(keys) == 0:
+        return Err(frame_error("E_FRAME_COLUMN", "a join needs at least one key column"))
+    let left_rows = frame_rows(left)
+    let right_rows = frame_rows(right)
+    var codes = array_i64_zeros([left_rows + right_rows])
+    var missing = array_bool_zeros([left_rows + right_rows])
+    var is_key: Map[Text, Int] = {}
+    for key in keys:
+        let a = frame_column(left, key)?
+        let b = frame_column(right, key)?
+        if column_kind(a) != column_kind(b):
+            return Err(frame_error("E_FRAME_KIND", "key `" + key + "` is " + column_kind(a) + " on the left and " + column_kind(b) + " on the right"))
+        set is_key = map_set(is_key, key, 1)
+        let both = column_frame_concat(a, b)?
+        let values = key_values(both)
+        set codes = array_factorize(array_add(array_mul_scalar(codes, total(values)), values))
+        if column_missing(both) > 0:
+            set missing = array_or(missing, array_not(column_valid(both)))
+    let matched = array_where(missing, array_i64_full([left_rows + right_rows], -1), codes)
+    let pairs = array_join_index(array_slice(matched, 0, left_rows), array_slice(matched, left_rows, left_rows + right_rows), how == "left")
+    let count = array_size(pairs) // 2
+    let left_index = array_slice(pairs, 0, count)
+    let right_index = array_slice(pairs, count, 2 * count)
+    var columns = frame_columns(frame_take(left, left_index))
+    var taken: Map[Text, Int] = {}
+    for column in columns:
+        set taken = map_set(taken, column_name(column), 1)
+    for column in frame_columns(right):
+        if not map_has(is_key, column_name(column)):
+            var name = column_name(column)
+            if map_has(taken, name):
+                set name = name + "_right"
+            set taken = map_set(taken, name, 1)
+            set columns = list_push(columns, column_rename(column_take_or_missing(column, right_index), name))
+    return frame_new(columns)
+
+# One column holding `a`'s rows then `b`'s, with text matched by value.
+fn column_frame_concat(a: Column, b: Column) -> Result[Column, StdError]:
+    let renamed = column_rename(b, column_name(a))
+    let joined = frame_concat([frame_new([a])?, frame_new([renamed])?])?
+    return Ok(frame_columns(joined)[0])

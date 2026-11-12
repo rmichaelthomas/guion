@@ -3978,7 +3978,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 62;
+    pub const CURRENT_VERSION: u32 = 63;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4260,6 +4260,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "arrays require artifact format 62",
+            ));
+        }
+        if self.format_version < 63 && artifact_uses_format_63_arrays(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "grouping and joining array instructions require artifact format 63",
             ));
         }
         if self.format_version < 61 && artifact_uses_random_bits(self) {
@@ -5078,6 +5084,16 @@ impl Artifact {
                                 format!("array instruction has unknown element code {code}"),
                             )
                         })?;
+                        if function.min_format() > format_version {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                format!(
+                                    "{} requires artifact format {}",
+                                    function.op_name(),
+                                    function.min_format()
+                                ),
+                            ));
+                        }
                         Op::Array(function, element)
                     }
                     194 if format_version >= 62 => Op::ArraySetLocal(r.count()?),
@@ -5731,6 +5747,14 @@ fn artifact_uses_arrays(artifact: &Artifact) -> bool {
                     Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => type_mentions_array(ty),
                     _ => false,
                 })
+    })
+}
+
+fn artifact_uses_format_63_arrays(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(instruction.op, Op::Array(array_function, _) if array_function.min_format() >= 63)
+        })
     })
 }
 
