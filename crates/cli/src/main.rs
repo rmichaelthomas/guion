@@ -3165,6 +3165,15 @@ fn std_module_report(name: &str) -> Result<serde_json::Value, String> {
         });
     }
     report["python_functions"] = serde_json::json!([]);
+    // The module's one-line summary: a leading `# std:NAME: ...` comment line, if it has one.
+    let summary_prefix = format!("# std:{name}: ");
+    if let Some(summary) = module_text
+        .lines()
+        .take_while(|line| line.starts_with('#') || line.starts_with("import ") || line.is_empty())
+        .find_map(|line| line.strip_prefix(summary_prefix.as_str()))
+    {
+        report["summary"] = serde_json::json!(summary.trim());
+    }
     Ok(report)
 }
 
@@ -3231,6 +3240,9 @@ fn doc_standard_library(args: &[String]) -> Result<ExitCode, String> {
 
 fn print_std_report_human(report: &serde_json::Value) {
     println!("API for {}", report["source"].as_str().unwrap_or("std"));
+    if let Some(summary) = report["summary"].as_str() {
+        println!("{summary}");
+    }
     for function in report["functions"].as_array().into_iter().flatten() {
         println!("{}", api_function_line(function));
     }

@@ -2,6 +2,8 @@ import "std:types"
 import "std:net"
 import "std:text"
 
+# std:http_server: HTTP/1.1 requests and responses over std:net. For concurrent requests, give several parallel_map workers the same listener (see docs/agents/examples/concurrent_server.gu and docs/concurrency.md).
+
 pub record HttpHeader:
     name: Text
     value: Text

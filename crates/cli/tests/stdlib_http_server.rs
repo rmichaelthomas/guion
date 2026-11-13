@@ -540,3 +540,147 @@ fn chunked_bodies_with_ambiguous_or_unsupported_framing_are_rejected() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+struct KillOnDrop(Child);
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+/// Starts `docs/agents/examples/concurrent_server.gu` with `workers` workers and a hold timeout
+/// of `HOLD_MS`, holds one half-sent request open, then sends a second, complete request.
+/// Returns whether the second was answered within `window`, and how long after the hold began
+/// the answer arrived (or `None` if it never did within the outer bound).
+fn second_request_with_hold(workers: u32, window: Duration) -> (bool, Option<Duration>) {
+    let port = free_port();
+    let dir = std::env::temp_dir().join(format!(
+        "guion-concurrent-server-{workers}-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let example = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/agents/examples/concurrent_server.gu")
+        .canonicalize()
+        .unwrap();
+    let bind = format!("127.0.0.1:{port}");
+    let _server = KillOnDrop(
+        spawn(
+            Command::new(env!("CARGO_BIN_EXE_guion"))
+                .arg("run")
+                .arg("--no-cache")
+                .args(["--allow-bind", &bind])
+                .arg(&example)
+                .args([
+                    &port.to_string(),
+                    &workers.to_string(),
+                    &HOLD_MS.to_string(),
+                ])
+                .current_dir(&dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null()),
+        )
+        .expect("guion starts"),
+    );
+
+    // Hold: a request line and one header, never the blank line that ends the head.
+    let mut hold = connect(port);
+    let began = std::time::Instant::now();
+    hold.write_all(b"GET /hold HTTP/1.1\r\nHost: x\r\n")
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+
+    let mut second = connect(port);
+    second
+        .write_all(b"GET /second HTTP/1.1\r\nHost: x\r\n\r\n")
+        .unwrap();
+    second.set_read_timeout(Some(window)).unwrap();
+    let mut answer = Vec::new();
+    let mut buffer = [0u8; 256];
+    let within_window = loop {
+        match second.read(&mut buffer) {
+            Ok(0) => break !answer.is_empty(),
+            Ok(n) => {
+                answer.extend_from_slice(&buffer[..n]);
+                if answer.ends_with(b"ok") {
+                    break true;
+                }
+            }
+            Err(_) => break false,
+        }
+    };
+    if within_window {
+        assert!(
+            String::from_utf8_lossy(&answer).starts_with("HTTP/1.1 200 OK"),
+            "{}",
+            String::from_utf8_lossy(&answer)
+        );
+        return (true, Some(began.elapsed()));
+    }
+
+    // Not served inside the window: wait, bounded, for the hold to time out.
+    second
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    loop {
+        match second.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(n) => {
+                answer.extend_from_slice(&buffer[..n]);
+                if answer.ends_with(b"ok") {
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    drop(hold);
+    let served = String::from_utf8_lossy(&answer).starts_with("HTTP/1.1 200 OK");
+    (false, served.then(|| began.elapsed()))
+}
+
+const HOLD_MS: u64 = 2500;
+
+#[test]
+fn concurrent_server_shares_the_listener_across_workers_and_serializes_with_one() {
+    let window = Duration::from_secs(1);
+
+    // Four workers: the second request is answered inside the window while the first is held.
+    let (fast, at) = second_request_with_hold(4, window);
+    assert!(
+        fast,
+        "workers=4 did not serve a second request within {window:?} of a held one"
+    );
+    assert!(at.unwrap() < Duration::from_millis(HOLD_MS), "{at:?}");
+
+    // One worker: the same second request is not served inside the window, and is served only
+    // after the held request times out.
+    let (fast, at) = second_request_with_hold(1, window);
+    assert!(
+        !fast,
+        "workers=1 served a second request while the first was held"
+    );
+    let at = at.expect("workers=1 never served the second request after the hold timed out");
+    assert!(
+        at >= Duration::from_millis(HOLD_MS - 200),
+        "served at {at:?}, before the {HOLD_MS} ms hold timed out"
+    );
+}
+
+#[test]
+fn doc_std_http_server_names_the_concurrent_pattern_and_example() {
+    let result =
+        output(Command::new(env!("CARGO_BIN_EXE_guion")).args(["doc", "std:http_server"])).unwrap();
+    let text = String::from_utf8_lossy(&result.stdout);
+    assert!(
+        text.contains("parallel_map workers the same listener"),
+        "{text}"
+    );
+    assert!(
+        text.contains("docs/agents/examples/concurrent_server.gu"),
+        "{text}"
+    );
+}
