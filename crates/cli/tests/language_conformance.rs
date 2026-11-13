@@ -1349,12 +1349,12 @@ struct UnknownCallCase {
 fn unknown_call_cases() -> Vec<UnknownCallCase> {
     vec![
         UnknownCallCase {
-            name: "sort-suggests-sqrt",
-            source: "fn main() -> Int:\n    return sort(3)\n",
-            callee: "sort",
+            name: "sortt-suggests-sort-then-sqrt",
+            source: "fn main() -> Int:\n    return sortt(3)\n",
+            callee: "sortt",
             line: 2,
             column: 12,
-            suggestions: &["sqrt"],
+            suggestions: &["sort", "sqrt"],
         },
         UnknownCallCase {
             name: "map-offers-only-main",
@@ -1495,5 +1495,179 @@ fn unknown_call_suggestions_match_between_stage_two_and_three() {
             })
             .unwrap_or_default();
         assert_eq!(suggestions, case.suggestions, "{}", case.name);
+    }
+}
+
+// ---- General `sort` and `sort_by` (artifact format 65) ----
+
+struct SortCase {
+    name: &'static str,
+    source: &'static str,
+    // Ok(stdout) or Err((code, line, column)).
+    expected: Result<&'static str, (&'static str, usize, usize)>,
+}
+
+fn sort_cases() -> Vec<SortCase> {
+    vec![
+        SortCase {
+            name: "sort-text-int-float",
+            source: "fn main() -> Unit:\n    print(sort([\"bb\", \"ccc\", \"a\"]))\n    print(sort([3, -1, 2]))\n    print(sort([2.5, -0.0, 0.0, -1.5]))\n",
+            expected: Ok("[a, bb, ccc]\n[-1, 2, 3]\n[-1.5, -0, 0, 2.5]\n"),
+        },
+        SortCase {
+            name: "sort-by-text-and-len-keys",
+            source: "fn same(word: Text) -> Text:\n    return word\n\nfn length(word: Text) -> Int:\n    return len(word)\n\nfn main() -> Unit:\n    let words = [\"bb\", \"a\", \"ccc\"]\n    print(sort_by(words, same))\n    print(sort_by(words, length))\n    print(words)\n",
+            expected: Ok("[a, bb, ccc]\n[a, bb, ccc]\n[bb, a, ccc]\n"),
+        },
+        SortCase {
+            name: "sort-by-float-key-is-stable",
+            source: "record Cell:\n    id: Int\n    value: Float64\n\nfn by_value(cell: Cell) -> Float64:\n    return cell.value\n\nfn main() -> Unit:\n    let cells = [Cell(1, 0.0), Cell(2, -0.0), Cell(3, 0.0), Cell(4, -0.0)]\n    var out = \"\"\n    for cell in sort_by(cells, by_value):\n        set out = out + int_to_text(cell.id)\n    print(out)\n",
+            expected: Ok("2413\n"),
+        },
+        SortCase {
+            name: "sort-by-comparator-still-works",
+            source: "fn compare(left: Int, right: Int) -> Int:\n    return right - left\n\nfn main() -> Unit:\n    print(sort_by([1, 3, 2], compare))\n",
+            expected: Ok("[3, 2, 1]\n"),
+        },
+        SortCase {
+            name: "sort-by-int-key-still-works",
+            source: "fn negate(value: Int) -> Int:\n    return 0 - value\n\nfn main() -> Unit:\n    print(sort_by_int_key([1, 3, 2], negate))\n",
+            expected: Ok("[3, 2, 1]\n"),
+        },
+        SortCase {
+            name: "sort-by-bool-key-is-rejected",
+            source: "fn flag(value: Int) -> Bool:\n    return value > 1\n\nfn main() -> Int:\n    return len(sort_by([3, 1, 2], flag))\n",
+            expected: Err(("E_SORT_KEY", 5, 35)),
+        },
+        SortCase {
+            name: "sort-by-unit-key-is-rejected",
+            source: "fn nothing(value: Int) -> Unit:\n    print(value)\n\nfn main() -> Int:\n    return len(sort_by([3, 1, 2], nothing))\n",
+            expected: Err(("E_SORT_KEY", 5, 35)),
+        },
+        SortCase {
+            name: "sort-of-a-bool-list-is-rejected",
+            source: "fn main() -> Int:\n    return len(sort([true, false]))\n",
+            expected: Err(("E_SORT_KEY", 2, 21)),
+        },
+    ]
+}
+
+#[test]
+fn sort_cases_match_in_both_compilers() {
+    let compiler_artifact = prepare_self_host_compiler();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in sort_cases() {
+        let project = TempProject::new(case.name);
+        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
+            &binary,
+            &compiler_artifact,
+            &project,
+            case.source,
+            case.name,
+        );
+        match case.expected {
+            Err((code, line, column)) => {
+                let expected = DiagnosticLocation {
+                    code: code.into(),
+                    source: "main.gu".into(),
+                    line,
+                    column,
+                    suggestions: Vec::new(),
+                };
+                assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
+                assert_eq!(
+                    bootstrap_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+                assert_eq!(
+                    self_host_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+            }
+            Ok(stdout) => {
+                let bootstrap = bootstrap.unwrap_or_else(|| {
+                    panic!(
+                        "{}: bootstrap rejected: {bootstrap_diagnostic:?}",
+                        case.name
+                    )
+                });
+                let self_host = self_host.unwrap_or_else(|| {
+                    panic!(
+                        "{}: self-host rejected: {self_host_diagnostic:?}",
+                        case.name
+                    )
+                });
+                for (compiler, artifact) in [("bootstrap", bootstrap), ("self-host", self_host)] {
+                    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+                    let observed = observe(artifact, &project.0).expect("artifact loads");
+                    assert_eq!(observed.stdout, stdout, "{}: {compiler} output", case.name);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn sort_cases_match_between_stage_two_and_three() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stage_directory = repository.join("target/self-hosted-bootstrap");
+    let project = TempProject::new("sort-stages");
+    let load = |name: &str| {
+        Runtime::new()
+            .load(
+                Artifact::from_bytes(
+                    &fs::read(stage_directory.join(name))
+                        .expect("run three-stage bootstrap before stage conformance"),
+                )
+                .expect("native reader accepts the stage artifact"),
+                HostPolicy {
+                    instruction_limit: 500_000_000,
+                    allocation_limit_bytes: 8_589_934_592,
+                    call_depth_limit: 160,
+                    max_collection_items: 1_000_000,
+                    ..HostPolicy::default()
+                }
+                .with_file_access(&project.0, true, false),
+            )
+            .expect("load stage compiler")
+    };
+    let mut stage2 = load("stage2.gub");
+    let mut stage3 = load("stage3.gub");
+    for case in sort_cases() {
+        let source_name = format!("cases/{}/main.gu", case.name);
+        project.write(&source_name, case.source);
+        let two = compile_with_stage(
+            &mut stage2,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let three = compile_with_stage(
+            &mut stage3,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        match (case.expected, two, three) {
+            (Ok(_), Ok(two), Ok(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 artifact mismatch", case.name)
+            }
+            (Err((code, line, column)), Err(two), Err(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
+                assert_eq!(two["diagnostic"]["code"], code, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["line"], line, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["column"], column, "{}", case.name);
+            }
+            (expected, two, three) => panic!(
+                "{}: acceptance mismatch: expected {expected:?}, C2={two:?}, C3={three:?}",
+                case.name
+            ),
+        }
     }
 }

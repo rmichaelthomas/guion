@@ -363,11 +363,14 @@ fn unknown_call_error(source: &str) -> guion_model::Diagnostic {
 
 #[test]
 fn unknown_call_suggests_the_nearest_builtin_and_keeps_the_code() {
-    let error = unknown_call_error("fn main() -> Int:\n    return sort(3)\n");
+    let error = unknown_call_error("fn main() -> Int:\n    return sortt(3)\n");
     assert_eq!(error.code, "E_NAME_UNKNOWN");
-    assert_eq!(error.message, "unknown function `sort`");
-    // `sort_by_int_key` is eleven edits away, far outside the threshold; `sqrt` is one.
-    assert_eq!(error.suggestions(), vec!["sqrt".to_string()]);
+    assert_eq!(error.message, "unknown function `sortt`");
+    // `sort` is one edit away and `sqrt` two; `sort_by_int_key` is far outside the threshold.
+    assert_eq!(
+        error.suggestions(),
+        vec!["sort".to_string(), "sqrt".to_string()]
+    );
 }
 
 #[test]
