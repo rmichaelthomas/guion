@@ -602,6 +602,8 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 197
     if name == "RandomBytes":
         return 201
+    if name == "SqliteBeginRead":
+        return 202
     if name == "JsonTryGet":
         return 115
     if name == "JsonTryIndex":
@@ -1088,7 +1090,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(68), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(69), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

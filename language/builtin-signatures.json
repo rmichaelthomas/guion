@@ -2031,6 +2031,14 @@
       "operation": "SqliteBegin"
     },
     {
+      "name": "native_sqlite_begin_read",
+      "parameters": [
+        "Db"
+      ],
+      "result": "Result[Transaction, Record[StdError]]",
+      "operation": "SqliteBeginRead"
+    },
+    {
       "name": "native_sqlite_close",
       "parameters": [
         "Db"

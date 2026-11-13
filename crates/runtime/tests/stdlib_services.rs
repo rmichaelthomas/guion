@@ -8,7 +8,7 @@ use guion_model::{Artifact, BigInt, SharedJson, Value};
 use guion_runtime::stdlib_services::{
     calendar_parse, crypto_hmac_sha256, crypto_verify_hmac_sha256, text_casefold,
     text_collapse_whitespace, text_collapse_whitespace_if_changed, text_normalize,
-    DatabaseRegistry, SqlValue, TomlDocument, TomlRegistry,
+    DatabaseRegistry, SqlValue, TomlDocument, TomlRegistry, SQLITE_BUSY_DEADLINE_MS,
 };
 use guion_runtime::{HostPolicy, Runtime};
 
@@ -691,4 +691,226 @@ pub fn main() -> Int:
     );
     assert!(project.join("services.sqlite").exists());
     let _ = fs::remove_dir_all(project);
+}
+
+fn seeded_database(name: &str) -> PathBuf {
+    let path = temp_path(name);
+    let mut setup = DatabaseRegistry::with_roots(
+        [std::env::temp_dir()],
+        1024 * 1024,
+        100,
+        SQLITE_BUSY_DEADLINE_MS,
+    );
+    let db = setup.open(&path).unwrap();
+    let tx = setup.begin(db).unwrap();
+    setup
+        .execute(
+            tx,
+            "CREATE TABLE w (id INTEGER PRIMARY KEY, seq INTEGER)",
+            &[],
+        )
+        .unwrap();
+    setup
+        .execute(tx, "INSERT INTO w (seq) VALUES (1), (2), (3)", &[])
+        .unwrap();
+    setup.commit(tx).unwrap();
+    setup.close(db).unwrap();
+    path
+}
+
+fn registry() -> DatabaseRegistry {
+    DatabaseRegistry::with_roots(
+        [std::env::temp_dir()],
+        1024 * 1024,
+        100,
+        SQLITE_BUSY_DEADLINE_MS,
+    )
+}
+
+#[test]
+fn sqlite_reader_on_begin_read_completes_while_another_worker_holds_a_write_transaction() {
+    let path = seeded_database("read-while-write.sqlite");
+    let (held_tx, held_rx) = std::sync::mpsc::channel::<()>();
+    let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+    let writer_path = path.clone();
+    let writer = std::thread::spawn(move || {
+        let mut dbs = registry();
+        let db = dbs.open(&writer_path).unwrap();
+        let tx = dbs.begin(db).unwrap();
+        dbs.execute(tx, "INSERT INTO w (seq) VALUES (99)", &[])
+            .unwrap();
+        held_tx.send(()).unwrap();
+        // Hold the write lock until the reader has finished.
+        done_rx.recv().unwrap();
+        dbs.commit(tx).unwrap();
+        dbs.close(db).unwrap();
+    });
+    held_rx.recv().unwrap();
+    let mut dbs = registry();
+    let db = dbs.open(&path).unwrap();
+    let started = std::time::Instant::now();
+    let tx = dbs.begin_read(db).unwrap();
+    let rows = dbs.query(tx, "SELECT count(*) FROM w", &[]).unwrap();
+    // The reader sees the committed rows only, and does not wait for the writer.
+    assert_eq!(rows[0].values, vec![SqlValue::Integer(3)]);
+    dbs.commit(tx).unwrap();
+    assert!(
+        started.elapsed() < Duration::from_millis(SQLITE_BUSY_DEADLINE_MS / 2),
+        "reader waited {:?}",
+        started.elapsed()
+    );
+    dbs.close(db).unwrap();
+    done_tx.send(()).unwrap();
+    writer.join().unwrap();
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn sqlite_reader_on_begin_fails_at_the_published_deadline_while_the_lock_is_held() {
+    let path = seeded_database("begin-deadline.sqlite");
+    let mut holder = registry();
+    let holder_db = holder.open(&path).unwrap();
+    let holder_tx = holder.begin(holder_db).unwrap();
+    let mut reader = registry();
+    let reader_db = reader.open(&path).unwrap();
+    let started = std::time::Instant::now();
+    let error = reader.begin(reader_db).unwrap_err();
+    let elapsed = started.elapsed().as_millis() as u64;
+    assert_eq!(error.code, "E_SQLITE_BEGIN");
+    let low = SQLITE_BUSY_DEADLINE_MS * 75 / 100;
+    let high = SQLITE_BUSY_DEADLINE_MS * 125 / 100;
+    assert!(
+        (low..=high).contains(&elapsed),
+        "begin failed after {elapsed} ms, published deadline {SQLITE_BUSY_DEADLINE_MS} ms"
+    );
+    holder.rollback(holder_tx).unwrap();
+    holder.close(holder_db).unwrap();
+    reader.close(reader_db).unwrap();
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn sqlite_write_inside_a_read_transaction_is_read_only_and_the_transaction_stays_usable() {
+    let path = seeded_database("read-only.sqlite");
+    let mut dbs = registry();
+    let db = dbs.open(&path).unwrap();
+    let tx = dbs.begin_read(db).unwrap();
+    for sql in [
+        "INSERT INTO w (seq) VALUES (7)",
+        "UPDATE w SET seq = 0",
+        "DELETE FROM w",
+        "CREATE TABLE other (x INTEGER)",
+        "DROP TABLE w",
+        "COMMIT",
+        "ROLLBACK",
+        "BEGIN",
+    ] {
+        assert_eq!(
+            dbs.execute(tx, sql, &[]).unwrap_err().code,
+            "E_SQLITE_READ_ONLY",
+            "{sql}"
+        );
+    }
+    assert_eq!(
+        dbs.query(tx, "INSERT INTO w (seq) VALUES (8) RETURNING id", &[])
+            .unwrap_err()
+            .code,
+        "E_SQLITE_READ_ONLY"
+    );
+    // Still usable, and nothing was written.
+    let rows = dbs.query(tx, "SELECT count(*) FROM w", &[]).unwrap();
+    assert_eq!(rows[0].values, vec![SqlValue::Integer(3)]);
+    dbs.commit(tx).unwrap();
+    // A write transaction on the same database afterwards still works.
+    let tx = dbs.begin(db).unwrap();
+    dbs.execute(tx, "INSERT INTO w (seq) VALUES (4)", &[])
+        .unwrap();
+    dbs.commit(tx).unwrap();
+    dbs.close(db).unwrap();
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn sqlite_nested_begin_read_inside_a_write_transaction_leaves_the_database_unlocked() {
+    let path = seeded_database("nested-read.sqlite");
+    let mut dbs = registry();
+    let db = dbs.open(&path).unwrap();
+    let write = dbs.begin(db).unwrap();
+    assert_eq!(
+        dbs.begin_read(db).unwrap_err().code,
+        "E_SQLITE_NESTED_TRANSACTION"
+    );
+    // The write transaction survived the refused nested begin and commits.
+    dbs.execute(write, "INSERT INTO w (seq) VALUES (5)", &[])
+        .unwrap();
+    dbs.commit(write).unwrap();
+    // And the other way round: a read transaction refuses a nested write begin.
+    let read = dbs.begin_read(db).unwrap();
+    assert_eq!(
+        dbs.begin(db).unwrap_err().code,
+        "E_SQLITE_NESTED_TRANSACTION"
+    );
+    dbs.commit(read).unwrap();
+    dbs.close(db).unwrap();
+    // Another connection takes the write lock at once: nothing is left locked.
+    let mut other = DatabaseRegistry::with_roots([std::env::temp_dir()], 1024, 10, 100);
+    let other_db = other.open(&path).unwrap();
+    let tx = other.begin(other_db).unwrap();
+    other.rollback(tx).unwrap();
+    other.close(other_db).unwrap();
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn sqlite_read_transaction_left_open_is_released_when_the_registry_closes() {
+    let path = seeded_database("read-left-open.sqlite");
+    let mut dbs = registry();
+    let db = dbs.open(&path).unwrap();
+    let tx = dbs.begin_read(db).unwrap();
+    // Take the shared lock by reading, then never commit.
+    dbs.query(tx, "SELECT count(*) FROM w", &[]).unwrap();
+    let mut writer = DatabaseRegistry::with_roots([std::env::temp_dir()], 1024, 10, 100);
+    let writer_db = writer.open(&path).unwrap();
+    // While the read is open, a writer's commit cannot finish (it waits, then fails).
+    let wtx = writer.begin(writer_db).unwrap();
+    writer
+        .execute(wtx, "INSERT INTO w (seq) VALUES (6)", &[])
+        .unwrap();
+    assert!(writer.commit(wtx).is_err());
+    writer.rollback(wtx).ok();
+    dbs.close_all();
+    assert_eq!(dbs.transaction_count(), 0);
+    let wtx = writer.begin(writer_db).unwrap();
+    writer
+        .execute(wtx, "INSERT INTO w (seq) VALUES (6)", &[])
+        .unwrap();
+    writer.commit(wtx).unwrap();
+    writer.close(writer_db).unwrap();
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn docs_state_the_enforced_busy_deadline() {
+    let doc = fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../language/host-api.md"
+    ))
+    .unwrap();
+    let marker = "busy deadline of ";
+    let at = doc
+        .find(marker)
+        .expect("host-api.md states the busy deadline");
+    let digits: String = doc[at + marker.len()..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == ',')
+        .filter(|c| *c != ',')
+        .collect();
+    assert_eq!(
+        digits.parse::<u64>().unwrap(),
+        SQLITE_BUSY_DEADLINE_MS,
+        "host-api.md names a different deadline than the runtime enforces"
+    );
+    assert!(doc.contains("sqlite_begin_read"));
+    assert!(doc.contains("E_SQLITE_READ_ONLY"));
+    assert!(doc.contains("PRAGMA"));
 }

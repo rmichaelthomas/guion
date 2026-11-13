@@ -439,6 +439,7 @@ fn parse_instruction(
         "CryptoVerifyHmacSha256" => Op::CryptoVerifyHmacSha256,
         "SqliteOpen" => Op::SqliteOpen,
         "SqliteBegin" => Op::SqliteBegin,
+        "SqliteBeginRead" => Op::SqliteBeginRead,
         "SqliteExecute" => Op::SqliteExecute,
         "SqliteQuery" => Op::SqliteQuery,
         "SqliteCommit" => Op::SqliteCommit,

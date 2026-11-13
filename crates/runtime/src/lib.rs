@@ -3139,7 +3139,7 @@ impl Runtime {
                 database_roots,
                 policy.max_file_bytes,
                 policy.max_collection_items,
-                2_000,
+                stdlib_services::SQLITE_BUSY_DEADLINE_MS,
             ),
             http: None,
             toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
@@ -6035,21 +6035,24 @@ impl VmHost for Instance {
                 };
                 push_stack!(service_result_value(result));
             }
-            Op::SqliteBegin => {
+            Op::SqliteBegin | Op::SqliteBeginRead => {
                 let (owner, id) = runtime_service_resource(&pop!(), "Db", instruction.span)?;
-                let result = self
-                    .databases
-                    .begin(stdlib_services::DbHandle::from_parts(owner, id))
-                    .and_then(|handle| {
-                        let cancellation = budget.cancellation.cancelled.clone();
-                        self.databases.set_cancelled(handle, cancellation)?;
-                        let (owner, id) = handle.parts();
-                        Ok(Value::NativeResource(Box::new(NativeResourceValue::new(
-                            "Transaction",
-                            owner,
-                            id,
-                        ))))
-                    });
+                let database = stdlib_services::DbHandle::from_parts(owner, id);
+                let result = if matches!(instruction.op, Op::SqliteBeginRead) {
+                    self.databases.begin_read(database)
+                } else {
+                    self.databases.begin(database)
+                }
+                .and_then(|handle| {
+                    let cancellation = budget.cancellation.cancelled.clone();
+                    self.databases.set_cancelled(handle, cancellation)?;
+                    let (owner, id) = handle.parts();
+                    Ok(Value::NativeResource(Box::new(NativeResourceValue::new(
+                        "Transaction",
+                        owner,
+                        id,
+                    ))))
+                });
                 push_stack!(service_result_value(result));
             }
             Op::SqliteExecute | Op::SqliteQuery => {
@@ -9626,7 +9629,7 @@ impl Instance {
                             database_roots,
                             policy.max_file_bytes,
                             policy.max_collection_items,
-                            2_000,
+                            stdlib_services::SQLITE_BUSY_DEADLINE_MS,
                         ),
                         toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
                         output: String::new(),

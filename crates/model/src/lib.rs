@@ -1455,6 +1455,45 @@ mod tests {
     }
 
     #[test]
+    fn sqlite_begin_read_instruction_is_gated_on_format_69() {
+        assert_gated(Op::SqliteBeginRead, 69);
+    }
+
+    #[test]
+    fn a_format_68_artifact_with_a_write_transaction_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 68,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::SqliteBegin,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 69;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
     fn sha1_and_xor_instructions_are_gated_on_format_59() {
         let mut artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
@@ -4008,6 +4047,7 @@ pub enum Op {
     CallFn(usize),
     HigherOrder(HigherOrderKind),
     RandomBytes,
+    SqliteBeginRead,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4165,7 +4205,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 68;
+    pub const CURRENT_VERSION: u32 = 69;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4471,6 +4511,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 69 && artifact_uses_sqlite_begin_read(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "read transactions require artifact format 69",
             ));
         }
         if self.format_version < 68 && artifact_uses_random_bytes(self) {
@@ -4815,6 +4861,7 @@ impl Artifact {
                         w.count(*target)?;
                     }
                     Op::RandomBytes => w.u8(201),
+                    Op::SqliteBeginRead => w.u8(202),
                     Op::CallFn(argc) => {
                         w.u8(199);
                         w.count(*argc)?;
@@ -5382,6 +5429,13 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "random bytes require artifact format 68",
+                        ));
+                    }
+                    202 if format_version >= 69 => Op::SqliteBeginRead,
+                    202 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "read transactions require artifact format 69",
                         ));
                     }
                     193 | 194 => {
@@ -6060,6 +6114,15 @@ fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_sqlite_begin_read(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SqliteBeginRead))
+    })
+}
+
 fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function
@@ -6473,6 +6536,7 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
                         | Op::CryptoVerifyHmacSha256
                         | Op::SqliteOpen
                         | Op::SqliteBegin
+                        | Op::SqliteBeginRead
                         | Op::SqliteExecute
                         | Op::SqliteQuery
                         | Op::SqliteCommit

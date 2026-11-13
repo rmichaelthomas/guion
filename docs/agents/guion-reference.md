@@ -372,6 +372,7 @@ native_regex_replace_first(Text, Text, Text) -> Result[Text, Text]
 native_regex_split(Text, Text) -> Result[List[Text], Text]
 native_sha1(Bytes) -> Bytes
 native_sqlite_begin(Db) -> Result[Transaction, Record[StdError]]
+native_sqlite_begin_read(Db) -> Result[Transaction, Record[StdError]]
 native_sqlite_close(Db) -> Result[Unit, Record[StdError]]
 native_sqlite_commit(Transaction) -> Result[Unit, Record[StdError]]
 native_sqlite_execute(Transaction, Text, List[Record[SqlValue]]) -> Result[Int, Record[StdError]]
@@ -581,6 +582,7 @@ std:semver — pub fn parse_version(value: Text) -> Result[SemVer, FileError]
 std:semver — pub fn compare_versions(left: SemVer, right: SemVer) -> Int
 std:sqlite — pub fn sqlite_open(path: Text) -> Result[Db, StdError]
 std:sqlite — pub fn sqlite_begin(database: Db) -> Result[Transaction, StdError]
+std:sqlite — pub fn sqlite_begin_read(database: Db) -> Result[Transaction, StdError]
 std:sqlite — pub fn sqlite_execute(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[Int, StdError]
 std:sqlite — pub fn sqlite_query(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[List[SqlRow], StdError]
 std:sqlite — pub fn sqlite_commit(transaction: Transaction) -> Result[Unit, StdError]
@@ -716,6 +718,7 @@ crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 sqlite_open(Text) -> Result[Db, StdError]
 sqlite_begin(Db) -> Result[Transaction, StdError]
+sqlite_begin_read(Db) -> Result[Transaction, StdError]
 sqlite_execute(Transaction, Text, List[SqlValue]) -> Result[Int, StdError]
 sqlite_query(Transaction, Text, List[SqlValue]) -> Result[List[SqlRow], StdError]
 sqlite_commit(Transaction) -> Result[Unit, StdError]
@@ -729,7 +732,16 @@ toml_render(TomlDocument) -> Text
 calendar_parse(Text) -> Result[List[CalendarEvent], StdError]
 ```
 
-SQLite paths must be relative to an explicitly granted file root; absolute paths and parent-directory traversal are rejected. For an installed app, `GUION_FILE_ROOT` selects an additional caller-owned data directory, and the SQLite path can be a filename such as `field.sqlite3`. SQLite opens only read-write databases, loads no extensions, and rejects `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, and extension-loading SQL. `sqlite_begin` opens one `BEGIN IMMEDIATE` transaction per database; nested transactions are rejected. Query parameters are bound values, result rows and bytes are bounded, and each operation uses a finite busy deadline and cancellation/progress checks. Dropping or closing a database with an open transaction rolls it back. The standard module provides `sqlite_open`, `sqlite_begin`, `sqlite_execute`, `sqlite_query`, `sqlite_commit`, `sqlite_rollback`, and `sqlite_close`.
+SQLite paths must be relative to an explicitly granted file root; absolute paths and parent-directory traversal are rejected. For an installed app, `GUION_FILE_ROOT` selects an additional caller-owned data directory, and the SQLite path can be a filename such as `field.sqlite3`. SQLite opens only read-write databases, loads no extensions, and rejects `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, and extension-loading SQL. `sqlite_begin` opens one `BEGIN IMMEDIATE` transaction per database and `sqlite_begin_read` opens one `BEGIN DEFERRED` read transaction; nested transactions of either kind are rejected with `E_SQLITE_NESTED_TRANSACTION`. Query parameters are bound values, result rows and bytes are bounded, and each operation uses a finite busy deadline and cancellation/progress checks. Dropping or closing a database with an open transaction rolls it back. The standard module provides `sqlite_open`, `sqlite_begin`, `sqlite_begin_read`, `sqlite_execute`, `sqlite_query`, `sqlite_commit`, `sqlite_rollback`, and `sqlite_close`.
+
+### SQLite locking and the busy deadline
+
+The runtime waits for a SQLite lock for a busy deadline of 2000 ms (`SQLITE_BUSY_DEADLINE_MS` in `crates/runtime`). The deadline applies per attempt: each `sqlite_begin`, `sqlite_execute`, `sqlite_query`, `sqlite_commit` waits up to that long on its own, and when a single attempt has waited that long it fails (`sqlite_begin` with `E_SQLITE_BEGIN`). A program cannot lengthen or shorten it: `PRAGMA` is rejected with `E_SQLITE_POLICY`, so `PRAGMA busy_timeout` and `PRAGMA journal_mode` are not available.
+
+Writes serialize. `sqlite_begin` takes the database's write lock at once (`BEGIN IMMEDIATE`), so only one write transaction per database file is open at a time, across every worker and process. Another `sqlite_begin` waits for it and fails with `E_SQLITE_BEGIN` after 2000 ms if the holder has not committed or rolled back by then. Measured with the probe `std:sqlite` programs on one machine: a reader that used `sqlite_begin` while a writer held its transaction for about 2.1 s waited 1.7 s for the commit, and with a holder that kept the lock for longer than the deadline every attempt failed after about 2.1 s.
+
+Readers should use `sqlite_begin_read`. It opens `BEGIN DEFERRED`, which takes no write lock, so a reader does not queue behind writers and does not fail with `E_SQLITE_BEGIN` while a writer holds its transaction. A write statement (`INSERT`, `UPDATE`, `DELETE`, DDL) or a transaction-control statement (`BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`, `RELEASE`) inside a read transaction returns `E_SQLITE_READ_ONLY`; nothing is changed and the transaction stays usable until `sqlite_commit` or `sqlite_rollback`. A read transaction sees the data committed when its first statement ran. While a read transaction holds its shared lock, a writer's commit waits for it, up to the same deadline, so end read transactions promptly. Leaving one open at worker exit or at the end of the program rolls it back and releases the lock.
+
 
 HMAC operations consume exact `Bytes` without text conversion. `crypto_hmac_sha256(key, body)` returns a 32-byte digest; `crypto_verify_hmac_sha256(key, body, expected)` returns false for any digest whose length is not 32 and uses the crypto library's verification routine for a candidate digest. Secret material is not included in service errors. Unicode operations use ICU4X full locale-independent case folding and its Unicode `White_Space` property; whitespace collapse trims the ends and replaces each internal run with one ASCII space. Neither operation normalizes text. `text_normalize(text, form)` accepts only `NFC`, `NFD`, `NFKC`, and `NFKD`. The shipped Unicode data version is 18.0.0. Python comparisons record `unicodedata.unidata_version`; differences caused by Unicode data releases are reported separately from case-folding algorithm mismatches.
 
@@ -823,6 +835,7 @@ E_BRIDGE_TIME_FORMAT_UTC
 E_BRIDGE_TIME_PARSE_TIMESTAMP
 E_BUILD_TYPE
 E_BUILTIN_TZDATA
+E_BUSY_DEADLINE_CEILING_MS
 E_BUSY_DEADLINE_MS
 E_BYTES
 E_CACHE
@@ -1047,6 +1060,7 @@ E_SQLITE_OPEN
 E_SQLITE_PATH
 E_SQLITE_POLICY
 E_SQLITE_QUERY
+E_SQLITE_READ_ONLY
 E_SQLITE_RESULT_LIMIT
 E_SQLITE_ROLLBACK
 E_SQLITE_STALE
@@ -1461,4 +1475,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:0b49134a8fdfdd52815e6f8ae7aa7187c5ae3dcab629f9e2619c9ac564557b42. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:3ff6bcd632cb0c9e40bbed0f24bf2fc59bba00209ed8447928c25ec861964580. Validated by `cargo xtask agent-reference --check`. -->

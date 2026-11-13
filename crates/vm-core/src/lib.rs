@@ -5148,6 +5148,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CryptoVerifyHmacSha256 => "CryptoVerifyHmacSha256",
         Op::SqliteOpen => "SqliteOpen",
         Op::SqliteBegin => "SqliteBegin",
+        Op::SqliteBeginRead => "SqliteBeginRead",
         Op::SqliteExecute => "SqliteExecute",
         Op::SqliteQuery => "SqliteQuery",
         Op::SqliteCommit => "SqliteCommit",
@@ -8174,7 +8175,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
-            Op::SqliteBegin => {
+            Op::SqliteBegin | Op::SqliteBeginRead => {
                 if pop_type(&mut state.stack, pc)? != Type::NativeResource("Db".into()) {
                     return Err(format!("sqlite_begin requires Db at instruction {pc}"));
                 }
