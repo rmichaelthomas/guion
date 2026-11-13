@@ -2233,10 +2233,18 @@
       "operation": "SemVerParse"
     },
     {
+      "name": "sort",
+      "parameters": [
+        "List[$T]"
+      ],
+      "result": "List[$T]",
+      "operation": "SortNatural"
+    },
+    {
       "name": "sort_by",
       "parameters": [
         "List[$T]",
-        "NamedComparator[$T]"
+        "fn($T) -> $K | fn($T, $T) -> Int"
       ],
       "result": "List[$T]",
       "operation": "SortBy"

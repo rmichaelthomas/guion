@@ -293,6 +293,16 @@ fn parse_instruction(
                 .ok_or_else(|| format!("SortBy.function references unknown function `{name}`"))?;
             Op::SortBy(index)
         }
+        "SortByKey" => {
+            let name = required_str(object.get("function"), "SortByKey.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("SortByKey.function references unknown function `{name}`")
+                })?;
+            Op::SortByKey(index)
+        }
         "SortByIntKey" => {
             let name = required_str(object.get("function"), "SortByIntKey.function")?;
             let index = functions
@@ -380,6 +390,7 @@ fn parse_instruction(
         "CsvNext" => Op::CsvNext,
         "CsvEncode" => Op::CsvEncode,
         "CsvReadColumns" => Op::CsvReadColumns,
+        "SortNatural" => Op::SortNatural,
         "JsonTryGet" => Op::JsonTryGet,
         "JsonTryGetInt" => Op::JsonTryGetInt,
         "JsonTryGetText" => Op::JsonTryGetText,

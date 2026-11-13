@@ -2129,6 +2129,19 @@ impl PartialEq for Float64 {
 }
 impl Eq for Float64 {}
 
+/// The order `sort` and `sort_by` give `Float64` values: a total order in which every NaN
+/// sorts after every number (and equal to every other NaN) and `-0.0` sorts before `0.0`.
+/// Values the language produces are always finite; this is total so that it never panics
+/// and never depends on a payload.
+pub fn sort_order_f64(left: f64, right: f64) -> std::cmp::Ordering {
+    match (left.is_nan(), right.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => left.total_cmp(&right),
+    }
+}
+
 /// Text shared between values. Cloning shares the bytes. The bytes follow a header holding
 /// the reference count, length and capacity in one allocation, so reading text is one pointer
 /// step. Text built by appending to a local is marked growable, so that appending to it while
@@ -3843,6 +3856,8 @@ pub enum Op {
     Array(ArrayFunction, ElementType),
     ArraySetLocal(usize),
     CsvReadColumns,
+    SortNatural,
+    SortByKey(usize),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4000,7 +4015,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 64;
+    pub const CURRENT_VERSION: u32 = 65;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4294,6 +4309,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "csv_read_columns requires artifact format 64",
+            ));
+        }
+        if self.format_version < 65 && artifact_uses_general_sort(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "general sort and sort_by with a key require artifact format 65",
             ));
         }
         if self.format_version < 61 && artifact_uses_random_bits(self) {
@@ -4616,6 +4637,11 @@ impl Artifact {
                     Op::CsvNext => w.u8(113),
                     Op::CsvEncode => w.u8(114),
                     Op::CsvReadColumns => w.u8(195),
+                    Op::SortNatural => w.u8(196),
+                    Op::SortByKey(target) => {
+                        w.u8(197);
+                        w.count(*target)?;
+                    }
                     Op::JsonTryGet => w.u8(115),
                     Op::JsonTryIndex => w.u8(116),
                     Op::JsonTryText => w.u8(117),
@@ -5131,6 +5157,14 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "csv_read_columns requires artifact format 64",
+                        ));
+                    }
+                    196 if format_version >= 65 => Op::SortNatural,
+                    197 if format_version >= 65 => Op::SortByKey(r.count()?),
+                    196 | 197 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "general sort and sort_by with a key require artifact format 65",
                         ));
                     }
                     193 | 194 => {
@@ -5794,6 +5828,15 @@ fn artifact_uses_format_63_arrays(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SortNatural | Op::SortByKey(_)))
+    })
+}
+
 fn artifact_uses_csv_read_columns(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function
@@ -6190,7 +6233,10 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
     for caller in &artifact.functions {
         for instruction in &caller.code {
             let root = match instruction.op {
-                Op::SortBy(root) | Op::SortByIntKey(root) | Op::MergeSortedByIntKey(root) => root,
+                Op::SortBy(root)
+                | Op::SortByKey(root)
+                | Op::SortByIntKey(root)
+                | Op::MergeSortedByIntKey(root) => root,
                 _ => continue,
             };
             let mut pending = vec![root];
@@ -6208,6 +6254,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                     match instruction.op {
                         Op::Call(target, _)
                         | Op::SortBy(target)
+                        | Op::SortByKey(target)
                         | Op::SortByIntKey(target)
                         | Op::MergeSortedByIntKey(target) => pending.push(target),
                         Op::Print

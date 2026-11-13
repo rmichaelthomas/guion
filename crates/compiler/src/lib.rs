@@ -2216,7 +2216,7 @@ impl<'a> FnCompiler<'a> {
                     if args.len() != 2 {
                         return Err(diagnostic(
                             "E_CALL_ARITY",
-                            "sort_by expects a list and a named comparator",
+                            "sort_by expects a list and a named key function or comparator",
                             *s,
                         ));
                     }
@@ -2254,12 +2254,61 @@ impl<'a> FnCompiler<'a> {
                             *comparator_span,
                         ));
                     };
+                    // A named function with one parameter is a key function `(T) -> K`
+                    // (artifact format 65); with two it is the comparator `(T, T) -> Int`
+                    // that format 36 introduced and that keeps compiling to `SortBy`.
+                    if parameters.len() == 1 {
+                        if parameters != vec![item_type.clone()] {
+                            return Err(diagnostic(
+                                "E_SORT_KEY",
+                                "sort_by key function must have type (T) -> K for the list item type",
+                                *comparator_span,
+                            ));
+                        }
+                        if !matches!(result, Type::Text | Type::Int | Type::Float64) {
+                            return Err(diagnostic(
+                                "E_SORT_KEY",
+                                "sort_by key function must return Text, Int or Float64",
+                                *comparator_span,
+                            ));
+                        }
+                        self.emit(Op::SortByKey(comparator_index), *s);
+                        return Ok(Type::List(Box::new(item_type)));
+                    }
                     if parameters != vec![item_type.clone(), item_type.clone()]
                         || result != Type::Int
                     {
                         return Err(diagnostic("E_SORT_COMPARATOR", "sort_by comparator must have type (T, T) -> Int for the list item type", *comparator_span));
                     }
                     self.emit(Op::SortBy(comparator_index), *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
+                if name == "sort" {
+                    if args.len() != 1 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "sort expects one list of Text, Int or Float64",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "sort argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    if !matches!(item_type, Type::Text | Type::Int | Type::Float64) {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "sort requires a List of Text, Int or Float64; use sort_by with a key function for other items",
+                            args[0].span(),
+                        ));
+                    }
+                    self.emit(Op::SortNatural, *s);
                     return Ok(Type::List(Box::new(item_type)));
                 }
                 if name == "sort_by_int_key" {

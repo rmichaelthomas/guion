@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **64**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **65**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 64. The current writer emits 64. |
+| Format version | `u32` | Reader accepts versions 14 through 65. The current writer emits 65. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -275,6 +275,8 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 192 | `RandomBelow` | — (format 61: pops a state `Int` and a range size `Int`, pushes the SplitMix64 output reduced modulo the size, or `-1` when the output falls in the rejected tail at or above `2^64 - (2^64 mod size)`; a size outside `1..=2^64` raises `R_RANDOM_RANGE`) |
 | 193 | `Array` | function code (`u8`) then element code (`u8`; format 62). Function codes are positions in `ArrayFunction::ALL` in `crates/model/src/array.rs`, and the operand and result types for each function and element type are `ArrayFunction::signature`. For constructors and `Convert` the element code is the result's element type; otherwise it is the element type of the first array operand. A reader rejects tag 193 below format 62 |
 | 195 | `CsvReadColumns` | — (format 64: pops a `Map[Text, Text]` of fixed column kinds and a `Text` path, pushes `Result[List[Record[CsvColumn]], FileError]`; a reader rejects tag 195 below format 64) |
+| 196 | `SortNatural` | — (format 65: pops a `List[T]` for `T` in `Text`, `Int` or `Float64` and pushes it stably sorted in natural order: `Text` by Unicode scalar value, `Int` numerically, `Float64` with `-0.0` before `0.0`; a reader rejects tag 196 below format 65) |
+| 197 | `SortByKey` | key function index (format 65: pops a `List[T]` and pushes it stably sorted by the key `K` of each item, `K` in `Text`, `Int` or `Float64`, compared as `SortNatural` compares; the key function takes one `T` and returns `K`, is pure, and runs once per item in input order; a reader rejects tag 197 below format 65) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -297,6 +299,8 @@ Format 62 adds native arrays: type tag 18 and instruction tag 193. An artifact b
 Format 63 appends array function codes for gathering, grouping and joining (`Take`, `Factorize`, `FirstIndex`, `CountBy`, `SumBy`, `MinBy`, `MaxBy`, `MeanBy`, `JoinIndex`) to instruction tag 193. A reader rejects any of these function codes below format 63; formats 14 through 62 remain readable.
 
 Format 64 adds `CsvReadColumns` (tag 195), which reads a whole CSV file into typed columns in one native operation. An artifact below format 64 that uses it is rejected; formats 14 through 63 remain readable.
+
+Format 65 adds `SortNatural` (tag 196) and `SortByKey` (tag 197): `sort(values)` and `sort_by(values, key)` with a one-parameter key function. Both are stable merge sorts (insertion sort up to 32 items) and charge one instruction of the guest budget per comparison, as `SortByIntKey` does. `Float64` keys use a total order: every NaN after every number and equal to each other, `-0.0` before `0.0`. `Text` keys compare by Unicode scalar value, which is the order of sorted map keys. A named function with two parameters keeps compiling to `SortBy` (format 36), and `sort_by_int_key` and `merge_sorted_by_int_key` keep their format-41 operations. An artifact below format 65 that uses tag 196 or 197 is rejected; formats 14 through 64 remain readable.
 
 ## Build metadata and reproducibility
 

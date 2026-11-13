@@ -1301,8 +1301,15 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             let comparator_name = json_as_text(json_get(json_index(arguments, 1), "text"))
             let comparator_index = function_index(functions, comparator_name)
             var sort_code = expression_code(values)
-            set sort_code = append_code(sort_code, singleton(ir_text("SortBy", "function", functions[comparator_index].symbol)))
+            var sort_operation = "SortBy"
+            if len(functions[comparator_index].parameters) == 1:
+                set sort_operation = "SortByKey"
+            set sort_code = append_code(sort_code, singleton(ir_text(sort_operation, "function", functions[comparator_index].symbol)))
             return expression_result(sort_code, expression_type(values))
+        if callee == "sort":
+            let values = expression(json_index(arguments, 0), state, functions, records, "")
+            let natural_code = append_code(expression_code(values), singleton(ir_instruction("SortNatural")))
+            return expression_result(natural_code, expression_type(values))
         if callee == "sort_by_int_key":
             let values = expression(json_index(arguments, 0), state, functions, records, "")
             let key_name = json_as_text(json_get(json_index(arguments, 1), "text"))
@@ -1877,8 +1884,8 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
             let comparator_index = function_index(functions, comparator_name)
             if comparator_index < 0:
                 return failure_at_node("E_NAME_UNKNOWN", "unknown sort comparator `" + comparator_name + "`", comparator, source_name, source, len(comparator_name))
-            if len(functions[comparator_index].parameters) != 2:
-                return failure_at_node("E_SORT_COMPARATOR", "sort comparator must accept exactly two values", comparator, source_name, source, len(comparator_name))
+            if len(functions[comparator_index].parameters) != 1 and len(functions[comparator_index].parameters) != 2:
+                return failure_at_node("E_SORT_COMPARATOR", "sort_by needs a key function of one value or a comparator of two values", comparator, source_name, source, len(comparator_name))
         if callee == "sort_by_int_key":
             let key_node = json_index(arguments, 1)
             if json_as_text(json_get(key_node, "kind")) != "Name":
@@ -2316,8 +2323,22 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             let comparator_name = json_as_text(json_get(comparator, "text"))
             let comparator_index = function_index(functions, comparator_name)
             let expected_item_type = list_element_type(values_type, records)
-            if functions[comparator_index].parameters[0] != expected_item_type or functions[comparator_index].parameters[1] != expected_item_type or type_name(functions[comparator_index].result, records) != "Int":
-                return failure_at_node("E_SORT_COMPARATOR", "sort comparator must have type (T, T) -> Int for the list item type", comparator, source_name, source, len(comparator_name))
+            if len(functions[comparator_index].parameters) == 1:
+                if functions[comparator_index].parameters[0] != expected_item_type:
+                    return failure_at_node("E_SORT_KEY", "sort_by key function must have type (T) -> K for the list item type", comparator, source_name, source, len(comparator_name))
+                let key_type = type_name(functions[comparator_index].result, records)
+                if key_type != "Text" and key_type != "Int" and key_type != "Float64":
+                    return failure_at_node("E_SORT_KEY", "sort_by key function must return Text, Int or Float64", comparator, source_name, source, len(comparator_name))
+            else:
+                if functions[comparator_index].parameters[0] != expected_item_type or functions[comparator_index].parameters[1] != expected_item_type or type_name(functions[comparator_index].result, records) != "Int":
+                    return failure_at_node("E_SORT_COMPARATOR", "sort comparator must have type (T, T) -> Int for the list item type", comparator, source_name, source, len(comparator_name))
+        if callee == "sort":
+            let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(values_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "sort argument must be a List", json_index(arguments, 0), source_name, source, 1)
+            let natural_item_type = list_element_type(values_type, records)
+            if natural_item_type != "Text" and natural_item_type != "Int" and natural_item_type != "Float64":
+                return failure_at_node("E_SORT_KEY", "sort requires a List of Text, Int or Float64; use sort_by with a key function for other items", json_index(arguments, 0), source_name, source, 1)
         if callee == "sort_by_int_key":
             let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if not is_list_type(values_type):

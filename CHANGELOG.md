@@ -4,6 +4,7 @@ Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview
 
 ## 0.3.0 (unreleased)
 
+- Artifact format 65: `sort(values)` for lists of `Text`, `Int` and `Float64`, and `sort_by(values, key)` with a named `(T) -> K` key function for `K` in `Text`, `Int` or `Float64`. Both are stable and total (`-0.0` before `0.0`, NaN last), `Text` compares by Unicode scalar value exactly as sorted map keys do, `sort_by` calls the key once per item, and native comparisons are charged to the instruction budget as `sort_by_int_key` is. A key of another type, such as `Bool` or `Unit`, fails at check time with `E_SORT_KEY`. `sort_by` with a two-parameter `(T, T) -> Int` function is still the comparator sort, and `sort_by_int_key` and `merge_sorted_by_int_key` are unchanged; artifacts at format 64 and earlier load and run as before. The key is a named function until function values arrive.
 - `break` and `continue` are new statements for `while` and `for` loops, and they are now reserved words at the start of a statement. Outside a loop they fail with `E_NO_LOOP`. The artifact format is unchanged.
 - An unknown call name still fails with `E_NAME_UNKNOWN`, and now adds up to three `help: did you mean` lines for near misses among the module's functions and the builtins (edit distance at most `max(2, len/3)`). `guion check --json` gains an additive `diagnostic.suggestions` array. Both compilers report the same names.
 

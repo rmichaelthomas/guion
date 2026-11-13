@@ -461,6 +461,7 @@ mod tests {
                     || super::array_operation(&signature.operation).is_some()
                     || signature.operation == "ParallelMap"
                     || signature.operation == "SortBy"
+                    || signature.operation == "SortNatural"
                     || signature.operation == "SortByIntKey"
                     || signature.operation == "MergeSortedByIntKey",
                 "{name}: {}",

@@ -5065,6 +5065,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CsvNext => "CsvNext",
         Op::CsvEncode => "CsvEncode",
         Op::CsvReadColumns => "CsvReadColumns",
+        Op::SortNatural => "SortNatural",
+        Op::SortByKey(_) => "SortByKey",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -5529,6 +5531,11 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
     } else {
         Err(allocation_limit_error(budget, bytes, span))
     }
+}
+
+/// Types `sort` orders naturally and `sort_by` accepts as keys.
+pub fn is_sort_key_type(ty: &Type) -> bool {
+    matches!(ty, Type::Text | Type::Int | Type::Float64)
 }
 
 /// Said at the end of every allocation-limit message, so the person who hits the limit
@@ -6485,6 +6492,16 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 {
                     return Err(fail(format!(
                         "function `{}` contains an invalid sort comparator",
+                        f.name
+                    )));
+                }
+                Op::SortByKey(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 1
+                        || !is_sort_key_type(&artifact.functions[target].result) =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid sort key function",
                         f.name
                     )));
                 }
@@ -7807,6 +7824,36 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if *item != comparator.parameters[0] {
                     return Err(format!(
                         "sort comparator parameter type differs from list item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::SortNatural => {
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("sort input must be a List at instruction {pc}"));
+                };
+                if !is_sort_key_type(&item) {
+                    return Err(format!(
+                        "sort requires a List of Text, Int or Float64 at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::SortByKey(target) => {
+                let key_function = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("sort_by references missing key function at instruction {pc}")
+                })?;
+                if key_function.parameters.len() != 1 || !is_sort_key_type(&key_function.result) {
+                    return Err(format!(
+                        "sort_by key function must have type (T) -> K with K in Text, Int, Float64 at instruction {pc}"
+                    ));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("sort_by input must be a List at instruction {pc}"));
+                };
+                if *item != key_function.parameters[0] {
+                    return Err(format!(
+                        "sort_by key function parameter type differs from list item at instruction {pc}"
                     ));
                 }
                 state.stack.push(Type::List(item));

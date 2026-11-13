@@ -14,6 +14,7 @@ use guion_vm_core::{
 pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use std::{
     borrow::Cow,
+    cmp::Ordering as CmpOrdering,
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     io::Write as IoWrite,
@@ -3311,6 +3312,143 @@ fn consume_sort_step(budget: &Budget, span: Span) -> Result<(), RuntimeError> {
     Ok(())
 }
 
+/// A sort key as the native sorts compare it: each list holds one kind.
+enum SortKey {
+    Int(BigInt),
+    Float(f64),
+    Text(guion_model::SharedText),
+}
+
+impl SortKey {
+    fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Int(key) => Some(SortKey::Int(key.clone())),
+            Value::Float64(key) => Some(SortKey::Float(key.get())),
+            Value::Text(key) => Some(SortKey::Text(key.clone())),
+            _ => None,
+        }
+    }
+
+    /// Keys of different kinds never meet in a verified artifact; equal keeps the sort total.
+    fn compare(&self, other: &SortKey) -> CmpOrdering {
+        match (self, other) {
+            (SortKey::Int(left), SortKey::Int(right)) => left.cmp(right),
+            (SortKey::Float(left), SortKey::Float(right)) => {
+                guion_model::sort_order_f64(*left, *right)
+            }
+            // Unicode scalar order: the UTF-8 bytes of valid text sort exactly like the scalars,
+            // as sorted map keys do.
+            (SortKey::Text(left), SortKey::Text(right)) => left.as_bytes().cmp(right.as_bytes()),
+            _ => CmpOrdering::Equal,
+        }
+    }
+}
+
+/// Bytes charged to the allocation budget for sorting `values`: the cloned list plus the
+/// order and visited bookkeeping, plus `key_bytes` per item for the keys held beside it.
+fn sort_allocation(values: &[Value], key_bytes: usize) -> usize {
+    let length = values.len();
+    let value_allocation = size_of::<Vec<Value>>()
+        .saturating_add(length.saturating_mul(size_of::<Value>()))
+        .saturating_add(
+            values
+                .iter()
+                .map(cloned_value_allocation)
+                .fold(0usize, usize::saturating_add),
+        );
+    let sort_storage = size_of::<Vec<usize>>()
+        .saturating_mul(2)
+        .saturating_add(size_of::<Vec<bool>>())
+        .saturating_add(
+            length.saturating_mul(
+                key_bytes
+                    .saturating_add(size_of::<usize>().saturating_mul(2))
+                    .saturating_add(size_of::<bool>()),
+            ),
+        )
+        .saturating_add(size_of::<Vec<BigInt>>());
+    value_allocation.saturating_add(sort_storage)
+}
+
+/// The stable order of `0..length` under `compare(a, b)` on item indexes. Insertion sort up to
+/// 32 items, bottom-up merge sort beyond; every comparison costs one instruction of the guest
+/// budget, exactly as `sort_by_int_key` (format 41) charges. Equal items keep input order.
+fn stable_sort_order<F>(
+    length: usize,
+    mut compare: F,
+    budget: &Budget,
+    span: Span,
+) -> Result<Vec<usize>, RuntimeError>
+where
+    F: FnMut(usize, usize) -> CmpOrdering,
+{
+    let mut order: Vec<usize> = (0..length).collect();
+    if length <= 32 {
+        for index in 1..length {
+            let value = order[index];
+            let mut position = index;
+            while position > 0 {
+                consume_sort_step(budget, span)?;
+                if compare(value, order[position - 1]) == CmpOrdering::Less {
+                    order[position] = order[position - 1];
+                    position -= 1;
+                } else {
+                    break;
+                }
+            }
+            order[position] = value;
+        }
+    } else {
+        let mut merged = Vec::with_capacity(length);
+        let mut width = 1usize;
+        while width < length {
+            merged.clear();
+            let mut run_start = 0usize;
+            while run_start < length {
+                let middle = run_start.saturating_add(width).min(length);
+                let run_end = middle.saturating_add(width).min(length);
+                let (mut left, mut right) = (run_start, middle);
+                while left < middle && right < run_end {
+                    consume_sort_step(budget, span)?;
+                    if compare(order[left], order[right]) != CmpOrdering::Greater {
+                        merged.push(order[left]);
+                        left += 1;
+                    } else {
+                        merged.push(order[right]);
+                        right += 1;
+                    }
+                }
+                merged.extend_from_slice(&order[left..middle]);
+                merged.extend_from_slice(&order[right..run_end]);
+                run_start = run_end;
+            }
+            std::mem::swap(&mut order, &mut merged);
+            width = width.saturating_mul(2);
+        }
+    }
+    Ok(order)
+}
+
+/// Rearranges `values` in place so that position `i` holds what was at `order[i]`.
+fn apply_sort_order<T>(values: &mut [T], order: &[usize]) {
+    let mut visited = vec![false; values.len()];
+    for start in 0..values.len() {
+        if visited[start] {
+            continue;
+        }
+        let mut current = start;
+        loop {
+            visited[current] = true;
+            let next = order[current];
+            if next == start {
+                break;
+            }
+            values.swap(current, next);
+            current = next;
+        }
+    }
+}
+
 fn value_limit_error_at_boundary(
     value: &Value,
     policy: &HostPolicy,
@@ -3942,27 +4080,9 @@ impl VmHost for Instance {
                     }
                 };
                 let length = values.len();
-                let value_allocation = size_of::<Vec<Value>>()
-                    .saturating_add(length.saturating_mul(size_of::<Value>()))
-                    .saturating_add(
-                        values
-                            .iter()
-                            .map(cloned_value_allocation)
-                            .fold(0usize, usize::saturating_add),
-                    );
-                let sort_storage = size_of::<Vec<BigInt>>()
-                    .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
-                    .saturating_add(size_of::<Vec<bool>>())
-                    .saturating_add(
-                        length.saturating_mul(
-                            size_of::<BigInt>()
-                                .saturating_add(size_of::<usize>().saturating_mul(2))
-                                .saturating_add(size_of::<bool>()),
-                        ),
-                    );
                 charge_allocation(
                     budget.as_ref(),
-                    value_allocation.saturating_add(sort_storage),
+                    sort_allocation(&values, size_of::<BigInt>()),
                     instruction.span,
                 )?;
 
@@ -3985,68 +4105,160 @@ impl VmHost for Instance {
                     }
                 }
 
-                let mut order: Vec<usize> = (0..length).collect();
-                if length <= 32 {
-                    for index in 1..length {
-                        let value = order[index];
-                        let mut position = index;
-                        while position > 0 {
-                            consume_sort_step(budget.as_ref(), instruction.span)?;
-                            if keys[value] < keys[order[position - 1]] {
-                                order[position] = order[position - 1];
-                                position -= 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        order[position] = value;
+                let order = stable_sort_order(
+                    length,
+                    |left, right| keys[left].cmp(&keys[right]),
+                    budget.as_ref(),
+                    instruction.span,
+                )?;
+                apply_sort_order(&mut values, &order);
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::SortByKey(target) => {
+                let mut values = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
                     }
-                } else {
-                    let mut merged = Vec::with_capacity(length);
-                    let mut width = 1usize;
-                    while width < length {
-                        merged.clear();
-                        let mut run_start = 0usize;
-                        while run_start < length {
-                            let middle = run_start.saturating_add(width).min(length);
-                            let run_end = middle.saturating_add(width).min(length);
-                            let (mut left, mut right) = (run_start, middle);
-                            while left < middle && right < run_end {
-                                consume_sort_step(budget.as_ref(), instruction.span)?;
-                                if keys[order[left]] <= keys[order[right]] {
-                                    merged.push(order[left]);
-                                    left += 1;
-                                } else {
-                                    merged.push(order[right]);
-                                    right += 1;
-                                }
-                            }
-                            merged.extend_from_slice(&order[left..middle]);
-                            merged.extend_from_slice(&order[right..run_end]);
-                            run_start = run_end;
-                        }
-                        std::mem::swap(&mut order, &mut merged);
-                        width = width.saturating_mul(2);
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by requires a List",
+                            instruction.span,
+                        ));
                     }
+                };
+                let length = values.len();
+                charge_allocation(
+                    budget.as_ref(),
+                    sort_allocation(&values, size_of::<SortKey>()),
+                    instruction.span,
+                )?;
+
+                // The key function runs once per item, in input order; the comparisons below
+                // read the saved keys and never call it again.
+                let mut keys: Vec<SortKey> = Vec::with_capacity(length);
+                for value in &values {
+                    let key = match self.invoke_inner(
+                        target,
+                        vec![value.clone()],
+                        depth + 1,
+                        budget.clone(),
+                    ) {
+                        Ok(key) => key,
+                        Err(mut error) => {
+                            error.trace.push(instruction.span);
+                            return Err(error);
+                        }
+                    };
+                    let Some(key) = SortKey::from_value(&key) else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by key function must return Text, Int or Float64",
+                            instruction.span,
+                        ));
+                    };
+                    if keys.first().is_some_and(|first| {
+                        std::mem::discriminant(first) != std::mem::discriminant(&key)
+                    }) {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by key function must return one key type",
+                            instruction.span,
+                        ));
+                    }
+                    keys.push(key);
                 }
 
-                let mut visited = vec![false; length];
-                for start in 0..length {
-                    if visited[start] {
-                        continue;
+                let order = stable_sort_order(
+                    length,
+                    |left, right| keys[left].compare(&keys[right]),
+                    budget.as_ref(),
+                    instruction.span,
+                )?;
+                apply_sort_order(&mut values, &order);
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::SortNatural => {
+                let list = pop!();
+                match list {
+                    Value::Float64List(floats) => {
+                        let length = floats.len();
+                        let mut sorted: Vec<guion_model::Float64> = floats.as_ref().clone();
+                        charge_allocation(
+                            budget.as_ref(),
+                            size_of::<Vec<guion_model::Float64>>()
+                                .saturating_add(
+                                    length.saturating_mul(
+                                        size_of::<guion_model::Float64>()
+                                            .saturating_add(size_of::<usize>().saturating_mul(2))
+                                            .saturating_add(size_of::<bool>()),
+                                    ),
+                                )
+                                .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
+                                .saturating_add(size_of::<Vec<bool>>()),
+                            instruction.span,
+                        )?;
+                        let order = stable_sort_order(
+                            length,
+                            |left, right| {
+                                guion_model::sort_order_f64(floats[left].get(), floats[right].get())
+                            },
+                            budget.as_ref(),
+                            instruction.span,
+                        )?;
+                        apply_sort_order(&mut sorted, &order);
+                        push_stack!(Value::Float64List(guion_model::Shared::new(sorted)));
                     }
-                    let mut current = start;
-                    loop {
-                        visited[current] = true;
-                        let next = order[current];
-                        if next == start {
-                            break;
+                    Value::List(items) => {
+                        let length = items.len();
+                        if length < 2 {
+                            push_stack!(Value::List(items));
+                        } else {
+                            let mut values = items.as_ref().clone();
+                            charge_allocation(
+                                budget.as_ref(),
+                                sort_allocation(&values, 0),
+                                instruction.span,
+                            )?;
+                            let first = std::mem::discriminant(&values[0]);
+                            if !values.iter().all(|value| {
+                                matches!(value, Value::Int(_) | Value::Float64(_) | Value::Text(_))
+                                    && std::mem::discriminant(value) == first
+                            }) {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "sort requires a List of Text, Int or Float64",
+                                    instruction.span,
+                                ));
+                            }
+                            let order = stable_sort_order(
+                                length,
+                                |left, right| match (&values[left], &values[right]) {
+                                    (Value::Int(a), Value::Int(b)) => a.cmp(b),
+                                    (Value::Float64(a), Value::Float64(b)) => {
+                                        guion_model::sort_order_f64(a.get(), b.get())
+                                    }
+                                    (Value::Text(a), Value::Text(b)) => {
+                                        a.as_bytes().cmp(b.as_bytes())
+                                    }
+                                    _ => CmpOrdering::Equal,
+                                },
+                                budget.as_ref(),
+                                instruction.span,
+                            )?;
+                            apply_sort_order(&mut values, &order);
+                            push_stack!(Value::from_list_items(values));
                         }
-                        values.swap(current, next);
-                        current = next;
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort requires a List",
+                            instruction.span,
+                        ));
                     }
                 }
-                push_stack!(Value::from_list_items(values));
             }
             Op::MergeSortedByIntKey(target) => {
                 let input_feeds = match pop!() {

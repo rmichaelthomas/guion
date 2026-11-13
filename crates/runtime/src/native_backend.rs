@@ -744,6 +744,7 @@ fn functions_reachable_from(artifact: &Artifact, root: usize) -> Vec<bool> {
             if let Op::Call(target, _)
             | Op::ParallelMap(target)
             | Op::SortBy(target)
+            | Op::SortByKey(target)
             | Op::SortByIntKey(target)
             | Op::MergeSortedByIntKey(target) = &instruction.op
             {

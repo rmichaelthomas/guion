@@ -546,6 +546,10 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 114
     if name == "CsvReadColumns":
         return 195
+    if name == "SortNatural":
+        return 196
+    if name == "SortByKey":
+        return 197
     if name == "JsonTryGet":
         return 115
     if name == "JsonTryIndex":
@@ -884,7 +888,7 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
         if name == "Jump" or name == "JumpIfFalse":
             set parts = list_push(parts, ab_count(ab_target(instruction, labels)))
         else:
-            if name == "Call" or name == "ParallelMap" or name == "SortBy" or name == "SortByIntKey" or name == "MergeSortedByIntKey":
+            if name == "Call" or name == "ParallelMap" or name == "SortBy" or name == "SortByKey" or name == "SortByIntKey" or name == "MergeSortedByIntKey":
                 let target = ab_function_index(functions, json_as_text(json_get(instruction, "function")))
                 set parts = list_push(parts, ab_count(target))
                 if name == "Call":
@@ -998,7 +1002,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(64), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(65), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))
