@@ -1,3 +1,4 @@
+import "std:encoding"
 import "std:types"
 
 # std:crypto: HMAC-SHA-256, SHA-256 and SHA-1 digests, and byte XOR.
@@ -6,6 +7,19 @@ import "std:types"
 # digest. crypto_sha256_file reads the file in fixed-size blocks, so memory stays constant for
 # any file size; it needs the file-read grant (effect filesystem.read) and returns a typed
 # StdError for a missing or ungranted path.
+#
+# crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
+# from the operating system's cryptographic generator (getentropy on macOS, getrandom on Linux).
+# `count` is the number of random BYTES, so crypto_random_hex(32) is 64 hex digits and
+# crypto_random_base64url(32) is 44 characters. At most crypto_random_max_bytes() (1 MiB) may be
+# drawn per call; a count of 0 gives empty bytes; a negative count or one above the maximum is
+# the typed error E_RANDOM_COUNT, never a clamp; a failing OS source is E_ENTROPY_UNAVAILABLE.
+# No grant is needed: drawing entropy reads nothing, opens nothing and sends nothing.
+#
+# Programs that call these are NOT reproducible: two runs never give the same output, and no
+# determinism claim covers them. Use std:random with a seed when a repeatable sequence is wanted,
+# and never use std:random for tokens, salts or keys. An embedding can pin the source for tests
+# with HostPolicy::with_entropy_source; that is not reachable from a program or from guion.toml.
 
 pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes:
     return native_crypto_hmac_sha256(key, body)
@@ -25,6 +39,26 @@ pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]:
             return Ok(digest)
         Err(problem):
             return Err(StdError(file_error_code(problem), file_error_message(problem), path, 0, 0))
+
+pub fn crypto_random_max_bytes() -> Int:
+    return 1048576
+
+pub fn crypto_random_bytes(count: Int) -> Result[Bytes, StdError]:
+    return native_crypto_random_bytes(count)
+
+pub fn crypto_random_hex(count: Int) -> Result[Text, StdError]:
+    match native_crypto_random_bytes(count):
+        Ok(bytes):
+            return Ok(hex_encode(bytes))
+        Err(problem):
+            return Err(problem)
+
+pub fn crypto_random_base64url(count: Int) -> Result[Text, StdError]:
+    match native_crypto_random_bytes(count):
+        Ok(bytes):
+            return Ok(base64url_encode(bytes))
+        Err(problem):
+            return Err(problem)
 
 pub fn crypto_sha1(data: Bytes) -> Bytes:
     return native_sha1(data)

@@ -2005,6 +2005,14 @@
       "operation": "CryptoHmacSha256"
     },
     {
+      "name": "native_crypto_random_bytes",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "RandomBytes"
+    },
+    {
       "name": "native_crypto_verify_hmac_sha256",
       "parameters": [
         "Bytes",

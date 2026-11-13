@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **67**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **68**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 67. The current writer emits 67. |
+| Format version | `u32` | Reader accepts versions 14 through 68. The current writer emits 68. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -281,6 +281,7 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 198 | `MakeFn` | function index (format 66: pushes the function value for the function at that index; the value is that index and names a function of this artifact only; a reader rejects tag 198 below format 66) |
 | 199 | `CallFn` | argument count (format 66: pops a function value and then that many arguments, pushing the call's result; the call uses the ordinary call frame, so the call-depth and instruction limits apply as for `Call`; an index that names no function, or a function with a different parameter count, is the runtime error `R_FN_INVALID`; a reader rejects tag 199 below format 66) |
 | 200 | `HigherOrder` | kind (`u8`; format 66). Kinds are positions in `HigherOrderKind::ALL` in `crates/model/src/lib.rs`: 0 `SortBy`, 1 `SortByKey`, 2 `SortByIntKey`, 3 `MergeSortedByIntKey`, 4 `ParallelMap`, 5 `MapList`, 6 `FilterList`, 7 `FoldList`, 8 `AnyList`, 9 `AllList`. The function value is popped first, from the top of the stack, then the other operands in the order of the source arguments: the sorts take a list and the function; `ParallelMap` takes a list, the function and the worker limit; `FoldList` takes a list, the initial value and the function. The first four kinds and `ParallelMap` behave as the operations that carry a function index (`SortBy`, `SortByKey`, `SortByIntKey`, `MergeSortedByIntKey`, `ParallelMap`); `MapList`, `FilterList`, `AnyList` and `AllList` call the function once per item in order (`AnyList` and `AllList` stop at the first deciding answer), and `FoldList` threads an accumulator. A reader rejects tag 200 below format 66 |
+| 201 | `RandomBytes` | — (format 68: pops an `Int` byte count and pushes `Result[Bytes, StdError]` drawn from the host's entropy source, the operating system's cryptographic generator unless an embedding pinned another; a count of 0 gives empty `Bytes`, a negative count or one above 1,048,576 is `Err` with code `E_RANDOM_COUNT`, and a failing source is `Err` with code `E_ENTROPY_UNAVAILABLE`; needs no grant; a reader rejects tag 201 below format 68) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -309,6 +310,8 @@ Format 65 adds `SortNatural` (tag 196) and `SortByKey` (tag 197): `sort(values)`
 Format 66 adds first-class function values: type tag 19 and instruction tags 198 (`MakeFn`), 199 (`CallFn`) and 200 (`HigherOrder`). A function value is an index into the function table of the artifact that made it, captures nothing, and is never written into an artifact as data (a `Const` of a function value is `E_ARTIFACT_VALUE`). An artifact below format 66 that uses a function type or any of the three instructions is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 65 remain readable. The effects of a function value belong to the function that forms it (`MakeFn`), so a tool that follows `Call` edges follows `MakeFn` edges the same way.
 
 Format 67 adds SHA-256: `Codec` function code 14 (`sha256`) and `Fs` function code 12 (`sha256`, the streamed file digest). No new instruction tag is used. An artifact below format 67 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 66 remain readable.
+
+Format 68 adds `RandomBytes` (tag 201) for `crypto_random_bytes`, `crypto_random_hex` and `crypto_random_base64url`. An artifact below format 68 that uses it is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 67 remain readable. A program that uses it is not reproducible: its output differs between runs by design.
 
 ## Build metadata and reproducibility
 

@@ -310,6 +310,7 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "TextCaseFold" => Op::TextCaseFold,
         "TextCollapseWhitespace" => Op::TextCollapseWhitespace,
         "TextNormalize" => Op::TextNormalize,
+        "RandomBytes" => Op::RandomBytes,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,
         "CryptoVerifyHmacSha256" => Op::CryptoVerifyHmacSha256,
         "SqliteOpen" => Op::SqliteOpen,

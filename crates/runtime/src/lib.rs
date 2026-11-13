@@ -36,6 +36,9 @@ mod process_ops;
 pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
+
+mod entropy;
+pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
     native_record_has_native_layout, native_record_words, NativeBackend, NativeCode,
@@ -2827,6 +2830,10 @@ pub struct HostPolicy {
     pub allow_clock: bool,
     /// Optional fixed Unix-millisecond value for deterministic embedders and tests.
     pub clock_unix_time_ms_override: Option<i64>,
+    /// Replacement for the OS entropy source behind `crypto_random_bytes`, for embedders and
+    /// tests. Not reachable from guest code, `guion.toml` or the command line; `None` means the
+    /// operating system's generator.
+    pub entropy_source: Option<EntropySource>,
     #[cfg(feature = "python-interop")]
     pub python_interpreter: Option<PathBuf>,
     #[cfg(feature = "python-interop")]
@@ -2871,6 +2878,7 @@ impl Default for HostPolicy {
             allowed_environment_variables: HashSet::new(),
             allow_clock: false,
             clock_unix_time_ms_override: None,
+            entropy_source: None,
             #[cfg(feature = "python-interop")]
             python_interpreter: None,
             #[cfg(feature = "python-interop")]
@@ -2926,6 +2934,11 @@ impl HostPolicy {
     pub fn with_clock_unix_time_ms(mut self, unix_time_ms: i64) -> Self {
         self.allow_clock = true;
         self.clock_unix_time_ms_override = Some(unix_time_ms);
+        self
+    }
+    /// Pin the entropy source, replacing the OS generator for this policy only.
+    pub fn with_entropy_source(mut self, source: EntropySource) -> Self {
+        self.entropy_source = Some(source);
         self
     }
     #[cfg(feature = "python-interop")]
@@ -5852,6 +5865,44 @@ impl VmHost for Instance {
                 } else {
                     push_stack!(Value::Text(text));
                 }
+            }
+            Op::RandomBytes => {
+                let count = match pop!() {
+                    Value::Int(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "random byte count must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let outcome = match count.to_usize() {
+                    Some(wanted) if wanted <= ENTROPY_MAX_BYTES => {
+                        charge_allocation(budget.as_ref(), wanted, instruction.span)?;
+                        let mut bytes = vec![0u8; wanted];
+                        let filled = if wanted == 0 {
+                            Ok(())
+                        } else {
+                            match &self.policy.entropy_source {
+                                Some(source) => source.fill(&mut bytes),
+                                None => entropy::fill_from_os(&mut bytes),
+                            }
+                        };
+                        match filled {
+                            Ok(()) => Value::ResultOk(Box::new(Value::Bytes(Shared::new(bytes)))),
+                            Err(message) => Value::ResultErr(Box::new(entropy_error_value(
+                                "E_ENTROPY_UNAVAILABLE",
+                                message,
+                            ))),
+                        }
+                    }
+                    _ => Value::ResultErr(Box::new(entropy_error_value(
+                        "E_RANDOM_COUNT",
+                        format!("random byte count must be between 0 and {ENTROPY_MAX_BYTES}"),
+                    ))),
+                };
+                push_stack!(outcome);
             }
             Op::TextNormalize => {
                 let form = match pop!() {
@@ -10917,6 +10968,16 @@ fn runtime_sql_values(
             Ok(decoded)
         })
         .collect()
+}
+
+fn entropy_error_value(code: &str, message: String) -> Value {
+    service_error_value(stdlib_services::ServiceError {
+        code: code.to_owned(),
+        message,
+        path: String::new(),
+        line: 0,
+        column: 0,
+    })
 }
 
 fn service_error_value(error: stdlib_services::ServiceError) -> Value {

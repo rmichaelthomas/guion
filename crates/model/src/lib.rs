@@ -1399,46 +1399,59 @@ mod tests {
         );
     }
 
+    /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
+    /// at `first_format` and at the current format it round-trips.
+    fn assert_gated(op: Op, first_format: u32) {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = first_format;
+        let at_first = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&at_first).unwrap(), artifact);
+        artifact.format_version = first_format - 1;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&(first_format - 1).to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
     #[test]
     fn sha256_instructions_are_gated_on_format_67() {
-        for op in [Op::Codec(CodecFunction::Sha256), Op::Fs(FsFunction::Sha256)] {
-            let mut artifact = Artifact {
-                format_version: Artifact::CURRENT_VERSION,
-                build_metadata: None,
-                compiled_source_sha256: None,
-                source_name: "x".into(),
-                sources: vec!["x".into()],
-                entry: "main".into(),
-                functions: vec![Function {
-                    name: "main".into(),
-                    parameters: vec![],
-                    result: Type::Unit,
-                    local_count: 0,
-                    code: vec![
-                        Instruction {
-                            op,
-                            span: Span::default(),
-                        },
-                        Instruction {
-                            op: Op::Return,
-                            span: Span::default(),
-                        },
-                    ],
-                }],
-                externals: vec![],
-                records: vec![],
-            };
-            let bytes = artifact.to_bytes().unwrap();
-            assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
-            artifact.format_version = Artifact::CURRENT_VERSION - 1;
-            assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
-            let mut old = bytes;
-            old[4..8].copy_from_slice(&(Artifact::CURRENT_VERSION - 1).to_le_bytes());
-            assert_eq!(
-                Artifact::from_bytes(&old).unwrap_err().code,
-                "E_ARTIFACT_VERSION"
-            );
-        }
+        assert_gated(Op::Codec(CodecFunction::Sha256), 67);
+        assert_gated(Op::Fs(FsFunction::Sha256), 67);
+    }
+
+    #[test]
+    fn random_bytes_instruction_is_gated_on_format_68() {
+        assert_gated(Op::RandomBytes, 68);
     }
 
     #[test]
@@ -3994,6 +4007,7 @@ pub enum Op {
     MakeFn(usize),
     CallFn(usize),
     HigherOrder(HigherOrderKind),
+    RandomBytes,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4151,7 +4165,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 67;
+    pub const CURRENT_VERSION: u32 = 68;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4457,6 +4471,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 68 && artifact_uses_random_bytes(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "random bytes require artifact format 68",
             ));
         }
         if self.format_version < 67 && artifact_uses_sha256(self) {
@@ -4794,6 +4814,7 @@ impl Artifact {
                         w.u8(198);
                         w.count(*target)?;
                     }
+                    Op::RandomBytes => w.u8(201),
                     Op::CallFn(argc) => {
                         w.u8(199);
                         w.count(*argc)?;
@@ -5354,6 +5375,13 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "function values require artifact format 66",
+                        ));
+                    }
+                    201 if format_version >= 68 => Op::RandomBytes,
+                    201 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "random bytes require artifact format 68",
                         ));
                     }
                     193 | 194 => {
@@ -6032,6 +6060,15 @@ fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::RandomBytes))
+    })
+}
+
 fn artifact_uses_sha256(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -6519,6 +6556,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::CsvNext
                         | Op::CsvReadColumns
                         | Op::FsWalk
+                        | Op::RandomBytes
                         | Op::HigherOrder(HigherOrderKind::ParallelMap)
                         | Op::ParallelMap(_) => {
                             return Err(format!(

@@ -171,3 +171,56 @@ fn main() -> Int:
         }
     }
 }
+
+#[test]
+fn random_bytes_run_from_the_command_line_and_cannot_be_pinned_from_guion_toml() {
+    let scratch = Scratch::new("random-cli");
+    let program = r#"import "std:crypto"
+fn main() -> Int:
+    print(unwrap(crypto_random_hex(16)))
+    return 0
+"#;
+    let run = |dir: &Path| {
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", "main.gu"])
+            .current_dir(dir)
+            .output()
+            .expect("guion starts")
+    };
+    std::fs::write(scratch.0.join("main.gu"), program).unwrap();
+    let first = run(&scratch.0);
+    let second = run(&scratch.0);
+    assert_success(&first);
+    assert_success(&second);
+    let (first, second) = (
+        String::from_utf8_lossy(&first.stdout).trim().to_owned(),
+        String::from_utf8_lossy(&second.stdout).trim().to_owned(),
+    );
+    assert_eq!(first.len(), 32);
+    assert_ne!(first, second, "two runs must not repeat");
+
+    // The runtime table has no entropy key: a pin in guion.toml is an unknown field, not a pin.
+    let project = scratch.0.join("project");
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(project.join("src/main.gu"), program).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"pinned\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n\n[runtime]\nentropy_source = \"0000\"\n",
+    )
+    .unwrap();
+    let pinned = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "src/main.gu"])
+        .current_dir(&project)
+        .output()
+        .expect("guion starts");
+    assert!(
+        !pinned.status.success(),
+        "guion.toml must not accept an entropy pin: {}",
+        String::from_utf8_lossy(&pinned.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&pinned.stderr).contains("unsupported guion.toml [runtime] field"),
+        "{}",
+        String::from_utf8_lossy(&pinned.stderr)
+    );
+}

@@ -304,6 +304,7 @@ native_base64url_encode(Bytes) -> Text
 native_bytes_xor(Bytes, Bytes) -> Bytes
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
+native_crypto_random_bytes(Int) -> Result[Bytes, Record[StdError]]
 native_crypto_sha256(Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 native_fs_copy(Text, Text) -> Result[Int, FileError]
@@ -447,6 +448,10 @@ std:crypto — pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expecte
 std:crypto — pub fn crypto_sha256(data: Bytes) -> Bytes
 std:crypto — pub fn crypto_sha256_text(text: Text) -> Bytes
 std:crypto — pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]
+std:crypto — pub fn crypto_random_max_bytes() -> Int
+std:crypto — pub fn crypto_random_bytes(count: Int) -> Result[Bytes, StdError]
+std:crypto — pub fn crypto_random_hex(count: Int) -> Result[Text, StdError]
+std:crypto — pub fn crypto_random_base64url(count: Int) -> Result[Text, StdError]
 std:crypto — pub fn crypto_sha1(data: Bytes) -> Bytes
 std:crypto — pub fn bytes_xor_key(data: Bytes, key: Bytes) -> Bytes
 std:csv — pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]
@@ -847,6 +852,7 @@ E_DIRECTORY
 E_DIRECT_OPERATION_NAMES
 E_DISABLE_FIND_PACKAGE_ICU
 E_ENTRIES
+E_ENTROPY_UNAVAILABLE
 E_ENTRY_MISSING
 E_ENTRY_SIGNATURE
 E_EXCL
@@ -995,6 +1001,8 @@ E_PYTHON_KEYWORD
 E_PYTHON_KEYWORD_DUPLICATE
 E_PYTHON_RANGE
 E_PYTHON_TRY
+E_RANDOM_BYTES
+E_RANDOM_COUNT
 E_RECORD_EMPTY
 E_RECORD_FIELD_DUPLICATE
 E_RECORD_NAME
@@ -1453,4 +1461,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:31c0c56c457d4ab530113078c3907ffc08043754363b2e732626f4e66d688996. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:0b49134a8fdfdd52815e6f8ae7aa7187c5ae3dcab629f9e2619c9ac564557b42. Validated by `cargo xtask agent-reference --check`. -->

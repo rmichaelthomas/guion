@@ -5112,6 +5112,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::SortByKey(_) => "SortByKey",
         Op::MakeFn(_) => "MakeFn",
         Op::CallFn(_) => "CallFn",
+        Op::RandomBytes => "RandomBytes",
         Op::HigherOrder(_) => "HigherOrder",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
@@ -8127,6 +8128,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::Text),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::RandomBytes => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!(
+                        "crypto_random_bytes requires an Int count at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Bytes),
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
