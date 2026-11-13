@@ -463,7 +463,8 @@ mod tests {
                     || signature.operation == "SortBy"
                     || signature.operation == "SortNatural"
                     || signature.operation == "SortByIntKey"
-                    || signature.operation == "MergeSortedByIntKey",
+                    || signature.operation == "MergeSortedByIntKey"
+                    || guion_model::HigherOrderKind::from_name(&signature.operation).is_some(),
                 "{name}: {}",
                 signature.operation
             );

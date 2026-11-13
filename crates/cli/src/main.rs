@@ -2456,6 +2456,15 @@ fn display_type(ty: &guion_model::Type) -> String {
         Type::Map(item) => format!("Map[Text, {}]", display_type(item)),
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
+        Type::Fn(parameters, result) => format!(
+            "fn({}) -> {}",
+            parameters
+                .iter()
+                .map(display_type)
+                .collect::<Vec<_>>()
+                .join(", "),
+            display_type(result)
+        ),
     }
 }
 
@@ -2561,8 +2570,13 @@ fn inspection_report(
     for (function_index, function) in artifact.functions.iter().enumerate() {
         for instruction in &function.code {
             match &instruction.op {
-                Op::Call(target, _) => {
+                // A function value takes on its function's effects where it is formed;
+                // calling through it adds nothing further.
+                Op::Call(target, _) | Op::MakeFn(target) => {
                     calls[function_index].insert(*target);
+                }
+                Op::HigherOrder(guion_model::HigherOrderKind::ParallelMap) => {
+                    direct_effects[function_index].insert("concurrency.parallel".into());
                 }
                 Op::ParallelMap(target) => {
                     direct_effects[function_index].insert("concurrency.parallel".into());
@@ -2984,7 +2998,22 @@ fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {
             continue;
         };
         let name = signature[..open].trim();
-        let Some(close) = signature[open + 1..].find(')') else {
+        // The closing parenthesis that matches this one: a parameter of function type has
+        // parentheses of its own.
+        let mut depth = 0usize;
+        let mut close = None;
+        for (index, character) in signature[open + 1..].char_indices() {
+            match character {
+                '(' => depth += 1,
+                ')' if depth == 0 => {
+                    close = Some(index);
+                    break;
+                }
+                ')' => depth -= 1,
+                _ => {}
+            }
+        }
+        let Some(close) = close else {
             continue;
         };
         let parameter_text = &signature[open + 1..open + 1 + close];
@@ -3007,8 +3036,8 @@ fn split_signature_parameters(parameters: &str) -> Vec<&str> {
     let mut start = 0usize;
     for (index, character) in parameters.char_indices() {
         match character {
-            '[' => depth += 1,
-            ']' => depth = depth.saturating_sub(1),
+            '[' | '(' => depth += 1,
+            ']' | ')' => depth = depth.saturating_sub(1),
             ',' if depth == 0 => {
                 result.push(parameters[start..index].trim());
                 start = index + 1;

@@ -2424,6 +2424,7 @@ impl ShareAcrossThreads for Value {
             | Value::FileError(_)
             | Value::HttpError(_)
             | Value::NativeResource(_)
+            | Value::Function(_)
             | Value::Unit => {}
         }
     }
@@ -2959,6 +2960,7 @@ pub enum Value {
     FileError(Box<FileErrorValue>),
     HttpError(Box<HttpErrorValue>),
     NativeResource(Box<NativeResourceValue>),
+    Function(usize),
     Unit,
 }
 
@@ -3035,6 +3037,7 @@ impl PartialEq for Value {
             (Value::FileError(left), Value::FileError(right)) => left == right,
             (Value::HttpError(left), Value::HttpError(right)) => left == right,
             (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
+            (Value::Function(left), Value::Function(right)) => left == right,
             (Value::Unit, Value::Unit) => true,
             _ => false,
         }
@@ -3159,6 +3162,7 @@ impl fmt::Display for Value {
             Value::FileError(error) => write!(f, "FileError({}, {})", error.code, error.message),
             Value::HttpError(error) => write!(f, "HttpError({}, {})", error.code, error.message),
             Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
+            Value::Function(index) => write!(f, "<function {index}>"),
             Value::Unit => f.write_str("()"),
         }
     }
@@ -3183,7 +3187,85 @@ pub enum Type {
     HttpError,
     NativeResource(String),
     Array(ElementType),
+    Fn(Vec<Type>, Box<Type>),
     Unit,
+}
+
+/// `Type::Fn` is the type of a function value: the parameter types and the result type of a
+/// named top-level function (artifact format 66). `Value::Function` is an index into the function
+/// table of the artifact that made it, and `Op::MakeFn`, `Op::CallFn` and `Op::HigherOrder` form,
+/// call and pass function values. A function value captures nothing.
+impl Type {
+    /// Whether this type is, or holds, a function value.
+    pub fn contains_fn(&self) -> bool {
+        match self {
+            Type::Fn(_, _) => true,
+            Type::List(item) | Type::Map(item) | Type::Option(item) => item.contains_fn(),
+            Type::Result(ok, err) => ok.contains_fn() || err.contains_fn(),
+            _ => false,
+        }
+    }
+}
+
+/// The higher-order builtins that take a function value from the stack (`Op::HigherOrder`).
+/// Codes are part of artifact format 66.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HigherOrderKind {
+    SortBy,
+    SortByKey,
+    SortByIntKey,
+    MergeSortedByIntKey,
+    ParallelMap,
+    MapList,
+    FilterList,
+    FoldList,
+    AnyList,
+    AllList,
+}
+
+impl HigherOrderKind {
+    pub const ALL: [HigherOrderKind; 10] = [
+        HigherOrderKind::SortBy,
+        HigherOrderKind::SortByKey,
+        HigherOrderKind::SortByIntKey,
+        HigherOrderKind::MergeSortedByIntKey,
+        HigherOrderKind::ParallelMap,
+        HigherOrderKind::MapList,
+        HigherOrderKind::FilterList,
+        HigherOrderKind::FoldList,
+        HigherOrderKind::AnyList,
+        HigherOrderKind::AllList,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|kind| *kind == self)
+            .expect("every kind is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(code as usize).copied()
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            HigherOrderKind::SortBy => "SortBy",
+            HigherOrderKind::SortByKey => "SortByKey",
+            HigherOrderKind::SortByIntKey => "SortByIntKey",
+            HigherOrderKind::MergeSortedByIntKey => "MergeSortedByIntKey",
+            HigherOrderKind::ParallelMap => "ParallelMap",
+            HigherOrderKind::MapList => "MapList",
+            HigherOrderKind::FilterList => "FilterList",
+            HigherOrderKind::FoldList => "FoldList",
+            HigherOrderKind::AnyList => "AnyList",
+            HigherOrderKind::AllList => "AllList",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|kind| kind.name() == name)
+    }
 }
 
 /// Pure `Float64` math functions behind `Op::Math`. Codes are part of artifact format 52.
@@ -3858,6 +3940,9 @@ pub enum Op {
     CsvReadColumns,
     SortNatural,
     SortByKey(usize),
+    MakeFn(usize),
+    CallFn(usize),
+    HigherOrder(HigherOrderKind),
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4015,7 +4100,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 65;
+    pub const CURRENT_VERSION: u32 = 66;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4315,6 +4400,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "general sort and sort_by with a key require artifact format 65",
+            ));
+        }
+        if self.format_version < 66 && artifact_uses_function_values(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "function values require artifact format 66",
             ));
         }
         if self.format_version < 61 && artifact_uses_random_bits(self) {
@@ -4641,6 +4732,18 @@ impl Artifact {
                     Op::SortByKey(target) => {
                         w.u8(197);
                         w.count(*target)?;
+                    }
+                    Op::MakeFn(target) => {
+                        w.u8(198);
+                        w.count(*target)?;
+                    }
+                    Op::CallFn(argc) => {
+                        w.u8(199);
+                        w.count(*argc)?;
+                    }
+                    Op::HigherOrder(kind) => {
+                        w.u8(200);
+                        w.u8(kind.code());
                     }
                     Op::JsonTryGet => w.u8(115),
                     Op::JsonTryIndex => w.u8(116),
@@ -5167,6 +5270,23 @@ impl Artifact {
                             "general sort and sort_by with a key require artifact format 65",
                         ));
                     }
+                    198 if format_version >= 66 => Op::MakeFn(r.count()?),
+                    199 if format_version >= 66 => Op::CallFn(r.count()?),
+                    200 if format_version >= 66 => {
+                        let code = r.u8()?;
+                        Op::HigherOrder(HigherOrderKind::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_OP",
+                                format!("unknown higher-order operation code {code}"),
+                            )
+                        })?)
+                    }
+                    198..=200 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "function values require artifact format 66",
+                        ));
+                    }
                     193 | 194 => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
@@ -5622,6 +5742,12 @@ impl Artifact {
                 "arrays require artifact format 62",
             ));
         }
+        if format_version < 66 && artifact_uses_function_values(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "function values require artifact format 66",
+            ));
+        }
         if format_version < 48 && artifact_uses_time_format_utc_date(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -5835,6 +5961,28 @@ fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
             .iter()
             .any(|instruction| matches!(instruction.op, Op::SortNatural | Op::SortByKey(_)))
     })
+}
+
+fn artifact_uses_function_values(artifact: &Artifact) -> bool {
+    artifact
+        .records
+        .iter()
+        .any(|record| record.fields.iter().any(|field| field.ty.contains_fn()))
+        || artifact.externals.iter().any(|external| {
+            external.parameters.iter().any(Type::contains_fn) || external.result.contains_fn()
+        })
+        || artifact.functions.iter().any(|function| {
+            function.parameters.iter().any(Type::contains_fn)
+                || function.result.contains_fn()
+                || function
+                    .code
+                    .iter()
+                    .any(|instruction| match &instruction.op {
+                        Op::MakeFn(_) | Op::CallFn(_) | Op::HigherOrder(_) => true,
+                        Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => ty.contains_fn(),
+                        _ => false,
+                    })
+        })
 }
 
 fn artifact_uses_csv_read_columns(artifact: &Artifact) -> bool {
@@ -6239,6 +6387,17 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                 | Op::MergeSortedByIntKey(root) => root,
                 _ => continue,
             };
+            // A key function whose own parameter holds a function value would call code this
+            // check cannot see, so it is rejected; function values formed inside the call
+            // graph are followed through `MakeFn` below.
+            if let Some(root_function) = artifact.functions.get(root) {
+                if root_function.parameters.iter().any(Type::contains_fn) {
+                    return Err(format!(
+                        "sort comparator `{}` takes a function value",
+                        root_function.name
+                    ));
+                }
+            }
             let mut pending = vec![root];
             let mut seen = HashSet::new();
             while let Some(index) = pending.pop() {
@@ -6253,6 +6412,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                 for instruction in &callee.code {
                     match instruction.op {
                         Op::Call(target, _)
+                        | Op::MakeFn(target)
                         | Op::SortBy(target)
                         | Op::SortByKey(target)
                         | Op::SortByIntKey(target)
@@ -6279,6 +6439,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::CsvNext
                         | Op::CsvReadColumns
                         | Op::FsWalk
+                        | Op::HigherOrder(HigherOrderKind::ParallelMap)
                         | Op::ParallelMap(_) => {
                             return Err(format!(
                                 "sort comparator `{}` reaches an effectful operation",
@@ -6447,6 +6608,14 @@ impl Writer {
                 self.u8(18);
                 self.u8(element.code());
             }
+            Type::Fn(parameters, result) => {
+                self.u8(19);
+                self.count(parameters.len())?;
+                for parameter in parameters {
+                    self.ty(parameter)?;
+                }
+                self.ty(result)?;
+            }
         }
         Ok(())
     }
@@ -6591,6 +6760,12 @@ impl Writer {
                     "arrays cannot be serialized as constants",
                 ));
             }
+            Value::Function(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_VALUE",
+                    "function values cannot be serialized as constants",
+                ));
+            }
         }
         Ok(())
     }
@@ -6694,6 +6869,20 @@ impl<'a> Reader<'a> {
                             format!("unknown array element code {code}"),
                         )
                     })
+            }
+            19 => {
+                let count = self.count()?;
+                if count > 255 {
+                    return Err(ArtifactError::new(
+                        "E_ARTIFACT_TYPE",
+                        "function type has more than 255 parameters",
+                    ));
+                }
+                let mut parameters = Vec::with_capacity(count);
+                for _ in 0..count {
+                    parameters.push(self.ty_at(depth + 1)?);
+                }
+                Ok(Type::Fn(parameters, Box::new(self.ty_at(depth + 1)?)))
             }
             _ => Err(ArtifactError::new("E_ARTIFACT_TYPE", "unknown type tag")),
         }

@@ -3781,6 +3781,49 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     span: instruction.span,
                 });
             }
+            Op::MakeFn(target) => {
+                push_stack!(Value::Function(*target));
+            }
+            Op::CallFn(argc) => {
+                // The index is only meaningful in the artifact that made it, and a worker or a
+                // host can hand a function a value built elsewhere, so it is checked here.
+                let target = match pop!() {
+                    Value::Function(index)
+                        if artifact
+                            .functions
+                            .get(index)
+                            .is_some_and(|callee| callee.parameters.len() == *argc) =>
+                    {
+                        index
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let local_count = artifact.functions[target].local_count;
+                let mut call_args = pool.take(local_count.max(*argc));
+                for _ in 0..*argc {
+                    call_args.push(pop!());
+                }
+                call_args.reverse();
+                return Ok(VmStep::Call {
+                    frame: VmFrame {
+                        function_index,
+                        depth,
+                        call_site,
+                        locals,
+                        stack,
+                        ip,
+                    },
+                    target,
+                    args: call_args,
+                    span: instruction.span,
+                });
+            }
             Op::Assert => match pop!() {
                 Value::Bool(true) => push_stack!(Value::Unit),
                 Value::Bool(false) => {
@@ -5067,6 +5110,9 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CsvReadColumns => "CsvReadColumns",
         Op::SortNatural => "SortNatural",
         Op::SortByKey(_) => "SortByKey",
+        Op::MakeFn(_) => "MakeFn",
+        Op::CallFn(_) => "CallFn",
+        Op::HigherOrder(_) => "HigherOrder",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -6108,6 +6154,7 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
         (Value::NativeResource(resource), Type::NativeResource(expected)) => {
             resource.kind() == expected
         }
+        (Value::Function(_), Type::Fn(_, _)) => true,
         _ => false,
     }
 }
@@ -6474,6 +6521,12 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                         f.name
                     )));
                 }
+                Op::MakeFn(target) if target >= artifact.functions.len() => {
+                    return Err(fail(format!(
+                        "function `{}` forms a value of a missing function",
+                        f.name
+                    )));
+                }
                 Op::ParallelMap(target)
                     if target >= artifact.functions.len()
                         || artifact.functions[target].parameters.len() != 1 =>
@@ -6587,6 +6640,12 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::HttpError
         | Type::Array(_)
         | Type::Unit => true,
+        Type::Fn(parameters, result) => {
+            parameters
+                .iter()
+                .all(|parameter| artifact_type_known(parameter, record_names))
+                && artifact_type_known(result, record_names)
+        }
     }
 }
 
@@ -6661,6 +6720,9 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::JsonError(_) => Type::JsonError,
         Value::FileError(_) => Type::FileError,
         Value::HttpError(_) => Type::HttpError,
+        // A function value is never a constant; the verifier only learns its type from the
+        // function table (`MakeFn`).
+        Value::Function(_) => return None,
     })
 }
 
@@ -7766,6 +7828,148 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     }
                 }
                 state.stack.push(external.result.clone());
+            }
+            Op::MakeFn(target) => {
+                let callee = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("function value references missing function at instruction {pc}")
+                })?;
+                state.stack.push(Type::Fn(
+                    callee.parameters.clone(),
+                    Box::new(callee.result.clone()),
+                ));
+            }
+            Op::CallFn(argc) => {
+                let Type::Fn(parameters, result) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("call through a non-function at instruction {pc}"));
+                };
+                if parameters.len() != *argc {
+                    return Err(format!(
+                        "function value call argument count mismatch at instruction {pc}"
+                    ));
+                }
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "function value call argument type mismatch at instruction {pc}"
+                        ));
+                    }
+                }
+                state.stack.push(*result);
+            }
+            Op::HigherOrder(kind) => {
+                use guion_model::HigherOrderKind as Kind;
+                let name = kind.name();
+                let mut worker_limit = false;
+                if *kind == Kind::ParallelMap {
+                    if pop_type(&mut state.stack, pc)? != Type::Int {
+                        return Err(format!(
+                            "parallel worker limit must be Int at instruction {pc}"
+                        ));
+                    }
+                    worker_limit = true;
+                }
+                let Type::Fn(parameters, result) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("{name} needs a function value at instruction {pc}"));
+                };
+                let result = *result;
+                let initial = if *kind == Kind::FoldList {
+                    Some(pop_type(&mut state.stack, pc)?)
+                } else {
+                    None
+                };
+                let input = pop_type(&mut state.stack, pc)?;
+                let bad_shape =
+                    || format!("{name} function has the wrong type at instruction {pc}");
+                let output = match kind {
+                    Kind::SortBy | Kind::SortByKey | Kind::SortByIntKey => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        let fits = match kind {
+                            Kind::SortBy => {
+                                parameters.len() == 2
+                                    && parameters[0] == parameters[1]
+                                    && result == Type::Int
+                            }
+                            Kind::SortByKey => parameters.len() == 1 && is_sort_key_type(&result),
+                            _ => parameters.len() == 1 && result == Type::Int,
+                        };
+                        if !fits || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(item)
+                    }
+                    Kind::MergeSortedByIntKey => {
+                        let Type::List(feed) = input else {
+                            return Err(format!(
+                                "{name} input must be a List of Lists at instruction {pc}"
+                            ));
+                        };
+                        let Type::List(item) = *feed else {
+                            return Err(format!(
+                                "{name} input must be a List of Lists at instruction {pc}"
+                            ));
+                        };
+                        if parameters.len() != 1 || result != Type::Int || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(item)
+                    }
+                    Kind::ParallelMap => {
+                        let Type::List(item) = input else {
+                            return Err(format!("parallel input must be List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1
+                            || *item != parameters[0]
+                            || !worker_limit
+                            || type_contains_native_resource(&parameters[0])
+                            || type_contains_native_resource(&result)
+                        {
+                            return Err(bad_shape());
+                        }
+                        Type::Result(
+                            Box::new(Type::List(Box::new(result))),
+                            Box::new(Type::TaskError),
+                        )
+                    }
+                    Kind::MapList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1 || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(Box::new(result))
+                    }
+                    Kind::FilterList | Kind::AnyList | Kind::AllList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1 || *item != parameters[0] || result != Type::Bool {
+                            return Err(bad_shape());
+                        }
+                        if *kind == Kind::FilterList {
+                            Type::List(item)
+                        } else {
+                            Type::Bool
+                        }
+                    }
+                    Kind::FoldList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        let initial = initial.expect("fold pops its initial value");
+                        if parameters.len() != 2
+                            || parameters[0] != initial
+                            || parameters[1] != *item
+                            || result != initial
+                        {
+                            return Err(bad_shape());
+                        }
+                        result
+                    }
+                };
+                state.stack.push(output);
             }
             Op::ParallelMap(target) => {
                 let callee = artifact.functions.get(*target).ok_or_else(|| {

@@ -2241,6 +2241,52 @@
       "operation": "SortNatural"
     },
     {
+      "name": "map_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> $U"
+      ],
+      "result": "List[$U]",
+      "operation": "MapList"
+    },
+    {
+      "name": "filter_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> Bool"
+      ],
+      "result": "List[$T]",
+      "operation": "FilterList"
+    },
+    {
+      "name": "fold_list",
+      "parameters": [
+        "List[$T]",
+        "$S",
+        "fn($S, $T) -> $S"
+      ],
+      "result": "$S",
+      "operation": "FoldList"
+    },
+    {
+      "name": "any_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> Bool"
+      ],
+      "result": "Bool",
+      "operation": "AnyList"
+    },
+    {
+      "name": "all_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> Bool"
+      ],
+      "result": "Bool",
+      "operation": "AllList"
+    },
+    {
       "name": "sort_by",
       "parameters": [
         "List[$T]",

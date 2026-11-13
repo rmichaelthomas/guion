@@ -1,7 +1,7 @@
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
-    TextMap, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, HigherOrderKind, HttpErrorValue, JsonErrorValue,
+    NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText,
+    Span, TaskErrorValue, TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
@@ -3752,7 +3752,14 @@ impl VmHost for Instance {
                 })?
             };
         }
-        match instruction.op {
+        // The sorts and `parallel_map` that take a function value on the stack run as the
+        // operations that carry a function index; the other higher-order builtins have their
+        // own arms below.
+        let static_form = match &instruction.op {
+            Op::HigherOrder(kind) => self.static_higher_order(*kind, stack, instruction.span)?,
+            _ => None,
+        };
+        match *static_form.as_ref().unwrap_or(&instruction.op) {
             Op::JsonPushLocal(slot) => {
                 let value = match pop!() {
                     Value::Json(value) => value,
@@ -3878,6 +3885,118 @@ impl VmHost for Instance {
                 if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
                     return Err(error);
                 }
+            }
+            Op::HigherOrder(kind) => {
+                let target = match pop!() {
+                    Value::Function(index) => index,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let wanted = if kind == HigherOrderKind::FoldList {
+                    2
+                } else {
+                    1
+                };
+                if self
+                    .artifact
+                    .functions
+                    .get(target)
+                    .is_none_or(|callee| callee.parameters.len() != wanted)
+                {
+                    return Err(RuntimeError::new(
+                        "R_FN_INVALID",
+                        "function value does not name a function of this program",
+                        instruction.span,
+                    ));
+                }
+                let initial = if kind == HigherOrderKind::FoldList {
+                    Some(pop!())
+                } else {
+                    None
+                };
+                let items: Vec<Value> = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            format!("{} requires a List", kind.name()),
+                            instruction.span,
+                        ));
+                    }
+                };
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<Vec<Value>>()
+                        .saturating_add(items.len().saturating_mul(size_of::<Value>())),
+                    instruction.span,
+                )?;
+                let call = |this: &mut Self, args: Vec<Value>| -> Result<Value, RuntimeError> {
+                    this.invoke_inner(target, args, depth + 1, budget.clone())
+                        .map_err(|mut error| {
+                            error.trace.push(instruction.span);
+                            error
+                        })
+                };
+                let wrong_type = |message: &str| {
+                    RuntimeError::new("R_TYPE_INVALID", message.to_owned(), instruction.span)
+                };
+                let result = match kind {
+                    HigherOrderKind::MapList => {
+                        let mut mapped = Vec::with_capacity(items.len());
+                        for item in items {
+                            mapped.push(call(self, vec![item])?);
+                        }
+                        Value::from_list_items(mapped)
+                    }
+                    HigherOrderKind::FilterList => {
+                        let mut kept = Vec::new();
+                        for item in items {
+                            match call(self, vec![item.clone()])? {
+                                Value::Bool(true) => kept.push(item),
+                                Value::Bool(false) => {}
+                                _ => {
+                                    return Err(wrong_type("filter_list function must return Bool"))
+                                }
+                            }
+                        }
+                        Value::from_list_items(kept)
+                    }
+                    HigherOrderKind::AnyList | HigherOrderKind::AllList => {
+                        let any = kind == HigherOrderKind::AnyList;
+                        let mut answer = !any;
+                        for item in items {
+                            match call(self, vec![item])? {
+                                Value::Bool(flag) => {
+                                    if flag == any {
+                                        answer = any;
+                                        break;
+                                    }
+                                }
+                                _ => return Err(wrong_type("the function must return Bool")),
+                            }
+                        }
+                        Value::Bool(answer)
+                    }
+                    _ => {
+                        let mut accumulator = initial.expect("fold_list has an initial value");
+                        for item in items {
+                            accumulator = call(self, vec![accumulator, item])?;
+                        }
+                        accumulator
+                    }
+                };
+                if let Some(error) = value_limit_error(&result, &self.policy, instruction.span) {
+                    return Err(error);
+                }
+                push_stack!(result);
             }
             Op::ParallelMap(target) => {
                 let limit = match pop!() {
@@ -8250,6 +8369,53 @@ impl Instance {
         }
     }
 
+    /// Resolve a sort or `parallel_map` whose function is a value on the stack into the
+    /// operation that carries the function's index, popping the value. The other higher-order
+    /// builtins return `None` and keep their arm. A value that names no function of this
+    /// artifact, or one of the wrong arity, is `R_FN_INVALID`.
+    fn static_higher_order(
+        &self,
+        kind: HigherOrderKind,
+        stack: &mut Vec<Value>,
+        span: Span,
+    ) -> Result<Option<Op>, RuntimeError> {
+        let invalid = || {
+            RuntimeError::new(
+                "R_FN_INVALID",
+                "function value does not name a function of this program",
+                span,
+            )
+        };
+        let (build, arity): (fn(usize) -> Op, usize) = match kind {
+            HigherOrderKind::SortBy => (Op::SortBy, 2),
+            HigherOrderKind::SortByKey => (Op::SortByKey, 1),
+            HigherOrderKind::SortByIntKey => (Op::SortByIntKey, 1),
+            HigherOrderKind::MergeSortedByIntKey => (Op::MergeSortedByIntKey, 1),
+            HigherOrderKind::ParallelMap => (Op::ParallelMap, 1),
+            _ => return Ok(None),
+        };
+        let limit = if kind == HigherOrderKind::ParallelMap {
+            Some(stack.pop().ok_or_else(invalid)?)
+        } else {
+            None
+        };
+        let Some(Value::Function(index)) = stack.pop() else {
+            return Err(invalid());
+        };
+        if self
+            .artifact
+            .functions
+            .get(index)
+            .is_none_or(|callee| callee.parameters.len() != arity)
+        {
+            return Err(invalid());
+        }
+        if let Some(limit) = limit {
+            stack.push(limit);
+        }
+        Ok(Some(build(index)))
+    }
+
     fn invoke_inner(
         &mut self,
         index: usize,
@@ -10597,7 +10763,11 @@ fn input_value_allocation(value: &Value) -> usize {
                 + error.trace.len().saturating_mul(size_of::<Span>())
         }
         Value::NativeResource(resource) => size_of::<Value>() + resource.kind().len(),
-        Value::Float64(_) | Value::Bool(_) | Value::OptionNone | Value::Unit => size_of::<Value>(),
+        Value::Float64(_)
+        | Value::Bool(_)
+        | Value::OptionNone
+        | Value::Function(_)
+        | Value::Unit => size_of::<Value>(),
     }
 }
 
