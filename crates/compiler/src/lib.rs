@@ -59,6 +59,49 @@ struct Token {
     span: Span,
 }
 
+/// Suggestion rule for an unknown call name (B9). A candidate qualifies when its Levenshtein
+/// distance over Unicode scalar values is at most `max(2, len(name) / 3)`. Candidates are sorted
+/// by distance, then by name, and at most three are kept. The self-hosted compiler
+/// (`language/self_host/compiler.gu`, `suggest_names`) implements the same rule.
+fn suggest_names(name: &str, candidates: &[&str]) -> Vec<String> {
+    let name_chars: Vec<char> = name.chars().collect();
+    let threshold = std::cmp::max(2, name_chars.len() / 3);
+    let mut scored: Vec<(usize, &str)> = candidates
+        .iter()
+        .copied()
+        .filter(|candidate| *candidate != name)
+        .filter_map(|candidate| {
+            let distance = edit_distance(&name_chars, candidate);
+            (distance <= threshold).then_some((distance, candidate))
+        })
+        .collect();
+    scored.sort();
+    scored.dedup();
+    scored
+        .into_iter()
+        .take(3)
+        .map(|(_, candidate)| candidate.to_string())
+        .collect()
+}
+
+fn edit_distance(left: &[char], right: &str) -> usize {
+    let right: Vec<char> = right.chars().collect();
+    let mut previous: Vec<usize> = (0..=right.len()).collect();
+    for (row, left_char) in left.iter().enumerate() {
+        let mut current = vec![row + 1];
+        for (column, right_char) in right.iter().enumerate() {
+            let substitution = previous[column] + usize::from(left_char != right_char);
+            current.push(
+                substitution
+                    .min(previous[column + 1] + 1)
+                    .min(current[column] + 1),
+            );
+        }
+        previous = current;
+    }
+    previous[right.len()]
+}
+
 fn diagnostic(code: &str, message: impl Into<String>, span: Span) -> Diagnostic {
     Diagnostic::new(code, message, span)
 }
@@ -2729,11 +2772,21 @@ impl<'a> FnCompiler<'a> {
                     let (names, types): (Vec<_>, Vec<_>) = params.into_iter().unzip();
                     (index, types, Some(names), result, true)
                 } else {
+                    let mut candidates: Vec<&str> = builtin_catalog::names().collect();
+                    candidates.extend(["map_record_get", "map_record_set"]);
+                    let own: Vec<&str> = self
+                        .visible_functions
+                        .keys()
+                        .chain(self.visible_externals.keys())
+                        .map(String::as_str)
+                        .collect();
+                    candidates.extend(own);
                     return Err(diagnostic(
                         "E_NAME_UNKNOWN",
                         format!("unknown function `{name}`"),
                         *s,
-                    ));
+                    )
+                    .with_suggestions(suggest_names(name, &candidates)));
                 };
                 if !external && args.len() != params.len() {
                     return Err(diagnostic(

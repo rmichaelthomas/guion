@@ -4276,13 +4276,21 @@ fn package_failure_diagnostic(message: &str) -> serde_json::Value {
 fn render_diagnostic(path: &str, error: &guion_model::Diagnostic) -> String {
     let source = error.source_name.as_deref().unwrap_or(path);
     format!(
-        "{source}:{}:{}: error[{}]: {}",
-        error.span.line, error.span.column, error.code, error.message
+        "{source}:{}:{}: error[{}]: {}{}",
+        error.span.line,
+        error.span.column,
+        error.code,
+        error.message,
+        error
+            .suggestions()
+            .iter()
+            .map(|candidate| format!("\nhelp: did you mean `{candidate}`?"))
+            .collect::<String>()
     )
 }
 
 fn render_diagnostic_json(path: &str, error: &guion_model::Diagnostic) -> serde_json::Value {
-    serde_json::json!({
+    let mut report = serde_json::json!({
         "schema_version": 1,
         "kind": "guion_diagnostic",
         "diagnostic": {
@@ -4292,7 +4300,11 @@ fn render_diagnostic_json(path: &str, error: &guion_model::Diagnostic) -> serde_
             "line": error.span.line,
             "column": error.span.column
         }
-    })
+    });
+    if !error.suggestions().is_empty() {
+        report["diagnostic"]["suggestions"] = serde_json::json!(error.suggestions());
+    }
+    report
 }
 
 fn runtime_diagnostic_json(

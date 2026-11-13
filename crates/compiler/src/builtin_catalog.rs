@@ -55,6 +55,11 @@ fn signatures() -> &'static HashMap<String, BuiltinSignature> {
     })
 }
 
+/// Every builtin name in the catalog (unordered).
+pub(crate) fn names() -> impl Iterator<Item = &'static str> {
+    signatures().keys().map(String::as_str)
+}
+
 pub(crate) fn get(name: &str) -> Option<&'static BuiltinSignature> {
     signatures().get(name)
 }

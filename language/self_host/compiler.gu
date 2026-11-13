@@ -1664,6 +1664,89 @@ fn known_builtin_name(name: Text) -> Bool:
         return true
     return builtin_catalog_has(name)
 
+# Suggestion rule for an unknown call name (B9), identical to `suggest_names` in the Rust
+# compiler: a candidate qualifies when its Levenshtein distance over Unicode scalar values is at
+# most max(2, len(name) / 3); candidates sort by distance, then name; at most three are kept.
+# Candidates are the functions visible to the module plus the builtin catalog.
+fn edit_distance(left: List[Text], right: Text) -> Int:
+    let right_chars = text_chars(right)
+    var previous: List[Int] = []
+    var column = 0
+    while column <= len(right_chars):
+        set previous = list_push(previous, column)
+        set column = column + 1
+    var row = 0
+    while row < len(left):
+        var current: List[Int] = [row + 1]
+        set column = 0
+        while column < len(right_chars):
+            var cost = 1
+            if left[row] == right_chars[column]:
+                set cost = 0
+            var best = previous[column] + cost
+            if previous[column + 1] + 1 < best:
+                set best = previous[column + 1] + 1
+            if current[column] + 1 < best:
+                set best = current[column] + 1
+            set current = list_push(current, best)
+            set column = column + 1
+        set previous = current
+        set row = row + 1
+    return previous[len(right_chars)]
+
+fn suggest_names(name: Text, functions: List[FunctionSignature]) -> List[Text]:
+    var candidates: List[Text] = builtin_catalog_names()
+    set candidates = list_push(candidates, "map_record_get")
+    set candidates = list_push(candidates, "map_record_set")
+    var function_cursor = 0
+    while function_cursor < len(functions):
+        set candidates = list_push(candidates, functions[function_cursor].name)
+        set function_cursor = function_cursor + 1
+    let name_chars = text_chars(name)
+    var threshold = len(name_chars) / 3
+    if threshold < 2:
+        set threshold = 2
+    var distances: List[Int] = []
+    var cursor = 0
+    while cursor < len(candidates):
+        if candidates[cursor] == name:
+            set distances = list_push(distances, threshold + 1)
+        else:
+            set distances = list_push(distances, edit_distance(name_chars, candidates[cursor]))
+        set cursor = cursor + 1
+    var chosen: List[Text] = []
+    var round = 0
+    while round < 3:
+        var best = -1
+        set cursor = 0
+        while cursor < len(candidates):
+            if distances[cursor] <= threshold and not list_contains_text(chosen, candidates[cursor]):
+                if best < 0 or distances[cursor] < distances[best] or (distances[cursor] == distances[best] and candidates[cursor] < candidates[best]):
+                    set best = cursor
+            set cursor = cursor + 1
+        if best < 0:
+            return chosen
+        set chosen = list_push(chosen, candidates[best])
+        set round = round + 1
+    return chosen
+
+# The `suggestions` array is additive and present only when there are candidates.
+fn failure_with_suggestions(failure: Json, names: List[Text]) -> Json:
+    if len(names) == 0:
+        return failure
+    var suggestions = json_array()
+    for name in names:
+        set suggestions = json_push(suggestions, json_text(name))
+    return json_set(failure, "diagnostic", json_set(json_get(failure, "diagnostic"), "suggestions", suggestions))
+
+fn list_contains_text(items: List[Text], value: Text) -> Bool:
+    var cursor = 0
+    while cursor < len(items):
+        if items[cursor] == value:
+            return true
+        set cursor = cursor + 1
+    return false
+
 fn source_line_column(source: Text, character_index: Int) -> List[Int]:
     let characters = text_chars(source)
     var line = 1
@@ -1731,7 +1814,8 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
         let keywords = json_get(node, "keywords")
         let known_index = function_index(functions, callee)
         if known_index < 0 and not is_record(records, callee) and not known_builtin_name(callee):
-            return failure_at_node("E_NAME_UNKNOWN", "unknown function `" + callee + "`", node, source_name, source, len(callee))
+            let unknown = failure_at_node("E_NAME_UNKNOWN", "unknown function `" + callee + "`", node, source_name, source, len(callee))
+            return failure_with_suggestions(unknown, suggest_names(callee, functions))
         if known_builtin_name(callee):
             let expected_arity = builtin_catalog_arity(callee)
             if expected_arity >= 0 and json_len(arguments) != expected_arity:

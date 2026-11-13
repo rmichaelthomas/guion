@@ -5,6 +5,7 @@ Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview
 ## 0.3.0 (unreleased)
 
 - `break` and `continue` are new statements for `while` and `for` loops, and they are now reserved words at the start of a statement. Outside a loop they fail with `E_NO_LOOP`. The artifact format is unchanged.
+- An unknown call name still fails with `E_NAME_UNKNOWN`, and now adds up to three `help: did you mean` lines for near misses among the module's functions and the builtins (edit distance at most `max(2, len/3)`). `guion check --json` gains an additive `diagnostic.suggestions` array. Both compilers report the same names.
 
 ## 0.2.0 — 2026-11-12
 

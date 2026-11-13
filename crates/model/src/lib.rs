@@ -1629,12 +1629,19 @@ pub struct Span {
     pub column: usize,
 }
 
+/// Behind a box so a `Diagnostic` in a `Result::Err` stays under clippy's size limit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SuggestionList(Vec<String>);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
     pub code: String,
     pub message: String,
     pub span: Span,
     pub source_name: Option<String>,
+    /// Near-miss names the author may have meant, nearest first; read it with
+    /// `suggestions()`. Boxed and optional so `Diagnostic` stays small in `Result` errors.
+    suggestions: Option<Box<SuggestionList>>,
 }
 
 impl Diagnostic {
@@ -1644,7 +1651,21 @@ impl Diagnostic {
             message: message.into(),
             span,
             source_name: None,
+            suggestions: None,
         }
+    }
+
+    pub fn with_suggestions(mut self, suggestions: Vec<String>) -> Self {
+        self.suggestions = (!suggestions.is_empty()).then(|| Box::new(SuggestionList(suggestions)));
+        self
+    }
+
+    /// Candidate names for an unknown call, nearest first; empty when there are none.
+    /// They are only ever shown, never substituted.
+    pub fn suggestions(&self) -> &[String] {
+        self.suggestions
+            .as_deref()
+            .map_or(&[], |list| list.0.as_slice())
     }
 
     pub fn with_source_name(mut self, source_name: impl Into<String>) -> Self {
