@@ -804,6 +804,8 @@ fn ab_codec_code(name: Text) -> Int:
         return 12
     if name == "CodecBytesXor":
         return 13
+    if name == "CodecSha256":
+        return 14
     return -1
 
 fn ab_fs_code(name: Text) -> Int:
@@ -831,6 +833,8 @@ fn ab_fs_code(name: Text) -> Int:
         return 10
     if name == "FsOpTempFile":
         return 11
+    if name == "FsOpSha256":
+        return 12
     return -1
 
 fn ab_regex_code(name: Text) -> Int:
@@ -1082,7 +1086,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(66), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(67), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

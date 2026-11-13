@@ -2861,6 +2861,14 @@
       "operation": "CodecSha1"
     },
     {
+      "name": "native_crypto_sha256",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CodecSha256"
+    },
+    {
       "name": "native_bytes_xor",
       "parameters": [
         "Bytes",
@@ -2892,6 +2900,14 @@
       ],
       "result": "Result[Int, FileError]",
       "operation": "FsOpSize"
+    },
+    {
+      "name": "native_fs_sha256",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bytes, FileError]",
+      "operation": "FsOpSha256"
     },
     {
       "name": "native_fs_modified_ms",

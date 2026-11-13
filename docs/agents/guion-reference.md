@@ -304,6 +304,7 @@ native_base64url_encode(Bytes) -> Text
 native_bytes_xor(Bytes, Bytes) -> Bytes
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
+native_crypto_sha256(Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 native_fs_copy(Text, Text) -> Result[Int, FileError]
 native_fs_exists(Text) -> Result[Bool, FileError]
@@ -314,6 +315,7 @@ native_fs_modified_ms(Text) -> Result[Int, FileError]
 native_fs_remove(Text) -> Result[Unit, FileError]
 native_fs_remove_all(Text) -> Result[Unit, FileError]
 native_fs_rename(Text, Text) -> Result[Unit, FileError]
+native_fs_sha256(Text) -> Result[Bytes, FileError]
 native_fs_size(Text) -> Result[Int, FileError]
 native_fs_temp_dir(Text) -> Result[Text, FileError]
 native_fs_temp_file(Text) -> Result[Text, FileError]
@@ -442,6 +444,9 @@ std:collections — pub fn map_get_text(values: Map[Text, Text], key: Text) -> O
 std:collections — pub fn map_get_int(values: Map[Text, Int], key: Text) -> Option[Int]
 std:crypto — pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes
 std:crypto — pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expected: Bytes) -> Bool
+std:crypto — pub fn crypto_sha256(data: Bytes) -> Bytes
+std:crypto — pub fn crypto_sha256_text(text: Text) -> Bytes
+std:crypto — pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]
 std:crypto — pub fn crypto_sha1(data: Bytes) -> Bytes
 std:crypto — pub fn bytes_xor_key(data: Bytes, key: Bytes) -> Bytes
 std:csv — pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]
@@ -865,6 +870,8 @@ E_FS_WALK
 E_FS_WALK_LIMIT
 E_FS_WALK_ROOT
 E_FS_WALK_UTF8
+E_FUNCTION_VALUES
+E_GENERAL_SORT
 E_HEX_INVALID
 E_HISTORY
 E_HTTP_BODY_TOO_LARGE
@@ -1446,4 +1453,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:348a174f5d604b81b127a8bc5e4363f046eb8eb3e03c5e4a9b432ce430b7a3fb. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:31c0c56c457d4ab530113078c3907ffc08043754363b2e732626f4e66d688996. Validated by `cargo xtask agent-reference --check`. -->

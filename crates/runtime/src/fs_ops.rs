@@ -152,6 +152,39 @@ fn run_inner(
             };
             Ok(ok(int(millis)))
         }
+        FsFunction::Sha256 => {
+            use sha2::{Digest, Sha256};
+            use std::io::Read;
+            let resolved = host_file_path(policy, path, false, span)?;
+            let mut file = fs::File::open(&resolved)
+                .map_err(|error| file_error(&error, "R_FILE_READ", "open", path, span))?;
+            if !file
+                .metadata()
+                .map_err(|error| file_error(&error, "R_FILE_READ", "inspect", path, span))?
+                .is_file()
+            {
+                return Err(RuntimeError::new(
+                    "R_FILE_READ",
+                    format!("cannot digest `{path}`: it is not a regular file"),
+                    span,
+                ));
+            }
+            // Streamed in 64 KiB blocks: memory stays constant however large the file is, and the
+            // read ceiling for `read_text` does not apply because nothing is held.
+            let mut hasher = Sha256::new();
+            let mut block = vec![0u8; 64 * 1024];
+            loop {
+                match file.read(&mut block) {
+                    Ok(0) => break,
+                    Ok(count) => hasher.update(&block[..count]),
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(error) => {
+                        return Err(file_error(&error, "R_FILE_READ", "read", path, span));
+                    }
+                }
+            }
+            Ok(ok(Value::Bytes(Shared::new(hasher.finalize().to_vec()))))
+        }
         FsFunction::ListDir => {
             let resolved = host_file_path(policy, path, false, span)?;
             let entries = fs::read_dir(&resolved)

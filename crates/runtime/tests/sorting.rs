@@ -1,6 +1,9 @@
 //! General `sort` and `sort_by` (artifact format 65): stable, natural orders for Text, Int and
 //! Float64, key evaluated once per item, native comparisons charged to the instruction budget.
 
+/// The last artifact format before `sort` and `sort_by` with a key (format 65).
+const FORMAT_BEFORE_GENERAL_SORT: u32 = 64;
+
 use guion_compiler::compile;
 use guion_model::{Artifact, Op};
 use guion_runtime::{HostPolicy, Runtime};
@@ -398,7 +401,7 @@ fn main() -> Unit:
 
 #[test]
 fn sort_and_sort_by_use_format_65_and_older_artifacts_are_unchanged() {
-    assert!(Artifact::CURRENT_VERSION >= 65);
+    const { assert!(Artifact::CURRENT_VERSION >= 65) };
     let natural = compile(
         "natural.gu",
         "fn main() -> Int:\n    return sort([2, 1])[0]\n",
@@ -455,10 +458,10 @@ fn main() -> Unit:
     print(sort_by(items, compare_items)[2].order)
 "#;
     let mut artifact = compile("old.gu", source).unwrap();
-    artifact.format_version = Artifact::CURRENT_VERSION - 1;
+    artifact.format_version = FORMAT_BEFORE_GENERAL_SORT;
     let bytes = artifact.to_bytes().expect("format 64 can still be written");
     let reread = Artifact::from_bytes(&bytes).expect("format 64 can still be read");
-    assert_eq!(reread.format_version, Artifact::CURRENT_VERSION - 1);
+    assert_eq!(reread.format_version, FORMAT_BEFORE_GENERAL_SORT);
     let out = run_artifact(reread, HostPolicy::default()).unwrap();
     assert_eq!(out, "2\n3\n");
 }

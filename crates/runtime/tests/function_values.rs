@@ -2,6 +2,10 @@
 //! passed, stored and called; no closures; effects and serialization boundaries decided at the
 //! forming site; the higher-order builtins that take function values.
 
+/// The format that introduced function values, and the one before it.
+const FORMAT_FUNCTION_VALUES: u32 = 66;
+const FORMAT_BEFORE_FUNCTION_VALUES: u32 = 65;
+
 use guion_compiler::{compile, compile_project_with_roots};
 use guion_model::{Artifact, Op};
 use guion_runtime::{HostPolicy, Runtime};
@@ -542,12 +546,12 @@ fn artifacts_below_format_66_cannot_use_function_values() {
         artifact.functions
     );
     let mut old = artifact.clone();
-    old.format_version = Artifact::CURRENT_VERSION - 1;
+    old.format_version = FORMAT_BEFORE_FUNCTION_VALUES;
     let error = old.to_bytes().expect_err("format 65 cannot hold MakeFn");
     assert_eq!(error.code, "E_ARTIFACT_VERSION");
     // The same bytes with the version field rewritten to 65 are rejected on read.
     let mut patched = bytes.clone();
-    patched[4..8].copy_from_slice(&(Artifact::CURRENT_VERSION - 1).to_le_bytes());
+    patched[4..8].copy_from_slice(&(FORMAT_BEFORE_FUNCTION_VALUES).to_le_bytes());
     let error = Artifact::from_bytes(&patched).expect_err("format 65 cannot hold MakeFn");
     assert_eq!(error.code, "E_ARTIFACT_VERSION");
     // A function type in a signature alone also needs format 66.
@@ -557,7 +561,7 @@ fn artifacts_below_format_66_cannot_use_function_values() {
     )
     .unwrap();
     let mut old = signature_only;
-    old.format_version = Artifact::CURRENT_VERSION - 1;
+    old.format_version = FORMAT_BEFORE_FUNCTION_VALUES;
     assert_eq!(old.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
 }
 
@@ -565,10 +569,10 @@ fn artifacts_below_format_66_cannot_use_function_values() {
 fn a_format_65_artifact_still_loads_and_runs() {
     let source = "fn double(x: Int) -> Int:\n    return x * 2\n\nfn main() -> Unit:\n    print(sort([3, 1, 2]))\n    print(double(21))\n";
     let mut artifact = compile("function-values.gu", source).unwrap();
-    artifact.format_version = Artifact::CURRENT_VERSION - 1;
+    artifact.format_version = FORMAT_BEFORE_FUNCTION_VALUES;
     let bytes = artifact.to_bytes().expect("format 65 can still be written");
     let reread = Artifact::from_bytes(&bytes).expect("format 65 can still be read");
-    assert_eq!(reread.format_version, Artifact::CURRENT_VERSION - 1);
+    assert_eq!(reread.format_version, FORMAT_BEFORE_FUNCTION_VALUES);
     let out = run_artifact(reread, policy(), Runtime::vm_only()).unwrap();
     assert_eq!(out, "[1, 2, 3]\n42\n");
 }
@@ -904,4 +908,16 @@ fn an_error_inside_a_function_value_is_the_same_with_machine_code_on_and_off() {
     // the spans, callee first, are the same.
     assert_eq!((&on.0, &on.2), (&off.0, &off.2));
     assert_eq!(on.0, "R_DIV_ZERO");
+}
+
+#[test]
+fn a_format_66_artifact_with_function_values_still_loads_and_runs_at_format_67() {
+    let source = format!("{DOUBLE}fn main() -> Unit:\n    let f = double\n    print(f(21))\n");
+    let mut artifact = compile("function-values.gu", &source).unwrap();
+    artifact.format_version = FORMAT_FUNCTION_VALUES;
+    let bytes = artifact.to_bytes().expect("format 66 can still be written");
+    let reread = Artifact::from_bytes(&bytes).expect("format 66 can still be read");
+    assert_eq!(reread.format_version, FORMAT_FUNCTION_VALUES);
+    let out = run_artifact(reread, policy(), Runtime::vm_only()).unwrap();
+    assert_eq!(out, "42\n");
 }
