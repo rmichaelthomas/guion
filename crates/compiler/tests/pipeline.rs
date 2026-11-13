@@ -390,11 +390,37 @@ fn unknown_call_with_no_near_candidate_gets_none() {
 }
 
 #[test]
-fn unknown_map_call_has_no_builtin_candidate_and_only_offers_main() {
-    // No builtin is within distance 2 of `map`; the module's own `main` is one edit away.
+fn unknown_map_call_offers_main_and_the_list_builtin() {
+    // `main` is one edit from `map`... two, and `map_list` is the list-taking form of the name.
     let error = unknown_call_error("fn main() -> Int:\n    return map(3)\n");
     assert_eq!(error.code, "E_NAME_UNKNOWN");
-    assert_eq!(error.suggestions(), vec!["main".to_string()]);
+    assert_eq!(
+        error.suggestions(),
+        vec!["main".to_string(), "map_list".to_string()]
+    );
+}
+
+#[test]
+fn unknown_filter_call_suggests_filter_list() {
+    let error = unknown_call_error("fn main() -> Int:\n    return filter(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["filter_list".to_string()]);
+}
+
+#[test]
+fn the_list_form_suggestion_is_exact_and_needs_three_characters() {
+    // `fold` is within the threshold of nothing; its list form is `fold_list`.
+    let error = unknown_call_error("fn main() -> Int:\n    return fold(3)\n");
+    assert_eq!(error.suggestions(), vec!["fold_list".to_string()]);
+    // A two-character name has no list form, and `any_lis` is close to `any_list` anyway.
+    let error = unknown_call_error("fn main() -> Int:\n    return an(3)\n");
+    assert!(
+        !error.suggestions().contains(&"an_list".to_string()),
+        "{:?}",
+        error.suggestions()
+    );
+    let error = unknown_call_error("fn main() -> Int:\n    return any_lis(3)\n");
+    assert_eq!(error.suggestions(), vec!["any_list".to_string()]);
 }
 
 #[test]

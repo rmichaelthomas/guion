@@ -1,0 +1,21 @@
+import "sorted_by_text.gu"
+
+fn main() -> Int:
+    return 0
+
+fn test_sort_orders_text_in_unicode_order() -> Unit:
+    let sorted = sorted_names(["pear", "apple", "fig", "banana", "Apple"])
+    assert(sorted[0] == "Apple")
+    assert(sorted[1] == "apple")
+    assert(sorted[2] == "banana")
+    assert(sorted[3] == "fig")
+    assert(sorted[4] == "pear")
+
+fn test_sort_by_a_text_key_keeps_equal_keys_in_input_order() -> Unit:
+    let fruits = [Fruit("pear", 1), Fruit("apple", 2), Fruit("fig", 3), Fruit("apple", 4)]
+    let ordered = report(fruits)
+    assert(names_of(ordered)[0] == "apple")
+    assert(ordered[0].count == 2)
+    assert(ordered[1].count == 4)
+    assert(ordered[2].name == "fig")
+    assert(ordered[3].name == "pear")

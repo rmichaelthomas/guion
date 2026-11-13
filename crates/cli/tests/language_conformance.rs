@@ -1357,12 +1357,28 @@ fn unknown_call_cases() -> Vec<UnknownCallCase> {
             suggestions: &["sort", "sqrt"],
         },
         UnknownCallCase {
-            name: "map-offers-only-main",
+            name: "map-offers-main-and-the-list-builtin",
             source: "fn main() -> Int:\n    return map(3)\n",
             callee: "map",
             line: 2,
             column: 12,
-            suggestions: &["main"],
+            suggestions: &["main", "map_list"],
+        },
+        UnknownCallCase {
+            name: "filter-suggests-filter-list",
+            source: "fn main() -> Int:\n    return filter(3)\n",
+            callee: "filter",
+            line: 2,
+            column: 12,
+            suggestions: &["filter_list"],
+        },
+        UnknownCallCase {
+            name: "fold-suggests-fold-list",
+            source: "fn main() -> Int:\n    return fold(3)\n",
+            callee: "fold",
+            line: 2,
+            column: 12,
+            suggestions: &["fold_list"],
         },
         UnknownCallCase {
             name: "iterat-suggests-the-module-function",
@@ -1554,9 +1570,13 @@ fn sort_cases() -> Vec<SortCase> {
 
 #[test]
 fn sort_cases_match_in_both_compilers() {
+    cases_match_in_both_compilers(sort_cases());
+}
+
+fn cases_match_in_both_compilers(cases: Vec<SortCase>) {
     let compiler_artifact = prepare_self_host_compiler();
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
-    for case in sort_cases() {
+    for case in cases {
         let project = TempProject::new(case.name);
         let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
             &binary,
@@ -1613,9 +1633,13 @@ fn sort_cases_match_in_both_compilers() {
 
 #[test]
 fn sort_cases_match_between_stage_two_and_three() {
+    cases_match_between_stages("sort-stages", sort_cases());
+}
+
+fn cases_match_between_stages(label: &str, cases: Vec<SortCase>) {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let stage_directory = repository.join("target/self-hosted-bootstrap");
-    let project = TempProject::new("sort-stages");
+    let project = TempProject::new(label);
     let load = |name: &str| {
         Runtime::new()
             .load(
@@ -1637,7 +1661,7 @@ fn sort_cases_match_between_stage_two_and_three() {
     };
     let mut stage2 = load("stage2.gub");
     let mut stage3 = load("stage3.gub");
-    for case in sort_cases() {
+    for case in cases {
         let source_name = format!("cases/{}/main.gu", case.name);
         project.write(&source_name, case.source);
         let two = compile_with_stage(
@@ -1670,4 +1694,135 @@ fn sort_cases_match_between_stage_two_and_three() {
             ),
         }
     }
+}
+
+// ---- First-class function values (artifact format 66) ----
+
+fn function_value_cases() -> Vec<SortCase> {
+    let double = "fn double(x: Int) -> Int:\n    return x * 2\n\n";
+    let leak = |body: &'static str| -> &'static str {
+        Box::leak(format!("{double}{body}").into_boxed_str())
+    };
+    vec![
+        SortCase {
+            name: "fn-value-let-and-call",
+            source: leak("fn main() -> Unit:\n    let f = double\n    let g: fn(Int) -> Int = f\n    print(f(4))\n    print(g(5))\n"),
+            expected: Ok("8\n10\n"),
+        },
+        SortCase {
+            name: "fn-value-apply-twice",
+            source: leak("fn apply_twice(f: fn(Int) -> Int, x: Int) -> Int:\n    return f(f(x))\n\nfn main() -> Unit:\n    print(apply_twice(double, 3))\n"),
+            expected: Ok("12\n"),
+        },
+        SortCase {
+            name: "fn-value-returned-and-composed",
+            source: leak("fn add_one(x: Int) -> Int:\n    return x + 1\n\nfn pick(first: Bool) -> fn(Int) -> Int:\n    if first:\n        return double\n    return add_one\n\nfn compose(f: fn(Int) -> Int, g: fn(Int) -> Int, x: Int) -> Int:\n    return f(g(x))\n\nfn main() -> Unit:\n    print(compose(pick(true), pick(false), 5))\n"),
+            expected: Ok("12\n"),
+        },
+        SortCase {
+            name: "fn-value-local-shadows-function",
+            source: leak("fn add_one(x: Int) -> Int:\n    return x + 1\n\nfn apply(double: fn(Int) -> Int, x: Int) -> Int:\n    return double(x)\n\nfn main() -> Unit:\n    print(apply(add_one, 1))\n    print(double(1))\n"),
+            expected: Ok("2\n2\n"),
+        },
+        SortCase {
+            name: "fn-value-in-record-list-and-map",
+            source: leak("record Handler:\n    name: Text\n    run: fn(Int) -> Int\n\nfn main() -> Unit:\n    let handler = Handler(\"double\", double)\n    let run = handler.run\n    print(run(21))\n    let fns = [double, double]\n    var total = 0\n    for f in fns:\n        set total = total + f(3)\n    print(total)\n    let by_name = {\"double\": double}\n    match map_get(by_name, \"double\"):\n        Some(f):\n            print(f(9))\n        None:\n            print(\"missing\")\n"),
+            expected: Ok("42\n12\n18\n"),
+        },
+        SortCase {
+            name: "fn-value-sort-by-key-variable",
+            source: "record Person:\n    name: Text\n    score: Int\n\nfn score_of(person: Person) -> Int:\n    return person.score\n\nfn name_of(person: Person) -> Text:\n    return person.name\n\nfn names(people: List[Person]) -> Text:\n    var out = \"\"\n    for person in people:\n        set out = out + person.name\n    return out\n\nfn main() -> Unit:\n    let people = [Person(\"c\", 3), Person(\"a\", 1), Person(\"b\", 2)]\n    let key = score_of\n    print(names(sort_by(people, key)))\n    print(names(sort_by(people, score_of)))\n    let by_name = name_of\n    print(names(sort_by(people, by_name)))\n",
+            expected: Ok("abc\nabc\nabc\n"),
+        },
+        SortCase {
+            name: "fn-value-sort-by-int-key-and-comparator-variables",
+            source: "fn negate(x: Int) -> Int:\n    return 0 - x\n\nfn descending(left: Int, right: Int) -> Int:\n    return right - left\n\nfn main() -> Unit:\n    let key = negate\n    print(sort_by_int_key([1, 3, 2], key))\n    print(merge_sorted_by_int_key([[3, 1], [2]], key))\n    let compare = descending\n    print(sort_by([1, 3, 2], compare))\n",
+            expected: Ok("[3, 2, 1]\n[3, 2, 1]\n[3, 2, 1]\n"),
+        },
+        SortCase {
+            name: "fn-value-parallel-map-variable-worker",
+            source: "fn square(x: Int) -> Int:\n    return x * x\n\nfn main() -> Unit:\n    let worker = square\n    match parallel_map([1, 2, 3], worker, 2):\n        Ok(values):\n            print(values)\n        Err(error):\n            print(\"failed\")\n",
+            expected: Ok("[1, 4, 9]\n"),
+        },
+        SortCase {
+            name: "fn-value-list-builtins",
+            source: leak("fn add(total: Int, x: Int) -> Int:\n    return total + x\n\nfn big(x: Int) -> Bool:\n    return x > 2\n\nfn main() -> Unit:\n    print(map_list([1, 2, 3], double))\n    print(filter_list([1, 2, 3, 4], big))\n    print(fold_list([1, 2, 3], 10, add))\n    print(any_list([1, 2, 3], big))\n    print(all_list([1, 2, 3], big))\n    let f = double\n    print(map_list([4], f))\n"),
+            expected: Ok("[2, 4, 6]\n[3, 4]\n16\ntrue\nfalse\n[8]\n"),
+        },
+        SortCase {
+            name: "fn-value-lambda-is-no-closure",
+            source: leak("fn main() -> Unit:\n    let f = fn(x: Int) -> Int: x + 1\n    print(f(1))\n"),
+            expected: Err(("E_FN_NO_CLOSURES", 5, 13)),
+        },
+        SortCase {
+            name: "fn-value-nested-fn-is-no-closure",
+            source: "fn main() -> Unit:\n    fn inner(x: Int) -> Int:\n        return x\n    print(1)\n",
+            expected: Err(("E_FN_NO_CLOSURES", 2, 5)),
+        },
+        SortCase {
+            name: "fn-value-compare-is-rejected",
+            source: leak("fn main() -> Unit:\n    let f = double\n    let g = double\n    print(f == g)\n"),
+            expected: Err(("E_FN_COMPARE", 7, 13)),
+        },
+        SortCase {
+            name: "fn-value-call-with-wrong-arity",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn main() -> Unit:\n    let f = add\n    print(f(1))\n",
+            expected: Err(("E_CALL_ARITY", 6, 11)),
+        },
+        SortCase {
+            name: "fn-value-call-with-wrong-type",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn main() -> Unit:\n    let f = add\n    print(f(1, \"two\"))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 6, 16)),
+        },
+        SortCase {
+            name: "fn-value-annotation-mismatch",
+            source: leak("fn main() -> Unit:\n    let f: fn(Int) -> Text = double\n    print(1)\n"),
+            expected: Err(("E_TYPE_ANNOTATION", 5, 5)),
+        },
+        SortCase {
+            name: "fn-value-passed-with-the-wrong-shape",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn apply(f: fn(Int) -> Int, x: Int) -> Int:\n    return f(x)\n\nfn main() -> Unit:\n    print(apply(add, 1))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 8, 17)),
+        },
+        SortCase {
+            name: "fn-value-not-serializable-json",
+            source: leak("fn main() -> Unit:\n    let f = double\n    print(json_stringify(json_set(json_object(), \"k\", f)))\n"),
+            expected: Err(("E_FN_NOT_SERIALIZABLE", 6, 55)),
+        },
+        SortCase {
+            name: "fn-value-not-serializable-record-field-in-process-args",
+            source: leak("record Box:\n    run: fn(Int) -> Int\n\nfn main() -> Unit:\n    let box = Box(double)\n    native_process_run(\"ls\", [box], \"\")\n"),
+            expected: Err(("E_FN_NOT_SERIALIZABLE", 9, 30)),
+        },
+        SortCase {
+            name: "fn-value-not-serializable-print",
+            source: leak("fn main() -> Unit:\n    print(double)\n"),
+            expected: Err(("E_FN_NOT_SERIALIZABLE", 5, 11)),
+        },
+        SortCase {
+            name: "fn-value-map-list-wrong-shape",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn main() -> Unit:\n    print(map_list([1], add))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 5, 25)),
+        },
+        SortCase {
+            name: "fn-value-fold-list-wrong-accumulator",
+            source: "fn text_of(a: Text, b: Int) -> Text:\n    return a\n\nfn main() -> Unit:\n    print(fold_list([1], 0, text_of))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 5, 29)),
+        },
+        SortCase {
+            name: "fn-value-call-of-a-non-function-local",
+            source: "fn main() -> Unit:\n    let zzzzz = 3\n    print(zzzzz(1))\n",
+            expected: Err(("E_NAME_UNKNOWN", 3, 11)),
+        },
+    ]
+}
+
+#[test]
+fn function_value_cases_match_in_both_compilers() {
+    cases_match_in_both_compilers(function_value_cases());
+}
+
+#[test]
+fn function_value_cases_match_between_stage_two_and_three() {
+    cases_match_between_stages("function-value-stages", function_value_cases());
 }

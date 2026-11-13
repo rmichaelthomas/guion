@@ -4628,3 +4628,112 @@ fn check_json_reports_suggestions_only_when_there_are_candidates() {
     let stderr = String::from_utf8_lossy(&without.stderr);
     assert!(!stderr.contains("help:"), "{stderr}");
 }
+
+fn run_probe_tests(file: &str, passed: &str) {
+    let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../evaluation/outside/probes/src")
+        .join(file);
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["test", program.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains(passed),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn evaluator_probe_a_loop_that_exits_with_break_passes_guion_test() {
+    run_probe_tests("break_loop_test.gu", "2 tests passed");
+}
+
+#[test]
+fn evaluator_probe_a_report_sorted_by_a_text_key_passes_guion_test() {
+    run_probe_tests("sorted_by_text_test.gu", "2 tests passed");
+}
+
+#[test]
+fn evaluator_probe_a_user_defined_higher_order_function_passes_guion_test() {
+    run_probe_tests("higher_order_test.gu", "3 tests passed");
+}
+
+#[test]
+fn forming_a_function_value_attributes_its_effects_to_the_forming_function() {
+    let dir = std::env::temp_dir().join(format!("guion-fn-effects-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("main.gu");
+    fs::write(
+        &file,
+        "fn writer_fn(x: Int) -> Int:\n    print(x)\n    return x\n\nfn pure_fn(x: Int) -> Int:\n    return x + 1\n\nfn former() -> Int:\n    let f = writer_fn\n    return 0\n\nfn caller(f: fn(Int) -> Int) -> Int:\n    return f(1)\n\nfn fold2(f: fn(Int, Int) -> Int, x: Int, y: Int) -> Int:\n    return f(x, y)\n\nfn passes_by_name() -> Int:\n    return caller(writer_fn)\n\nfn passes_a_pure_name() -> Int:\n    return caller(pure_fn)\n\nfn main() -> Int:\n    let a = former()\n    return passes_a_pure_name()\n",
+    )
+    .unwrap();
+    let inspect = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", "--json", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        inspect.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inspect.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&inspect.stdout).unwrap();
+    let writer = serde_json::json!(["output.write"]);
+    let none = serde_json::json!([]);
+    // Forming the value is enough; nothing calls it.
+    assert_eq!(report["functions"]["former"]["effects"], writer);
+    // Passing the name attributes the effect to the passer; the callee that only calls
+    // through its parameter reports none.
+    assert_eq!(report["functions"]["passes_by_name"]["effects"], writer);
+    assert_eq!(report["functions"]["caller"]["effects"], none);
+    assert_eq!(report["functions"]["passes_a_pure_name"]["effects"], none);
+    // `main` reaches `former`, so it reports the effect too.
+    assert_eq!(report["functions"]["main"]["effects"], writer);
+
+    let human = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(human.status.success());
+    assert!(String::from_utf8_lossy(&human.stdout).contains("output.write"));
+
+    let doc = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["doc", "--json", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        doc.status.success(),
+        "{}",
+        String::from_utf8_lossy(&doc.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&doc.stdout).unwrap();
+    let functions = report["functions"].as_array().unwrap();
+    let find = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is documented"))
+    };
+    assert_eq!(find("former")["effects"], writer);
+    assert_eq!(find("passes_by_name")["effects"], writer);
+    assert_eq!(find("caller")["effects"], none);
+    assert_eq!(find("caller")["parameters"][0]["name"], "f");
+    assert_eq!(find("caller")["parameters"][0]["type"], "fn(Int) -> Int");
+    // A parameter of function type does not hide the names of the parameters after it.
+    assert_eq!(find("fold2")["parameters"][0]["name"], "f");
+    assert_eq!(
+        find("fold2")["parameters"][0]["type"],
+        "fn(Int, Int) -> Int"
+    );
+    assert_eq!(find("fold2")["parameters"][1]["name"], "x");
+    assert_eq!(find("fold2")["parameters"][2]["name"], "y");
+    let _ = fs::remove_dir_all(dir);
+}

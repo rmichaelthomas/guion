@@ -1,0 +1,23 @@
+# Evaluator probe: a report sorted by a text key (the outside program's `T2-sort-text.gu`,
+# which had to write its own insertion sort).
+
+pub record Fruit:
+    name: Text
+    count: Int
+
+pub fn fruit_name(fruit: Fruit) -> Text:
+    return fruit.name
+
+pub fn sorted_names(names: List[Text]) -> List[Text]:
+    return sort(names)
+
+pub fn report(fruits: List[Fruit]) -> List[Fruit]:
+    return sort_by(fruits, fruit_name)
+
+pub fn names_of(fruits: List[Fruit]) -> List[Text]:
+    return map_list(fruits, fruit_name)
+
+fn main() -> Int:
+    for name in sorted_names(["pear", "apple", "fig", "banana", "Apple"]):
+        print("sorted_item: " + name)
+    return 0

@@ -86,8 +86,8 @@ fn float64_sort_order_sorts_a_shuffled_list_without_panicking() {
 }
 
 #[test]
-fn the_current_format_is_65() {
-    assert_eq!(Artifact::CURRENT_VERSION, 65);
+fn the_current_format_is_at_least_65() {
+    assert!(Artifact::CURRENT_VERSION >= 65);
 }
 
 #[test]

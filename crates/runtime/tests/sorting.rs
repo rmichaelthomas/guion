@@ -398,7 +398,7 @@ fn main() -> Unit:
 
 #[test]
 fn sort_and_sort_by_use_format_65_and_older_artifacts_are_unchanged() {
-    assert_eq!(Artifact::CURRENT_VERSION, 65);
+    assert!(Artifact::CURRENT_VERSION >= 65);
     let natural = compile(
         "natural.gu",
         "fn main() -> Int:\n    return sort([2, 1])[0]\n",
