@@ -1,6 +1,28 @@
 import "std:jsonl"
 import "std:json"
 
+pub record PathCount:
+    path: Text
+    count: Int
+
+fn by_name(item: PathCount) -> Text:
+    return item.path
+
+fn by_count_descending(item: PathCount) -> Int:
+    return 0 - item.count
+
+fn path_counts(counts: Map[Text, Int]) -> List[PathCount]:
+    var items: List[PathCount] = []
+    for path in counts:
+        set items = list_push(items, PathCount(path, counts[path]))
+    return items
+
+pub fn report_by_path(counts: Map[Text, Int]) -> List[PathCount]:
+    return sort_by(path_counts(counts), by_name)
+
+pub fn report_by_count(counts: Map[Text, Int]) -> List[PathCount]:
+    return sort_by(path_counts(counts), by_count_descending)
+
 fn bump(counts: Map[Text, Int], key: Text) -> Map[Text, Int]:
     if map_has(counts, key):
         return map_set(counts, key, counts[key] + 1)
@@ -60,9 +82,9 @@ fn main() -> Int:
     print("error rate: " + int_to_text(rate) + "%")
     var top = "-"
     var top_count = 0
-    for path in by_path:
-        if by_path[path] > top_count:
-            set top = path
-            set top_count = by_path[path]
+    let ranked = report_by_count(by_path)
+    if len(ranked) > 0:
+        set top = ranked[0].path
+        set top_count = ranked[0].count
     print("top path: " + top + " " + int_to_text(top_count))
     return 0

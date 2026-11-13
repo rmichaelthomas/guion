@@ -4377,6 +4377,25 @@ fn loop_jump_fixture_passes_guion_test() {
 }
 
 #[test]
+fn outside_jsonl_summary_report_helpers_pass_guion_test() {
+    // The outside summarizer ranks its report with `sort_by`: by path name, and separately by
+    // count descending with ties kept in path order.
+    let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../evaluation/outside/jsonl-summary/src/report_test.gu");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["test", program.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("3 tests passed"));
+}
+
+#[test]
 fn break_outside_a_loop_is_rejected_by_check_with_e_no_loop() {
     let dir = std::env::temp_dir().join(format!("guion-no-loop-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
