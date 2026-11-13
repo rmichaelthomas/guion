@@ -4320,3 +4320,41 @@ fn native_lowering_coalesces_straight_line_bytecode() {
 
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn run_json_step_limit_report_carries_used_and_limit() {
+    let dir = std::env::temp_dir().join(format!("guion-json-step-limit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("guion.toml"),
+        "[project]\nname = \"step-limit\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[runtime]\ninstruction_limit = 500\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("main.gu"),
+        "fn main() -> Int:\n    var i = 0\n    while true:\n        set i = i + 1\n    return i\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", "main.gu"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|e| {
+        panic!(
+            "{e}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    });
+    let diagnostic = &report["diagnostic"];
+    assert_eq!(diagnostic["code"], "R_STEP_LIMIT");
+    assert_eq!(diagnostic["limit"], 500);
+    assert_eq!(diagnostic["used"], 500);
+    assert!(diagnostic["message"]
+        .as_str()
+        .unwrap()
+        .contains("`instruction_limit` under `[runtime]`"));
+    let _ = fs::remove_dir_all(dir);
+}

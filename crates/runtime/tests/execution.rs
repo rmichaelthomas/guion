@@ -8108,3 +8108,35 @@ fn the_vm_releases_array_kernel_temporaries_to_the_budget() {
     let error = run(holds_outputs / 2).expect_err("half the outputs do not fit");
     assert_eq!(error.code, "R_ALLOCATION_LIMIT");
 }
+
+#[test]
+fn step_limit_message_names_ceiling_and_key() {
+    let source =
+        "fn main() -> Int:\n    var i = 0\n    while true:\n        set i = i + 1\n    return i\n";
+    let artifact = compile("step-limit-message.gu", source).expect("loop compiles");
+    for vm_only in [true, false] {
+        let policy = HostPolicy {
+            instruction_limit: 500,
+            ..HostPolicy::default()
+        };
+        let mut runtime = if vm_only {
+            Runtime::vm_only()
+        } else {
+            Runtime::new()
+        }
+        .load(artifact.clone(), policy)
+        .expect("loop loads");
+        let error = runtime.invoke("main", vec![]).unwrap_err();
+        assert_eq!(error.code, "R_STEP_LIMIT");
+        assert!(
+            error.message.contains("500")
+                && error.message.contains("instructions used")
+                && error
+                    .message
+                    .contains("`instruction_limit` under `[runtime]`"),
+            "vm_only={vm_only}: {}",
+            error.message
+        );
+        assert_eq!(error.step_usage, Some((500, 500)), "vm_only={vm_only}");
+    }
+}

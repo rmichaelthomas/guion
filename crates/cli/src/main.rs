@@ -4136,11 +4136,16 @@ fn runtime_diagnostic_json(
             })
         })
         .collect::<Vec<_>>();
-    serde_json::json!({
+    let mut diagnostic = serde_json::json!({
         "code": error.code,
         "message": error.message,
         "trace": trace
-    })
+    });
+    if let Some((used, limit)) = error.step_usage {
+        diagnostic["used"] = serde_json::json!(used);
+        diagnostic["limit"] = serde_json::json!(limit);
+    }
+    diagnostic
 }
 
 fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeError) -> String {

@@ -3306,11 +3306,7 @@ fn consume_sort_step(budget: &Budget, span: Span) -> Result<(), RuntimeError> {
         ));
     }
     if !budget.consume() {
-        return Err(RuntimeError::new(
-            "R_STEP_LIMIT",
-            "instruction budget exhausted",
-            span,
-        ));
+        return Err(guion_vm_core::step_limit_error(budget, span));
     }
     Ok(())
 }
@@ -8792,13 +8788,16 @@ impl Instance {
                             .get(outcome.fault_ip)
                             .map(|i| i.span)
                             .unwrap_or_default();
-                        return Err(native_runtime_error(
+                        let step_error = guion_vm_core::step_limit_error(&budget, span);
+                        let mut error = native_runtime_error(
                             &self.artifact,
                             &outcome.trace,
-                            "R_STEP_LIMIT",
-                            "instruction budget exhausted",
+                            step_error.code,
+                            step_error.message,
                             span,
-                        ));
+                        );
+                        error.step_usage = step_error.step_usage;
+                        return Err(error);
                     }
                     4 => {
                         let span = fault_frame
@@ -9120,6 +9119,7 @@ impl Instance {
         // The workers share one bounded child budget, so the total remains bounded.
         let worker_budget = Arc::new(Budget {
             remaining: AtomicU64::new(budget.reserve_parallel()),
+            instruction_limit: budget.instruction_limit,
             allocation: budget.allocation.clone(),
             allocation_floor: budget.parallel_allocation_floor(),
             cancellation: budget.cancellation.clone(),

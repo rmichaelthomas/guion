@@ -6764,6 +6764,8 @@ pub struct RuntimeError {
     pub code: String,
     pub message: String,
     pub trace: Vec<Span>,
+    /// `(used, limit)` for an `R_STEP_LIMIT` error; `None` for every other code.
+    pub step_usage: Option<(u64, u64)>,
 }
 
 impl RuntimeError {
@@ -6772,6 +6774,7 @@ impl RuntimeError {
             code: code.into(),
             message: message.into(),
             trace: vec![span],
+            step_usage: None,
         }
     }
 }

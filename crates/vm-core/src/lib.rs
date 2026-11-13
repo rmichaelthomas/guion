@@ -774,11 +774,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             ));
         }
         if !instruction_fuel.consume() {
-            return Err(RuntimeError::new(
-                "R_STEP_LIMIT",
-                "instruction budget exhausted",
-                f.code[ip].span,
-            ));
+            return Err(step_limit_error(budget, f.code[ip].span));
         }
         if PROFILED {
             if let Some(profile) = &budget.runtime_profile {
@@ -937,22 +933,14 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction_ref.span,
                     )?;
                     if !instruction_fuel.consume() {
-                        return Err(RuntimeError::new(
-                            "R_STEP_LIMIT",
-                            "instruction budget exhausted",
-                            next.span,
-                        ));
+                        return Err(step_limit_error(budget, next.span));
                     }
                     record_skipped_instruction!(ip, next);
                     if let LoadFastPath::ListIndex(field) = fast_path {
                         let index_ip = ip + 1;
                         let index_instruction = &f.code[index_ip];
                         if !instruction_fuel.consume() {
-                            return Err(RuntimeError::new(
-                                "R_STEP_LIMIT",
-                                "instruction budget exhausted",
-                                index_instruction.span,
-                            ));
+                            return Err(step_limit_error(budget, index_instruction.span));
                         }
                         record_skipped_instruction!(index_ip, index_instruction);
                         charge_allocation(
@@ -2291,11 +2279,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             }
                             let skipped_instruction = &f.code[skipped_ip];
                             if !instruction_fuel.consume() {
-                                return Err(RuntimeError::new(
-                                    "R_STEP_LIMIT",
-                                    "instruction budget exhausted",
-                                    skipped_instruction.span,
-                                ));
+                                return Err(step_limit_error(budget, skipped_instruction.span));
                             }
                             record_skipped_instruction!(skipped_ip, skipped_instruction);
                             match &skipped_instruction.op {
@@ -4151,11 +4135,7 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
             ));
         }
         if !instruction_fuel.consume() {
-            return Err(RuntimeError::new(
-                "R_STEP_LIMIT",
-                "instruction budget exhausted",
-                instruction.span,
-            ));
+            return Err(step_limit_error(budget, instruction.span));
         }
         if PROFILED {
             if let Some(profile) = &budget.runtime_profile {
@@ -5305,6 +5285,8 @@ impl AllocationPool {
 
 pub struct Budget {
     pub remaining: AtomicU64,
+    /// The configured instruction ceiling, kept only to name it in `R_STEP_LIMIT`.
+    pub instruction_limit: u64,
     pub allocation: Arc<AllocationPool>,
     pub allocation_floor: usize,
     pub cancellation: CancellationToken,
@@ -5412,6 +5394,7 @@ impl Budget {
     ) -> Self {
         Self {
             remaining: AtomicU64::new(instruction_limit),
+            instruction_limit,
             allocation: Arc::new(AllocationPool::new(allocation_limit)),
             allocation_floor: 0,
             cancellation,
@@ -5552,6 +5535,25 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
 /// learns which setting raises it.
 pub const ALLOCATION_LIMIT_HINT: &str =
     "; raise `allocation_limit_bytes` under `[runtime]` in guion.toml";
+
+/// Said at the end of every step-limit message, so the person who hits the limit
+/// learns which setting raises it.
+pub const STEP_LIMIT_HINT: &str = "; raise `instruction_limit` under `[runtime]` in guion.toml";
+
+/// The `R_STEP_LIMIT` error. Raised only once the budget has run dry, so everything the
+/// ceiling allowed has been used; `used` is the ceiling less what the budget still holds.
+#[cold]
+pub fn step_limit_error(budget: &Budget, span: Span) -> RuntimeError {
+    let limit = budget.instruction_limit;
+    let used = limit.saturating_sub(budget.remaining.load(Ordering::Relaxed));
+    let mut error = RuntimeError::new(
+        "R_STEP_LIMIT",
+        format!("instruction budget exhausted: {used} instructions used of {limit} allowed{STEP_LIMIT_HINT}"),
+        span,
+    );
+    error.step_usage = Some((used, limit));
+    error
+}
 
 #[cold]
 pub fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
@@ -9226,6 +9228,7 @@ mod tests {
         let parent = Budget::new(10, usize::MAX, CancellationToken::new(), None);
         let worker = Budget {
             remaining: AtomicU64::new(3),
+            instruction_limit: parent.instruction_limit,
             allocation: parent.allocation.clone(),
             allocation_floor: 0,
             cancellation: parent.cancellation.clone(),
