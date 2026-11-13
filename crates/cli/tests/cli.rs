@@ -4551,3 +4551,61 @@ fn doc_all_json_is_sorted_and_covers_every_module() {
     let again = guion_doc(&["--all", "--json"]);
     assert_eq!(again.stdout, output.stdout);
 }
+
+fn check_unknown_call(name: &str, extra: &[&str], source: &str) -> std::process::Output {
+    let dir = std::env::temp_dir().join(format!("guion-suggest-{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("main.gu");
+    fs::write(&path, source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("check")
+        .args(extra)
+        .arg(&path)
+        .output()
+        .unwrap();
+    let _ = fs::remove_dir_all(dir);
+    output
+}
+
+#[test]
+fn check_prints_a_help_line_for_a_near_miss_call_name() {
+    let output = check_unknown_call(
+        "text",
+        &[],
+        "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(1)\n",
+    );
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "error[E_NAME_UNKNOWN]: unknown function `iterat`\nhelp: did you mean `iterate`?"
+        ),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn check_json_reports_suggestions_only_when_there_are_candidates() {
+    let with = check_unknown_call(
+        "json",
+        &["--json"],
+        "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(1)\n",
+    );
+    let report: serde_json::Value = serde_json::from_slice(&with.stdout).unwrap();
+    assert_eq!(report["diagnostic"]["code"], "E_NAME_UNKNOWN");
+    assert_eq!(
+        report["diagnostic"]["suggestions"],
+        serde_json::json!(["iterate"])
+    );
+    let without = check_unknown_call(
+        "json-none",
+        &["--json"],
+        "fn main() -> Int:\n    return qzxwv(1)\n",
+    );
+    let report: serde_json::Value = serde_json::from_slice(&without.stdout).unwrap();
+    assert_eq!(report["diagnostic"]["code"], "E_NAME_UNKNOWN");
+    assert!(report["diagnostic"].get("suggestions").is_none());
+    let stderr = String::from_utf8_lossy(&without.stderr);
+    assert!(!stderr.contains("help:"), "{stderr}");
+}

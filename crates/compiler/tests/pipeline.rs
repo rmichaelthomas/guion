@@ -356,3 +356,56 @@ fn break_and_continue_outside_a_loop_report_e_no_loop() {
     assert_eq!(error.code, "E_NO_LOOP");
     assert_eq!((error.span.line, error.span.column), (6, 9));
 }
+
+fn unknown_call_error(source: &str) -> guion_model::Diagnostic {
+    compile("suggest.gu", source).expect_err("the call name is unknown")
+}
+
+#[test]
+fn unknown_call_suggests_the_nearest_builtin_and_keeps_the_code() {
+    let error = unknown_call_error("fn main() -> Int:\n    return sort(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.message, "unknown function `sort`");
+    // `sort_by_int_key` is eleven edits away, far outside the threshold; `sqrt` is one.
+    assert_eq!(error.suggestions(), vec!["sqrt".to_string()]);
+}
+
+#[test]
+fn unknown_call_suggests_functions_from_the_module() {
+    let source =
+        "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(3)\n";
+    let error = unknown_call_error(source);
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["iterate".to_string()]);
+}
+
+#[test]
+fn unknown_call_with_no_near_candidate_gets_none() {
+    let error = unknown_call_error("fn main() -> Int:\n    return qzxwv(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert!(error.suggestions().is_empty(), "{:?}", error.suggestions());
+}
+
+#[test]
+fn unknown_map_call_has_no_builtin_candidate_and_only_offers_main() {
+    // No builtin is within distance 2 of `map`; the module's own `main` is one edit away.
+    let error = unknown_call_error("fn main() -> Int:\n    return map(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["main".to_string()]);
+}
+
+#[test]
+fn unknown_call_suggestions_are_capped_at_three_and_ordered() {
+    let source = "fn tab1() -> Int:\n    return 1\n\nfn tab2() -> Int:\n    return 1\n\nfn tab3() -> Int:\n    return 1\n\nfn tab() -> Int:\n    return 1\n\nfn tabs() -> Int:\n    return 1\n\nfn main() -> Int:\n    return tabb()\n";
+    let error = unknown_call_error(source);
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["tab", "tab1", "tab2"]);
+}
+
+#[test]
+fn unknown_local_variable_gets_no_suggestion() {
+    let source = "fn main() -> Int:\n    let total = 1\n    return totl\n";
+    let error = unknown_call_error(source);
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert!(error.suggestions().is_empty());
+}

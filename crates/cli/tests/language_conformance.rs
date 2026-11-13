@@ -591,6 +591,7 @@ struct DiagnosticLocation {
     source: String,
     line: usize,
     column: usize,
+    suggestions: Vec<String>,
 }
 
 fn bootstrap_location(error: &Diagnostic) -> DiagnosticLocation {
@@ -599,6 +600,7 @@ fn bootstrap_location(error: &Diagnostic) -> DiagnosticLocation {
         source: error.source_name.clone().unwrap_or_default(),
         line: error.span.line,
         column: error.span.column,
+        suggestions: error.suggestions().to_vec(),
     }
 }
 
@@ -608,6 +610,16 @@ fn self_host_location(diagnostic: &Value) -> Option<DiagnosticLocation> {
         source: diagnostic.get("source_name")?.as_str()?.to_string(),
         line: diagnostic.get("span")?.get("line")?.as_u64()? as usize,
         column: diagnostic.get("span")?.get("column")?.as_u64()? as usize,
+        suggestions: diagnostic
+            .get("suggestions")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
     })
 }
 
@@ -1216,6 +1228,7 @@ fn break_and_continue_cases_match_in_both_compilers() {
                     source: "main.gu".into(),
                     line,
                     column,
+                    suggestions: Vec::new(),
                 };
                 assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
                 assert_eq!(
@@ -1319,5 +1332,168 @@ fn break_and_continue_cases_match_between_stage_two_and_three() {
                 case.name
             ),
         }
+    }
+}
+
+// ---- Suggestions on unknown call names (B9) ----
+
+struct UnknownCallCase {
+    name: &'static str,
+    source: &'static str,
+    callee: &'static str,
+    line: usize,
+    column: usize,
+    suggestions: &'static [&'static str],
+}
+
+fn unknown_call_cases() -> Vec<UnknownCallCase> {
+    vec![
+        UnknownCallCase {
+            name: "sort-suggests-sqrt",
+            source: "fn main() -> Int:\n    return sort(3)\n",
+            callee: "sort",
+            line: 2,
+            column: 12,
+            suggestions: &["sqrt"],
+        },
+        UnknownCallCase {
+            name: "map-offers-only-main",
+            source: "fn main() -> Int:\n    return map(3)\n",
+            callee: "map",
+            line: 2,
+            column: 12,
+            suggestions: &["main"],
+        },
+        UnknownCallCase {
+            name: "iterat-suggests-the-module-function",
+            source: "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(3)\n",
+            callee: "iterat",
+            line: 5,
+            column: 12,
+            suggestions: &["iterate"],
+        },
+        UnknownCallCase {
+            name: "nonsense-name-gets-none",
+            source: "fn main() -> Int:\n    return qzxwv(3)\n",
+            callee: "qzxwv",
+            line: 2,
+            column: 12,
+            suggestions: &[],
+        },
+        UnknownCallCase {
+            name: "three-way-tie-is-capped-and-sorted-by-name",
+            source: "fn tab1() -> Int:\n    return 1\n\nfn tab2() -> Int:\n    return 1\n\nfn tab3() -> Int:\n    return 1\n\nfn tab() -> Int:\n    return 1\n\nfn main() -> Int:\n    return tabb()\n",
+            callee: "tabb",
+            line: 14,
+            column: 12,
+            suggestions: &["tab", "tab1", "tab2"],
+        },
+        UnknownCallCase {
+            name: "closer-candidate-sorts-first",
+            source: "fn length() -> Int:\n    return 1\n\nfn main() -> Int:\n    return lenth(3)\n",
+            callee: "lenth",
+            line: 5,
+            column: 12,
+            suggestions: &["length", "len"],
+        },
+    ]
+}
+
+#[test]
+fn unknown_call_suggestions_match_in_both_compilers() {
+    let compiler_artifact = prepare_self_host_compiler();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in unknown_call_cases() {
+        let project = TempProject::new(case.name);
+        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
+            &binary,
+            &compiler_artifact,
+            &project,
+            case.source,
+            case.name,
+        );
+        let expected = DiagnosticLocation {
+            code: "E_NAME_UNKNOWN".into(),
+            source: "main.gu".into(),
+            line: case.line,
+            column: case.column,
+            suggestions: case.suggestions.iter().map(|s| s.to_string()).collect(),
+        };
+        assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
+        assert_eq!(
+            bootstrap_diagnostic.as_ref(),
+            Some(&expected),
+            "{}",
+            case.name
+        );
+        assert_eq!(
+            self_host_diagnostic.as_ref(),
+            Some(&expected),
+            "{}",
+            case.name
+        );
+        let _ = case.callee;
+    }
+}
+
+#[test]
+fn unknown_call_suggestions_match_between_stage_two_and_three() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stage_directory = repository.join("target/self-hosted-bootstrap");
+    let project = TempProject::new("unknown-call-stages");
+    let load = |name: &str| {
+        Runtime::new()
+            .load(
+                Artifact::from_bytes(
+                    &fs::read(stage_directory.join(name))
+                        .expect("run three-stage bootstrap before stage conformance"),
+                )
+                .expect("native reader accepts the stage artifact"),
+                HostPolicy {
+                    instruction_limit: 500_000_000,
+                    allocation_limit_bytes: 8_589_934_592,
+                    call_depth_limit: 160,
+                    max_collection_items: 1_000_000,
+                    ..HostPolicy::default()
+                }
+                .with_file_access(&project.0, true, false),
+            )
+            .expect("load stage compiler")
+    };
+    let mut stage2 = load("stage2.gub");
+    let mut stage3 = load("stage3.gub");
+    for case in unknown_call_cases() {
+        let source_name = format!("cases/{}/main.gu", case.name);
+        project.write(&source_name, case.source);
+        let two = compile_with_stage(
+            &mut stage2,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let three = compile_with_stage(
+            &mut stage3,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let (Err(two), Err(three)) = (two, three) else {
+            panic!("{}: expected a diagnostic from both stages", case.name);
+        };
+        assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
+        assert_eq!(two["diagnostic"]["code"], "E_NAME_UNKNOWN", "{}", case.name);
+        let suggestions: Vec<String> = two["diagnostic"]
+            .get("suggestions")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|i| i.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert_eq!(suggestions, case.suggestions, "{}", case.name);
     }
 }
