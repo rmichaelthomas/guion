@@ -366,6 +366,14 @@ fn parse_return(tokens: List[Token], start: Int) -> ParseStep:
         return rejected("expected newline after return", value.next)
     return parsed(attach_node(node("Return", tokens[start].character_index), "value", value.value), value.next + 1)
 
+fn parse_loop_jump(tokens: List[Token], start: Int) -> ParseStep:
+    if not is_token(tokens, start + 1, "Newline", ""):
+        return rejected("expected newline after `" + tokens[start].text + "`", start + 1)
+    var kind = "Break"
+    if tokens[start].text == "continue":
+        set kind = "Continue"
+    return parsed(node(kind, tokens[start].character_index), start + 2)
+
 fn parse_for(tokens: List[Token], start: Int) -> ParseStep:
     let first = tokens[start]
     if not is_token(tokens, start + 1, "Name", tokens[start + 1].text):
@@ -489,6 +497,8 @@ fn parse_statement(tokens: List[Token], start: Int) -> ParseStep:
         return parse_match(tokens, start)
     if first.text == "for":
         return parse_for(tokens, start)
+    if first.text == "break" or first.text == "continue":
+        return parse_loop_jump(tokens, start)
     return parse_call_statement(tokens, start)
 
 fn parse_function(tokens: List[Token], start: Int, public: Bool) -> ParseStep:

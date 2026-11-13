@@ -611,6 +611,8 @@ enum Stmt {
     While(Expr, Vec<Stmt>, Span),
     For(String, Expr, Vec<Stmt>, Span),
     Match(Expr, Vec<MatchArm>, Span),
+    Break(Span),
+    Continue(Span),
     Expr(Expr, Span),
 }
 #[derive(Clone, Debug)]
@@ -1139,6 +1141,15 @@ impl Parser {
                 };
                 Ok(Stmt::If(c, yes, no, t.span))
             }
+            "break" | "continue" => {
+                self.advance();
+                self.expect_newline()?;
+                Ok(if t.text == "break" {
+                    Stmt::Break(t.span)
+                } else {
+                    Stmt::Continue(t.span)
+                })
+            }
             "while" => {
                 self.advance();
                 let c = self.expr(0)?;
@@ -1399,6 +1410,13 @@ struct FnCompiler<'a> {
     locals: HashMap<String, Local>,
     next_local: usize,
     code: Vec<Instruction>,
+    loops: Vec<LoopFrame>,
+}
+/// Jumps emitted by `break` and `continue` inside one loop, patched when the loop ends.
+#[derive(Default)]
+struct LoopFrame {
+    breaks: Vec<usize>,
+    continues: Vec<usize>,
 }
 impl<'a> FnCompiler<'a> {
     fn emit(&mut self, op: Op, span: Span) -> usize {
@@ -3120,10 +3138,19 @@ impl<'a> FnCompiler<'a> {
                     }
                     let exit = self.emit(Op::JumpIfFalse(0), *span);
                     let before = self.locals.clone();
+                    self.loops.push(LoopFrame::default());
                     self.stmts(body)?;
+                    let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = before;
                     self.emit(Op::Jump(start), *span);
-                    self.patch(exit, self.code.len());
+                    let end = self.code.len();
+                    self.patch(exit, end);
+                    for jump in frame.breaks {
+                        self.patch(jump, end);
+                    }
+                    for jump in frame.continues {
+                        self.patch(jump, start);
+                    }
                 }
                 Stmt::For(name, values, body, span) => {
                     let item_type = match self.expr(values)? {
@@ -3174,14 +3201,42 @@ impl<'a> FnCompiler<'a> {
                             mutable: false,
                         },
                     );
+                    self.loops.push(LoopFrame::default());
                     self.stmts(body)?;
+                    let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = old_locals;
+                    let advance = self.code.len();
                     self.emit(Op::Load(index_slot), *span);
                     self.emit(Op::Const(Value::Int(BigInt::one())), *span);
                     self.emit(Op::Add, *span);
                     self.emit(Op::Store(index_slot), *span);
                     self.emit(Op::Jump(start), *span);
-                    self.patch(exit, self.code.len());
+                    let end = self.code.len();
+                    self.patch(exit, end);
+                    for jump in frame.breaks {
+                        self.patch(jump, end);
+                    }
+                    for jump in frame.continues {
+                        self.patch(jump, advance);
+                    }
+                }
+                Stmt::Break(span) | Stmt::Continue(span) => {
+                    let is_break = matches!(s, Stmt::Break(_));
+                    if self.loops.is_empty() {
+                        let word = if is_break { "break" } else { "continue" };
+                        return Err(diagnostic(
+                            "E_NO_LOOP",
+                            format!("`{word}` outside a loop"),
+                            *span,
+                        ));
+                    }
+                    let jump = self.emit(Op::Jump(0), *span);
+                    let frame = self.loops.last_mut().expect("checked above");
+                    if is_break {
+                        frame.breaks.push(jump);
+                    } else {
+                        frame.continues.push(jump);
+                    }
                 }
                 Stmt::Match(value, arms, span) => {
                     let value_type = self.expr(value)?;
@@ -4265,6 +4320,7 @@ fn compile_program(
             locals: HashMap::new(),
             next_local: 0,
             code: Vec::new(),
+            loops: Vec::new(),
         };
         for (name, ty, span) in &f.params {
             let slot = compiler.next_local;

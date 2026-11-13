@@ -1394,6 +1394,23 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         return expression_result(append_code(code, singleton(instruction)), function_result_at(functions, known_index, records))
     return expression_result(empty_code(), "Unit")
 
+fn innermost_loop_marker(locals: List[Json]) -> Json:
+    var cursor = len(locals) - 1
+    while cursor >= 0:
+        if json_as_text(json_get(locals[cursor], "name")) == "$loop":
+            return locals[cursor]
+        set cursor = cursor - 1
+    return json_null()
+
+fn loop_jump_label(locals: List[Json], is_break: Bool) -> Int:
+    let marker = innermost_loop_marker(locals)
+    let base = json_as_int(json_get(marker, "slot"))
+    if is_break:
+        return base + 1
+    if json_as_text(json_get(marker, "type")) == "For":
+        return base + 2
+    return base
+
 fn compile_block(statements: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> CompilerState:
     var result = state
     var cursor = 0
@@ -1503,7 +1520,7 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         set next_code = append_code(next_code, expression_code(expression(json_get(statement, "condition"), state, functions, records, "")))
         let branch = start + 1
         set next_code = append_code(next_code, singleton(ir_jump("JumpIfFalse", branch)))
-        var body_state = state_with_code(state, next_code)
+        var body_state = state_with_locals(state_with_code(state, next_code), add_local(state.locals, "$loop", start, "While", false), state.next_local)
         set body_state = compile_block(json_get(statement, "body"), body_state, functions, records)
         set next_code = append_code(body_state.code, singleton(ir_jump("Jump", start)))
         set next_code = append_code(next_code, singleton(ir_label(branch)))
@@ -1539,10 +1556,11 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         set next_code = append_code(next_code, singleton(ir_instruction("Index")))
         set next_code = append_code(next_code, singleton(ir_integer("Store", "local", item_slot)))
         let name = json_as_text(json_get(statement, "name"))
-        let loop_locals = add_local(state.locals, name, item_slot, item_type, false)
+        let loop_locals = add_local(add_local(state.locals, "$loop", start, "For", false), name, item_slot, item_type, false)
         var body_state = CompilerState(next_code, loop_locals, item_slot + 1, state.returned, state.return_type, state.source)
         set body_state = compile_block(json_get(statement, "body"), body_state, functions, records)
-        set next_code = append_code(body_state.code, singleton(ir_integer("Load", "local", index_slot)))
+        set next_code = append_code(body_state.code, singleton(ir_label(start + 2)))
+        set next_code = append_code(next_code, singleton(ir_integer("Load", "local", index_slot)))
         set next_code = append_code(next_code, singleton(ir_text("ConstInt", "value", "1")))
         set next_code = append_code(next_code, singleton(ir_instruction("Add")))
         set next_code = append_code(next_code, singleton(ir_integer("Store", "local", index_slot)))
@@ -1552,6 +1570,8 @@ fn compile_statement(statement: Json, state: CompilerState, functions: List[Func
         if next_local < item_slot + 1:
             set next_local = item_slot + 1
         return CompilerState(next_code, state.locals, next_local, state.returned, state.return_type, state.source)
+    if kind == "Break" or kind == "Continue":
+        return state_with_code(state, append_code(code, singleton(ir_jump("Jump", loop_jump_label(state.locals, kind == "Break")))))
     if kind == "Match":
         let matched = expression(json_get(statement, "value"), state, functions, records, "")
         let matched_type = expression_type(matched)
@@ -1872,6 +1892,33 @@ fn find_unknown_call_in_block(statements: Json, functions: List[FunctionSignatur
             var arm_cursor = 0
             while json_is_null(failure) and arm_cursor < json_len(arms):
                 set failure = find_unknown_call_in_block(json_get(json_index(arms, arm_cursor), "body"), functions, records, source_name, source)
+                set arm_cursor = arm_cursor + 1
+        if not json_is_null(failure):
+            return failure
+        set cursor = cursor + 1
+    return json_null()
+
+fn find_loop_jump_outside_loop(statements: Json, inside_loop: Bool, source_name: Text, source: Text) -> Json:
+    var cursor = 0
+    while cursor < json_len(statements):
+        let statement = json_index(statements, cursor)
+        let kind = json_as_text(json_get(statement, "kind"))
+        var failure = json_null()
+        if kind == "Break" and not inside_loop:
+            set failure = failure_at_node("E_NO_LOOP", "`break` outside a loop", statement, source_name, source, 5)
+        if kind == "Continue" and not inside_loop:
+            set failure = failure_at_node("E_NO_LOOP", "`continue` outside a loop", statement, source_name, source, 8)
+        if kind == "If":
+            set failure = find_loop_jump_outside_loop(json_get(statement, "body"), inside_loop, source_name, source)
+            if json_is_null(failure) and json_has(statement, "alternate"):
+                set failure = find_loop_jump_outside_loop(json_get(statement, "alternate"), inside_loop, source_name, source)
+        if kind == "While" or kind == "For":
+            set failure = find_loop_jump_outside_loop(json_get(statement, "body"), true, source_name, source)
+        if kind == "Match":
+            let arms = json_get(statement, "arms")
+            var arm_cursor = 0
+            while json_is_null(failure) and arm_cursor < json_len(arms):
+                set failure = find_loop_jump_outside_loop(json_get(json_index(arms, arm_cursor), "body"), inside_loop, source_name, source)
                 set arm_cursor = arm_cursor + 1
         if not json_is_null(failure):
             return failure
@@ -2737,6 +2784,9 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
         let type_failure = find_type_error_in_block(json_get(function, "body"), typed_state, visible_functions, visible_records, function_source_name, function_source)
         if not json_is_null(type_failure):
             return type_failure
+        let loop_jump_failure = find_loop_jump_outside_loop(json_get(function, "body"), false, function_source_name, function_source)
+        if not json_is_null(loop_jump_failure):
+            return loop_jump_failure
         if result_type != "Unit" and not block_always_returns(json_get(function, "body")):
             return failure_at_node("E_RETURN_MISSING", "function does not return a value on every path", function, function_source_name, function_source, 2)
         set validation_cursor = validation_cursor + 1

@@ -2,6 +2,10 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## 0.3.0 (unreleased)
+
+- `break` and `continue` are new statements for `while` and `for` loops, and they are now reserved words at the start of a statement. Outside a loop they fail with `E_NO_LOOP`. The artifact format is unchanged.
+
 ## 0.2.0 — 2026-11-12
 
 - Added a written [stability policy](docs/stability-policy.md): source compatibility within a minor series, the artifact formats the runtime reads (14 through 64), a deprecation period of at least one full minor release, how library packages are distributed and pinned, and what is not promised.
