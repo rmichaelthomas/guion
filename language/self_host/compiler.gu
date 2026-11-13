@@ -494,6 +494,15 @@ fn is_record(records: List[RecordSignature], name: Text) -> Bool:
 fn type_name(value: Json, records: List[RecordSignature]) -> Text:
     let name = json_as_text(json_get(value, "name"))
     let arguments = json_get(value, "arguments")
+    if name == "fn":
+        var parameters = ""
+        var parameter_cursor = 0
+        while parameter_cursor < json_len(arguments) - 1:
+            if parameter_cursor > 0:
+                set parameters = parameters + ", "
+            set parameters = parameters + type_name(json_index(arguments, parameter_cursor), records)
+            set parameter_cursor = parameter_cursor + 1
+        return "fn(" + parameters + ") -> " + type_name(json_index(arguments, json_len(arguments) - 1), records)
     if json_len(arguments) == 0:
         if is_record(records, name):
             return "Record[" + name + "]"
@@ -501,6 +510,112 @@ fn type_name(value: Json, records: List[RecordSignature]) -> Text:
     if json_len(arguments) == 1:
         return name + "[" + type_name(json_index(arguments, 0), records) + "]"
     return name + "[" + type_name(json_index(arguments, 0), records) + ", " + type_name(json_index(arguments, 1), records) + "]"
+
+# Function types are written `fn(A, B) -> R`. These read that text.
+fn is_fn_type(ty: Text) -> Bool:
+    let characters = text_chars(ty)
+    return len(characters) >= 3 and characters[0] == "f" and characters[1] == "n" and characters[2] == "("
+
+# The index of the `)` that closes the parameter list of a function type, or -1.
+fn fn_type_close(ty: Text) -> Int:
+    let characters = text_chars(ty)
+    var depth = 0
+    var cursor = 2
+    while cursor < len(characters):
+        if characters[cursor] == "(":
+            set depth = depth + 1
+        if characters[cursor] == ")":
+            set depth = depth - 1
+            if depth == 0:
+                return cursor
+        set cursor = cursor + 1
+    return -1
+
+fn fn_type_parameters(ty: Text) -> List[Text]:
+    let characters = text_chars(ty)
+    let close = fn_type_close(ty)
+    var parameters: List[Text] = []
+    var current = ""
+    var depth = 0
+    var cursor = 3
+    while cursor < close:
+        let character = characters[cursor]
+        if character == "[" or character == "(":
+            set depth = depth + 1
+        if character == "]" or character == ")":
+            set depth = depth - 1
+        if character == "," and depth == 0:
+            set parameters = list_push(parameters, current)
+            set current = ""
+        else:
+            if not (character == " " and current == ""):
+                set current = current + character
+        set cursor = cursor + 1
+    if current != "":
+        set parameters = list_push(parameters, current)
+    return parameters
+
+fn fn_type_result(ty: Text) -> Text:
+    let characters = text_chars(ty)
+    var cursor = fn_type_close(ty) + 5
+    var result = ""
+    while cursor < len(characters):
+        set result = result + characters[cursor]
+        set cursor = cursor + 1
+    return result
+
+fn fn_type_text(parameters: List[Text], result: Text) -> Text:
+    var listed = ""
+    var cursor = 0
+    while cursor < len(parameters):
+        if cursor > 0:
+            set listed = listed + ", "
+        set listed = listed + parameters[cursor]
+        set cursor = cursor + 1
+    return "fn(" + listed + ") -> " + result
+
+fn text_contains(value: Text, needle: Text) -> Bool:
+    let characters = text_chars(value)
+    let wanted = text_chars(needle)
+    var start = 0
+    while start + len(wanted) <= len(characters):
+        var matched = true
+        var offset = 0
+        while matched and offset < len(wanted):
+            if characters[start + offset] != wanted[offset]:
+                set matched = false
+            set offset = offset + 1
+        if matched:
+            return true
+        set start = start + 1
+    return false
+
+# Whether a type, written as text, is or holds a function value, looking through the fields of
+# the records it names. `depth` bounds the walk through records that name each other.
+fn type_has_fn(ty: Text, records: List[RecordSignature], depth: Int) -> Bool:
+    if text_contains(ty, "fn("):
+        return true
+    if depth > 8 or not text_contains(ty, "Record["):
+        return false
+    let characters = text_chars(ty)
+    var cursor = 0
+    while cursor + 7 < len(characters):
+        if characters[cursor] == "R" and characters[cursor + 1] == "e" and characters[cursor + 2] == "c" and characters[cursor + 3] == "o" and characters[cursor + 4] == "r" and characters[cursor + 5] == "d" and characters[cursor + 6] == "[":
+            var name = ""
+            var inner = cursor + 7
+            while inner < len(characters) and characters[inner] != "]":
+                set name = name + characters[inner]
+                set inner = inner + 1
+            let index = record_index(records, name)
+            if index >= 0:
+                var field_cursor = 0
+                while field_cursor < len(records[index].fields):
+                    if type_has_fn(type_name(records[index].fields[field_cursor].type, records), records, depth + 1):
+                        return true
+                    set field_cursor = field_cursor + 1
+            set cursor = inner
+        set cursor = cursor + 1
+    return false
 
 fn expression_result(code: CodeTree, ty: Text) -> ExpressionResult:
     return ExpressionResult(code, ty)
@@ -530,8 +645,10 @@ fn list_element_type(ty: Text, records: List[RecordSignature]) -> Text:
     var depth = 0
     var reading = true
     while cursor < len(characters) and reading:
-        if characters[cursor] == "[":
+        if characters[cursor] == "[" or characters[cursor] == "(":
             set depth = depth + 1
+        if characters[cursor] == ")":
+            set depth = depth - 1
         if characters[cursor] == "]":
             if depth == 0:
                 set reading = false
@@ -854,6 +971,13 @@ fn valid_type(type_node: Json, records: List[RecordSignature]) -> Bool:
     let count = json_len(arguments)
     if count == 0:
         return known_primitive_type(name) or record_index(records, name) >= 0
+    if name == "fn":
+        var function_cursor = 0
+        while function_cursor < count:
+            if not valid_type(json_index(arguments, function_cursor), records):
+                return false
+            set function_cursor = function_cursor + 1
+        return true
     if name == "List" or name == "Option":
         return count == 1 and valid_type(json_index(arguments, 0), records)
     if name == "Array":
@@ -1078,9 +1202,9 @@ fn result_error_type(ty: Text) -> Text:
     var depth = 0
     set cursor = opening + 1
     while cursor < len(characters) and comma < 0:
-        if characters[cursor] == "[":
+        if characters[cursor] == "[" or characters[cursor] == "(":
             set depth = depth + 1
-        if characters[cursor] == "]":
+        if characters[cursor] == "]" or characters[cursor] == ")":
             set depth = depth - 1
         if characters[cursor] == "," and depth == 0:
             set comma = cursor
@@ -1094,8 +1218,10 @@ fn result_error_type(ty: Text) -> Text:
     set depth = 0
     var reading = true
     while cursor < len(characters) and reading:
-        if characters[cursor] == "[":
+        if characters[cursor] == "[" or characters[cursor] == "(":
             set depth = depth + 1
+        if characters[cursor] == ")":
+            set depth = depth - 1
         if characters[cursor] == "]":
             if depth == 0:
                 set reading = false
@@ -1125,7 +1251,11 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             assert(is_option_type(expected))
             return expression_result(singleton(ir_instruction("MakeNone")), expected)
         let slot = local_index(state.locals, name)
-        assert(slot >= 0)
+        if slot < 0:
+            let value_index = function_index(functions, name)
+            assert(value_index >= 0)
+            let value_type = fn_type_text(functions[value_index].parameters, type_name(functions[value_index].result, records))
+            return expression_result(singleton(ir_text("MakeFn", "function", functions[value_index].symbol)), value_type)
         return expression_result(singleton(ir_integer("Load", "local", slot)), local_type(state.locals, name))
     if kind == "Unary":
         let operand = expression(json_get(node, "operand"), state, functions, records, "")
@@ -1238,6 +1368,51 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         let keywords = json_get(node, "keywords")
         let known_index = function_index(functions, callee)
         let record = record_index(records, callee)
+        let callee_slot = local_index(state.locals, callee)
+        if callee_slot >= 0 and is_fn_type(local_type(state.locals, callee)):
+            let callee_type = local_type(state.locals, callee)
+            let callee_parameters = fn_type_parameters(callee_type)
+            var call_code = empty_code()
+            var call_cursor = 0
+            while call_cursor < json_len(arguments):
+                var call_expected = ""
+                if call_cursor < len(callee_parameters):
+                    set call_expected = callee_parameters[call_cursor]
+                let call_argument = expression(json_index(arguments, call_cursor), state, functions, records, call_expected)
+                set call_code = append_code(call_code, expression_code(call_argument))
+                set call_cursor = call_cursor + 1
+            set call_code = append_code(call_code, singleton(ir_integer("Load", "local", callee_slot)))
+            set call_code = append_code(call_code, singleton(ir_integer("CallFn", "argc", json_len(arguments))))
+            return expression_result(call_code, fn_type_result(callee_type))
+        if callee == "map_list" or callee == "filter_list" or callee == "fold_list" or callee == "any_list" or callee == "all_list":
+            let values = expression(json_index(arguments, 0), state, functions, records, "")
+            var higher_code = expression_code(values)
+            var function_position = 1
+            var accumulator_type = ""
+            if callee == "fold_list":
+                let initial = expression(json_index(arguments, 1), state, functions, records, "")
+                set higher_code = append_code(higher_code, expression_code(initial))
+                set accumulator_type = expression_type(initial)
+                set function_position = 2
+            let function_node = json_index(arguments, function_position)
+            let function_type = function_argument_type(function_node, state, functions, records)
+            set higher_code = append_code(higher_code, function_argument_code(function_node, state, functions, records))
+            var higher_kind = "MapList"
+            var higher_type = "List[" + fn_type_result(function_type) + "]"
+            if callee == "filter_list":
+                set higher_kind = "FilterList"
+                set higher_type = expression_type(values)
+            if callee == "fold_list":
+                set higher_kind = "FoldList"
+                set higher_type = accumulator_type
+            if callee == "any_list":
+                set higher_kind = "AnyList"
+                set higher_type = "Bool"
+            if callee == "all_list":
+                set higher_kind = "AllList"
+                set higher_type = "Bool"
+            set higher_code = append_code(higher_code, singleton(ir_text("HigherOrder", "kind", higher_kind)))
+            return expression_result(higher_code, higher_type)
         if callee == "map_record_get" or callee == "map_record_set":
             let is_get = callee == "map_record_get"
             var nested = false
@@ -1289,6 +1464,12 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         if callee == "parallel_map":
             let values = expression(json_index(arguments, 0), state, functions, records, "")
             let worker_node = json_index(arguments, 1)
+            if not is_named_function_argument(worker_node, state, functions):
+                let worker_type = function_argument_type(worker_node, state, functions, records)
+                var worker_code = append_code(expression_code(values), function_argument_code(worker_node, state, functions, records))
+                set worker_code = append_code(worker_code, expression_code(expression(json_index(arguments, 2), state, functions, records, "Int")))
+                set worker_code = append_code(worker_code, singleton(ir_text("HigherOrder", "kind", "ParallelMap")))
+                return expression_result(worker_code, "Result[List[" + fn_type_result(worker_type) + "], TaskError]")
             let worker_name = json_as_text(json_get(worker_node, "text"))
             let worker_index = function_index(functions, worker_name)
             let worker_result = type_name(functions[worker_index].result, records)
@@ -1298,6 +1479,14 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             return expression_result(parallel_code, "Result[List[" + worker_result + "], TaskError]")
         if callee == "sort_by":
             let values = expression(json_index(arguments, 0), state, functions, records, "")
+            if not is_named_function_argument(json_index(arguments, 1), state, functions):
+                let dynamic_type = function_argument_type(json_index(arguments, 1), state, functions, records)
+                var dynamic_kind = "SortBy"
+                if len(fn_type_parameters(dynamic_type)) == 1:
+                    set dynamic_kind = "SortByKey"
+                var dynamic_code = append_code(expression_code(values), function_argument_code(json_index(arguments, 1), state, functions, records))
+                set dynamic_code = append_code(dynamic_code, singleton(ir_text("HigherOrder", "kind", dynamic_kind)))
+                return expression_result(dynamic_code, expression_type(values))
             let comparator_name = json_as_text(json_get(json_index(arguments, 1), "text"))
             let comparator_index = function_index(functions, comparator_name)
             var sort_code = expression_code(values)
@@ -1312,6 +1501,10 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             return expression_result(natural_code, expression_type(values))
         if callee == "sort_by_int_key":
             let values = expression(json_index(arguments, 0), state, functions, records, "")
+            if not is_named_function_argument(json_index(arguments, 1), state, functions):
+                var dynamic_code = append_code(expression_code(values), function_argument_code(json_index(arguments, 1), state, functions, records))
+                set dynamic_code = append_code(dynamic_code, singleton(ir_text("HigherOrder", "kind", "SortByIntKey")))
+                return expression_result(dynamic_code, expression_type(values))
             let key_name = json_as_text(json_get(json_index(arguments, 1), "text"))
             let key_index = function_index(functions, key_name)
             var sort_code = expression_code(values)
@@ -1319,6 +1512,10 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
             return expression_result(sort_code, expression_type(values))
         if callee == "merge_sorted_by_int_key":
             let values = expression(json_index(arguments, 0), state, functions, records, "")
+            if not is_named_function_argument(json_index(arguments, 1), state, functions):
+                var dynamic_code = append_code(expression_code(values), function_argument_code(json_index(arguments, 1), state, functions, records))
+                set dynamic_code = append_code(dynamic_code, singleton(ir_text("HigherOrder", "kind", "MergeSortedByIntKey")))
+                return expression_result(dynamic_code, list_element_type(expression_type(values), records))
             let key_name = json_as_text(json_get(json_index(arguments, 1), "text"))
             let key_index = function_index(functions, key_name)
             var merge_code = expression_code(values)
@@ -1400,6 +1597,32 @@ fn expression(node: Json, state: CompilerState, functions: List[FunctionSignatur
         set instruction = json_set(instruction, "argc", json_int(json_len(arguments)))
         return expression_result(append_code(code, singleton(instruction)), function_result_at(functions, known_index, records))
     return expression_result(empty_code(), "Unit")
+
+# Whether an argument is a bare name that denotes a declared function rather than a local, so
+# the operation can carry the function's index.
+fn is_named_function_argument(node: Json, state: CompilerState, functions: List[FunctionSignature]) -> Bool:
+    if json_as_text(json_get(node, "kind")) != "Name":
+        return false
+    let name = json_as_text(json_get(node, "text"))
+    if local_index(state.locals, name) >= 0:
+        return false
+    let index = function_index(functions, name)
+    return index >= 0 and not functions[index].external
+
+# The type, as text, of a function argument: a named function's signature, or the type of the
+# expression. Text that does not start `fn(` means the argument is not a function.
+fn function_argument_type(node: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> Text:
+    if is_named_function_argument(node, state, functions):
+        let index = function_index(functions, json_as_text(json_get(node, "text")))
+        return fn_type_text(functions[index].parameters, type_name(functions[index].result, records))
+    return expression_type(expression(node, state, functions, records, ""))
+
+# The code that leaves a function argument's value on the stack.
+fn function_argument_code(node: Json, state: CompilerState, functions: List[FunctionSignature], records: List[RecordSignature]) -> CodeTree:
+    if is_named_function_argument(node, state, functions):
+        let index = function_index(functions, json_as_text(json_get(node, "text")))
+        return singleton(ir_text("MakeFn", "function", functions[index].symbol))
+    return expression_code(expression(node, state, functions, records, ""))
 
 fn innermost_loop_marker(locals: List[Json]) -> Json:
     var cursor = len(locals) - 1
@@ -1673,7 +1896,9 @@ fn known_builtin_name(name: Text) -> Bool:
 
 # Suggestion rule for an unknown call name (B9), identical to `suggest_names` in the Rust
 # compiler: a candidate qualifies when its Levenshtein distance over Unicode scalar values is at
-# most max(2, len(name) / 3); candidates sort by distance, then name; at most three are kept.
+# most max(2, len(name) / 3), or when it is the name followed by `_list` and the name has at
+# least three characters (counted as exactly the threshold away); candidates sort by distance,
+# then name; at most three are kept.
 # Candidates are the functions visible to the module plus the builtin catalog.
 fn edit_distance(left: List[Text], right: Text) -> Int:
     let right_chars = text_chars(right)
@@ -1719,7 +1944,10 @@ fn suggest_names(name: Text, functions: List[FunctionSignature]) -> List[Text]:
         if candidates[cursor] == name:
             set distances = list_push(distances, threshold + 1)
         else:
-            set distances = list_push(distances, edit_distance(name_chars, candidates[cursor]))
+            var measured = edit_distance(name_chars, candidates[cursor])
+            if measured > threshold and len(name_chars) >= 3 and candidates[cursor] == name + "_list":
+                set measured = threshold
+            set distances = list_push(distances, measured)
         set cursor = cursor + 1
     var chosen: List[Text] = []
     var round = 0
@@ -1813,17 +2041,55 @@ fn parameter_name_index(names: List[Text], name: Text) -> Int:
         set cursor = cursor + 1
     return -1
 
-fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+# Every name bound as a local anywhere in a function: its parameters, `let` and `var`
+# declarations, loop variables and match bindings.
+fn block_local_names(statements: Json, names: List[Text]) -> List[Text]:
+    var result = names
+    var cursor = 0
+    while cursor < json_len(statements):
+        let statement = json_index(statements, cursor)
+        let kind = json_as_text(json_get(statement, "kind"))
+        if kind == "Let" or kind == "For":
+            set result = list_push(result, json_as_text(json_get(statement, "name")))
+        if kind == "If" or kind == "While" or kind == "For":
+            set result = block_local_names(json_get(statement, "body"), result)
+            if json_has(statement, "alternate"):
+                set result = block_local_names(json_get(statement, "alternate"), result)
+        if kind == "Match":
+            let arms = json_get(statement, "arms")
+            var arm_cursor = 0
+            while arm_cursor < json_len(arms):
+                let arm = json_index(arms, arm_cursor)
+                let binding = json_get(arm, "binding")
+                if not json_is_null(binding):
+                    set result = list_push(result, json_as_text(binding))
+                set result = block_local_names(json_get(arm, "body"), result)
+                set arm_cursor = arm_cursor + 1
+        set cursor = cursor + 1
+    return result
+
+fn function_local_names(function: Json) -> List[Text]:
+    var names: List[Text] = []
+    let parameters = json_get(function, "parameters")
+    var cursor = 0
+    while cursor < json_len(parameters):
+        set names = list_push(names, json_as_text(json_get(json_index(parameters, cursor), "name")))
+        set cursor = cursor + 1
+    return block_local_names(json_get(function, "body"), names)
+
+fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text, local_names: List[Text]) -> Json:
     let kind = json_as_text(json_get(node, "kind"))
     if kind == "Call":
         let callee = json_as_text(json_get(node, "callee"))
         let arguments = json_get(node, "arguments")
         let keywords = json_get(node, "keywords")
         let known_index = function_index(functions, callee)
-        if known_index < 0 and not is_record(records, callee) and not known_builtin_name(callee):
+        # A local may hold a function value; calling it is checked where the types are known.
+        let local_call = list_contains_text(local_names, callee)
+        if known_index < 0 and not is_record(records, callee) and not known_builtin_name(callee) and not local_call:
             let unknown = failure_at_node("E_NAME_UNKNOWN", "unknown function `" + callee + "`", node, source_name, source, len(callee))
             return failure_with_suggestions(unknown, suggest_names(callee, functions))
-        if known_builtin_name(callee):
+        if known_builtin_name(callee) and not local_call:
             let expected_arity = builtin_catalog_arity(callee)
             if expected_arity >= 0 and json_len(arguments) != expected_arity:
                 return failure_at_node("E_CALL_ARITY", "builtin `" + callee + "` has the wrong number of arguments", node, source_name, source, len(callee))
@@ -1839,7 +2105,7 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
             let constructor_index = record_index(records, callee)
             if json_len(arguments) != len(records[constructor_index].fields):
                 return failure_at_node("E_CALL_ARITY", "record constructor has the wrong number of fields", node, source_name, source, len(callee))
-        if known_index >= 0:
+        if known_index >= 0 and not local_call:
             let signature = functions[known_index]
             if not signature.external and json_len(arguments) != len(signature.parameters):
                 return failure_at_node("E_CALL_ARITY", "function `" + callee + "` has the wrong number of arguments", node, source_name, source, len(callee))
@@ -1864,82 +2130,79 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
                             return failure_at_node("E_PYTHON_KEYWORD_DUPLICATE", "Python parameter `" + keyword_name + "` is supplied more than once", keyword, source_name, source, len(keyword_name))
                         set prior = prior + 1
                     set keyword_cursor = keyword_cursor + 1
-        if callee == "parallel_map":
+        if callee == "parallel_map" and not local_call:
             let worker = json_index(arguments, 1)
-            if json_as_text(json_get(worker, "kind")) != "Name":
-                return failure_at_node("E_PARALLEL_WORKER", "parallel worker must be a named function", worker, source_name, source, 1)
-            let worker_name = json_as_text(json_get(worker, "text"))
-            let worker_index = function_index(functions, worker_name)
-            if worker_index < 0:
-                return failure_at_node("E_NAME_UNKNOWN", "unknown parallel worker `" + worker_name + "`", worker, source_name, source, len(worker_name))
-            if len(functions[worker_index].parameters) != 1:
-                return failure_at_node("E_TYPE_ARGUMENT", "parallel worker must accept exactly one argument", worker, source_name, source, len(worker_name))
-            if contains_native_resource_type_name(functions[worker_index].parameters[0]) or contains_native_resource_type_name(type_name(functions[worker_index].result, records)):
-                return failure_at_node("E_PARALLEL_RESOURCE", "parallel workers cannot accept or return native resources", worker, source_name, source, len(worker_name))
-        if callee == "sort_by":
+            if json_as_text(json_get(worker, "kind")) == "Name" and not list_contains_text(local_names, json_as_text(json_get(worker, "text"))):
+                let worker_name = json_as_text(json_get(worker, "text"))
+                let worker_index = function_index(functions, worker_name)
+                if worker_index < 0:
+                    return failure_at_node("E_NAME_UNKNOWN", "unknown parallel worker `" + worker_name + "`", worker, source_name, source, len(worker_name))
+                if len(functions[worker_index].parameters) != 1:
+                    return failure_at_node("E_TYPE_ARGUMENT", "parallel worker must accept exactly one argument", worker, source_name, source, len(worker_name))
+                if contains_native_resource_type_name(functions[worker_index].parameters[0]) or contains_native_resource_type_name(type_name(functions[worker_index].result, records)):
+                    return failure_at_node("E_PARALLEL_RESOURCE", "parallel workers cannot accept or return native resources", worker, source_name, source, len(worker_name))
+        if callee == "sort_by" and not local_call:
             let comparator = json_index(arguments, 1)
-            if json_as_text(json_get(comparator, "kind")) != "Name":
-                return failure_at_node("E_SORT_COMPARATOR", "sort_by comparator must be a named function", comparator, source_name, source, 1)
-            let comparator_name = json_as_text(json_get(comparator, "text"))
-            let comparator_index = function_index(functions, comparator_name)
-            if comparator_index < 0:
-                return failure_at_node("E_NAME_UNKNOWN", "unknown sort comparator `" + comparator_name + "`", comparator, source_name, source, len(comparator_name))
-            if len(functions[comparator_index].parameters) != 1 and len(functions[comparator_index].parameters) != 2:
-                return failure_at_node("E_SORT_COMPARATOR", "sort_by needs a key function of one value or a comparator of two values", comparator, source_name, source, len(comparator_name))
-        if callee == "sort_by_int_key":
+            if json_as_text(json_get(comparator, "kind")) == "Name" and not list_contains_text(local_names, json_as_text(json_get(comparator, "text"))):
+                let comparator_name = json_as_text(json_get(comparator, "text"))
+                let comparator_index = function_index(functions, comparator_name)
+                if comparator_index < 0:
+                    return failure_at_node("E_NAME_UNKNOWN", "unknown sort comparator `" + comparator_name + "`", comparator, source_name, source, len(comparator_name))
+                if len(functions[comparator_index].parameters) != 1 and len(functions[comparator_index].parameters) != 2:
+                    return failure_at_node("E_SORT_COMPARATOR", "sort_by needs a key function of one value or a comparator of two values", comparator, source_name, source, len(comparator_name))
+        if (callee == "sort_by_int_key" or callee == "merge_sorted_by_int_key") and not local_call:
             let key_node = json_index(arguments, 1)
-            if json_as_text(json_get(key_node, "kind")) != "Name":
-                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must be a named function", key_node, source_name, source, 1)
-            let key_name = json_as_text(json_get(key_node, "text"))
-            let key_index = function_index(functions, key_name)
-            if key_index < 0:
-                return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
-            if len(functions[key_index].parameters) != 1:
-                return failure_at_node("E_SORT_KEY", "sort key function must accept exactly one value", key_node, source_name, source, len(key_name))
-        if callee == "merge_sorted_by_int_key":
-            let key_node = json_index(arguments, 1)
-            if json_as_text(json_get(key_node, "kind")) != "Name":
-                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must be a named function", key_node, source_name, source, 1)
-            let key_name = json_as_text(json_get(key_node, "text"))
-            let key_index = function_index(functions, key_name)
-            if key_index < 0:
-                return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
-            if len(functions[key_index].parameters) != 1:
-                return failure_at_node("E_SORT_KEY", "sort key function must accept exactly one value", key_node, source_name, source, len(key_name))
+            if json_as_text(json_get(key_node, "kind")) == "Name" and not list_contains_text(local_names, json_as_text(json_get(key_node, "text"))):
+                let key_name = json_as_text(json_get(key_node, "text"))
+                let key_index = function_index(functions, key_name)
+                if key_index < 0:
+                    return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
+                if len(functions[key_index].parameters) != 1:
+                    return failure_at_node("E_SORT_KEY", "sort key function must accept exactly one value", key_node, source_name, source, len(key_name))
+        if (callee == "map_list" or callee == "filter_list" or callee == "fold_list" or callee == "any_list" or callee == "all_list") and not local_call:
+            var function_position = 1
+            if callee == "fold_list":
+                set function_position = 2
+            let function_node = json_index(arguments, function_position)
+            if json_as_text(json_get(function_node, "kind")) == "Name" and not list_contains_text(local_names, json_as_text(json_get(function_node, "text"))):
+                let function_name = json_as_text(json_get(function_node, "text"))
+                let function_found = function_index(functions, function_name)
+                if function_found < 0 or functions[function_found].external:
+                    return failure_at_node("E_NAME_UNKNOWN", "unknown function `" + function_name + "`", function_node, source_name, source, len(function_name))
         var cursor = 0
         while cursor < json_len(arguments):
-            let failure = find_unknown_call(json_index(arguments, cursor), functions, records, source_name, source)
+            let failure = find_unknown_call(json_index(arguments, cursor), functions, records, source_name, source, local_names)
             if not json_is_null(failure):
                 return failure
             set cursor = cursor + 1
         set cursor = 0
         while cursor < json_len(keywords):
-            let failure = find_unknown_call(json_get(json_index(keywords, cursor), "value"), functions, records, source_name, source)
+            let failure = find_unknown_call(json_get(json_index(keywords, cursor), "value"), functions, records, source_name, source, local_names)
             if not json_is_null(failure):
                 return failure
             set cursor = cursor + 1
         return json_null()
     if kind == "Try":
-        return find_unknown_call(json_get(node, "value"), functions, records, source_name, source)
+        return find_unknown_call(json_get(node, "value"), functions, records, source_name, source, local_names)
     if kind == "Unary":
-        return find_unknown_call(json_get(node, "operand"), functions, records, source_name, source)
+        return find_unknown_call(json_get(node, "operand"), functions, records, source_name, source, local_names)
     if kind == "Binary":
-        let left_failure = find_unknown_call(json_get(node, "left"), functions, records, source_name, source)
+        let left_failure = find_unknown_call(json_get(node, "left"), functions, records, source_name, source, local_names)
         if not json_is_null(left_failure):
             return left_failure
-        return find_unknown_call(json_get(node, "right"), functions, records, source_name, source)
+        return find_unknown_call(json_get(node, "right"), functions, records, source_name, source, local_names)
     if kind == "Index":
-        let value_failure = find_unknown_call(json_get(node, "value"), functions, records, source_name, source)
+        let value_failure = find_unknown_call(json_get(node, "value"), functions, records, source_name, source, local_names)
         if not json_is_null(value_failure):
             return value_failure
-        return find_unknown_call(json_get(node, "index"), functions, records, source_name, source)
+        return find_unknown_call(json_get(node, "index"), functions, records, source_name, source, local_names)
     if kind == "Field":
-        return find_unknown_call(json_get(node, "value"), functions, records, source_name, source)
+        return find_unknown_call(json_get(node, "value"), functions, records, source_name, source, local_names)
     if kind == "List":
         let items = json_get(node, "items")
         var cursor = 0
         while cursor < json_len(items):
-            let failure = find_unknown_call(json_index(items, cursor), functions, records, source_name, source)
+            let failure = find_unknown_call(json_index(items, cursor), functions, records, source_name, source, local_names)
             if not json_is_null(failure):
                 return failure
             set cursor = cursor + 1
@@ -1948,41 +2211,41 @@ fn find_unknown_call(node: Json, functions: List[FunctionSignature], records: Li
         var cursor = 0
         while cursor < json_len(items):
             let entry = json_index(items, cursor)
-            let key_failure = find_unknown_call(json_get(entry, "key"), functions, records, source_name, source)
+            let key_failure = find_unknown_call(json_get(entry, "key"), functions, records, source_name, source, local_names)
             if not json_is_null(key_failure):
                 return key_failure
-            let value_failure = find_unknown_call(json_get(entry, "value"), functions, records, source_name, source)
+            let value_failure = find_unknown_call(json_get(entry, "value"), functions, records, source_name, source, local_names)
             if not json_is_null(value_failure):
                 return value_failure
             set cursor = cursor + 1
     return json_null()
 
-fn find_unknown_call_in_block(statements: Json, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text) -> Json:
+fn find_unknown_call_in_block(statements: Json, functions: List[FunctionSignature], records: List[RecordSignature], source_name: Text, source: Text, local_names: List[Text]) -> Json:
     var cursor = 0
     while cursor < json_len(statements):
         let statement = json_index(statements, cursor)
         let kind = json_as_text(json_get(statement, "kind"))
         var failure = json_null()
         if kind == "Let" or kind == "Set" or kind == "Return":
-            set failure = find_unknown_call(json_get(statement, "value"), functions, records, source_name, source)
+            set failure = find_unknown_call(json_get(statement, "value"), functions, records, source_name, source, local_names)
         if kind == "CallStatement":
-            set failure = find_unknown_call(json_get(statement, "call"), functions, records, source_name, source)
+            set failure = find_unknown_call(json_get(statement, "call"), functions, records, source_name, source, local_names)
         if kind == "If" or kind == "While":
-            set failure = find_unknown_call(json_get(statement, "condition"), functions, records, source_name, source)
+            set failure = find_unknown_call(json_get(statement, "condition"), functions, records, source_name, source, local_names)
             if json_is_null(failure):
-                set failure = find_unknown_call_in_block(json_get(statement, "body"), functions, records, source_name, source)
+                set failure = find_unknown_call_in_block(json_get(statement, "body"), functions, records, source_name, source, local_names)
             if json_is_null(failure) and json_has(statement, "alternate"):
-                set failure = find_unknown_call_in_block(json_get(statement, "alternate"), functions, records, source_name, source)
+                set failure = find_unknown_call_in_block(json_get(statement, "alternate"), functions, records, source_name, source, local_names)
         if kind == "For":
-            set failure = find_unknown_call(json_get(statement, "values"), functions, records, source_name, source)
+            set failure = find_unknown_call(json_get(statement, "values"), functions, records, source_name, source, local_names)
             if json_is_null(failure):
-                set failure = find_unknown_call_in_block(json_get(statement, "body"), functions, records, source_name, source)
+                set failure = find_unknown_call_in_block(json_get(statement, "body"), functions, records, source_name, source, local_names)
         if kind == "Match":
-            set failure = find_unknown_call(json_get(statement, "value"), functions, records, source_name, source)
+            set failure = find_unknown_call(json_get(statement, "value"), functions, records, source_name, source, local_names)
             let arms = json_get(statement, "arms")
             var arm_cursor = 0
             while json_is_null(failure) and arm_cursor < json_len(arms):
-                set failure = find_unknown_call_in_block(json_get(json_index(arms, arm_cursor), "body"), functions, records, source_name, source)
+                set failure = find_unknown_call_in_block(json_get(json_index(arms, arm_cursor), "body"), functions, records, source_name, source, local_names)
                 set arm_cursor = arm_cursor + 1
         if not json_is_null(failure):
             return failure
@@ -2025,6 +2288,9 @@ fn find_unbound_name(node: Json, locals: List[Json], functions: List[FunctionSig
         let name = json_as_text(json_get(node, "text"))
         if name == "None" or local_index(locals, name) >= 0:
             return json_null()
+        let value_function = function_index(functions, name)
+        if value_function >= 0 and not functions[value_function].external:
+            return json_null()
         let character_index = json_as_int(json_get(node, "character_index"))
         let location = source_line_column(source, character_index)
         return compile_failure("E_NAME_UNKNOWN", "unknown name `" + name + "`", source_name, character_index, character_index + len(name), location[0], location[1])
@@ -2033,7 +2299,7 @@ fn find_unbound_name(node: Json, locals: List[Json], functions: List[FunctionSig
         let arguments = json_get(node, "arguments")
         var cursor = 0
         while cursor < json_len(arguments):
-            if (callee != "parallel_map" and callee != "sort_by" and callee != "sort_by_int_key" and callee != "merge_sorted_by_int_key") or cursor != 1:
+            if (callee != "parallel_map" and callee != "sort_by" and callee != "sort_by_int_key" and callee != "merge_sorted_by_int_key") or cursor != 1 or json_as_text(json_get(json_index(arguments, cursor), "kind")) != "Name":
                 let failure = find_unbound_name(json_index(arguments, cursor), locals, functions, records, source_name, source)
                 if not json_is_null(failure):
                     return failure
@@ -2181,6 +2447,26 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
         let keywords = json_get(node, "keywords")
         let known_index = function_index(functions, callee)
         let record = record_index(records, callee)
+        let callee_slot = local_index(state.locals, callee)
+        if callee_slot >= 0 and is_fn_type(local_type(state.locals, callee)):
+            let callee_parameters = fn_type_parameters(local_type(state.locals, callee))
+            if json_len(arguments) != len(callee_parameters):
+                return failure_at_node("E_CALL_ARITY", "function value `" + callee + "` has the wrong number of arguments", node, source_name, source, len(callee))
+            if json_len(keywords) > 0:
+                return failure_at_node("E_CALL_KEYWORD", "keyword arguments require a declared Python external", json_index(keywords, 0), source_name, source, 1)
+            var value_cursor = 0
+            while value_cursor < json_len(arguments):
+                let value_argument = json_index(arguments, value_cursor)
+                let value_failure = find_type_error_expression(value_argument, state, functions, records, source_name, source, callee_parameters[value_cursor])
+                if not json_is_null(value_failure):
+                    return value_failure
+                if expression_type(expression(value_argument, state, functions, records, callee_parameters[value_cursor])) != callee_parameters[value_cursor]:
+                    return failure_at_node("E_TYPE_ARGUMENT", "argument to `" + callee + "` has an incompatible type", value_argument, source_name, source, 1)
+                set value_cursor = value_cursor + 1
+            return json_null()
+        if known_index < 0 and not is_record(records, callee) and not known_builtin_name(callee):
+            let unknown = failure_at_node("E_NAME_UNKNOWN", "unknown function `" + callee + "`", node, source_name, source, len(callee))
+            return failure_with_suggestions(unknown, suggest_names(callee, functions))
         if callee == "Some" and not is_option_type(expected):
             return failure_at_node("E_OPTION_CONSTRUCTOR_CONTEXT", "Some requires an expected Option type", node, source_name, source, len(callee))
         if (callee == "Ok" or callee == "Err") and not is_result_type(expected):
@@ -2287,8 +2573,15 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             let failure = find_type_error_expression(argument, state, functions, records, source_name, source, argument_expected)
             if not json_is_null(failure):
                 return failure
+            if (callee == "print" or callee == "eprint") and cursor == 0:
+                if type_has_fn(expression_type(expression(argument, state, functions, records, "")), records, 0):
+                    return failure_at_node("E_FN_NOT_SERIALIZABLE", "a type that holds a function value cannot cross program output", argument, source_name, source, 1)
             if argument_expected != "":
                 let actual = expression_type(expression(argument, state, functions, records, argument_expected))
+                if known_builtin_name(callee) and catalog_expected != "" and type_has_fn(actual, records, 0):
+                    return failure_at_node("E_FN_NOT_SERIALIZABLE", "a type that holds a function value cannot cross the builtin `" + callee + "`", argument, source_name, source, 1)
+                if known_index >= 0 and starts_with(functions[known_index].source_module, "std:") and actual != argument_expected and type_has_fn(actual, records, 0) and not type_has_fn(argument_expected, records, 0):
+                    return failure_at_node("E_FN_NOT_SERIALIZABLE", "a type that holds a function value cannot cross the standard-library function `" + callee + "`", argument, source_name, source, 1)
                 if actual != argument_expected:
                     var diagnostic_code = "E_TYPE_ARGUMENT"
                     var diagnostic_message = "argument to `" + callee + "` has an incompatible type"
@@ -2308,11 +2601,16 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if not is_list_type(values_type):
                 return failure_at_node("E_TYPE_ARGUMENT", "parallel_map first argument must be a List", json_index(arguments, 0), source_name, source, 1)
-            let worker_name = json_as_text(json_get(json_index(arguments, 1), "text"))
-            let worker_index = function_index(functions, worker_name)
+            let worker_node = json_index(arguments, 1)
+            let worker_type = function_argument_type(worker_node, state, functions, records)
+            if not is_fn_type(worker_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "parallel_map worker must be a named function or a function value", worker_node, source_name, source, 1)
+            let worker_parameters = fn_type_parameters(worker_type)
             let expected_worker_type = list_element_type(values_type, records)
-            if functions[worker_index].parameters[0] != expected_worker_type:
-                return failure_at_node("E_TYPE_ARGUMENT", "parallel worker parameter must match the List item type", json_index(arguments, 1), source_name, source, len(worker_name))
+            if len(worker_parameters) == 1 and (contains_native_resource_type_name(worker_parameters[0]) or contains_native_resource_type_name(fn_type_result(worker_type))):
+                return failure_at_node("E_PARALLEL_RESOURCE", "parallel workers cannot accept or return native resources", worker_node, source_name, source, 1)
+            if len(worker_parameters) != 1 or worker_parameters[0] != expected_worker_type:
+                return failure_at_node("E_TYPE_ARGUMENT", "parallel worker parameter must match the List item type", worker_node, source_name, source, 1)
             if expression_type(expression(json_index(arguments, 2), state, functions, records, "Int")) != "Int":
                 return failure_at_node("E_TYPE_ARGUMENT", "parallel_map worker limit must be Int", json_index(arguments, 2), source_name, source, 1)
         if callee == "sort_by":
@@ -2320,18 +2618,20 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             if not is_list_type(values_type):
                 return failure_at_node("E_TYPE_ARGUMENT", "sort_by first argument must be a List", json_index(arguments, 0), source_name, source, 1)
             let comparator = json_index(arguments, 1)
-            let comparator_name = json_as_text(json_get(comparator, "text"))
-            let comparator_index = function_index(functions, comparator_name)
+            let comparator_type = function_argument_type(comparator, state, functions, records)
+            if not is_fn_type(comparator_type):
+                return failure_at_node("E_SORT_COMPARATOR", "sort_by comparator must be a named function or a function value", comparator, source_name, source, 1)
+            let comparator_parameters = fn_type_parameters(comparator_type)
+            let comparator_result = fn_type_result(comparator_type)
             let expected_item_type = list_element_type(values_type, records)
-            if len(functions[comparator_index].parameters) == 1:
-                if functions[comparator_index].parameters[0] != expected_item_type:
-                    return failure_at_node("E_SORT_KEY", "sort_by key function must have type (T) -> K for the list item type", comparator, source_name, source, len(comparator_name))
-                let key_type = type_name(functions[comparator_index].result, records)
-                if key_type != "Text" and key_type != "Int" and key_type != "Float64":
-                    return failure_at_node("E_SORT_KEY", "sort_by key function must return Text, Int or Float64", comparator, source_name, source, len(comparator_name))
+            if len(comparator_parameters) == 1:
+                if comparator_parameters[0] != expected_item_type:
+                    return failure_at_node("E_SORT_KEY", "sort_by key function must have type (T) -> K for the list item type", comparator, source_name, source, 1)
+                if comparator_result != "Text" and comparator_result != "Int" and comparator_result != "Float64":
+                    return failure_at_node("E_SORT_KEY", "sort_by key function must return Text, Int or Float64", comparator, source_name, source, 1)
             else:
-                if functions[comparator_index].parameters[0] != expected_item_type or functions[comparator_index].parameters[1] != expected_item_type or type_name(functions[comparator_index].result, records) != "Int":
-                    return failure_at_node("E_SORT_COMPARATOR", "sort comparator must have type (T, T) -> Int for the list item type", comparator, source_name, source, len(comparator_name))
+                if len(comparator_parameters) != 2 or comparator_parameters[0] != expected_item_type or comparator_parameters[1] != expected_item_type or comparator_result != "Int":
+                    return failure_at_node("E_SORT_COMPARATOR", "sort comparator must have type (T, T) -> Int for the list item type", comparator, source_name, source, 1)
         if callee == "sort":
             let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if not is_list_type(values_type):
@@ -2344,27 +2644,48 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
             if not is_list_type(values_type):
                 return failure_at_node("E_TYPE_ARGUMENT", "sort_by_int_key first argument must be a List", json_index(arguments, 0), source_name, source, 1)
             let key_node = json_index(arguments, 1)
-            if json_as_text(json_get(key_node, "kind")) != "Name":
-                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must be a named function", key_node, source_name, source, 1)
-            let key_name = json_as_text(json_get(key_node, "text"))
-            let key_index = function_index(functions, key_name)
-            if key_index < 0:
-                return failure_at_node("E_NAME_UNKNOWN", "unknown sort key function `" + key_name + "`", key_node, source_name, source, len(key_name))
+            let key_type = function_argument_type(key_node, state, functions, records)
+            if not is_fn_type(key_type):
+                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must be a named function or a function value", key_node, source_name, source, 1)
             let expected_item_type = list_element_type(values_type, records)
-            if len(functions[key_index].parameters) != 1 or functions[key_index].parameters[0] != expected_item_type or type_name(functions[key_index].result, records) != "Int":
-                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must have type (T) -> Int for the list item type", key_node, source_name, source, len(key_name))
+            let key_parameters = fn_type_parameters(key_type)
+            if len(key_parameters) != 1 or key_parameters[0] != expected_item_type or fn_type_result(key_type) != "Int":
+                return failure_at_node("E_SORT_KEY", "sort_by_int_key key function must have type (T) -> Int for the list item type", key_node, source_name, source, 1)
         if callee == "merge_sorted_by_int_key":
             let feeds_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if not is_list_type(feeds_type) or not is_list_type(list_element_type(feeds_type, records)):
                 return failure_at_node("E_TYPE_ARGUMENT", "merge_sorted_by_int_key first argument must be a List of Lists", json_index(arguments, 0), source_name, source, 1)
             let key_node = json_index(arguments, 1)
-            if json_as_text(json_get(key_node, "kind")) != "Name":
-                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must be a named function", key_node, source_name, source, 1)
-            let key_name = json_as_text(json_get(key_node, "text"))
-            let key_index = function_index(functions, key_name)
+            let key_type = function_argument_type(key_node, state, functions, records)
+            if not is_fn_type(key_type):
+                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must be a named function or a function value", key_node, source_name, source, 1)
             let expected_item_type = list_element_type(list_element_type(feeds_type, records), records)
-            if len(functions[key_index].parameters) != 1 or functions[key_index].parameters[0] != expected_item_type or type_name(functions[key_index].result, records) != "Int":
-                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must have type (T) -> Int for the feed item type", key_node, source_name, source, len(key_name))
+            let key_parameters = fn_type_parameters(key_type)
+            if len(key_parameters) != 1 or key_parameters[0] != expected_item_type or fn_type_result(key_type) != "Int":
+                return failure_at_node("E_SORT_KEY", "merge_sorted_by_int_key key function must have type (T) -> Int for the feed item type", key_node, source_name, source, 1)
+        if callee == "map_list" or callee == "filter_list" or callee == "fold_list" or callee == "any_list" or callee == "all_list":
+            let values_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
+            if not is_list_type(values_type):
+                return failure_at_node("E_TYPE_ARGUMENT", callee + " first argument must be a List", json_index(arguments, 0), source_name, source, 1)
+            let item_type = list_element_type(values_type, records)
+            var higher_position = 1
+            var accumulator_type = ""
+            if callee == "fold_list":
+                set higher_position = 2
+                set accumulator_type = expression_type(expression(json_index(arguments, 1), state, functions, records, ""))
+            let higher_node = json_index(arguments, higher_position)
+            let higher_type = function_argument_type(higher_node, state, functions, records)
+            if not is_fn_type(higher_type):
+                return failure_at_node("E_TYPE_ARGUMENT", "the last argument must be a named function or a function value", higher_node, source_name, source, 1)
+            let higher_parameters = fn_type_parameters(higher_type)
+            let higher_result = fn_type_result(higher_type)
+            var shape_matches = len(higher_parameters) == 1 and higher_parameters[0] == item_type
+            if callee == "filter_list" or callee == "any_list" or callee == "all_list":
+                set shape_matches = shape_matches and higher_result == "Bool"
+            if callee == "fold_list":
+                set shape_matches = len(higher_parameters) == 2 and higher_parameters[0] == accumulator_type and higher_parameters[1] == item_type and higher_result == accumulator_type
+            if not shape_matches:
+                return failure_at_node("E_TYPE_ARGUMENT", callee + " function has the wrong type for the list items", higher_node, source_name, source, 1)
         if callee == "list_get" or callee == "map_get":
             let collection_type = expression_type(expression(json_index(arguments, 0), state, functions, records, ""))
             if callee == "list_get" and not is_list_type(collection_type):
@@ -2475,6 +2796,8 @@ fn find_type_error_expression(node: Json, state: CompilerState, functions: List[
         let left_type = expression_type(expression(left, state, functions, records, ""))
         let right_type = expression_type(expression(right, state, functions, records, ""))
         let operator = json_as_text(json_get(node, "operator"))
+        if (operator == "==" or operator == "!=") and (type_has_fn(left_type, records, 0) or type_has_fn(right_type, records, 0)):
+            return failure_at_node("E_FN_COMPARE", "function values cannot be compared", node, source_name, source, len(operator))
         if operator == "and" or operator == "or":
             if left_type != "Bool":
                 return failure_at_node("E_TYPE_OPERATOR", "logical operators require Bool values", left, source_name, source, 1)
@@ -2862,7 +3185,7 @@ pub fn compile_source_with_roots(source_name: Text, source: Text, stdlib_root: T
         if not valid_type(result_type_node, visible_records):
             let unknown = json_as_text(json_get(result_type_node, "name"))
             return failure_at_node("E_TYPE_UNKNOWN", "unknown or inaccessible type `" + unknown + "`", result_type_node, function_source_name, function_source, len(unknown))
-        let failure = find_unknown_call_in_block(json_get(function, "body"), visible_functions, visible_records, function_source_name, function_source)
+        let failure = find_unknown_call_in_block(json_get(function, "body"), visible_functions, visible_records, function_source_name, function_source, function_local_names(function))
         if not json_is_null(failure):
             return failure
         var function_locals: List[Json] = []

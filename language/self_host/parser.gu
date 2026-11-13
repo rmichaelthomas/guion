@@ -123,6 +123,8 @@ fn parse_primary(tokens: List[Token], start: Int) -> ParseStep:
         return parsed(attach_node(node("Bool", first.character_index), "value", json_bool(true)), cursor)
     if first.kind == "Name" and first.text == "false":
         return parsed(attach_node(node("Bool", first.character_index), "value", json_bool(false)), cursor)
+    if first.kind == "Name" and first.text == "fn":
+        return rejected_code("E_FN_NO_CLOSURES", "function values name an existing function; closures are not supported", start)
     if first.kind == "Name" and first.text == "not":
         let operand = parse_expr(tokens, cursor, 6)
         if not operand.ok:
@@ -246,6 +248,31 @@ fn parse_type(tokens: List[Token], start: Int) -> ParseStep:
     let name = tokens[start].text
     var arguments: Json = json_array()
     var cursor = start + 1
+    if name == "fn" and is_token(tokens, cursor, "Symbol", "("):
+        set cursor = cursor + 1
+        if not is_token(tokens, cursor, "Symbol", ")"):
+            var reading = true
+            while reading:
+                let parameter = parse_type(tokens, cursor)
+                if not parameter.ok:
+                    return parameter
+                set arguments = json_push(arguments, parameter.value)
+                set cursor = parameter.next
+                if is_token(tokens, cursor, "Symbol", ","):
+                    set cursor = cursor + 1
+                else:
+                    set reading = false
+        if not is_token(tokens, cursor, "Symbol", ")"):
+            return rejected("expected `)` after function type parameters", cursor)
+        if not is_token(tokens, cursor + 1, "Symbol", "->"):
+            return rejected("expected `->` in function type", cursor + 1)
+        let result = parse_type(tokens, cursor + 2)
+        if not result.ok:
+            return result
+        set arguments = json_push(arguments, result.value)
+        var function_type = attach_text(node("Type", tokens[start].character_index), "name", "fn")
+        set function_type = attach_node(function_type, "arguments", arguments)
+        return parsed(function_type, result.next)
     if is_token(tokens, cursor, "Symbol", "["):
         let first = parse_type(tokens, cursor + 1)
         if not first.ok:

@@ -10450,6 +10450,118 @@
           "owner_task": 6
         }
       }
+    },
+    {
+      "id": "opcode-make-fn",
+      "kind": "opcode",
+      "name": "MakeFn",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-make-fn.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-make-fn.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-make-fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-call-fn",
+      "kind": "opcode",
+      "name": "CallFn",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-call-fn.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-call-fn.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-call-fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-higher-order",
+      "kind": "opcode",
+      "name": "HigherOrder",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-higher-order.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-higher-order.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-higher-order.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "type-fn",
+      "kind": "type",
+      "name": "Fn",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Type",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "type.fn.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "type.fn.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "type.fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
     }
   ],
   "regression_applications": [
