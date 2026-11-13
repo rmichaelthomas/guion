@@ -4358,3 +4358,38 @@ fn run_json_step_limit_report_carries_used_and_limit() {
         .contains("`instruction_limit` under `[runtime]`"));
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn loop_jump_fixture_passes_guion_test() {
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/loop_jumps/main.gu");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["test", fixture.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("7 tests passed"));
+}
+
+#[test]
+fn break_outside_a_loop_is_rejected_by_check_with_e_no_loop() {
+    let dir = std::env::temp_dir().join(format!("guion-no-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.gu");
+    fs::write(&source, "fn main() -> Int:\n    break\n    return 0\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["check", source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("E_NO_LOOP"), "{stderr}");
+    assert!(stderr.contains("`break` outside a loop"), "{stderr}");
+    let _ = fs::remove_dir_all(dir);
+}

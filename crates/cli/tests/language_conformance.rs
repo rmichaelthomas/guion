@@ -1126,3 +1126,198 @@ fn extra_modules(id: &str, class: &str) -> Vec<(&'static str, &'static str)> {
         _ => Vec::new(),
     }
 }
+
+// ---- `break` and `continue` (artifact format unchanged: they lower to jumps) ----
+
+struct LoopJumpCase {
+    name: &'static str,
+    source: &'static str,
+    // Ok(value returned by main) or Err((code, line, column)).
+    expected: Result<usize, (&'static str, usize, usize)>,
+}
+
+fn loop_jump_cases() -> Vec<LoopJumpCase> {
+    vec![
+        LoopJumpCase {
+            name: "while-true-break",
+            source: "fn main() -> Int:\n    var i = 0\n    while true:\n        if i == 5:\n            break\n        set i = i + 1\n    return i * 10 + 2\n",
+            expected: Ok(52),
+        },
+        LoopJumpCase {
+            name: "for-continue",
+            source: "fn main() -> Int:\n    var total = 0\n    for n in [1, 2, 3, 4, 5, 6]:\n        if n % 2 == 0:\n            continue\n        set total = total + n\n    return total\n",
+            expected: Ok(9),
+        },
+        LoopJumpCase {
+            name: "while-continue",
+            source: "fn main() -> Int:\n    var i = 0\n    var total = 0\n    while i < 6:\n        set i = i + 1\n        if i == 3:\n            continue\n        set total = total + i\n    return total\n",
+            expected: Ok(18),
+        },
+        LoopJumpCase {
+            name: "for-break",
+            source: "fn main() -> Int:\n    var total = 0\n    for n in [1, 2, 3, 4, 5]:\n        if n == 4:\n            break\n        set total = total + n\n    return total\n",
+            expected: Ok(6),
+        },
+        LoopJumpCase {
+            name: "break-at-function-top-level",
+            source: "fn main() -> Int:\n    break\n    return 0\n",
+            expected: Err(("E_NO_LOOP", 2, 5)),
+        },
+        LoopJumpCase {
+            name: "continue-at-function-top-level",
+            source: "fn main() -> Int:\n    continue\n    return 0\n",
+            expected: Err(("E_NO_LOOP", 2, 5)),
+        },
+        LoopJumpCase {
+            name: "break-after-the-loop-has-ended",
+            source: "fn main() -> Int:\n    var i = 0\n    while i < 3:\n        set i = i + 1\n    if i == 3:\n        break\n    return i\n",
+            expected: Err(("E_NO_LOOP", 6, 9)),
+        },
+        LoopJumpCase {
+            name: "parallel-map-worker-loops",
+            source: "fn work(limit: Int) -> Int:\n    var i = 0\n    var total = 0\n    while true:\n        set i = i + 1\n        if i > limit:\n            break\n        if i % 2 == 1:\n            continue\n        set total = total + i\n    return total\n\nfn run() -> Result[List[Int], TaskError]:\n    return parallel_map([4, 6, 10], work, 2)\n\nfn main() -> Int:\n    var sum = 0\n    for value in unwrap(run()):\n        set sum = sum + value\n    return sum\n",
+            expected: Ok(48),
+        },
+        LoopJumpCase {
+            name: "nested-inner-break-leaves-only-the-inner-loop",
+            source: "fn main() -> Int:\n    var count = 0\n    for a in [1, 2, 3]:\n        for b in [1, 2, 3, 4]:\n            if b == 3:\n                break\n            set count = count + 1\n    return count\n",
+            expected: Ok(6),
+        },
+        LoopJumpCase {
+            name: "nested-inner-continue-skips-only-the-inner-item",
+            source: "fn main() -> Int:\n    var count = 0\n    var i = 0\n    while i < 3:\n        set i = i + 1\n        for b in [1, 2, 3, 4]:\n            if b % 2 == 1:\n                continue\n            set count = count + 1\n    return count\n",
+            expected: Ok(6),
+        },
+        LoopJumpCase {
+            name: "break-and-continue-inside-match-arms",
+            source: "fn pick(n: Int) -> Option[Int]:\n    if n > 2:\n        return Some(n)\n    return None\n\nfn main() -> Int:\n    var found = 0\n    for n in [1, 2, 3, 4]:\n        match pick(n):\n            Some(value):\n                set found = value\n                break\n            None:\n                continue\n        set found = 99\n    return found\n",
+            expected: Ok(3),
+        },
+    ]
+}
+
+#[test]
+fn break_and_continue_cases_match_in_both_compilers() {
+    let compiler_artifact = prepare_self_host_compiler();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in loop_jump_cases() {
+        let project = TempProject::new(case.name);
+        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
+            &binary,
+            &compiler_artifact,
+            &project,
+            case.source,
+            case.name,
+        );
+        match case.expected {
+            Err((code, line, column)) => {
+                let expected = DiagnosticLocation {
+                    code: code.into(),
+                    source: "main.gu".into(),
+                    line,
+                    column,
+                };
+                assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
+                assert_eq!(
+                    bootstrap_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+                assert_eq!(
+                    self_host_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+            }
+            Ok(value) => {
+                let bootstrap = bootstrap.unwrap_or_else(|| {
+                    panic!(
+                        "{}: bootstrap rejected: {bootstrap_diagnostic:?}",
+                        case.name
+                    )
+                });
+                let self_host = self_host.unwrap_or_else(|| {
+                    panic!(
+                        "{}: self-host rejected: {self_host_diagnostic:?}",
+                        case.name
+                    )
+                });
+                // The two front ends differ in redundant jumps and spans (an `if` without
+                // `else` already did before this change); the observable behaviour must agree.
+                // Byte-identity is asserted between the self-hosted stages below.
+                for (compiler, artifact) in [("bootstrap", bootstrap), ("self-host", self_host)] {
+                    let observed = observe(artifact, &project.0).expect("artifact loads");
+                    assert_eq!(
+                        observed.result,
+                        Ok(RuntimeValue::Int(BigInt::from_usize(value))),
+                        "{}: {compiler}",
+                        case.name
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn break_and_continue_cases_match_between_stage_two_and_three() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stage_directory = repository.join("target/self-hosted-bootstrap");
+    let project = TempProject::new("break-continue-stages");
+    let load = |name: &str| {
+        Runtime::new()
+            .load(
+                Artifact::from_bytes(
+                    &fs::read(stage_directory.join(name))
+                        .expect("run three-stage bootstrap before stage conformance"),
+                )
+                .expect("native reader accepts the stage artifact"),
+                HostPolicy {
+                    instruction_limit: 500_000_000,
+                    allocation_limit_bytes: 8_589_934_592,
+                    call_depth_limit: 160,
+                    max_collection_items: 1_000_000,
+                    ..HostPolicy::default()
+                }
+                .with_file_access(&project.0, true, false),
+            )
+            .expect("load stage compiler")
+    };
+    let mut stage2 = load("stage2.gub");
+    let mut stage3 = load("stage3.gub");
+    for case in loop_jump_cases() {
+        let source_name = format!("cases/{}/main.gu", case.name);
+        project.write(&source_name, case.source);
+        let two = compile_with_stage(
+            &mut stage2,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let three = compile_with_stage(
+            &mut stage3,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        match (case.expected, two, three) {
+            (Ok(_), Ok(two), Ok(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 artifact mismatch", case.name)
+            }
+            (Err((code, line, column)), Err(two), Err(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
+                assert_eq!(two["diagnostic"]["code"], code, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["line"], line, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["column"], column, "{}", case.name);
+            }
+            (expected, two, three) => panic!(
+                "{}: acceptance mismatch: expected {expected:?}, C2={two:?}, C3={three:?}",
+                case.name
+            ),
+        }
+    }
+}

@@ -319,3 +319,40 @@ fn text_slice_is_typechecked_for_text_and_int_bounds() {
         .expect_err("text_slice rejects a non-Int bound");
     assert_eq!(error.code, "E_TYPE_ARGUMENT");
 }
+
+#[test]
+fn break_and_continue_compile_inside_while_and_for_loops() {
+    let sources = [
+        "fn main() -> Int:\n    var i = 0\n    while true:\n        if i == 5:\n            break\n        set i = i + 1\n    return i\n",
+        "fn main() -> Int:\n    var total = 0\n    for n in [1, 2, 3]:\n        if n == 2:\n            continue\n        set total = total + n\n    return total\n",
+        "fn main() -> Int:\n    var count = 0\n    for a in [1, 2]:\n        for b in [1, 2, 3]:\n            if b == 2:\n                break\n            set count = count + 1\n    return count\n",
+        "fn work(limit: Int) -> Int:\n    var i = 0\n    while true:\n        set i = i + 1\n        if i > limit:\n            break\n        if i == 2:\n            continue\n    return i\n\nfn run() -> Result[List[Int], TaskError]:\n    return parallel_map([4, 6], work, 2)\n\nfn main() -> Int:\n    return 0\n",
+    ];
+    for source in sources {
+        let artifact = compile("loops.gu", source).expect("break and continue are statements");
+        // They lower to the existing jump instructions: the format does not move.
+        assert_eq!(
+            artifact.format_version,
+            guion_model::Artifact::CURRENT_VERSION
+        );
+    }
+}
+
+#[test]
+fn break_and_continue_outside_a_loop_report_e_no_loop() {
+    for (keyword, message) in [
+        ("break", "`break` outside a loop"),
+        ("continue", "`continue` outside a loop"),
+    ] {
+        let source = format!("fn main() -> Int:\n    {keyword}\n    return 0\n");
+        let error = compile("no_loop.gu", &source).expect_err("no enclosing loop");
+        assert_eq!(error.code, "E_NO_LOOP", "{keyword}");
+        assert_eq!(error.message, message);
+        assert_eq!((error.span.line, error.span.column), (2, 5));
+    }
+    // A loop that has already ended does not count, and neither does an `if` around the jump.
+    let source = "fn main() -> Int:\n    var i = 0\n    while i < 3:\n        set i = i + 1\n    if i == 3:\n        break\n    return i\n";
+    let error = compile("after.gu", source).expect_err("the loop is over");
+    assert_eq!(error.code, "E_NO_LOOP");
+    assert_eq!((error.span.line, error.span.column), (6, 9));
+}
