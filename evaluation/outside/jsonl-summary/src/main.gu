@@ -19,7 +19,6 @@ fn main() -> Int:
         return 2
     let reader = unwrap(opened)
 
-    var running = true
     var requests = 0
     var bad_lines = 0
     var failures = 0
@@ -27,29 +26,27 @@ fn main() -> Int:
     var by_class: Map[Text, Int] = {}
     var by_path: Map[Text, Int] = {}
 
-    while running:
+    while true:
         let step = jsonl_next(reader)
         if not is_ok(step):
-            set running = false
-        else:
-            let maybe_line = unwrap(step)
-            if not is_some(maybe_line):
-                set running = false
-            else:
-                let line = unwrap(maybe_line)
-                if not is_some(line.value):
-                    set bad_lines = bad_lines + 1
-                else:
-                    let record = unwrap(line.value)
-                    set status = 0
-                    let wanted = json_get_int_safe(record, "status")
-                    if is_ok(wanted):
-                        set status = unwrap(wanted)
-                    set requests = requests + 1
-                    set by_class = bump(by_class, int_to_text(status // 100) + "xx")
-                    set by_path = bump(by_path, field_text(record, "path"))
-                    if status >= 400:
-                        set failures = failures + 1
+            break
+        let maybe_line = unwrap(step)
+        if not is_some(maybe_line):
+            break
+        let line = unwrap(maybe_line)
+        if not is_some(line.value):
+            set bad_lines = bad_lines + 1
+            continue
+        let record = unwrap(line.value)
+        set status = 0
+        let wanted = json_get_int_safe(record, "status")
+        if is_ok(wanted):
+            set status = unwrap(wanted)
+        set requests = requests + 1
+        set by_class = bump(by_class, int_to_text(status // 100) + "xx")
+        set by_path = bump(by_path, field_text(record, "path"))
+        if status >= 400:
+            set failures = failures + 1
 
     let closing = jsonl_close(reader)
 
