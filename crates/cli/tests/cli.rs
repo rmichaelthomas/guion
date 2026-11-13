@@ -4393,3 +4393,161 @@ fn break_outside_a_loop_is_rejected_by_check_with_e_no_loop() {
     assert!(stderr.contains("`break` outside a loop"), "{stderr}");
     let _ = fs::remove_dir_all(dir);
 }
+
+fn guion_doc(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("doc")
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+/// Shipped standard-library module names, read from the same directory the CLI resolves
+/// `std:` imports against.
+fn shipped_std_modules() -> Vec<String> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let mut names = fs::read_dir(root)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            (path.extension().is_some_and(|ext| ext == "gu"))
+                .then(|| path.file_stem().unwrap().to_string_lossy().into_owned())
+        })
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
+// http_types is a record-only module; every other module must expose a public function.
+const RECORD_ONLY_STD_MODULES: &[&str] = &["http_types"];
+
+#[test]
+fn doc_std_json_lists_json_get_text_safe() {
+    let output = guion_doc(&["std:json", "--json"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["kind"], "guion_api_report");
+    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["source"], "std:json");
+    let names = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|function| function["name"].as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert!(
+        names.contains(&"json_get_text_safe".to_owned()),
+        "{names:?}"
+    );
+    assert!(!names.contains(&"main".to_owned()));
+    // The flag position of the existing syntax also works.
+    let leading = guion_doc(&["--json", "std:json"]);
+    assert!(leading.status.success());
+    assert_eq!(leading.stdout, output.stdout);
+    let human = guion_doc(&["std:json"]);
+    assert!(human.status.success());
+    assert!(String::from_utf8_lossy(&human.stdout)
+        .contains("fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]"));
+}
+
+#[test]
+fn doc_std_nope_lists_valid_modules() {
+    let output = guion_doc(&["std:nope"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unknown standard-library module `std:nope`"),
+        "{stderr}"
+    );
+    for module in shipped_std_modules() {
+        assert!(
+            stderr.contains(&format!("std:{module}")),
+            "{module} in {stderr}"
+        );
+    }
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn doc_walks_every_shipped_std_module() {
+    let modules = shipped_std_modules();
+    assert!(modules.len() >= 27, "{modules:?}");
+    for module in modules {
+        let output = guion_doc(&[&format!("std:{module}")]);
+        assert!(
+            output.status.success(),
+            "std:{module}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            text.starts_with(&format!("API for std:{module}\n")),
+            "{text}"
+        );
+        if !RECORD_ONLY_STD_MODULES.contains(&module.as_str()) {
+            assert!(
+                text.lines().any(|line| line.starts_with("fn ")),
+                "std:{module}: {text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_std_module_documents() {
+    for module in shipped_std_modules() {
+        let output = guion_doc(&[&format!("std:{module}"), "--json"]);
+        assert!(
+            output.status.success(),
+            "std:{module}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let key = if RECORD_ONLY_STD_MODULES.contains(&module.as_str()) {
+            "records"
+        } else {
+            "functions"
+        };
+        assert!(
+            !report[key].as_array().unwrap().is_empty(),
+            "std:{module} has no {key}"
+        );
+    }
+}
+
+#[test]
+fn doc_all_json_is_sorted_and_covers_every_module() {
+    let output = guion_doc(&["--all", "--json"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["kind"], "guion_std_surface");
+    assert_eq!(report["schema_version"], 1);
+    let modules = report["modules"].as_array().unwrap();
+    let names = modules
+        .iter()
+        .map(|module| module["module"].as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(names, shipped_std_modules());
+    for module in modules {
+        let function_names = module["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|function| function["name"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let mut sorted = function_names.clone();
+        sorted.sort();
+        assert_eq!(function_names, sorted, "{}", module["module"]);
+    }
+    let again = guion_doc(&["--all", "--json"]);
+    assert_eq!(again.stdout, output.stdout);
+}

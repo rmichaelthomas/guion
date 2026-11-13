@@ -52,7 +52,7 @@ build      compile to an artifact
 package    produce a distributable package; verify-package checks one
 add        add a dependency; sync and update resolve and refresh them
 inspect    print artifact and function metadata and the effects a program can have
-doc        print function, record and external signatures
+doc        print function, record and external signatures; `doc std:NAME` prints a standard-library module, `doc --all --json` all of them
 doctor     report the current host and enabled profile
 install    install a library package
 publish    publish a package to a registry; yank withdraws a version; token manages publisher tokens
@@ -530,6 +530,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     .contains(&command)
     {
         return Err(format!("unknown command `{command}`\n{USAGE}"));
+    }
+    if command == "doc"
+        && args[1..]
+            .iter()
+            .any(|arg| arg == "--all" || arg.starts_with("std:"))
+    {
+        return doc_standard_library(&args[1..]);
     }
     let mut json_run = false;
     let mut no_source_cache = false;
@@ -3050,39 +3057,212 @@ fn list_stdlib_modules(root: &Path) -> Vec<String> {
     modules
 }
 
+/// Names of the shipped standard-library modules, sorted. Reads the same root `std:` imports
+/// resolve against.
+fn shipped_std_module_names() -> Result<Vec<String>, String> {
+    let root = compiler_driver::standard_library_root()
+        .ok_or_else(|| "no standard-library root was found".to_owned())?;
+    let mut names = fs::read_dir(&root)
+        .map_err(|error| format!("cannot read {}: {error}", root.display()))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            (path.is_file() && path.extension().is_some_and(|extension| extension == "gu"))
+                .then(|| {
+                    path.file_stem()
+                        .map(|stem| stem.to_string_lossy().into_owned())
+                })
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    names.sort();
+    Ok(names)
+}
+
+/// The public surface of one shipped module: the `guion_api_report` of a program that imports
+/// it, narrowed to the functions and records the module itself declares publicly.
+fn std_module_report(name: &str) -> Result<serde_json::Value, String> {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let standard_root = compiler_driver::standard_library_root()
+        .ok_or_else(|| "no standard-library root was found".to_owned())?;
+    let module_text = fs::read_to_string(source_module_path(&standard_root.join(name)))
+        .map_err(|error| format!("cannot read std:{name}: {error}"))?;
+    let public_functions = function_declarations(&module_text)
+        .into_iter()
+        .filter(|(_, _, public)| *public)
+        .map(|(function, _, _)| function)
+        .collect::<BTreeSet<_>>();
+    let record_names = module_text
+        .lines()
+        .filter_map(|line| {
+            let rest = line.strip_prefix("pub record ")?;
+            Some(rest.trim().trim_end_matches(':').trim().to_owned())
+        })
+        .collect::<BTreeSet<_>>();
+    let scratch = env::temp_dir().join(format!(
+        "guion-doc-std-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&scratch)
+        .map_err(|error| format!("cannot create {}: {error}", scratch.display()))?;
+    let entry = scratch.join("main.gu");
+    let result = (|| {
+        fs::write(
+            &entry,
+            format!("import \"std:{name}\"\n\nfn main() -> Int:\n    return 0\n"),
+        )
+        .map_err(|error| format!("cannot write {}: {error}", entry.display()))?;
+        let artifact = compile_project(&entry, &scratch)
+            .map_err(|error| render_diagnostic(&format!("std:{name}"), &error))?;
+        Ok::<_, String>(api_report(&format!("std:{name}"), &scratch, &artifact))
+    })();
+    let _ = fs::remove_dir_all(&scratch);
+    let mut report = result?;
+    let identity = format!("std:{name}");
+    if let Some(functions) = report["functions"].as_array_mut() {
+        functions.retain(|function| {
+            function["source"].as_str() == Some(identity.as_str())
+                && function["name"]
+                    .as_str()
+                    .is_some_and(|function| public_functions.contains(function))
+        });
+    }
+    if let Some(records) = report["records"].as_array_mut() {
+        records.retain(|record| {
+            record["name"]
+                .as_str()
+                .is_some_and(|record| record_names.contains(record))
+        });
+    }
+    report["python_functions"] = serde_json::json!([]);
+    Ok(report)
+}
+
+/// `guion doc std:NAME [--json]` and `guion doc --all --json`.
+fn doc_standard_library(args: &[String]) -> Result<ExitCode, String> {
+    let json = args.iter().any(|arg| arg == "--json");
+    let all = args.iter().any(|arg| arg == "--all");
+    let targets = args
+        .iter()
+        .filter(|arg| !arg.starts_with("--"))
+        .collect::<Vec<_>>();
+    let known = shipped_std_module_names()?;
+    if all {
+        if !json || !targets.is_empty() {
+            return Err("usage: guion doc --all --json".into());
+        }
+        let mut modules = Vec::new();
+        for name in &known {
+            let report = std_module_report(name)?;
+            let mut functions = report["functions"].as_array().cloned().unwrap_or_default();
+            functions.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+            let mut records = report["records"].as_array().cloned().unwrap_or_default();
+            records.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+            modules.push(serde_json::json!({
+                "module": name,
+                "functions": functions,
+                "records": records,
+            }));
+        }
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema_version": 1,
+                "kind": "guion_std_surface",
+                "modules": modules,
+            })
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    let [target] = targets.as_slice() else {
+        return Err(
+            "usage: guion doc [--json] <std:MODULE|source.gu> | guion doc --all --json".into(),
+        );
+    };
+    let name = target.strip_prefix("std:").unwrap_or_default();
+    if !known.iter().any(|module| module == name) {
+        let listing = known
+            .iter()
+            .map(|module| format!("  std:{module}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(format!(
+            "unknown standard-library module `{target}`; valid modules:\n{listing}"
+        ));
+    }
+    let report = std_module_report(name)?;
+    if json {
+        println!("{report}");
+    } else {
+        print_std_report_human(&report);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn print_std_report_human(report: &serde_json::Value) {
+    println!("API for {}", report["source"].as_str().unwrap_or("std"));
+    for function in report["functions"].as_array().into_iter().flatten() {
+        println!("{}", api_function_line(function));
+    }
+    for record in report["records"].as_array().into_iter().flatten() {
+        let fields = record["fields"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|field| {
+                format!(
+                    "{}: {}",
+                    field["name"].as_str().unwrap_or("?"),
+                    field["type"].as_str().unwrap_or("?")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!(
+            "record {}({fields})",
+            record["name"].as_str().unwrap_or("?")
+        );
+    }
+}
+
+fn api_function_line(function: &serde_json::Value) -> String {
+    let parameters = function["parameters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter["name"].as_str().unwrap_or("arg"),
+                parameter["type"].as_str().unwrap_or("?")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let effects = function["effects"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .collect::<Vec<_>>();
+    format!(
+        "fn {}({parameters}) -> {}{}",
+        function["name"].as_str().unwrap_or("?"),
+        function["result"].as_str().unwrap_or("?"),
+        if effects.is_empty() {
+            String::new()
+        } else {
+            format!("  effects: {}", effects.join(", "))
+        }
+    )
+}
+
 fn print_api_report_human(report: &serde_json::Value) {
     println!("API for {}", report["source"].as_str().unwrap_or("source"));
     if let Some(functions) = report["functions"].as_array() {
         for function in functions {
-            let parameters = function["parameters"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|parameter| {
-                    format!(
-                        "{}: {}",
-                        parameter["name"].as_str().unwrap_or("arg"),
-                        parameter["type"].as_str().unwrap_or("?")
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            let effects = function["effects"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(serde_json::Value::as_str)
-                .collect::<Vec<_>>();
-            println!(
-                "fn {}({parameters}) -> {}{}",
-                function["name"].as_str().unwrap_or("?"),
-                function["result"].as_str().unwrap_or("?"),
-                if effects.is_empty() {
-                    String::new()
-                } else {
-                    format!("  effects: {}", effects.join(", "))
-                }
-            );
+            println!("{}", api_function_line(function));
         }
     }
     println!("Standard library profile: core");
