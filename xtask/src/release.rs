@@ -22,6 +22,7 @@ const RELEASE_DOCS: &[&str] = &[
     "getting-started.md",
     "architecture.md",
     "reference.md",
+    "browser.md",
     "compatibility-and-migrations.md",
     "status.md",
     "stability-policy.md",
@@ -1294,6 +1295,7 @@ mod tests {
             "getting-started.md",
             "architecture.md",
             "reference.md",
+            "browser.md",
             "compatibility-and-migrations.md",
             "status.md",
             "stability-policy.md",
@@ -1310,5 +1312,16 @@ mod tests {
             !RELEASE_DOCS.contains(&"completion-report.md"),
             "the archived Veritas completion report must not ship as current Guion documentation"
         );
+    }
+
+    #[test]
+    fn shipped_docs_contain_browser_page() {
+        assert!(
+            RELEASE_DOCS.contains(&"browser.md"),
+            "the browser page must ship under share/guion/docs"
+        );
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let page = fs::read_to_string(root.join("docs/browser.md")).unwrap();
+        assert!(page.contains("execute_artifact_v1") && page.contains("R_HOST_UNSUPPORTED"));
     }
 }

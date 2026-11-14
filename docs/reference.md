@@ -176,6 +176,10 @@ See `language/examples/matching.gu` for both variants and both arm orders.
 After extracting a Guion distribution, run `sh install.sh` to install the versioned files under `~/.local/share/guion/` and create `~/.local/bin/guion`. Pass a prefix to choose another location. The installer leaves existing unrelated `bin/guion` commands intact and does not edit shell startup files. Add the reported `bin` directory to `PATH` using the method appropriate for your shell. Installing a new distribution version updates the managed launcher and keeps prior version directories available. This installer currently targets the packaged host only.
 
 The embedding API exposes `Runtime::vm_only()` for deterministic diagnosis and VM/JIT comparisons; `Runtime::new()` enables automatic JIT selection for eligible pure numeric functions.
+## Running in a browser
+
+The VM also builds for WebAssembly. [`browser.md`](browser.md) describes the two modules, the `execute_artifact_v1` call, the ABI version, the limit table, the zero-capability rule with `R_HOST_UNSUPPORTED`, and what the browser VM lacks (DOM, events, JavaScript imports, in-browser grants, the higher-order builtins and sorting).
+
 # Bootstrap compiler interface
 
 The experimental compiler-to-artifact interchange used by the Guion self-hosting bootstrap is documented in [bytecode IR interchange](bytecode-ir.md). It is not a stable public ABI.

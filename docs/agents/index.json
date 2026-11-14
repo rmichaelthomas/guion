@@ -15,6 +15,7 @@
     "host_api": "language/host-api.md",
     "conformance_manifest": "language/conformance/manifest.json",
     "compatibility": "docs/compatibility-and-migrations.md",
+    "browser": "docs/browser.md",
     "status": "docs/status.md"
   },
   "cli_json_reports": {
