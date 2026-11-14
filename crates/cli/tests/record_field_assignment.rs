@@ -127,3 +127,33 @@ fn two_hundred_thousand_appends_to_a_record_field_run_in_linear_time() {
         started.elapsed()
     );
 }
+
+#[test]
+fn inspect_speed_names_the_functions_that_run_as_machine_code() {
+    let directory = std::env::temp_dir().join(format!("guion-inspect-speed-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    std::fs::write(
+        directory.join("main.gu"),
+        "fn fib(n: Int) -> Int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nfn add(xs: List[Int], v: Int) -> List[Int]:\n    return list_push(xs, v)\n\nfn main() -> Unit:\n    print(fib(5))\n    print(add([], 1))\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", "--speed", "--json", "main.gu"])
+        .current_dir(&directory)
+        .output()
+        .expect("guion starts");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let row = |name: &str| {
+        report["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["function"] == name)
+            .unwrap_or_else(|| panic!("{name} is listed"))
+            .clone()
+    };
+    assert_eq!(row("fib")["runs_as"], "machine code");
+    assert_eq!(row("add")["runs_as"], "interpreter");
+    assert_eq!(row("add")["reason_code"], "unsupported_types_or_control_flow");
+}

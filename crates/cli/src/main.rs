@@ -684,6 +684,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             }
         }
         index
+    } else if command == "inspect" {
+        let mut index = 1;
+        while matches!(
+            args.get(index).map(String::as_str),
+            Some("--json") | Some("--speed")
+        ) {
+            index += 1;
+        }
+        index
     } else if (command == "fmt" && args.get(1).is_some_and(|arg| arg == "--check"))
         || json_doc
         || (json_check && args.get(1).is_some_and(|arg| arg == "--json"))
@@ -972,6 +981,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     artifact.format_version
                 );
             }
+        }
+        "inspect" if args.iter().any(|argument| argument == "--speed") => {
+            return speed_report(&artifact, json_inspect);
         }
         "inspect" => {
             if json_inspect {
@@ -2570,6 +2582,91 @@ fn dependency_lock_digest(root: &std::path::Path) -> Result<Option<String>, Stri
         }
     }
     Ok(found.then(|| format!("{:x}", digest.finalize())))
+}
+
+/// A plain-English line for a native-compile rejection code.
+fn speed_advice(code: &str, reason: &str) -> String {
+    match code {
+        "recursive_function" => format!(
+            "{reason}. Raise nothing: recursion is fast at the default call depth limit of 128; a limit above 256 keeps it in the interpreter."
+        ),
+        "text_append_to_local" => "this function appends to a text variable; the interpreter does that in place, so it is left there on purpose.".to_owned(),
+        "callee_requires_vm" => format!("{reason}. A function is only compiled when everything it calls is."),
+        "native_loop_value_arena_retention" => "a loop here builds text, JSON or file values; the interpreter frees them as the loop goes, so it is left there on purpose.".to_owned(),
+        "unsupported_types_or_control_flow" => "the machine-code path cannot prove this function's types, or it passes a list, map or text on to be updated in place, which the interpreter does faster. The program still runs; it just has no machine code here.".to_owned(),
+        _ => reason.to_owned(),
+    }
+}
+
+/// `guion inspect --speed`: for each function, whether it runs as machine code or in the
+/// interpreter, and when it is in the interpreter, why and where.
+fn speed_report(artifact: &Artifact, json: bool) -> Result<ExitCode, String> {
+    let call_depth_limit = artifact
+        .build_metadata
+        .as_ref()
+        .map(|metadata| metadata.resource_limits.call_depth_limit)
+        .unwrap_or_else(|| HostPolicy::default().call_depth_limit);
+    let policy = HostPolicy {
+        call_depth_limit,
+        ..HostPolicy::default()
+    };
+    let instance = Runtime::new()
+        .load(artifact.clone(), policy)
+        .map_err(|error| format!("cannot load the program: {error:?}"))?;
+    let profile = instance.native_compile_profile();
+    let rejected: std::collections::HashMap<String, serde_json::Value> = profile
+        ["rejected_functions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| Some((entry["name"].as_str()?.to_owned(), entry.clone())))
+        .collect();
+    let mut rows = Vec::new();
+    for function in &artifact.functions {
+        // Functions from the standard library and packages are listed too, but only a
+        // function written in this project has a line worth reporting.
+        let line = function.code.first().map_or(0, |instruction| instruction.span.line);
+        let entry = rejected.get(&function.name);
+        let blocking_line = entry
+            .and_then(|entry| entry["blocking_instruction"].as_str())
+            .and_then(|text| {
+                text.split(|c: char| !c.is_ascii_digit())
+                    .find(|part| !part.is_empty())
+                    .and_then(|digits| digits.parse::<usize>().ok())
+            })
+            .and_then(|ip| function.code.get(ip))
+            .map(|instruction| instruction.span.line);
+        rows.push(serde_json::json!({
+            "function": function.name,
+            "line": line,
+            "runs_as": if entry.is_some() { "interpreter" } else { "machine code" },
+            "reason_code": entry.map(|entry| entry["reason_code"].clone()),
+            "reason": entry.map(|entry| entry["reason"].clone()),
+            "blocking_line": blocking_line,
+        }));
+    }
+    if json {
+        println!("{}", serde_json::json!({ "functions": rows }));
+        return Ok(ExitCode::SUCCESS);
+    }
+    println!("how each function runs (machine code is the fast path; the interpreter is the fallback):");
+    for row in &rows {
+        let name = row["function"].as_str().unwrap_or("?");
+        if row["runs_as"] == "machine code" {
+            println!("  {name}: machine code");
+        } else {
+            let at = row["blocking_line"]
+                .as_u64()
+                .map(|line| format!(" (blocked near line {line})"))
+                .unwrap_or_default();
+            let code = row["reason_code"].as_str().unwrap_or("?");
+            println!(
+                "  {name}: interpreter, {code}{at}\n    {}",
+                speed_advice(code, row["reason"].as_str().unwrap_or(""))
+            );
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }
 
 fn display_type(ty: &guion_model::Type) -> String {
