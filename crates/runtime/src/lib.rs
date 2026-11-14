@@ -46,6 +46,8 @@ pub mod stdlib_services;
 mod yaml;
 
 mod entropy;
+mod tape;
+pub use tape::TapeMode;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
@@ -423,6 +425,8 @@ impl HostPolicy {
 }
 
 pub struct Runtime {
+    tape: Option<TapeMode>,
+    tape_redact: Vec<String>,
     native_enabled: bool,
     native_whole_program_entry: bool,
     runtime_profile_enabled: bool,
@@ -498,6 +502,8 @@ impl Default for Runtime {
 impl Runtime {
     pub fn new() -> Self {
         Self {
+            tape: None,
+            tape_redact: Vec::new(),
             native_enabled: true,
             native_whole_program_entry: false,
             runtime_profile_enabled: false,
@@ -509,6 +515,8 @@ impl Runtime {
     /// This is useful for reproducible backend comparisons and diagnosis.
     pub fn vm_only() -> Self {
         Self {
+            tape: None,
+            tape_redact: Vec::new(),
             native_enabled: false,
             native_whole_program_entry: false,
             runtime_profile_enabled: false,
@@ -520,6 +528,21 @@ impl Runtime {
     /// This adds instrumentation and should be used only for untimed profiles.
     /// The first function invoked is the only one this runtime will invoke, as for a program
     /// run from its entry point, so nothing it cannot reach needs native code.
+    /// Record every host operation to a tape, or replay a tape with no access to the outside
+    /// world. Both run on the bytecode VM, so the host operations go through one place in a
+    /// fixed order, and `parallel_map` is limited to one worker.
+    pub fn with_tape(mut self, mode: TapeMode) -> Self {
+        self.native_enabled = false;
+        self.tape = Some(mode);
+        self
+    }
+
+    /// Hosts and paths whose calls keep their place on a recorded tape but not their results.
+    pub fn with_tape_redactions(mut self, patterns: Vec<String>) -> Self {
+        self.tape_redact = patterns;
+        self
+    }
+
     pub fn with_whole_program_entry(mut self) -> Self {
         self.native_whole_program_entry = true;
         self
@@ -543,6 +566,13 @@ impl Runtime {
         mut policy: HostPolicy,
     ) -> Result<Instance, RuntimeError> {
         verify(&artifact)?;
+        let tape = match &self.tape {
+            Some(mode) => {
+                policy.max_parallelism = 1;
+                Some(Arc::new(tape::Tape::open(mode, &artifact, &self.tape_redact)?))
+            }
+            None => None,
+        };
         if let Some(metadata) = &artifact.build_metadata {
             let limits = &metadata.resource_limits;
             policy.instruction_limit = policy.instruction_limit.min(limits.instruction_limit);
@@ -572,6 +602,7 @@ impl Runtime {
         let native_constants = native_constant_table(&artifact);
         let artifact = share_artifact(artifact);
         Ok(Instance {
+            tape,
             artifact,
             native_constants,
             registers,
@@ -617,6 +648,7 @@ impl Runtime {
 
 #[derive(Debug)]
 pub struct Instance {
+    tape: Option<Arc<tape::Tape>>,
     artifact: Arc<Artifact>,
     native_constants: Arc<Vec<Value>>,
     registers: Arc<RegisterPrograms>,
@@ -1177,6 +1209,51 @@ impl VmHost for Instance {
     }
 
     fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
+        let Some(tape) = self.tape.clone() else {
+            return self.host_op_inner(context);
+        };
+        if !tape::is_world_operation(&context.instruction.op) {
+            return self.host_op_inner(context);
+        }
+        let HostOpContext {
+            instruction,
+            function,
+            stack,
+            locals,
+            budget,
+            depth,
+        } = context;
+        let operation = opcode_profile_name(&instruction.op);
+        if tape.is_replay() {
+            return match tape.replay(operation, &function.name, instruction.span, stack.as_slice())? {
+                Ok((kept, values)) => {
+                    stack.truncate(kept);
+                    stack.extend(values);
+                    Ok(())
+                }
+                Err(error) => Err(error),
+            };
+        }
+        let before = stack.clone();
+        let result = self.host_op_inner(HostOpContext {
+            instruction,
+            function,
+            stack: &mut *stack,
+            locals,
+            budget,
+            depth,
+        });
+        let after = match &result {
+            Ok(()) => Ok(stack.as_slice()),
+            Err(error) => Err(error),
+        };
+        tape.record(operation, &function.name, instruction.span, &before, &after)?;
+        result
+    }
+}
+
+impl Instance {
+    fn host_op_inner(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
         let HostOpContext {
             instruction,
             function: _,
@@ -5971,6 +6048,20 @@ impl Instance {
     pub fn take_program_stderr(&mut self) -> String {
         std::mem::take(&mut self.program_stderr)
     }
+    /// Ends a recorded or replayed run: a recording writes its tape file, a replay checks that
+    /// the program made every call on the tape. Does nothing when no tape is in use.
+    pub fn finish_tape(&mut self) -> Result<(), RuntimeError> {
+        let Some(tape) = self.tape.clone() else {
+            return Ok(());
+        };
+        if tape.is_replay() {
+            tape.finish_replay()
+        } else {
+            tape.finish_record()
+                .map_err(|message| RuntimeError::new("R_TAPE", message, Span::default()))
+        }
+    }
+
     pub fn close(&mut self) {
         self.closed = true;
         if let Some(cancelled) = &self.cancelled {
@@ -7186,6 +7277,7 @@ impl Instance {
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
         let values = Arc::new(values);
+        let tape = self.tape.clone();
         let native_calls = self.native_calls.clone();
         let native_deoptimizations = self.native_deoptimizations.clone();
         let native_deoptimization_sites = self.native_deoptimization_sites.clone();
@@ -7216,6 +7308,7 @@ impl Instance {
             let policy = policy.clone();
             let values = values.clone();
             let budget = worker_budget.clone();
+            let tape = tape.clone();
             let native_calls = native_calls.clone();
             let native_deoptimizations = native_deoptimizations.clone();
             let native_deoptimization_sites = native_deoptimization_sites.clone();
@@ -7246,6 +7339,7 @@ impl Instance {
                     database_roots.extend(policy.additional_file_roots.iter().cloned());
                     database_roots.extend(policy.file_root_aliases.values().cloned());
                     let mut worker = Instance {
+                        tape: tape.clone(),
                         artifact: Arc::clone(&artifact),
                         native_constants: Arc::clone(&native_constants),
                         registers: Arc::clone(&registers),
