@@ -16,6 +16,7 @@ const STDLIB_MODULE_NAMES: &[&str] = &[
     "cli",
     "collections",
     "compress",
+    "cookie",
     "crypto",
     "csv",
     "encoding",
