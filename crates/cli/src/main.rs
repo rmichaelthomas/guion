@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Component, Path},
     process::ExitCode,
@@ -2913,6 +2913,10 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
                 .map(move |(name, parameters, public)| (identity.clone(), name, parameters, public))
         })
         .collect::<Vec<_>>();
+    let deprecations = source_texts
+        .iter()
+        .map(|(identity, text)| (identity.clone(), function_deprecations(text)))
+        .collect::<BTreeMap<_, _>>();
     let inspected = inspection_report(source, artifact, project_root, false);
     let functions = artifact.functions.iter().map(|function| {
         let (module_id, base_name) = if let Some(rest) = function.name.strip_prefix("@module/") {
@@ -2930,14 +2934,20 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
             })
         }).collect::<Vec<_>>();
         let effects = inspected["functions"].get(&function.name).and_then(|entry| entry["effects"].as_array()).cloned().unwrap_or_default();
-        serde_json::json!({
+        let mut entry = serde_json::json!({
             "name": function.name,
             "source": selected.map(|(source, _, _, _)| source.as_str()),
             "parameters": parameters,
             "result": display_type(&function.result),
             "effects": effects,
             "profile_requirements": if artifact.externals.is_empty() { Vec::<String>::new() } else { vec!["python-interop".to_owned()] },
-        })
+        });
+        if let Some((source, name, _, _)) = selected {
+            if let Some((since, replacement)) = deprecations.get(source).and_then(|marked| marked.get(name)) {
+                entry["deprecated"] = deprecation_json(since, replacement);
+            }
+        }
+        entry
     }).collect::<Vec<_>>();
     let required_stdlib = artifact
         .sources
@@ -3035,6 +3045,49 @@ fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {
         declarations.push((name.to_owned(), parameters, public));
     }
     declarations
+}
+
+/// Parse one `# deprecated(since 0.3.0): use NAME` doc-comment line (VERSIONING.md section 7).
+fn parse_deprecation_comment(line: &str) -> Option<(String, String)> {
+    let rest = line
+        .trim_start()
+        .strip_prefix('#')?
+        .trim_start()
+        .strip_prefix("deprecated(since ")?;
+    let (since, rest) = rest.split_once(')')?;
+    let replacement = rest.strip_prefix(':')?.trim_start().strip_prefix("use ")?;
+    let replacement = replacement.trim();
+    let since = since.trim();
+    (!since.is_empty() && !replacement.is_empty() && !replacement.contains(char::is_whitespace))
+        .then(|| (since.to_owned(), replacement.to_owned()))
+}
+
+/// The deprecation markers of a module's public functions: name to (since, replacement). The
+/// marker is a comment line in the block of `#` lines directly above `pub fn`.
+fn function_deprecations(source: &str) -> BTreeMap<String, (String, String)> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut deprecations = BTreeMap::new();
+    for (index, line) in lines.iter().enumerate() {
+        let Some(signature) = line.trim_start().strip_prefix("pub fn ") else {
+            continue;
+        };
+        let Some(name) = signature.split('(').next().map(str::trim) else {
+            continue;
+        };
+        let marker = lines[..index]
+            .iter()
+            .rev()
+            .take_while(|above| above.trim_start().starts_with('#'))
+            .find_map(|above| parse_deprecation_comment(above));
+        if let Some(marker) = marker {
+            deprecations.insert(name.to_owned(), marker);
+        }
+    }
+    deprecations
+}
+
+fn deprecation_json(since: &str, replacement: &str) -> serde_json::Value {
+    serde_json::json!({"since": since, "use": replacement})
 }
 
 fn split_signature_parameters(parameters: &str) -> Vec<&str> {
@@ -3171,6 +3224,18 @@ fn std_module_report(name: &str) -> Result<serde_json::Value, String> {
                 .is_some_and(|record| record_names.contains(record))
         });
     }
+    let deprecations = function_deprecations(&module_text);
+    if let Some(functions) = report["functions"].as_array_mut() {
+        for function in functions {
+            let marker = function["name"]
+                .as_str()
+                .and_then(|name| deprecations.get(name))
+                .cloned();
+            if let Some((since, replacement)) = marker {
+                function["deprecated"] = deprecation_json(&since, &replacement);
+            }
+        }
+    }
     report["python_functions"] = serde_json::json!([]);
     // The module's one-line summary: a leading `# std:NAME: ...` comment line, if it has one.
     let summary_prefix = format!("# std:{name}: ");
@@ -3302,8 +3367,16 @@ fn api_function_line(function: &serde_json::Value) -> String {
             String::new()
         } else {
             format!("  effects: {}", effects.join(", "))
+        },
+    ) + &match (
+        function["deprecated"]["since"].as_str(),
+        function["deprecated"]["use"].as_str(),
+    ) {
+        (Some(since), Some(replacement)) => {
+            format!("  deprecated since {since}: use {replacement}")
         }
-    )
+        _ => String::new(),
+    }
 }
 
 fn print_api_report_human(report: &serde_json::Value) {
@@ -3527,6 +3600,35 @@ fn lint_source(source: &str, source_path: &Path, project_root: &Path) -> Vec<ser
             }
         }
     }
+    // Calls to functions that an imported module marks `# deprecated(since X): use NAME`.
+    let mut deprecated = BTreeMap::new();
+    for line in &lines {
+        if let Some(import_path) = import_path(line.trim_start()) {
+            deprecated.extend(lint_module_deprecations(
+                import_path,
+                source_path,
+                project_root,
+                0,
+            ));
+        }
+    }
+    for (name, _, _) in function_declarations(source) {
+        deprecated.remove(&name);
+    }
+    if !deprecated.is_empty() {
+        for (line_index, line) in lines.iter().enumerate() {
+            for (name, column) in call_sites(line) {
+                if let Some((since, replacement)) = deprecated.get(&name) {
+                    diagnostics.push(lint_diagnostic(
+                        "W_DEPRECATED_CALL",
+                        format!("`{name}` is deprecated since {since}: use `{replacement}`"),
+                        line_index + 1,
+                        column,
+                    ));
+                }
+            }
+        }
+    }
     let mut terminating_indent: Option<usize> = None;
     for (line_index, line) in lines.iter().enumerate() {
         let trimmed = line.trim_start();
@@ -3661,6 +3763,87 @@ fn lint_module_exports(
         }
     }
     Some(exports)
+}
+
+/// Deprecation markers of the public functions an import offers, following `pub import`
+/// re-exports the way `lint_module_exports` does.
+fn lint_module_deprecations(
+    import: &str,
+    source_path: &Path,
+    project_root: &Path,
+    depth: usize,
+) -> BTreeMap<String, (String, String)> {
+    const MAX_REEXPORT_DEPTH: usize = 8;
+    let Some((module_path, module_source)) = lint_import_source(import, source_path, project_root)
+    else {
+        return BTreeMap::new();
+    };
+    let mut deprecations = function_deprecations(&module_source);
+    if depth < MAX_REEXPORT_DEPTH {
+        for line in module_source.lines() {
+            if let Some(reexported) = line
+                .trim_start()
+                .strip_prefix("pub ")
+                .and_then(|rest| import_path(rest.trim_start()))
+            {
+                deprecations.extend(lint_module_deprecations(
+                    reexported,
+                    &module_path,
+                    project_root,
+                    depth + 1,
+                ));
+            }
+        }
+    }
+    deprecations
+}
+
+/// The names called on one source line, with their 1-based columns: an identifier directly
+/// followed by `(` that is not a declaration. Strings and comments are skipped.
+fn call_sites(line: &str) -> Vec<(String, usize)> {
+    let characters = line.chars().collect::<Vec<_>>();
+    let mut calls = Vec::new();
+    let mut cursor = 0;
+    let mut previous_word = String::new();
+    while cursor < characters.len() {
+        let character = characters[cursor];
+        if character == '#' {
+            break;
+        }
+        if character == '"' {
+            cursor += 1;
+            let mut escaped = false;
+            while cursor < characters.len() {
+                let current = characters[cursor];
+                cursor += 1;
+                if escaped {
+                    escaped = false;
+                } else if current == '\\' {
+                    escaped = true;
+                } else if current == '"' {
+                    break;
+                }
+            }
+        } else if character.is_ascii_alphabetic() || character == '_' {
+            let start = cursor;
+            while cursor < characters.len()
+                && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+            {
+                cursor += 1;
+            }
+            let word = characters[start..cursor].iter().collect::<String>();
+            if characters.get(cursor) == Some(&'(') && previous_word != "fn" {
+                calls.push((word.clone(), start + 1));
+            }
+            previous_word = word;
+        } else {
+            if !character.is_whitespace() {
+                previous_word.clear();
+            }
+            cursor += 1;
+        }
+    }
+    calls
 }
 
 fn lint_import_source(
@@ -4468,9 +4651,23 @@ fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeE
 
 #[cfg(test)]
 mod tests {
-    use super::{add_runtime_profile, copy_rust_notices, publish_package_stage};
+    use super::{
+        add_runtime_profile, copy_rust_notices, function_deprecations, publish_package_stage,
+    };
     use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn deprecation_markers_attach_to_the_public_function_below_them() {
+        let source = "# deprecated(since 0.3.0): use b\npub fn a() -> Int:\n    return 1\n\n\
+                      # deprecated(since 0.3.0): use d\nfn c() -> Int:\n    return 1\n\n\
+                      # deprecated(since 0.4.0): use f\n# More about it.\npub fn e() -> Int:\n    return 1\n\n\
+                      # deprecated(since 0.4.0): use g h\npub fn bad() -> Int:\n    return 1\n";
+        let found = function_deprecations(source);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found["a"], ("0.3.0".to_owned(), "b".to_owned()));
+        assert_eq!(found["e"], ("0.4.0".to_owned(), "f".to_owned()));
+    }
 
     #[test]
     fn small_blocks_survive_crossing_threads_through_the_pool_allocator() {

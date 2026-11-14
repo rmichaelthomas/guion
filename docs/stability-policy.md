@@ -18,7 +18,7 @@ Hashes in artifacts and locks detect accidental change; they do not authenticate
 
 Anything that is removed is first deprecated for at least one full minor release. The deprecation is recorded in [CHANGELOG.md](../CHANGELOG.md), and a migration note goes in [compatibility and migrations](compatibility-and-migrations.md). For example, something deprecated in 0.3 can be removed no earlier than 0.5.
 
-The rules in [VERSIONING.md](../VERSIONING.md) govern bump decisions from 0.3.0.
+The rules in [VERSIONING.md](../VERSIONING.md) govern bump decisions from 0.3.0. A deprecated function is marked with a `# deprecated(since X): use NAME` comment, which `guion doc` reports and `guion lint` warns about ([reference](reference.md)).
 
 The one standing exception is the read compatibility for old Veritas project names. It is a migration aid and may be removed before 1.0 without a further deprecation period; see [compatibility and migrations](compatibility-and-migrations.md).
 
