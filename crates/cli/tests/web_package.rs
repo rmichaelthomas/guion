@@ -102,7 +102,8 @@ fn no_handle_in_public_signatures() {
             "Middleware",
             "App",
             "SessionStore",
-            "SessionPolicy"
+            "SessionPolicy",
+            "Rendered"
         ]
         .iter()
         .all(|name| records.iter().any(|record| record == name)),
@@ -154,6 +155,13 @@ fn every_public_function_declares_its_effects() {
         "app",
         "path_param",
         "path_param_int",
+        "html_escape_text",
+        "html_escape_attr",
+        "html_escape_url",
+        "html_script_string",
+        "html_embed_rendered",
+        "html_finish",
+        "html_response",
     ] {
         assert!(effects(pure).is_empty(), "{pure}: {:?}", effects(pure));
     }

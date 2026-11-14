@@ -1,0 +1,56 @@
+# Checked templates, the runtime side: `Rendered` and the escapers that generated template code calls.
+#
+# A template (`NAME.gut`) is compiled by `guion check`, `build`, `run` and `test` into a Guion module
+# (`NAME.gut.gu`) whose function `render_NAME(...)` returns a `Rendered`. This module holds the only
+# things those functions use, so the compiled program contains no template parser.
+#
+# `Rendered` is markup that was built from escaped parts. The functions that make one (`html_finish`)
+# and take its text back out (`html_embed_rendered`) are for generated code: `guion check` refuses a
+# project that uses templates when a hand-written module names `Rendered(`, `html_finish` or
+# `html_embed_rendered`. Read `r.html` or use `html_response`. There is no function from `Text` to
+# `Rendered`, no flag and no filter that turns escaping off.
+#
+# Contexts (the template checker puts each interpolation in exactly one of them):
+#   html_escape_text   element text and quoted attribute values: & < > " ' become entities.
+#   html_escape_attr   a quoted attribute value: as above, plus the backtick.
+#   html_escape_url    one URL component: everything but A-Z a-z 0-9 - . _ ~ is percent-encoded, so
+#                      `javascript:x` is `javascript%3Ax` and can never be a scheme.
+#   html_script_string a JSON string literal for a JavaScript expression position inside <script>;
+#                      < > & ' ` $ and U+2028/U+2029 are \u escapes, so the text cannot close the
+#                      element or leave a quote or template literal it is pasted into.
+# Every function here is pure.
+
+import "std:types"
+import "std:text"
+import "std:url"
+import "std:http_response"
+
+pub record Rendered:
+    html: Text
+
+pub fn html_escape_text(value: Text) -> Text:
+    return text_replace(text_replace(text_replace(text_replace(text_replace(value, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"), "\"", "&quot;"), "'", "&#39;")
+
+pub fn html_escape_attr(value: Text) -> Text:
+    return text_replace(html_escape_text(value), "`", "&#96;")
+
+pub fn html_escape_url(value: Text) -> Text:
+    return url_encode_component(value)
+
+pub fn html_script_string(value: Text) -> Text:
+    let literal = json_stringify(json_text(value))
+    let first = text_replace(text_replace(text_replace(literal, "<", "\\u003c"), ">", "\\u003e"), "&", "\\u0026")
+    let second = text_replace(text_replace(text_replace(first, "'", "\\u0027"), "`", "\\u0060"), "$", "\\u0024")
+    return text_replace(text_replace(second, "\u{2028}", "\\u2028"), "\u{2029}", "\\u2029")
+
+# For generated code: the text of a `Rendered`, inserted where a template wrote `{{ embed r }}`.
+pub fn html_embed_rendered(value: Rendered) -> Text:
+    return value.html
+
+# For generated code: the parts a template function appended, joined once.
+pub fn html_finish(parts: List[Text]) -> Rendered:
+    return Rendered(text_join(parts, ""))
+
+# A `Response` with the rendered markup as its body and `text/html; charset=utf-8` as its type.
+pub fn html_response(status: Int, body: Rendered) -> Result[Response, HttpFailure]:
+    return response_set_header(response_text(status, body.html), "Content-Type", "text/html; charset=utf-8")

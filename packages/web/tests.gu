@@ -927,3 +927,48 @@ fn test_csrf_tokens_are_a_keyed_mac_of_the_session_id() -> Unit:
     assert(is_ok(csrf_token(store, policy, request_new("GET", "/"))) == false)
     assert(error(csrf_token(store, policy, request_new("GET", "/"))).code == "E_CSRF_NO_SESSION")
     clean_db()
+
+fn test_html_escape_text_covers_the_five_characters_and_nothing_else() -> Unit:
+    assert(html_escape_text("<script>alert(1)</script>") == "&lt;script&gt;alert(1)&lt;/script&gt;")
+    assert(html_escape_text("\"'&<>") == "&quot;&#39;&amp;&lt;&gt;")
+    # Ampersand first: an existing entity is data and is escaped, not decoded.
+    assert(html_escape_text("&lt;") == "&amp;lt;")
+    assert(html_escape_text("plain text, é日本語😀 and `ticks`") == "plain text, é日本語😀 and `ticks`")
+    assert(html_escape_text("") == "")
+
+fn test_html_escape_attr_also_covers_the_backtick() -> Unit:
+    assert(html_escape_attr("a`b") == "a&#96;b")
+    assert(html_escape_attr("\" onmouseover=\"x") == "&quot; onmouseover=&quot;x")
+
+fn test_html_escape_url_encodes_everything_but_unreserved_characters() -> Unit:
+    assert(html_escape_url("javascript:alert(1)") == "javascript%3Aalert%281%29")
+    assert(html_escape_url("a b/c?d=e&f#g") == "a%20b%2Fc%3Fd%3De%26f%23g")
+    assert(html_escape_url("-._~AZaz09") == "-._~AZaz09")
+    assert(html_escape_url("é") == "%C3%A9")
+    assert(html_escape_url("<>\"'") == "%3C%3E%22%27")
+
+fn test_html_script_string_is_a_json_literal_that_cannot_leave_the_element() -> Unit:
+    assert(html_script_string("abc") == "\"abc\"")
+    assert(html_script_string("a\"b\\c\nd") == "\"a\\\"b\\\\c\\nd\"")
+    assert(html_script_string("</script><!--") == "\"\\u003c/script\\u003e\\u003c!--\"")
+    assert(html_script_string("'`$&") == "\"\\u0027\\u0060\\u0024\\u0026\"")
+    assert(html_script_string("\u{2028}\u{2029}") == "\"\\u2028\\u2029\"")
+    assert(html_script_string("") == "\"\"")
+    # No raw angle bracket, quote-breaking character or line separator survives.
+    let hostile = html_script_string("</script><script>alert(1)//\u{2028}'`${x}")
+    assert(text_find(hostile, "<", 0) < 0)
+    assert(text_find(hostile, ">", 0) < 0)
+    assert(text_find(hostile, "'", 0) < 0)
+    assert(text_find(hostile, "`", 0) < 0)
+    assert(text_find(hostile, "$", 0) < 0)
+    assert(text_find(hostile, "\u{2028}", 0) < 0)
+
+fn test_a_rendered_value_joins_its_parts_once_and_html_response_types_it() -> Unit:
+    let page = html_finish(["<p>", html_escape_text("<b>"), "</p>"])
+    assert(page.html == "<p>&lt;b&gt;</p>")
+    assert(html_embed_rendered(page) == "<p>&lt;b&gt;</p>")
+    assert(html_finish([]).html == "")
+    let response = unwrap(html_response(201, page))
+    assert(response.status == 201)
+    assert(unwrap(response_header(response, "content-type")) == "text/html; charset=utf-8")
+    assert(text_of(response) == "<p>&lt;b&gt;</p>")

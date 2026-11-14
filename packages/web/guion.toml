@@ -2,7 +2,7 @@
 name = "web"
 version = "0.1.0"
 entry = "src/lib.gu"
-exports = ["src/lib.gu", "src/router.gu", "src/middleware.gu", "src/serve.gu", "src/session.gu", "src/csrf.gu"]
+exports = ["src/lib.gu", "src/router.gu", "src/middleware.gu", "src/serve.gu", "src/session.gu", "src/csrf.gu", "src/html.gu"]
 
 # Capabilities are declared up front so the package system carries them from the first release;
 # `guion check` compares them with what the modules actually use once there are modules.

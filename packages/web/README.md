@@ -112,6 +112,14 @@ Handlers cannot hold a store, so a handler opens it with `session_store_open(pat
 - `csrf_exempt_method(method)` and `csrf_verify(store, policy, request) -> Result[Bool, HttpFailure]` are the two halves, for a handler that wants to check itself.
 - This is the token check only. It does not read `Origin` or `Referer`, and it does not defend against a script running in your own page.
 
+## Templates
+
+`html.gu` is the runtime side of checked templates (`NAME.gut` files; see `docs/templates.md` in the repository for the syntax). A project that depends on `web` writes `src/templates/page.gut`, and `guion check`, `build`, `run` and `test` compile it to `page.gut.gu` with `render_page(params) -> Rendered`.
+
+- `Rendered` holds markup built from escaped parts. Read it with `.html` or turn it into a response with `html_response(status, rendered) -> Result[Response, HttpFailure]` (`text/html; charset=utf-8`).
+- `html_escape_text`, `html_escape_attr`, `html_escape_url` and `html_script_string` are the escapers generated code calls (element text and quoted attributes; quoted attributes plus the backtick; one URL component; a JSON string literal safe inside `<script>`). All are pure.
+- `html_finish` and `html_embed_rendered` are for generated code. In a project that has templates, a hand-written module that names `Rendered(`, `html_finish` or `html_embed_rendered` is refused by `guion check`.
+
 ## Failures
 
 `app_handle(app, request)` returns the `Result`. `app_respond(app, request)` always returns a `Response`: an `Err` from a handler or middleware becomes a 500 with the fixed body `Internal Server Error` (`internal_error_body()`), whatever the failure's status, code or message, and the failure is logged through std:log when `app_log(app, logger)` set a logger, to standard error otherwise. A handler that wants a different status returns `Ok(response)` with that status.

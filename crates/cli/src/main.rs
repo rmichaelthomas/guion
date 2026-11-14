@@ -18,6 +18,7 @@ mod package_version;
 mod pool_alloc;
 mod registry;
 mod source_run_cache;
+mod templates;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: pool_alloc::PoolAllocator = pool_alloc::PoolAllocator;
@@ -699,6 +700,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     };
     let (source_path, project_root) = resolve_target(path)?;
     let path = source_path.to_string_lossy().into_owned();
+    if path.ends_with(".gut") {
+        return Err(format!(
+            "{path} is a template: it is compiled to Guion by the project that imports its `.gut.gu` module, so name that project or a `.gu` entry (templates are not formatted or linted)"
+        ));
+    }
     let mut runtime_file_roots = Vec::with_capacity(file_root_overrides.len());
     for root in &file_root_overrides {
         let root = Path::new(root);
@@ -718,6 +724,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if command == "fmt" {
         let source =
             fs::read_to_string(&path).map_err(|error| format!("cannot read {path}: {error}"))?;
+        if templates::is_generated(&source) {
+            println!("skipped {path} (generated from a template)");
+            return Ok(ExitCode::SUCCESS);
+        }
         compile_project(&source_path, &project_root)
             .map_err(|error| render_diagnostic(&path, &error))?;
         let formatted = format_source(&source);
@@ -735,6 +745,23 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if command == "lint" {
         let source =
             fs::read_to_string(&path).map_err(|error| format!("cannot read {path}: {error}"))?;
+        if templates::is_generated(&source) {
+            if json_lint {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "schema_version": 1,
+                        "kind": "guion_lint_report",
+                        "source": path,
+                        "status": "passed",
+                        "diagnostics": [],
+                    })
+                );
+            } else {
+                println!("skipped {path} (generated from a template)");
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
         if let Err(error) = compile_project(&source_path, &project_root) {
             if json_lint {
                 println!("{}", render_diagnostic_json(&path, &error));
@@ -1611,6 +1638,7 @@ fn compile_project(
     entry: &std::path::Path,
     project_root: &std::path::Path,
 ) -> Result<Artifact, guion_model::Diagnostic> {
+    templates::prepass(entry, project_root).map_err(|error| error.to_diagnostic())?;
     let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
             guion_model::Diagnostic::new(
@@ -1635,6 +1663,7 @@ fn compile_project(
         compiler_driver::standard_library_root().as_deref(),
         &package_roots,
     )
+    .map_err(|error| templates::remap(error, project_root))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1656,6 +1685,7 @@ fn compile_project_for_run(
     ),
     guion_model::Diagnostic,
 > {
+    templates::prepass(entry, project_root).map_err(|error| error.to_diagnostic())?;
     let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
             guion_model::Diagnostic::new(
@@ -1728,7 +1758,8 @@ fn compile_project_for_run(
                 )
             }
         },
-    )?;
+    )
+    .map_err(|error| templates::remap(error, project_root))?;
     Ok((artifact, cache_status, compiler_timings))
 }
 
