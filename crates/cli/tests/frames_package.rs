@@ -54,7 +54,13 @@ fn an_application_uses_the_package_by_path() {
     .unwrap();
     let added = guion(
         &dir,
-        &["add", "frames", "--path", package().to_str().unwrap()],
+        &[
+            "add",
+            "frames",
+            "--path",
+            package().to_str().unwrap(),
+            "--approve-capabilities",
+        ],
     );
     assert!(added.status.success(), "{}", text(&added));
     let ran = guion(&dir, &["run", "src/main.gu"]);

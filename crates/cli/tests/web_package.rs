@@ -175,9 +175,8 @@ fn every_public_function_declares_its_effects() {
     }
     assert!(effects("app_respond").contains(&"filesystem.write".to_owned()));
     // Sessions: the shape checks and the cookie builder touch nothing; everything that reads the time
-    // reports the clock. (The effect analysis does not model SQLite yet, so opening the session
-    // database reports no filesystem effect; the package README says so and the package declares
-    // `files` in its capabilities.)
+    // reports the clock. (SQLite is reported as file access, so opening the session database
+    // reports a filesystem effect and the package declares `files` in its capabilities.)
     for pure in [
         "session_id_valid",
         "session_id_new",
@@ -280,7 +279,16 @@ fn start_app(name: &str, workers: u32, source: &str, grants: &[&str]) -> Server 
     )
     .unwrap();
     std::fs::write(dir.join("src/main.gu"), source).unwrap();
-    let added = guion_in(&dir, &["add", "web", "--path", web_dir().to_str().unwrap()]);
+    let added = guion_in(
+        &dir,
+        &[
+            "add",
+            "web",
+            "--path",
+            web_dir().to_str().unwrap(),
+            "--approve-capabilities",
+        ],
+    );
     assert!(
         added.status.success(),
         "{}{}",
@@ -825,7 +833,7 @@ fn the_user_guide_is_indexed_and_carries_the_honest_limits() {
     for limit in [
         "No closures",
         "A runtime fault in a handler stops the server",
-        "does not model SQLite",
+        "reports the session database as file access",
         "no `Origin` or `Referer` check",
         "Templates are `Text` and records only",
     ] {
@@ -869,7 +877,16 @@ fn every_example_in_the_user_guide_checks_and_the_first_two_run() {
         "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
     )
     .unwrap();
-    let added = guion_in(&dir, &["add", "web", "--path", web_dir().to_str().unwrap()]);
+    let added = guion_in(
+        &dir,
+        &[
+            "add",
+            "web",
+            "--path",
+            web_dir().to_str().unwrap(),
+            "--approve-capabilities",
+        ],
+    );
     assert!(added.status.success());
     for (number, example) in examples.iter().enumerate() {
         std::fs::write(dir.join("src/main.gu"), example).unwrap();

@@ -44,7 +44,13 @@ fn app(name: &str, files: &[(&str, &str)], body: &str) -> App {
     let package = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/frames");
     let added = guion(
         &dir,
-        &["add", "frames", "--path", package.to_str().unwrap()],
+        &[
+            "add",
+            "frames",
+            "--path",
+            package.to_str().unwrap(),
+            "--approve-capabilities",
+        ],
     );
     assert!(
         added.status.success(),

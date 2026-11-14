@@ -40,7 +40,13 @@ impl Run {
 impl App {
     fn new(name: &str) -> App {
         let app = Self::bare(name, "");
-        let added = app.guion(&["add", "web", "--path", web_dir().to_str().unwrap()]);
+        let added = app.guion(&[
+            "add",
+            "web",
+            "--path",
+            web_dir().to_str().unwrap(),
+            "--approve-capabilities",
+        ]);
         assert!(added.ok, "{}", added.all());
         app
     }
@@ -887,7 +893,13 @@ fn main() -> Int:
 #[test]
 fn ten_thousand_rows_render_inside_the_default_instruction_budget() {
     let app = App::bare("rows", "\n[runtime]\ninstruction_limit = 2000000\n");
-    let added = app.guion(&["add", "web", "--path", web_dir().to_str().unwrap()]);
+    let added = app.guion(&[
+        "add",
+        "web",
+        "--path",
+        web_dir().to_str().unwrap(),
+        "--approve-capabilities",
+    ]);
     assert!(added.ok, "{}", added.all());
     app.file(
         "src/templates/rows.gu",
@@ -926,7 +938,13 @@ fn main() -> Int:
     // Doubling the limit's headroom is not needed: ten times fewer instructions is also fine, and
     // one tenth of the budget fails (the test measures that the budget is the thing in play).
     let tight = App::bare("rowstight", "\n[runtime]\ninstruction_limit = 100000\n");
-    let added = tight.guion(&["add", "web", "--path", web_dir().to_str().unwrap()]);
+    let added = tight.guion(&[
+        "add",
+        "web",
+        "--path",
+        web_dir().to_str().unwrap(),
+        "--approve-capabilities",
+    ]);
     assert!(added.ok);
     for relative in ["src/templates/rows.gu", TEMPLATE, "src/main.gu"] {
         tight.file(relative, &app.read(relative));
