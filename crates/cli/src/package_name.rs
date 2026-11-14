@@ -21,6 +21,7 @@ const STDLIB_MODULE_NAMES: &[&str] = &[
     "encoding",
     "fs",
     "http",
+    "http-response",
     "http-server",
     "http-types",
     "json",
