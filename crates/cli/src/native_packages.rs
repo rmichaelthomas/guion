@@ -1414,13 +1414,14 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
     ))
 }
 
-/// The project's `[approved-capabilities.NAME]` tables, or `None` when it keeps none (then only
-/// the lock's record of what a package last declared is compared on update).
+/// The project's `[approved-capabilities.NAME]` tables; an absent table means nothing is approved.
 fn approved_capabilities(
     manifest: &toml::Value,
 ) -> Result<Option<BTreeMap<String, crate::package_capabilities::Capabilities>>, String> {
+    // A project that keeps no table approves nothing: a package's capabilities are denied until
+    // `guion add NAME --approve-capabilities` (or a hand-written table) grants them.
     let Some(table) = manifest.get("approved-capabilities") else {
-        return Ok(None);
+        return Ok(Some(BTreeMap::new()));
     };
     let table = table
         .as_table()
@@ -1437,7 +1438,7 @@ fn approved_capabilities(
 }
 
 /// The project's `[approved-capabilities]` tables, read from its manifest; `None` when the
-/// project keeps none (or has no manifest).
+/// project has no manifest. A manifest without the table approves nothing.
 pub(crate) fn project_approved_capabilities(
     project: &Path,
 ) -> Result<Option<BTreeMap<String, crate::package_capabilities::Capabilities>>, String> {
@@ -1510,8 +1511,10 @@ fn record_approved_capabilities(
         .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
     let table = manifest
         .as_table_mut()
-        .and_then(|root| root.get_mut("approved-capabilities"))
-        .and_then(toml::Value::as_table_mut)
+        .ok_or("project manifest must be a table")?
+        .entry("approved-capabilities")
+        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()))
+        .as_table_mut()
         .ok_or("[approved-capabilities] must be a table")?;
     for (name, capabilities) in approvals {
         table.insert(name.clone(), capabilities.to_toml());

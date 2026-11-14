@@ -208,7 +208,13 @@ fn an_update_that_widens_capabilities_needs_explicit_approval() {
     .unwrap();
     let added = guion(
         &project,
-        &["add", "fetcher", "--path", library.to_str().unwrap()],
+        &[
+            "add",
+            "fetcher",
+            "--path",
+            library.to_str().unwrap(),
+            "--approve-capabilities",
+        ],
     );
     assert!(added.status.success(), "{}", text(&added));
     let lock = std::fs::read_to_string(project.join("guion.lock")).unwrap();
@@ -224,8 +230,7 @@ fn an_update_that_widens_capabilities_needs_explicit_approval() {
     assert!(!refused.status.success());
     let message = text(&refused);
     assert!(
-        message.contains("widens package capabilities")
-            && message.contains("files: +modes [\"write\"]")
+        message.contains("files: +modes [\"write\"]")
             && message.contains("processes: +commands [\"git\"]")
             && message.contains("--approve-capabilities"),
         "{message}"
@@ -482,17 +487,29 @@ fn effects_cross_package_boundaries() {
     }
     assert!(!project.join("again.gub").exists());
 
-    // The clock grant works the same way for the part of the set the manifest does grant.
+    // With no approval table at all nothing is approved: the program does not build, and the
+    // report lists everything the package reaches as beyond approval.
     std::fs::write(
         project.join("guion.toml"),
         "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
     )
     .unwrap();
-    let built = guion(&project, &["build", "src/main.gu", "-o", "app.gub"]);
-    assert!(built.status.success(), "{}", text(&built));
-    let inspected = json_of(&guion(&project, &["inspect", "--json", "app.gub"]));
-    assert_eq!(inspected["grant_assessment"]["clock_read"], "missing");
-    assert!(inspected["package_effects"]["uploads"]["approved"].is_null());
+    let refused = guion(&project, &["build", "src/main.gu", "-o", "app.gub"]);
+    assert!(!refused.status.success(), "{}", text(&refused));
+    assert!(
+        text(&refused).contains("uploads: filesystem.write (files = [\"write\"])")
+            && text(&refused).contains("uploads: clock.read (clock = true)"),
+        "{}",
+        text(&refused)
+    );
+    let doc = json_of(&guion(&project, &["doc", "--json", "src/main.gu"]));
+    assert_eq!(
+        package_set(&doc, "uploads", "beyond_approved"),
+        [
+            "filesystem.write (files = [\"write\"])",
+            "clock.read (clock = true)"
+        ]
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -583,5 +600,96 @@ fn add_path_writes_a_relative_path_so_the_manifest_is_portable() {
     // `update` resolves the relative path against the project, not the working directory.
     let updated = guion(&project, &["update"]);
     assert!(updated.status.success(), "{}", text(&updated));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_project_with_no_approval_table_approves_nothing() {
+    let dir = scratch("lib-default-deny");
+    let library = dir.join("fetcher");
+    let project = dir.join("app");
+    write_library(
+        &library,
+        "\n[capabilities]\nfiles = [\"read\"]\n",
+        READS_A_FILE,
+    );
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/main.gu"),
+        "fn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let refused = guion(
+        &project,
+        &["add", "fetcher", "--path", library.to_str().unwrap()],
+    );
+    assert!(!refused.status.success());
+    assert!(
+        text(&refused).contains("files: +modes [\"read\"]")
+            && text(&refused).contains("--approve-capabilities"),
+        "{}",
+        text(&refused)
+    );
+    let approved = guion(
+        &project,
+        &[
+            "add",
+            "fetcher",
+            "--path",
+            library.to_str().unwrap(),
+            "--approve-capabilities",
+        ],
+    );
+    assert!(approved.status.success(), "{}", text(&approved));
+    let manifest = std::fs::read_to_string(project.join("guion.toml")).unwrap();
+    assert!(manifest.contains("[approved-capabilities.fetcher]"), "{manifest}");
+    // A package that declares nothing needs no approval.
+    let quiet = dir.join("quiet");
+    write_library(&quiet, "", "pub fn one() -> Int:\n    return 1\n");
+    std::fs::write(
+        quiet.join("guion.toml"),
+        "[package]\nname = \"quiet\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n",
+    )
+    .unwrap();
+    let added = guion(&project, &["add", "quiet", "--path", quiet.to_str().unwrap()]);
+    assert!(added.status.success(), "{}", text(&added));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn sqlite_is_reported_as_file_access() {
+    let dir = scratch("sqlite-effects");
+    std::fs::write(
+        dir.join("main.gu"),
+        "import \"std:sqlite\"\n\nfn open_it(path: Text) -> Bool:\n    return is_ok(sqlite_open(path))\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let out = guion(&dir, &["doc", "--json", "main.gu"]);
+    assert!(out.status.success(), "{}", text(&out));
+    let report: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let effects: Vec<String> = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|f| f["name"] == "open_it")
+        .map(|f| {
+            f["effects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|e| e.as_str().unwrap().to_owned())
+                .collect()
+        })
+        .unwrap();
+    assert!(
+        effects.contains(&"filesystem.read".to_owned())
+            && effects.contains(&"filesystem.write".to_owned()),
+        "{effects:?}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

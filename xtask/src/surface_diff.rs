@@ -63,6 +63,17 @@ fn signature(function: &Value) -> String {
 /// `Ok(additions)` when `to` only adds to `from`; `Err(problems)` listing every removal and
 /// re-signing otherwise.
 pub fn compare(from: &Value, to: &Value) -> Result<Vec<String>, Vec<String>> {
+    compare_allowing(from, to, &[])
+}
+
+/// Like [`compare`], but a re-signed function whose `std:module.function` name starts with one of
+/// `allowed` is reported as a note instead of a problem: a release that deliberately changes a
+/// signature (VERSIONING.md names the exception) lists exactly what it changes.
+pub fn compare_allowing(
+    from: &Value,
+    to: &Value,
+    allowed: &[String],
+) -> Result<Vec<String>, Vec<String>> {
     let mut added = Vec::new();
     let mut problems = Vec::new();
     let from_modules = by_name(&from["modules"], "module");
@@ -80,9 +91,15 @@ pub fn compare(from: &Value, to: &Value) -> Result<Vec<String>, Vec<String>> {
                 Some(new_function) => {
                     let (before, after) = (signature(old_function), signature(new_function));
                     if before != after {
-                        problems.push(format!(
-                            "re-signed function std:{name}.{function}: {before} became {after}"
-                        ));
+                        let qualified = format!("std:{name}.{function}");
+                        let line = format!(
+                            "re-signed function {qualified}: {before} became {after}"
+                        );
+                        if allowed.iter().any(|prefix| qualified.starts_with(prefix)) {
+                            added.push(format!("allowed {line}"));
+                        } else {
+                            problems.push(line);
+                        }
                     }
                 }
             }
@@ -146,7 +163,7 @@ pub fn run(args: &[String]) -> i32 {
             .and_then(|index| args.get(index + 1))
     };
     let (Some(from), Some(to)) = (value_of("--from"), value_of("--to")) else {
-        eprintln!("usage: cargo xtask surface-diff --from FILE.json --to FILE.json");
+        eprintln!("usage: cargo xtask surface-diff --from FILE.json --to FILE.json [--allow-resign std:module.]...");
         return 2;
     };
     let documents = read(from).and_then(|from| read(to).map(|to| (from, to)));
@@ -157,7 +174,13 @@ pub fn run(args: &[String]) -> i32 {
             return 2;
         }
     };
-    match compare(&from, &to) {
+    let allowed: Vec<String> = args
+        .iter()
+        .enumerate()
+        .filter(|(_, arg)| *arg == "--allow-resign")
+        .filter_map(|(index, _)| args.get(index + 1).cloned())
+        .collect();
+    match compare_allowing(&from, &to, &allowed) {
         Ok(added) => {
             for line in &added {
                 println!("{line}");

@@ -2767,6 +2767,18 @@ fn inspection_report(
                 Op::Environment => {
                     direct_effects[function_index].insert("process.environment".into());
                 }
+                // A SQLite database is a file: opening it can create and write it, a statement or
+                // transaction that changes it writes, and a query reads.
+                Op::SqliteOpen => {
+                    direct_effects[function_index].insert("filesystem.read".into());
+                    direct_effects[function_index].insert("filesystem.write".into());
+                }
+                Op::SqliteExecute | Op::SqliteBegin | Op::SqliteCommit | Op::SqliteRollback => {
+                    direct_effects[function_index].insert("filesystem.write".into());
+                }
+                Op::SqliteQuery | Op::SqliteBeginRead => {
+                    direct_effects[function_index].insert("filesystem.read".into());
+                }
                 Op::LogAppend => {
                     direct_effects[function_index].insert("output.write".into());
                     direct_effects[function_index].insert("filesystem.write".into());

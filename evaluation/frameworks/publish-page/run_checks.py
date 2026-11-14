@@ -9,7 +9,7 @@ manifest here names the package by a relative path; `guion add` records the abso
   size      application source excluding tests: printed, near 600 lines; over 700 fails
   caps      the capability block of guion.toml fits one screen (40 lines) and asks for at most 8 grants
   twin      the three fixture pages render to the same bytes in Guion and in twin/render.py
-  effects   `guion doc --json` attributes filesystem.write, process.spawn and the clock per function
+  effects   `guion doc --json` attributes filesystem read and write (including the SQLite file), process.spawn and the clock per function
   handles   no public function of the application names a connection, listener or database handle
 
 The socket tests (concurrency, SQLite readers, byte comparison through the server) are in
@@ -111,14 +111,13 @@ def effects(binary):
     check({"filesystem.write", "process.spawn"} <= found("upload_cover"), "upload_cover reports filesystem.write and process.spawn: %s" % sorted(found("upload_cover")))
     check("filesystem.write" in found("cover_receive"), "cover_receive reports filesystem.write (from std:http_body): %s" % sorted(found("cover_receive")))
     check("process.spawn" in found("resize_image"), "resize_image, the one function that names the tool, reports process.spawn")
-    check("filesystem.write" not in found("view_page") and "filesystem.write" not in found("create_page"), "view_page and create_page report no filesystem.write")
+    check("filesystem.read" in found("view_page") and "filesystem.write" in found("create_page"), "view_page reads and create_page writes the database file (SQLite is reported as file access)")
     check("clock.read" in found("view_page"), "view_page reports clock.read (session expiry)")
     check("network.socket" in found("start"), "start reports network.socket and concurrency.parallel through the web package")
     check("filesystem.write" in report["package_effects"]["web"]["effects"], "package_effects attributes filesystem.write to the web package")
     store = {name: sorted(found(name)) for name in by_name if name.startswith("store_")}
-    check(all("filesystem.write" not in effects_ for effects_ in store.values()), "store_* functions: %s" % store)
-    print("FINDING the effect analysis has no SQLite effect: every store_* function above reports no effect of its own.")
-    print("        The writes it does see are filesystem.write (bundle, upload) and process.spawn (resize).")
+    check(store and all({"filesystem.read", "filesystem.write"} <= set(effects_) for effects_ in store.values()), "every store_* function reports the database file (read and write): %s" % store)
+    print("NOTE  SQLite is reported as file access: the store_* functions open the database, so each reports filesystem.read and filesystem.write.")
     public = [line.split("(")[0][len("pub fn "):] for p in source_files() if p.suffix == ".gu" for line in p.read_text().splitlines() if line.startswith("pub fn ")]
     handles = [name for name in public if any(h in json.dumps(by_name[name]) for h in HANDLES)]
     check(len(public) >= 8 and not handles, "no public function of the application names a handle type (%d checked): %s" % (len(public), handles))

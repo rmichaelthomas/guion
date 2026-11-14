@@ -2,7 +2,7 @@
 
 `web` is a Guion package for HTTP applications: a router, middleware, sessions with CSRF tokens, static files and checked templates, over `std:http_response`, `std:cookie`, `std:http_body`, `std:http_static` and `std:http_server`. It is a package, not part of the standard library: it is added to a project, pinned in `guion.lock`, and its capabilities are shown to you before it is installed. This page is the user guide. The package's own README (`packages/web/README.md`) carries the same API in more detail.
 
-The package is not published yet. Until it is, use it by path: `guion add web --path PATH/TO/packages/web`.
+The package is not published yet. Until it is, use it by path: `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
 
 ## Quick start
 
@@ -154,7 +154,7 @@ The package's `[capabilities]` are `files = ["read", "write"]` (sessions databas
 
 - No closures: middleware is a record of named functions plus a `config` map, not a function that wraps a handler.
 - A runtime fault in a handler stops the server; only `Err` is contained.
-- The effect analysis does not model SQLite, so `guion doc` shows no file effect for opening the session database; the `files` capability and `--file-root` cover it.
+- `guion doc` reports the session database as file access (`filesystem.read` and `filesystem.write`), so the `files` capability and `--file-root` cover it.
 - CSRF is the token check only: no `Origin` or `Referer` check, and no defence against a script already running in your page.
 - Templates are `Text` and records only; there is no filter, flag or argument that turns escaping off.
 - No keep-alive, no TLS, no HTTP/2, no websockets, no request logging beyond failures.
