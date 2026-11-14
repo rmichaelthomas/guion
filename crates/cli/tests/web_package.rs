@@ -778,3 +778,159 @@ fn sessions_and_csrf_over_a_real_socket_with_two_workers_sharing_one_store() {
     let ok = send(port, "POST", "/item", &rotated, &fresh_token);
     assert!(ok.starts_with("HTTP/1.1 200"), "{ok}");
 }
+
+// ---- the user guide and the assembled package (Task 10) ----
+
+fn guide() -> String {
+    std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/web.md"))
+        .expect("docs/web.md exists")
+}
+
+fn mentions(text: &str, name: &str) -> bool {
+    text.match_indices(name).any(|(at, _)| {
+        let word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+        let before = text[..at].chars().next_back().is_none_or(|c| !word(c));
+        let after = text[at + name.len()..]
+            .chars()
+            .next()
+            .is_none_or(|c| !word(c));
+        before && after
+    })
+}
+
+#[test]
+fn the_user_guide_names_every_public_function_and_record_of_the_package() {
+    let page = guide();
+    for keyword in ["fn", "record"] {
+        for name in public_names(keyword) {
+            assert!(
+                mentions(&page, &name),
+                "docs/web.md does not name the public {keyword} `{name}`"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_user_guide_is_indexed_and_carries_the_honest_limits() {
+    let index: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/agents/index.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(index["documents"]["web"], "docs/web.md");
+    let page = guide();
+    for limit in [
+        "No closures",
+        "A runtime fault in a handler stops the server",
+        "does not model SQLite",
+        "no `Origin` or `Referer` check",
+        "Templates are `Text` and records only",
+    ] {
+        assert!(page.contains(limit), "docs/web.md lost the limit: {limit}");
+    }
+    let lower = page.to_lowercase();
+    for banned in ["replace python", "replacing python", "roadmap"] {
+        assert!(!lower.contains(banned), "docs/web.md says `{banned}`");
+    }
+}
+
+fn guide_examples() -> Vec<String> {
+    let mut found = Vec::new();
+    let mut current: Option<String> = None;
+    for line in guide().lines() {
+        match (&mut current, line) {
+            (None, "```guion") => current = Some(String::new()),
+            (Some(block), "```") => {
+                found.push(std::mem::take(block));
+                current = None;
+            }
+            (Some(block), text) => {
+                block.push_str(text);
+                block.push('\n');
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
+#[test]
+fn every_example_in_the_user_guide_checks_and_the_first_two_run() {
+    let examples = guide_examples();
+    assert!(examples.len() >= 4, "{} examples", examples.len());
+    let dir = std::env::temp_dir().join(format!("guion-web-guide-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(
+        dir.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+    )
+    .unwrap();
+    let added = guion_in(&dir, &["add", "web", "--path", web_dir().to_str().unwrap()]);
+    assert!(added.status.success());
+    for (number, example) in examples.iter().enumerate() {
+        std::fs::write(dir.join("src/main.gu"), example).unwrap();
+        let checked = guion_in(&dir, &["check", "src/main.gu"]);
+        assert!(
+            checked.status.success(),
+            "example {number}: {}{}",
+            String::from_utf8_lossy(&checked.stdout),
+            String::from_utf8_lossy(&checked.stderr)
+        );
+        if number < 2 {
+            let ran = guion_in(&dir, &["run", "--no-cache", "src/main.gu"]);
+            assert!(
+                ran.status.success(),
+                "example {number}: {}",
+                String::from_utf8_lossy(&ran.stderr)
+            );
+            let expected = if number == 0 { "200\n" } else { "401\n" };
+            assert_eq!(
+                String::from_utf8_lossy(&ran.stdout),
+                expected,
+                "example {number}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn static_files_declare_a_file_read_effect_and_the_manifest_grants_match_the_modules() {
+    let report = web_doc();
+    let function = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|function| function["name"] == "static_files")
+        .expect("static_files is documented");
+    let effects: Vec<&str> = function["effects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|effect| effect.as_str().unwrap())
+        .collect();
+    assert!(effects.contains(&"filesystem.read"), "{effects:?}");
+    let manifest: toml::Value =
+        toml::from_str(&std::fs::read_to_string(web_dir().join("guion.toml")).unwrap()).unwrap();
+    let capabilities = &manifest["capabilities"];
+    assert_eq!(capabilities["clock"].as_bool(), Some(true));
+    assert!(capabilities.get("environment").is_none());
+    assert!(capabilities.get("processes").is_none());
+    let exports: Vec<&str> = manifest["package"]["exports"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|path| path.as_str().unwrap())
+        .collect();
+    for module in std::fs::read_dir(web_dir().join("src")).unwrap() {
+        let name = module.unwrap().file_name().into_string().unwrap();
+        assert!(
+            exports.contains(&format!("src/{name}").as_str()),
+            "{name} is not exported"
+        );
+    }
+}

@@ -2,7 +2,7 @@
 
 Routing, middleware and serving for Guion applications, built on `std:http_response`, `std:http_server` and `std:log`.
 
-Use it from a project with `guion add web --path PATH/TO/web` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is not published to the registry.
+Use it from a project with `guion add web --path PATH/TO/web` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is not published to the registry yet. The user guide is `docs/web.md` in the repository.
 
 ```
 import "pkg:web/src/lib.gu"
@@ -66,6 +66,14 @@ fn build(table: Router) -> App:
 - Order is deterministic: the outermost layer's `before` runs first and its `after` last. When a `before` answers with `Err(response)`, that layer's `after` does not run, and the `after` of every outer layer does, innermost first. An `Err(HttpFailure)` skips the remaining `after` functions.
 - Middleware wraps the router's own 404, 405 and 400 responses too.
 - Effects attach where a function value is formed, so the function that writes `middleware_before(audit)` reports the effects of `audit`.
+
+## Static files
+
+`static_files(prefix, root)` is a middleware: a GET or HEAD for a path below `prefix` is answered from the directory `root` by `static_serve` of `std:http_static` (content types, weak `ETag`, conditional requests, one byte range, HEAD, confinement under the file root); everything else goes on to the router. The prefix matches whole segments (`/assets` serves `/assets/app.css`, not `/assetsX/app.css`). List it outermost to keep session cookies off assets. Effect: `filesystem.read`; run with `--file-root` for the asset directory.
+
+```
+let site = app_with(table, [static_files("/assets", "public")])
+```
 
 ## Sessions
 
@@ -131,3 +139,12 @@ A runtime fault inside a handler (an index out of range, say) is not recoverable
 `serve(host, port, app, workers)` listens until the listener fails; `serve_for(host, port, app, workers, idle_ms)` lets each worker stop after `idle_ms` milliseconds with no connection and returns `Ok`. Both need `--allow-bind HOST:PORT` and follow the pattern of [docs/concurrency.md](../../docs/concurrency.md): `workers` workers share one listener, each accepts one connection, reads one request, runs the app and answers, so a stalled client holds one worker. The worker count is a ceiling for waiting, not a multiplier for computing.
 
 Every response is sent with `Connection: close` (no keep-alive). Reading a request is limited to 10 seconds and 1 MiB. A malformed request is answered by `std:http_server` before any handler runs. If the client disconnects before the answer is written, the send fails, the failure is logged and the worker takes the next connection. No public function names a connection or listener.
+
+## Limits
+
+- No closures: a middleware is a record of named functions plus a `config` map.
+- A runtime fault in a handler stops the server; only `Err` is contained.
+- The effect analysis does not model SQLite, so `guion doc` shows no file effect for opening the session database.
+- CSRF is the token check only: no `Origin` or `Referer` check.
+- Templates take `Text` and records only; escaping cannot be turned off.
+- No keep-alive, TLS, HTTP/2 or websockets.

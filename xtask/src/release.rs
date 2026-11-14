@@ -23,6 +23,7 @@ const RELEASE_DOCS: &[&str] = &[
     "architecture.md",
     "reference.md",
     "browser.md",
+    "web.md",
     "compatibility-and-migrations.md",
     "status.md",
     "stability-policy.md",
@@ -1296,6 +1297,7 @@ mod tests {
             "architecture.md",
             "reference.md",
             "browser.md",
+            "web.md",
             "compatibility-and-migrations.md",
             "status.md",
             "stability-policy.md",
@@ -1311,6 +1313,22 @@ mod tests {
         assert!(
             !RELEASE_DOCS.contains(&"completion-report.md"),
             "the archived Veritas completion report must not ship as current Guion documentation"
+        );
+    }
+
+    #[test]
+    fn shipped_docs_contain_the_web_package_page() {
+        assert!(
+            RELEASE_DOCS.contains(&"web.md"),
+            "the web package page must ship under share/guion/docs"
+        );
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let page = fs::read_to_string(root.join("docs/web.md")).unwrap();
+        assert!(page.contains("static_files") && page.contains("session_middleware"));
+        let script = fs::read_to_string(root.join("distribution/package-current-host.sh")).unwrap();
+        assert!(
+            script.contains("docs/web.md"),
+            "the packaging script must copy web.md"
         );
     }
 

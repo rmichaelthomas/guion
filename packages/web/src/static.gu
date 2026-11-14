@@ -1,0 +1,63 @@
+# Static files for the web package: a middleware that answers GET and HEAD requests under a path
+# prefix from a directory, with `static_serve` of std:http_static (content types, weak ETag,
+# If-None-Match and If-Modified-Since, one byte range, HEAD, confinement under the granted file
+# root; see that module for every rule).
+#
+#     static_files("/assets", "public")     /assets/app.css is the file public/app.css
+#
+# The prefix must start with `/` and have no trailing slash; the match is on whole segments, so
+# `/assets` serves `/assets` and `/assets/x` and not `/assetsX`. A request outside the prefix, or
+# with a method other than GET or HEAD, passes through to the router untouched. Inside the prefix a
+# missing file is a 404 and an escape attempt is the same 404; the files layer is outside the
+# router. List it after the session layer (further in) only if assets need a session; usually they
+# do not, so list it outermost and no cookie is set on an asset.
+#
+# Effects: reads files through std:http_static, so a project that serves assets grants file read for
+# the asset directory (`--file-root`). The middleware is the record shape of middleware.gu: two named
+# functions and a `config` map, with no closure.
+
+import "std:types"
+import "std:text"
+import "std:http_response"
+import "std:http_static"
+import "middleware.gu"
+
+fn sf_setting(config: Map[Text, Text], key: Text) -> Text:
+    match map_get(config, key):
+        Some(value):
+            return value
+        None:
+            return ""
+
+# The path below the prefix as an absolute path, or None when the request is not for the prefix.
+fn sf_rest(path: Text, prefix: Text) -> Option[Text]:
+    let size = len(prefix)
+    if len(path) < size:
+        return None
+    if text_slice(path, 0, size) != prefix:
+        return None
+    if len(path) == size:
+        return Some("/")
+    if text_slice(path, size, size + 1) != "/":
+        return None
+    return Some(text_slice(path, size, len(path)))
+
+fn sf_before(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
+    if request.method != "GET" and request.method != "HEAD":
+        return Ok(request)
+    match sf_rest(request.path, sf_setting(config, "prefix")):
+        None:
+            return Ok(request)
+        Some(rest):
+            let inner = Request(request.method, rest, request.query, request.headers, request.body, request.params)
+            match static_serve(inner, sf_setting(config, "root")):
+                Ok(response):
+                    return Err(response)
+                Err(failure):
+                    if failure.status == 400:
+                        return Err(response_text(400, "Bad Request"))
+                    return Err(response_text(500, internal_error_body()))
+
+# A middleware serving files under `root` for requests below `prefix`.
+pub fn static_files(prefix: Text, root: Text) -> Middleware:
+    return middleware_before_configured(sf_before, {"prefix": prefix, "root": root})

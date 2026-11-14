@@ -972,3 +972,44 @@ fn test_a_rendered_value_joins_its_parts_once_and_html_response_types_it() -> Un
     assert(response.status == 201)
     assert(unwrap(response_header(response, "content-type")) == "text/html; charset=utf-8")
     assert(text_of(response) == "<p>&lt;b&gt;</p>")
+
+# ---- static files ----
+
+fn static_fixture(dir: Text) -> Text:
+    let gone = fs_remove_all(dir)
+    let made = fs_make_dir(dir)
+    let written = write_text(dir + "/app.css", "body{}")
+    return dir
+
+fn static_app(dir: Text) -> App:
+    let table = unwrap(router([route("GET", "/hello", hello)]))
+    return app_with(table,[static_files("/assets", static_fixture(dir))])
+
+fn test_static_files_serve_under_the_prefix_and_leave_other_paths_to_the_router() -> Unit:
+    let dir = "web-test-static-a"
+    let served = app_respond(static_app(dir), get("/assets/app.css"))
+    assert(served.status == 200)
+    assert(unwrap(unwrap(response_file_plan(served))).length == 6)
+    assert(unwrap(response_header(served, "content-type")) == "text/css; charset=utf-8")
+    assert(app_respond(static_app(dir), get("/hello")).status == 200)
+    assert(app_respond(static_app(dir), get("/assetsX/app.css")).status == 404)
+    assert(app_respond(static_app(dir), get("/assets/missing.css")).status == 404)
+    let cleaned = fs_remove_all(dir)
+
+fn test_static_files_refuse_escapes_and_answer_head_and_validators() -> Unit:
+    let dir = "web-test-static-b"
+    let site = static_app(dir)
+    let secret = write_text("web-test-static-b-secret.txt", "secret")
+    let escape = app_respond(site, get("/assets/%2e%2e%2fweb-test-static-b-secret.txt"))
+    assert(escape.status == 404)
+    let head = app_respond(site, request_new("HEAD", "/assets/app.css"))
+    assert(head.status == 200)
+    assert(len(head.body.data) == 0)
+    let served = app_respond(site, get("/assets/app.css"))
+    let tag = unwrap(response_header(served, "etag"))
+    let conditional = Request("GET", "/assets/app.css", {},[Header("if-none-match", tag)], bytes_from_text(""), {})
+    assert(app_respond(site, conditional).status == 304)
+    # Other methods under the prefix are the router's: no route, so 404 rather than a file.
+    assert(app_respond(site, request_new("POST", "/assets/app.css")).status == 404)
+    let cleaned = fs_remove_all(dir)
+    let removed = fs_remove("web-test-static-b-secret.txt")

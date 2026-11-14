@@ -5,6 +5,7 @@ pub import "serve.gu"
 pub import "session.gu"
 pub import "csrf.gu"
 pub import "html.gu"
+pub import "static.gu"
 
 pub fn web_version() -> Text:
     return "0.1.0"

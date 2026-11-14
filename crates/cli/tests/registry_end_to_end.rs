@@ -1125,3 +1125,75 @@ fn f1_two_installs_from_one_lockfile_are_byte_identical() {
     );
     let _ = std::fs::remove_dir_all(&work);
 }
+
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// The `web` package packs, installs from a registry into an application, serves the hello example
+/// there and runs its own tests from the installed copy. Only the LOCAL registry is used; publishing
+/// `web` to the public registry is a manual step.
+#[test]
+fn the_web_package_packs_installs_from_a_local_registry_and_tests_itself_there() {
+    if skip_without_wrangler() {
+        return;
+    }
+    let registry = start_registry("web-package");
+    let alice = new_publisher(&registry, "alice");
+    let work = scratch_dir("web-package");
+    let library = work.join("web");
+    copy_tree(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/web"),
+        &library,
+    );
+    let published = guion(&library, &registry, Some(&alice), &["publish"]);
+    assert!(published.status.success(), "{}", text(&published));
+
+    let index: serde_json::Value =
+        serde_json::from_str(&curl(&["-s", &format!("{}/index/web.json", registry.url)])).unwrap();
+    let declared = &index["versions"][0]["capabilities"];
+    assert_eq!(declared["files"], serde_json::json!(["read", "write"]));
+    assert_eq!(declared["network"], serde_json::json!(["127.0.0.1"]));
+    assert_eq!(declared["clock"], serde_json::json!(true));
+    assert!(declared
+        .get("environment")
+        .is_none_or(|e| e.as_array().is_none_or(Vec::is_empty)));
+    assert!(declared
+        .get("processes")
+        .is_none_or(|e| e.as_array().is_none_or(Vec::is_empty)));
+
+    let app = work.join("app");
+    new_project(&app, "pkg:web/src/lib.gu", "0");
+    std::fs::write(
+        app.join("src/main.gu"),
+        "import \"pkg:web/src/lib.gu\"\n\nfn hello(request: Request) -> Result[Response, HttpFailure]:\n    return Ok(response_text(200, \"hello\"))\n\nfn main() -> Int:\n    let table = unwrap(router([route(\"GET\", \"/\", hello)]))\n    let answer = app_respond(app(table), request_new(\"GET\", \"/\"))\n    print(answer.status)\n    return 0\n",
+    )
+    .unwrap();
+    let added = guion(&app, &registry, None, &["add", "web"]);
+    assert!(added.status.success(), "{}", text(&added));
+    let lock = std::fs::read_to_string(app.join("guion.lock")).unwrap();
+    assert!(
+        lock.contains("127.0.0.1") && lock.contains("clock"),
+        "{lock}"
+    );
+    let ran = guion(&app, &registry, None, &["run", "--no-cache", "src/main.gu"]);
+    assert!(ran.status.success(), "{}", text(&ran));
+    assert_eq!(String::from_utf8_lossy(&ran.stdout), "200\n");
+
+    let installed = app.join(".guion/packages/web/0.1.0");
+    assert!(installed.join("tests.gu").is_file());
+    assert!(installed.join("src/static.gu").is_file());
+    let tested = guion(&installed, &registry, None, &["test", "tests.gu"]);
+    assert!(tested.status.success(), "{}", text(&tested));
+    assert!(text(&tested).contains("tests passed"), "{}", text(&tested));
+    let _ = std::fs::remove_dir_all(&work);
+}
