@@ -807,6 +807,7 @@
 <tr><th scope="row">Output</th><td>at most 65,536 bytes captured</td></tr>
 <tr><th scope="row">Artifact</th><td>at most 1 MiB</td></tr>
 <tr><th scope="row">Host</th><td>no capabilities granted; file, network, database, clock and process operations return <code>R_HOST_UNSUPPORTED</code></td></tr>
+<tr><th scope="row">Builtins</th><td>no sorting, no <code>map_list</code>, <code>filter_list</code>, <code>fold_list</code>, <code>any_list</code> or <code>all_list</code>, and no <code>parallel_map</code>; they return <code>R_HOST_UNSUPPORTED</code>. Function values themselves work</td></tr>
 <tr><th scope="row">Call</th><td><code>execute_artifact_v1</code> with <code>entry: "main"</code>, <code>capabilities: []</code>; the response JSON is the source of truth</td></tr>
 <tr><th scope="row">Weight</th><td>1.6 MB of Wasm, fetched on first Run</td></tr>
 </tbody>
