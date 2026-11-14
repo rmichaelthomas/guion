@@ -1,4 +1,263 @@
-# Skeleton: the web package's tests are added with its modules. Run with `guion test tests.gu`.
+# Tests for the web package. Run with `guion test tests.gu` from this directory. None opens a socket:
+# handlers are called with Request values; the serve tests live in crates/cli/tests/web_package.rs.
+
+import "std:text"
+import "std:fs"
+import "std:log"
+import "src/lib.gu"
 
 fn main() -> Int:
     return 0
+
+fn text_of(response: Response) -> Text:
+    return text_from_bytes_lossy(response.body.data)
+
+fn hello(request: Request) -> Result[Response, HttpFailure]:
+    return Ok(response_text(200, "hello"))
+
+fn show_user(request: Request) -> Result[Response, HttpFailure]:
+    var id = 0 - 1
+    match path_param_int(request, "id"):
+        Some(value):
+            set id = value
+        None:
+            set id = 0 - 1
+    return Ok(response_text(200, "user " + int_to_text(id)))
+
+fn show_slug(request: Request) -> Result[Response, HttpFailure]:
+    match path_param(request, "slug"):
+        Some(value):
+            return Ok(response_text(200, "slug " + value))
+        None:
+            return Ok(response_text(500, "no slug"))
+
+fn fail(request: Request) -> Result[Response, HttpFailure]:
+    return Err(HttpFailure(404, "DB_SECRET_CODE", "database at 10.0.0.5 refused the password"))
+
+fn echo_trace(request: Request) -> Result[Response, HttpFailure]:
+    var trace = ""
+    match request_header(request, "x-trace"):
+        Some(value):
+            set trace = value
+        None:
+            set trace = "none"
+    return Ok(response_text(200, trace))
+
+fn three_cookies(request: Request) -> Result[Response, HttpFailure]:
+    let first = response_add_header(response_text(200, "ok"), "Set-Cookie", "a=1")?
+    let second = response_add_header(first, "Set-Cookie", "b=2")?
+    return response_add_header(second, "Set-Cookie", "c=3")
+
+fn with_trace(request: Request, mark: Text) -> Request:
+    var trace = mark
+    match request_header(request, "x-trace"):
+        Some(value):
+            set trace = value + "," + mark
+        None:
+            set trace = mark
+    var kept: List[Header] = []
+    var index = 0
+    while index < len(request.headers):
+        if request.headers[index].name != "x-trace":
+            set kept = list_push(kept, request.headers[index])
+        set index = index + 1
+    set kept = list_push(kept, Header("x-trace", trace))
+    return Request(request.method, request.path, request.query, kept, request.body, request.params)
+
+fn out_trace(response: Response, mark: Text) -> Result[Response, HttpFailure]:
+    var trace = mark
+    match response_header(response, "x-out"):
+        Some(value):
+            set trace = value + "," + mark
+        None:
+            set trace = mark
+    return response_set_header(response, "x-out", trace)
+
+fn before_a(request: Request) -> Result[Request, Response]:
+    return Ok(with_trace(request, "a"))
+
+fn before_b(request: Request) -> Result[Request, Response]:
+    return Ok(with_trace(request, "b"))
+
+fn before_c(request: Request) -> Result[Request, Response]:
+    return Ok(with_trace(request, "c"))
+
+fn after_a(request: Request, response: Response) -> Result[Response, HttpFailure]:
+    return out_trace(response, "a")
+
+fn after_b(request: Request, response: Response) -> Result[Response, HttpFailure]:
+    return out_trace(response, "b")
+
+fn after_c(request: Request, response: Response) -> Result[Response, HttpFailure]:
+    return out_trace(response, "c")
+
+fn deny(request: Request) -> Result[Request, Response]:
+    return Err(response_text(401, "denied"))
+
+fn after_fail(request: Request, response: Response) -> Result[Response, HttpFailure]:
+    return Err(HttpFailure(418, "E_AFTER", "teapot detail"))
+
+fn get(path: Text) -> Request:
+    return request_new("GET", path)
+
+fn code_of(result: Result[Router, HttpFailure]) -> Text:
+    match result:
+        Ok(built):
+            return "ok"
+        Err(failure):
+            return failure.code
+
+fn sample_router() -> Router:
+    return unwrap(router([route("GET", "/", hello), route("GET", "/users/{id:int}", show_user), route("GET", "/files/{slug}", show_slug), route("POST", "/users/{id:int}", hello)]))
+
+fn test_a_handler_runs_without_a_socket() -> Unit:
+    let response = unwrap(hello(get("/")))
+    assert(response.status == 200)
+    assert(text_of(response) == "hello")
+
+fn test_router_dispatches_with_params() -> Unit:
+    let table = sample_router()
+    assert(text_of(unwrap(router_handle(table, get("/")))) == "hello")
+    assert(text_of(unwrap(router_handle(table, get("/users/42")))) == "user 42")
+    assert(text_of(unwrap(router_handle(table, get("/users/0")))) == "user 0")
+    assert(text_of(unwrap(router_handle(table, get("/files/readme")))) == "slug readme")
+
+fn test_int_param_that_is_not_an_int_is_404_not_500() -> Unit:
+    let table = sample_router()
+    assert(unwrap(router_handle(table, get("/users/abc"))).status == 404)
+    assert(unwrap(router_handle(table, get("/users/-1"))).status == 404)
+    assert(unwrap(router_handle(table, get("/users/007"))).status == 404)
+    assert(unwrap(router_handle(table, get("/users/1.5"))).status == 404)
+    assert(unwrap(router_handle(table, get("/users/99999999999999999999"))).status == 404)
+
+fn test_an_encoded_slash_stays_inside_one_parameter() -> Unit:
+    let table = sample_router()
+    assert(text_of(unwrap(router_handle(table, get("/files/a%2Fb")))) == "slug a/b")
+    assert(text_of(unwrap(router_handle(table, get("/files/a%2fb")))) == "slug a/b")
+    assert(unwrap(router_handle(table, get("/files/a/b"))).status == 404)
+    assert(text_of(unwrap(router_handle(table, get("/files/caf%C3%A9")))) == "slug café")
+    assert(text_of(unwrap(router_handle(table, get("/files/..")))) == "slug ..")
+
+fn test_a_bad_encoding_is_400() -> Unit:
+    let table = sample_router()
+    assert(unwrap(router_handle(table, get("/files/%zz"))).status == 400)
+    assert(unwrap(router_handle(table, get("/files/%00"))).status == 400)
+    assert(unwrap(router_handle(table, get("/files/%ff"))).status == 400)
+
+fn test_trailing_slash_is_significant() -> Unit:
+    let table = sample_router()
+    assert(unwrap(router_handle(table, get("/files/x/"))).status == 404)
+    assert(unwrap(router_handle(table, get("/users/1/"))).status == 404)
+    assert(unwrap(router_handle(table, get("//"))).status == 404)
+    assert(unwrap(router_handle(table, get("/files//x"))).status == 404)
+    assert(unwrap(router_handle(table, get(""))).status == 404)
+    assert(unwrap(router_handle(table, get("users/1"))).status == 404)
+
+fn test_a_pattern_cannot_end_in_a_slash() -> Unit:
+    assert(code_of(router([route("GET", "/a/", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/a//b", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/", hello)])) == "ok")
+
+fn test_malformed_patterns_are_errors_at_construction() -> Unit:
+    assert(code_of(router([route("GET", "a", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/a/{id", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/a/{id:float}", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/a/{}", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/a/{id}/{id:int}", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("GET", "/a/b{c}", hello)])) == "E_ROUTE_PATTERN")
+    assert(code_of(router([route("get", "/a", hello)])) == "E_ROUTE_PATTERN")
+
+fn test_two_routes_matching_one_path_are_a_registration_error() -> Unit:
+    assert(code_of(router([route("GET", "/a", hello), route("GET", "/a", hello)])) == "E_ROUTE_CONFLICT")
+    assert(code_of(router([route("GET", "/u/{x}", hello), route("GET", "/u/{y}", hello)])) == "E_ROUTE_CONFLICT")
+    assert(code_of(router([route("GET", "/u/{x}", hello), route("GET", "/u/new", hello)])) == "E_ROUTE_CONFLICT")
+    assert(code_of(router([route("GET", "/u/{x:int}", hello), route("GET", "/u/{y}", hello)])) == "E_ROUTE_CONFLICT")
+    assert(code_of(router([route("GET", "/u/{x:int}", hello), route("GET", "/u/12", hello)])) == "E_ROUTE_CONFLICT")
+
+fn test_routes_that_cannot_match_one_path_are_accepted() -> Unit:
+    assert(code_of(router([route("GET", "/u/{x:int}", hello), route("GET", "/u/new", hello)])) == "ok")
+    assert(code_of(router([route("GET", "/a", hello), route("POST", "/a", hello)])) == "ok")
+    assert(code_of(router([route("GET", "/a/{x}", hello), route("GET", "/a/{x}/b", hello)])) == "ok")
+    assert(code_of(router([route("GET", "/a/b", hello), route("GET", "/a/c", hello)])) == "ok")
+
+fn test_a_known_path_with_another_method_is_405_with_allow() -> Unit:
+    let table = sample_router()
+    let response = unwrap(router_handle(table, request_new("DELETE", "/users/5")))
+    assert(response.status == 405)
+    assert(unwrap(response_header(response, "allow")) == "GET, POST")
+    assert(unwrap(router_handle(table, request_new("DELETE", "/nowhere"))).status == 404)
+
+fn test_middleware_runs_outermost_first_and_unwinds_innermost_first() -> Unit:
+    let base = app(sample_router_with_trace())
+    let stacked = wrap(wrap(wrap(base, Middleware(before_c, after_c)), Middleware(before_b, after_b)), Middleware(before_a, after_a))
+    let response = unwrap(app_handle(stacked, get("/trace")))
+    assert(text_of(response) == "a,b,c")
+    assert(unwrap(response_header(response, "x-out")) == "c,b,a")
+    let listed = app_with(sample_router_with_trace(), [Middleware(before_a, after_a), Middleware(before_b, after_b), Middleware(before_c, after_c)])
+    let again = unwrap(app_handle(listed, get("/trace")))
+    assert(text_of(again) == "a,b,c")
+    assert(unwrap(response_header(again, "x-out")) == "c,b,a")
+
+fn sample_router_with_trace() -> Router:
+    return unwrap(router([route("GET", "/trace", echo_trace), route("GET", "/cookies", three_cookies), route("GET", "/boom", fail)]))
+
+fn test_a_before_hook_can_answer_and_outer_layers_still_unwind() -> Unit:
+    let stacked = wrap(wrap(app(sample_router_with_trace()), middleware_before(deny)), middleware_after(after_a))
+    let response = unwrap(app_handle(stacked, get("/trace")))
+    assert(response.status == 401)
+    assert(text_of(response) == "denied")
+    assert(unwrap(response_header(response, "x-out")) == "a")
+
+fn test_middleware_helpers_pass_the_other_side_through() -> Unit:
+    let only_before = wrap(app(sample_router_with_trace()), middleware_before(before_a))
+    let response = unwrap(app_handle(only_before, get("/trace")))
+    assert(text_of(response) == "a")
+    assert(is_some(response_header(response, "x-out")) == false)
+    let only_after = wrap(app(sample_router_with_trace()), middleware_after(after_a))
+    let second = unwrap(app_handle(only_after, get("/trace")))
+    assert(text_of(second) == "none")
+    assert(unwrap(response_header(second, "x-out")) == "a")
+
+fn test_three_set_cookie_headers_survive_two_wrappers() -> Unit:
+    let stacked = wrap(wrap(app(sample_router_with_trace()), Middleware(before_b, after_b)), Middleware(before_a, after_a))
+    let response = unwrap(app_handle(stacked, get("/cookies")))
+    assert(len(response_header_values(response, "set-cookie")) == 3)
+    let wire = text_from_bytes(unwrap(response_serialize(response)))
+    assert(is_some(wire))
+    assert(len(text_split(unwrap(wire), "Set-Cookie: ")) == 4)
+
+fn test_a_handler_err_is_an_err_in_app_handle_and_a_fixed_500_in_app_respond() -> Unit:
+    let plain = app(sample_router_with_trace())
+    assert(is_ok(app_handle(plain, get("/boom"))) == false)
+    let response = app_respond(plain, get("/boom"))
+    assert(response.status == 500)
+    assert(text_of(response) == "Internal Server Error")
+    assert(text_of(response) == internal_error_body())
+    assert(len(response.headers) == 0)
+
+fn test_a_500_carries_no_internal_detail_whatever_the_failure_says() -> Unit:
+    let response = app_respond(app(sample_router_with_trace()), get("/boom"))
+    let body = text_of(response)
+    assert(response.status == 500)
+    assert(text_find(body, "SECRET", 0) < 0)
+    assert(text_find(body, "10.0.0.5", 0) < 0)
+    assert(text_find(body, "password", 0) < 0)
+
+fn test_an_after_hook_failure_is_also_a_500() -> Unit:
+    let stacked = wrap(app(sample_router_with_trace()), middleware_after(after_fail))
+    let response = app_respond(stacked, get("/trace"))
+    assert(response.status == 500)
+    assert(text_of(response) == "Internal Server Error")
+
+fn test_the_failure_is_logged_through_std_log() -> Unit:
+    let path = "web-test-500.log"
+    let opened = unwrap(log_open(path, "info"))
+    let logged = app_log(app(sample_router_with_trace()), opened)
+    let response = app_respond(logged, get("/boom"))
+    assert(response.status == 500)
+    assert(text_of(response) == "Internal Server Error")
+    let lines = unwrap(read_text(path))
+    assert(text_find(lines, "\"code\":\"DB_SECRET_CODE\"", 0) >= 0)
+    assert(text_find(lines, "\"msg\":\"handler failed\"", 0) >= 0)
+    assert(text_find(lines, "\"path\":\"/boom\"", 0) >= 0)
+    let removed = fs_remove(path)

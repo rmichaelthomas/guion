@@ -1,0 +1,7 @@
+# web: routing, middleware and serving for Guion applications.
+pub import "router.gu"
+pub import "middleware.gu"
+pub import "serve.gu"
+
+pub fn web_version() -> Text:
+    return "0.1.0"
