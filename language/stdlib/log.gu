@@ -1,0 +1,105 @@
+import "std:time"
+import "std:types"
+
+# std:log: structured, levelled logging, one JSON object per line.
+#
+# log_open(root, level) returns a Logger, a plain value that carries the file path `root` and the
+# minimum level. There is no global logger: every call names the logger it writes to. `root` is the
+# path of the log file; it must lie inside a granted file root (guion run --file-root, or the
+# manifest), the file is created if missing and records are appended, never rewritten. A level is
+# "debug", "info", "warn" or "error", in that order. An unknown level is the typed error
+# E_LOG_LEVEL; a path outside the file grant is the typed error the file operations use
+# (R_HOST_DENIED). An empty level, "", takes the default from `[log] level` in guion.toml, and
+# "info" when the manifest has none.
+#
+# log_debug, log_info, log_warn and log_error write
+#     {"level":"info","msg":"text","key":value,...}
+# with the caller's fields in sorted key order. A field called "ts", "level" or "msg" would repeat
+# a key, so it is written as "field.ts", "field.level" or "field.msg". A record below the logger's
+# level returns Ok at once and formats nothing: the fields are not read. Declared effects of the
+# writing functions: output.write and filesystem.write. They never read the clock, so the record
+# has no "ts" key and the same program writes the same schema whatever grants it was given.
+#
+# log_info_at(logger, instant, msg, fields) puts "ts" first, as the UTC text of an Instant the
+# caller supplies (from parse_timestamp, say). log_info_now(logger, msg, fields) reads the clock
+# itself and so carries the effect clock.read: without the clock grant (guion run --allow-clock,
+# or [clock] enabled = true) it fails with R_CLOCK_DENIED when it is called, before anything is
+# written, and `guion inspect --json` reports clock_grant.required_for_entry.
+#
+# Field values are Json, so text with a newline, a quote, a NUL byte or any other control
+# character is escaped and the record stays on one line.
+
+pub record Logger:
+    root: Text
+    rank: Int
+
+fn log_rank(level: Text) -> Int:
+    if level == "debug":
+        return 0
+    if level == "info":
+        return 1
+    if level == "warn":
+        return 2
+    if level == "error":
+        return 3
+    return 0 - 1
+
+fn log_problem(problem: FileError, root: Text) -> StdError:
+    return StdError(file_error_code(problem), file_error_message(problem), root, 0, 0)
+
+fn log_key(key: Text) -> Text:
+    if key == "ts" or key == "level" or key == "msg":
+        return "field." + key
+    return key
+
+fn log_fields(fields: Map[Text, Json]) -> Text:
+    var out = ""
+    for key in fields:
+        set out = out + "," + json_stringify(json_text(log_key(key))) + ":" + json_stringify(unwrap(map_get(fields, key)))
+    return out
+
+fn log_nothing() -> Unit:
+    let skipped = 0
+
+fn log_emit(logger: Logger, rank: Int, level: Text, ts: Text, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    if rank < logger.rank:
+        return Ok(log_nothing())
+    let line = "{" + ts + "\"level\":\"" + level + "\",\"msg\":" + json_stringify(json_text(msg)) + log_fields(fields) + "}\n"
+    match native_log_append(logger.root, line):
+        Ok(done):
+            return Ok(done)
+        Err(problem):
+            return Err(log_problem(problem, logger.root))
+
+pub fn log_open(root: Text, level: Text) -> Result[Logger, StdError]:
+    var name = level
+    if name == "":
+        set name = native_log_default_level()
+    let rank = log_rank(name)
+    if rank < 0:
+        return Err(StdError("E_LOG_LEVEL", "log level must be debug, info, warn or error, not `" + name + "`", root, 0, 0))
+    match native_log_append(root, ""):
+        Ok(done):
+            return Ok(Logger(root, rank))
+        Err(problem):
+            return Err(log_problem(problem, root))
+
+pub fn log_debug(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    return log_emit(logger, 0, "debug", "", msg, fields)
+
+pub fn log_info(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    return log_emit(logger, 1, "info", "", msg, fields)
+
+pub fn log_warn(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    return log_emit(logger, 2, "warn", "", msg, fields)
+
+pub fn log_error(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    return log_emit(logger, 3, "error", "", msg, fields)
+
+pub fn log_info_at(logger: Logger, instant: Instant, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    if 1 < logger.rank:
+        return Ok(log_nothing())
+    return log_emit(logger, 1, "info", "\"ts\":" + json_stringify(json_text(format_utc(instant))) + ",", msg, fields)
+
+pub fn log_info_now(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]:
+    return log_info_at(logger, Instant(unix_time_ms() * 1000), msg, fields)

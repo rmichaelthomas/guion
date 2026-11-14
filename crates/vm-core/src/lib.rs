@@ -5149,6 +5149,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::SqliteOpen => "SqliteOpen",
         Op::SqliteBegin => "SqliteBegin",
         Op::SqliteBeginRead => "SqliteBeginRead",
+        Op::LogAppend => "LogAppend",
+        Op::LogDefaultLevel => "LogDefaultLevel",
         Op::SqliteExecute => "SqliteExecute",
         Op::SqliteQuery => "SqliteQuery",
         Op::SqliteCommit => "SqliteCommit",
@@ -8184,6 +8186,20 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
+            Op::LogAppend => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "log append requires Text path and line at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::LogDefaultLevel => state.stack.push(Type::Text),
             Op::SqliteExecute | Op::SqliteQuery => {
                 if pop_type(&mut state.stack, pc)?
                     != Type::List(Box::new(Type::Record("SqlValue".into())))

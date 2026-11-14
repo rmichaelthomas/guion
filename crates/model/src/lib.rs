@@ -1460,6 +1460,46 @@ mod tests {
     }
 
     #[test]
+    fn log_instructions_are_gated_on_format_70() {
+        assert_gated(Op::LogAppend, 70);
+        assert_gated(Op::LogDefaultLevel, 70);
+    }
+
+    #[test]
+    fn a_format_69_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 69,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::SqliteBeginRead,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 70;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
     fn a_format_68_artifact_with_a_write_transaction_still_loads() {
         let mut artifact = Artifact {
             format_version: 68,
@@ -4048,6 +4088,8 @@ pub enum Op {
     HigherOrder(HigherOrderKind),
     RandomBytes,
     SqliteBeginRead,
+    LogAppend,
+    LogDefaultLevel,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4205,7 +4247,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 69;
+    pub const CURRENT_VERSION: u32 = 70;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4511,6 +4553,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 70 && artifact_uses_log(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "log instructions require artifact format 70",
             ));
         }
         if self.format_version < 69 && artifact_uses_sqlite_begin_read(self) {
@@ -4862,6 +4910,8 @@ impl Artifact {
                     }
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
+                    Op::LogAppend => w.u8(203),
+                    Op::LogDefaultLevel => w.u8(204),
                     Op::CallFn(argc) => {
                         w.u8(199);
                         w.count(*argc)?;
@@ -5429,6 +5479,14 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "random bytes require artifact format 68",
+                        ));
+                    }
+                    203 if format_version >= 70 => Op::LogAppend,
+                    204 if format_version >= 70 => Op::LogDefaultLevel,
+                    203 | 204 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "log instructions require artifact format 70",
                         ));
                     }
                     202 if format_version >= 69 => Op::SqliteBeginRead,
@@ -6114,6 +6172,15 @@ fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_log(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::LogAppend | Op::LogDefaultLevel))
+    })
+}
+
 fn artifact_uses_sqlite_begin_read(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function
@@ -6537,6 +6604,8 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
                         | Op::SqliteOpen
                         | Op::SqliteBegin
                         | Op::SqliteBeginRead
+                        | Op::LogAppend
+                        | Op::LogDefaultLevel
                         | Op::SqliteExecute
                         | Op::SqliteQuery
                         | Op::SqliteCommit

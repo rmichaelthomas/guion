@@ -2957,6 +2957,9 @@ pub struct HostPolicy {
     /// tests. Not reachable from guest code, `guion.toml` or the command line; `None` means the
     /// operating system's generator.
     pub entropy_source: Option<EntropySource>,
+    /// Default level for `log_open(root, "")`, from `[log] level` in `guion.toml`; `None` means
+    /// `info`.
+    pub log_level: Option<String>,
     #[cfg(feature = "python-interop")]
     pub python_interpreter: Option<PathBuf>,
     #[cfg(feature = "python-interop")]
@@ -3002,6 +3005,7 @@ impl Default for HostPolicy {
             allow_clock: false,
             clock_unix_time_ms_override: None,
             entropy_source: None,
+            log_level: None,
             #[cfg(feature = "python-interop")]
             python_interpreter: None,
             #[cfg(feature = "python-interop")]
@@ -6157,6 +6161,69 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(service_result_value(result));
+            }
+            Op::LogDefaultLevel => {
+                let level = self
+                    .policy
+                    .log_level
+                    .clone()
+                    .unwrap_or_else(|| "info".to_owned());
+                push_stack!(Value::Text(level.into()));
+            }
+            Op::LogAppend => {
+                use std::io::Write as _;
+                let line = match pop!() {
+                    Value::Text(line) => line,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "log line must be Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let path = match pop!() {
+                    Value::Text(path) => path,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "log path must be Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if line.len() > self.policy.max_file_bytes {
+                    return Err(RuntimeError::new(
+                        "R_FILE_LIMIT",
+                        "log record exceeds the configured byte limit",
+                        instruction.span,
+                    ));
+                }
+                let resolved = match host_file_path(&self.policy, &path, true, instruction.span) {
+                    Ok(resolved) => resolved,
+                    Err(error) => {
+                        push_stack!(file_error_result(error));
+                        return Ok(());
+                    }
+                };
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
+                // One write call per record: with O_APPEND each record lands whole.
+                let written = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&resolved)
+                    .and_then(|mut file| file.write_all(line.as_bytes()));
+                if let Err(error) = written {
+                    self.finish_effect(effect, EffectOutcome::ReturnedError);
+                    push_stack!(file_error_result(RuntimeError::new(
+                        "R_FILE_WRITE",
+                        format!("cannot append to `{path}`: {error}"),
+                        instruction.span,
+                    )));
+                    return Ok(());
+                }
+                self.finish_effect(effect, EffectOutcome::Returned);
+                push_stack!(Value::ResultOk(Box::new(Value::Unit)));
             }
             Op::SqliteBegin | Op::SqliteBeginRead => {
                 let (owner, id) = runtime_service_resource(&pop!(), "Db", instruction.span)?;

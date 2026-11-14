@@ -2627,6 +2627,10 @@ fn inspection_report(
                 Op::Environment => {
                     direct_effects[function_index].insert("process.environment".into());
                 }
+                Op::LogAppend => {
+                    direct_effects[function_index].insert("output.write".into());
+                    direct_effects[function_index].insert("filesystem.write".into());
+                }
                 Op::UnixTimeMs | Op::TimeTodayLocal => {
                     direct_effects[function_index].insert("clock.read".into());
                 }
@@ -3908,6 +3912,23 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
         )?);
         policy.max_socket_read_bytes =
             runtime_usize(sockets, "max_read_bytes", policy.max_socket_read_bytes)?;
+    }
+    if let Some(log) = manifest.get("log") {
+        let log = log.as_table().ok_or("guion.toml [log] must be a table")?;
+        if let Some(key) = log.keys().find(|key| key.as_str() != "level") {
+            return Err(format!("unsupported guion.toml [log] field `{key}`"));
+        }
+        if let Some(level) = log.get("level") {
+            let level = level
+                .as_str()
+                .ok_or("guion.toml [log].level must be a string")?;
+            if !["debug", "info", "warn", "error"].contains(&level) {
+                return Err(format!(
+                    "guion.toml [log].level must be debug, info, warn or error, not `{level}`"
+                ));
+            }
+            policy.log_level = Some(level.to_owned());
+        }
     }
     if let Some(clock) = manifest.get("clock") {
         let clock = clock

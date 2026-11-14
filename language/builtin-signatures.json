@@ -2013,6 +2013,21 @@
       "operation": "RandomBytes"
     },
     {
+      "name": "native_log_append",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "LogAppend"
+    },
+    {
+      "name": "native_log_default_level",
+      "parameters": [],
+      "result": "Text",
+      "operation": "LogDefaultLevel"
+    },
+    {
       "name": "native_crypto_verify_hmac_sha256",
       "parameters": [
         "Bytes",
