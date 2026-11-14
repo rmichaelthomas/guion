@@ -1187,10 +1187,18 @@ impl Parser {
             "set" => {
                 self.advance();
                 let n = self.name()?;
+                // `set record.field = value` and `set record.field.inner = value`: the target is
+                // the dotted path, which the compiler resolves to a hidden local per field.
+                let mut target = n.text.clone();
+                while self.eat(".").is_some() {
+                    let field = self.name()?;
+                    target.push('.');
+                    target.push_str(&field.text);
+                }
                 self.expect("=")?;
                 let e = self.expr(0)?;
                 self.expect_newline()?;
-                Ok(Stmt::Set(n.text, e, t.span))
+                Ok(Stmt::Set(target, e, t.span))
             }
             "return" => {
                 self.advance();
@@ -1511,11 +1519,102 @@ impl FunctionArgument {
     }
 }
 
+/// Every dotted prefix, including the root name, of the target of each `set record.field = ...`
+/// statement in `body` (nested blocks included): `set a.b.c = x` yields `a` and `a.b`.
+fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
+    fn walk(body: &[Stmt], out: &mut HashSet<String>) {
+        for statement in body {
+            match statement {
+                // `set b = Bag(list_push(b.items, x), ...)` also profits from the split.
+                Stmt::Set(target, Expr::Call(_, arguments, _, _), _)
+                    if !target.contains('.')
+                        && arguments.iter().any(|argument| {
+                            matches!(argument, Expr::Call(call, inner, _, _)
+                                if call == "list_push"
+                                    && inner.first().and_then(dotted_path).is_some_and(|path| {
+                                        path.starts_with(&format!("{target}."))
+                                    }))
+                        }) =>
+                {
+                    out.insert(target.clone());
+                }
+                Stmt::Set(target, _, _) if target.contains('.') => {
+                    let mut end = 0;
+                    for part in target.split('.') {
+                        end += part.len();
+                        if end < target.len() {
+                            out.insert(target[..end].to_owned());
+                        }
+                        end += 1;
+                    }
+                }
+                Stmt::If(_, yes, no, _) => {
+                    walk(yes, out);
+                    walk(no, out);
+                }
+                Stmt::While(_, inner, _) | Stmt::For(_, _, inner, _) => walk(inner, out),
+                Stmt::Match(_, arms, _) => {
+                    for arm in arms {
+                        walk(&arm.body, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let mut out = HashSet::new();
+    walk(body, &mut out);
+    out
+}
+
+/// The dotted path an expression of names and field reads spells (`a`, `a.b`), if it is one.
+fn dotted_path(expression: &Expr) -> Option<String> {
+    match expression {
+        Expr::Name(name, _) => Some(name.clone()),
+        Expr::Field(inner, field, _) => Some(format!("{}.{field}", dotted_path(inner)?)),
+        _ => None,
+    }
+}
+
+/// Whether `expression` might read the variable or field at `path` (the variable itself, or any
+/// field path that starts with it or is a prefix of it). Unknown shapes say yes.
+fn expression_reads_path(expression: &Expr, path: &str) -> bool {
+    let overlaps = |other: &str| {
+        other == path
+            || other.starts_with(&format!("{path}."))
+            || path.starts_with(&format!("{other}."))
+    };
+    if let Some(spelled) = dotted_path(expression) {
+        return overlaps(&spelled);
+    }
+    match expression {
+        Expr::Int(..) | Expr::Float(..) | Expr::Bool(..) | Expr::Text(..) => false,
+        Expr::Unary(_, inner, _) | Expr::Try(inner, _) => expression_reads_path(inner, path),
+        Expr::Binary(_, left, right, _) | Expr::Index(left, right, _) => {
+            expression_reads_path(left, path) || expression_reads_path(right, path)
+        }
+        Expr::Call(_, arguments, keywords, _) => {
+            arguments.iter().any(|argument| expression_reads_path(argument, path))
+                || keywords.iter().any(|(_, value, _)| expression_reads_path(value, path))
+        }
+        Expr::List(items, _) => items.iter().any(|item| expression_reads_path(item, path)),
+        Expr::Map(pairs, _) => pairs.iter().any(|(key, value)| {
+            expression_reads_path(key, path) || expression_reads_path(value, path)
+        }),
+        Expr::Field(inner, _, _) => expression_reads_path(inner, path),
+        Expr::Name(..) => true,
+    }
+}
+
 #[derive(Clone)]
 struct Local {
     slot: usize,
     ty: Type,
     mutable: bool,
+    /// For a record variable the program assigns fields of: the record's index. Its fields then
+    /// live in hidden locals named `name.field`, and the whole record is built from them where
+    /// the program uses it as a value.
+    split: Option<usize>,
 }
 type ExternalSignature = (usize, Vec<(String, Type)>, Type);
 struct FnCompiler<'a> {
@@ -1535,6 +1634,9 @@ struct FnCompiler<'a> {
     /// Arguments of a builtin call that sit on a serialization boundary, by identity, with the
     /// boundary's name: a type holding a function value may not reach them.
     boundary_args: Vec<(*const Expr, String)>,
+    /// Dotted names (`record`, `record.inner`) that some `set` statement assigns a field of; a
+    /// record variable with such a name is split into one hidden local per field.
+    split_targets: HashSet<String>,
 }
 /// Jumps emitted by `break` and `continue` inside one loop, patched when the loop ends.
 #[derive(Default)]
@@ -1547,6 +1649,180 @@ impl<'a> FnCompiler<'a> {
         let i = self.code.len();
         self.code.push(Instruction { op, span });
         i
+    }
+    fn record_index_of(&self, record_name: &str) -> Option<usize> {
+        self.records.iter().position(|record| record.name == record_name)
+    }
+    /// Spreads the record held in local `whole_slot` over the hidden field locals of `name`,
+    /// creating them on first use, and recurses into field records that are assigned too.
+    fn split_record(&mut self, name: &str, record_index: usize, whole_slot: usize, span: Span) {
+        let fields = self.records[record_index].fields.clone();
+        for (field_index, (field_name, field_type, _)) in fields.iter().enumerate() {
+            let hidden = format!("{name}.{field_name}");
+            let field_slot = match self.locals.get(&hidden) {
+                Some(existing) => existing.slot,
+                None => {
+                    let slot = self.next_local;
+                    self.next_local += 1;
+                    slot
+                }
+            };
+            self.emit(Op::Load(whole_slot), span);
+            self.emit(Op::GetField(record_index, field_index), span);
+            self.emit(Op::Store(field_slot), span);
+            let nested = match field_type {
+                Type::Record(inner) if self.split_targets.contains(&hidden) => {
+                    self.record_index_of(inner)
+                }
+                _ => None,
+            };
+            self.locals.insert(
+                hidden.clone(),
+                Local {
+                    slot: field_slot,
+                    ty: field_type.clone(),
+                    mutable: true,
+                    split: nested,
+                },
+            );
+            if let Some(inner_index) = nested {
+                self.split_record(&hidden, inner_index, field_slot, span);
+                self.clear_local(field_slot, span);
+            }
+        }
+    }
+    /// Drops the value a local holds so a list inside it is no longer shared with the hidden
+    /// field locals that took it over.
+    fn clear_local(&mut self, slot: usize, span: Span) {
+        self.emit(Op::Const(Value::Unit), span);
+        self.emit(Op::Store(slot), span);
+    }
+    /// Pushes the record variable `name` as a value, built from its hidden field locals.
+    fn materialize_record(&mut self, name: &str, record_index: usize, span: Span) {
+        let fields = self.records[record_index].fields.clone();
+        for (field_name, _, _) in &fields {
+            let hidden = format!("{name}.{field_name}");
+            let local = self.locals.get(&hidden).cloned().expect("hidden field local");
+            match local.split {
+                Some(inner) => self.materialize_record(&hidden, inner, span),
+                None => {
+                    self.emit(Op::Load(local.slot), span);
+                }
+            }
+        }
+        self.emit(Op::MakeRecord(record_index, fields.len()), span);
+    }
+    /// `set name = value` for a record variable that is split into field locals. A record
+    /// constructor is assigned field by field, so `Bag(list_push(b.items, x), ...)` appends in
+    /// place; any other value is spread over the field locals.
+    fn assign_split_record(
+        &mut self,
+        name: &str,
+        record_index: usize,
+        value: &Expr,
+        span: Span,
+    ) -> Result<(), Diagnostic> {
+        let record = self.records[record_index].clone();
+        if let Expr::Call(constructor, args, keywords, _) = value {
+            if *constructor == record.name && keywords.is_empty() && args.len() == record.fields.len()
+            {
+                // An argument `list_push(name.field, x)` for its own field is applied in place
+                // when no other argument reads that field or the whole record.
+                let in_place = |index: usize, argument: &Expr| -> Option<Expr> {
+                    let (field_name, _, _) = &record.fields[index];
+                    let hidden = format!("{name}.{field_name}");
+                    let Expr::Call(call, call_args, call_keywords, _) = argument else {
+                        return None;
+                    };
+                    if call != "list_push"
+                        || !call_keywords.is_empty()
+                        || call_args.len() != 2
+                        || dotted_path(&call_args[0]).as_deref() != Some(hidden.as_str())
+                        || expression_reads_path(&call_args[1], &hidden)
+                        || args
+                            .iter()
+                            .enumerate()
+                            .any(|(other, other_argument)| {
+                                other != index && expression_reads_path(other_argument, &hidden)
+                            })
+                    {
+                        return None;
+                    }
+                    Some(call_args[1].clone())
+                };
+                let mut pending = Vec::new();
+                for (index, (argument, (_, expected, _))) in
+                    args.iter().zip(&record.fields).enumerate()
+                {
+                    let (field_name, _, _) = &record.fields[index];
+                    let hidden = format!("{name}.{field_name}");
+                    let local = self.locals.get(&hidden).cloned().expect("hidden field local");
+                    if local.split.is_none() {
+                        if let (Some(pushed), Type::List(item)) = (in_place(index, argument), expected)
+                        {
+                            let actual = self.expr_with_expected(&pushed, Some(item.as_ref()))?;
+                            if actual != **item {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "list_push value must match the List item type",
+                                    pushed.span(),
+                                ));
+                            }
+                            self.emit(Op::ListPushLocal(local.slot), span);
+                            continue;
+                        }
+                    }
+                    let actual = self.expr_with_expected(argument, Some(expected))?;
+                    if actual != *expected {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!(
+                                "field of `{}` expects {expected:?}, got {actual:?}",
+                                record.name
+                            ),
+                            argument.span(),
+                        ));
+                    }
+                    pending.push((index, local));
+                }
+                for (_, local) in pending.into_iter().rev() {
+                    match local.split {
+                        Some(inner) => {
+                            // A field record that is itself split: spread the new value.
+                            let temporary = self.next_local;
+                            self.next_local += 1;
+                            self.emit(Op::Store(temporary), span);
+                            let hidden = self
+                                .locals
+                                .iter()
+                                .find(|(_, candidate)| candidate.slot == local.slot)
+                                .map(|(key, _)| key.clone())
+                                .expect("hidden field name");
+                            self.split_record(&hidden, inner, temporary, span);
+                            self.clear_local(temporary, span);
+                        }
+                        None => {
+                            self.emit(Op::Store(local.slot), span);
+                        }
+                    }
+                }
+                return Ok(());
+            }
+        }
+        let ty = self.expr_with_expected(value, Some(&Type::Record(record.name.clone())))?;
+        if ty != Type::Record(record.name.clone()) {
+            return Err(diagnostic(
+                "E_TYPE_ASSIGN",
+                format!("`{name}` holds {:?}, but this expression is {ty:?}", Type::Record(record.name.clone())),
+                span,
+            ));
+        }
+        let temporary = self.next_local;
+        self.next_local += 1;
+        self.emit(Op::Store(temporary), span);
+        self.split_record(name, record_index, temporary, span);
+        self.clear_local(temporary, span);
+        Ok(())
     }
     fn patch(&mut self, i: usize, target: usize) {
         match &mut self.code[i].op {
@@ -2005,6 +2281,20 @@ impl<'a> FnCompiler<'a> {
                 Ok(item_type)
             }
             Expr::Field(value, field_name, span) => {
+                if let Some(path) = dotted_path(value) {
+                    let hidden = format!("{path}.{field_name}");
+                    if self.locals.get(&path).is_some_and(|local| local.split.is_some()) {
+                        if let Some(local) = self.locals.get(&hidden).cloned() {
+                            match local.split {
+                                Some(inner) => self.materialize_record(&hidden, inner, *span),
+                                None => {
+                                    self.emit(Op::Load(local.slot), *span);
+                                }
+                            }
+                            return Ok(local.ty);
+                        }
+                    }
+                }
                 let Type::Record(record_name) = self.expr(value)? else {
                     return Err(diagnostic(
                         "E_TYPE_FIELD",
@@ -2087,6 +2377,10 @@ impl<'a> FnCompiler<'a> {
                         *s,
                     ));
                 };
+                if let Some(record_index) = l.split {
+                    self.materialize_record(n, record_index, *s);
+                    return Ok(l.ty);
+                }
                 self.emit(Op::Load(l.slot), *s);
                 Ok(l.ty)
             }
@@ -3266,19 +3560,71 @@ impl<'a> FnCompiler<'a> {
                     let slot = self.next_local;
                     self.next_local += 1;
                     self.emit(Op::Store(slot), *span);
+                    let split = match &ty {
+                        Type::Record(record_name)
+                            if *mutable && self.split_targets.contains(name) =>
+                        {
+                            self.record_index_of(record_name)
+                        }
+                        _ => None,
+                    };
                     self.locals.insert(
                         name.clone(),
                         Local {
                             slot,
                             ty,
                             mutable: *mutable,
+                            split,
                         },
                     );
+                    if let Some(record_index) = split {
+                        self.split_record(name, record_index, slot, *span);
+                        self.clear_local(slot, *span);
+                    }
                 }
                 Stmt::Set(name, value, span) => {
+                    if name.contains('.') && !self.locals.contains_key(name) {
+                        let root = name.split('.').next().unwrap_or(name);
+                        let root_local = self.locals.get(root).ok_or_else(|| {
+                            diagnostic("E_NAME_UNKNOWN", format!("unknown name `{root}`"), *span)
+                        })?;
+                        return Err(if !root_local.mutable {
+                            diagnostic(
+                                "E_ASSIGN_IMMUTABLE",
+                                format!("`{root}` is immutable; declare it with `var` to assign its fields"),
+                                *span,
+                            )
+                        } else {
+                            diagnostic(
+                                "E_FIELD_UNKNOWN",
+                                format!("`{name}` is not a field you can assign: `{root}` must be a record variable and each name after a dot a field of it"),
+                                *span,
+                            )
+                        });
+                    }
+                    // `set record.field = list_push(record.field, x)` and the like: the call's
+                    // first argument names the hidden local being assigned.
+                    let normalized;
+                    let value = match value {
+                        Expr::Call(call, args, keywords, call_span)
+                            if name.contains('.')
+                                && !args.is_empty()
+                                && dotted_path(&args[0]).as_deref() == Some(name.as_str()) =>
+                        {
+                            let mut args = args.clone();
+                            args[0] = Expr::Name(name.clone(), args[0].span());
+                            normalized = Expr::Call(call.clone(), args, keywords.clone(), *call_span);
+                            &normalized
+                        }
+                        other => other,
+                    };
                     let local = self.locals.get(name).cloned().ok_or_else(|| {
                         diagnostic("E_NAME_UNKNOWN", format!("unknown name `{name}`"), *span)
                     })?;
+                    if let (Some(record_index), true) = (local.split, local.mutable) {
+                        self.assign_split_record(name, record_index, value, *span)?;
+                        continue;
+                    }
                     if !local.mutable {
                         return Err(diagnostic(
                             "E_ASSIGN_IMMUTABLE",
@@ -3620,6 +3966,7 @@ impl<'a> FnCompiler<'a> {
                             slot: item_slot,
                             ty: item_type,
                             mutable: false,
+                            split: None,
                         },
                     );
                     self.loops.push(LoopFrame::default());
@@ -3781,6 +4128,7 @@ impl<'a> FnCompiler<'a> {
                     slot,
                     ty,
                     mutable: false,
+                    split: None,
                 },
             );
         }
@@ -4754,6 +5102,7 @@ fn compile_program(
             code: Vec::new(),
             loops: Vec::new(),
             boundary_args: Vec::new(),
+            split_targets: split_targets_of(&f.body),
         };
         for (name, ty, span) in &f.params {
             let slot = compiler.next_local;
@@ -4766,6 +5115,7 @@ fn compile_program(
                         slot,
                         ty: ty.clone(),
                         mutable: false,
+                        split: None,
                     },
                 )
                 .is_some()
