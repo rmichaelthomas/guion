@@ -110,7 +110,7 @@
     {
       "name": "install",
       "args": "PACKAGE_DIRECTORY [--prefix DIR]",
-      "plain": "Install a packed app and make it launchable.",
+      "plain": "Install a packed app (not Guion itself; see Get started) and make it launchable.",
       "dev": "Verifies the package, installs into share/guion/apps/NAME/VERSION and creates its launcher.",
       "report": null
     },

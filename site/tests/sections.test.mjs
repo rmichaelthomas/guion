@@ -155,3 +155,12 @@ test('every "open in the playground" button names a real example and is hidden u
   for (const id of wanted) assert.ok(samples.includes(id), `data-pg-load="${id}" is not an example`);
   assert.match(html, /body:not\(:has\(#pg-run\[data-ready\]\)\)\s*\[data-pg-load\]\s*\{[^}]*display:\s*none/);
 });
+
+test('Get started gives the install, PATH, run and change steps, and the page keeps its four-space indentation', () => {
+  const markup = section('start');
+  for (const needle of ['tar -xzf guion-macos-aarch64.tar.gz', 'sh install.sh', 'export PATH=&quot;$HOME/.local/bin:$PATH&quot;', 'guion run hello.gu', 'Hello, Ada!']) {
+    assert.ok(markup.includes(needle) || markup.includes(needle.replace(/&quot;/g, '"')), needle);
+  }
+  assert.ok(markup.includes('\n    let greeting = "Hello, Guion!"'), 'indentation is four spaces');
+  assert.ok(markup.includes('releases/tag/v'), 'links the release page');
+});

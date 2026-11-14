@@ -1,0 +1,43 @@
+<section class="section start shell" id="start" aria-labelledby="start-title">
+<div class="sectionhead">
+<div><p class="overline">Get started</p><h2 id="start-title">Install it.<br><span class="serif">Run your first program.</span></h2></div>
+<p class="v-plain">Four steps. You need a terminal and nothing else: no Rust and no Python.</p>
+<p class="v-dev">Download, unpack, <code>sh install.sh</code>, add <code>~/.local/bin</code> to <code>PATH</code>. No Rust or Python needed.</p>
+</div>
+<ol class="start-steps">
+<li>
+<h3>1. Download and install</h3>
+<p>Get the archive for your machine from the <a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0" rel="noopener">v0.4.0 release page</a>: <code>guion-macos-aarch64.tar.gz</code> for a Mac with Apple silicon, <code>guion-debian-x86_64.tar.gz</code> or <code>guion-debian-aarch64.tar.gz</code> for Linux. Then, in a terminal:</p>
+<pre class="code"><code>tar -xzf guion-macos-aarch64.tar.gz
+cd guion-macos-aarch64
+sh install.sh</code></pre>
+<p class="fineprint">Use the matching name for a Linux archive. The installer puts <code>guion</code> under <code>~/.local</code>; give it a path to choose another place.</p>
+</li>
+<li>
+<h3>2. Let your terminal find it</h3>
+<p>Add the install folder to your <code>PATH</code> (put this line in your shell's startup file to keep it), then check it works:</p>
+<pre class="code"><code>export PATH="$HOME/.local/bin:$PATH"
+guion --version</code></pre>
+</li>
+<li>
+<h3>3. Run a program</h3>
+<p>Save this as <code>hello.gu</code>. Guion indents with four spaces, so keep that. Then run the file:</p>
+<pre class="code"><code>fn main() -&gt; Int:
+    let greeting = "Hello, Guion!"
+    print(greeting)
+    return 0</code></pre>
+<pre class="code"><code>guion run hello.gu</code></pre>
+<p class="prints"><span class="smallcaps">Prints</span> <code>Hello, Guion!</code></p>
+</li>
+<li>
+<h3>4. Change it</h3>
+<p>Make it greet someone by name. Text is joined with <code>+</code>. Save the change and run it again:</p>
+<pre class="code"><code>fn main() -&gt; Int:
+    let name = "Ada"
+    print("Hello, " + name + "!")
+    return 0</code></pre>
+<p class="prints"><span class="smallcaps">Prints</span> <code>Hello, Ada!</code></p>
+<p class="fineprint">Next: <code>guion new my-app</code> makes a small project with a program, a test and a manifest, and the guides are in the archive under <code>share/guion/docs/</code>. This is the install for Guion itself; <code>guion install</code> in the command table below installs a packed app.</p>
+</li>
+</ol>
+</section>
