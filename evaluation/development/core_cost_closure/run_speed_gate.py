@@ -54,20 +54,28 @@ def cpu_model() -> str:
     return platform.processor()
 
 
-def timed_run(command: list[str], cwd: Path) -> tuple[float, float]:
-    """Run one fresh process; return (wall seconds, peak resident memory in MiB).
+# Runs in a tiny interpreter that starts the lane and reports the lane's peak resident memory.
+# The extra process is needed because on Linux a child's peak starts at the high-water mark of
+# the process that launched it, so launching from this (much larger) script would put a floor
+# of this script's own size under every lane. The tiny interpreter's floor is about 7 MiB, so a
+# peak near that is a floor and not a measurement.
+MEMORY_PROBE = (
+    "import os,sys;os.chdir(sys.argv[1]);cmd=sys.argv[2:];"
+    "devnull=os.open(os.devnull,os.O_WRONLY);"
+    "pid=os.posix_spawnp(cmd[0],cmd,os.environ,file_actions=[(os.POSIX_SPAWN_DUP2,devnull,1),(os.POSIX_SPAWN_DUP2,devnull,2)]);"
+    "_,status,usage=os.wait4(pid,0);print(usage.ru_maxrss,status)"
+)
+MEMORY_RUNS = 5
 
-    The peak comes from the kernel's accounting for that one child (`wait4`), so it covers the
-    interpreter or Guion process and nothing else. Linux reports it in KiB, macOS in bytes.
-    """
-    started = time.perf_counter()
-    process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    _, status, usage = os.wait4(process.pid, 0)
-    elapsed = time.perf_counter() - started
-    if status != 0:
-        raise subprocess.CalledProcessError(os.waitstatus_to_exitcode(status), command)
+
+def peak_mib(command: list[str], cwd: Path) -> float:
+    """Peak resident memory of one fresh run of `command`, in MiB. Linux reports KiB, macOS bytes."""
+    out = subprocess.run([sys.executable, "-S", "-E", "-c", MEMORY_PROBE, str(cwd), *command],
+                         check=True, capture_output=True, text=True).stdout.split()
+    if int(out[1]) != 0:
+        raise subprocess.CalledProcessError(int(out[1]), command)
     scale = 1 if platform.system() == "Darwin" else 1024
-    return elapsed, usage.ru_maxrss * scale / (1024 * 1024)
+    return int(out[0]) * scale / (1024 * 1024)
 
 
 def run(command: list[str], cwd: Path) -> str:
@@ -161,14 +169,15 @@ def measure(prepare, guion: str, python: str, scratch: Path, rows: int, trials: 
         if result_of(lane) != expected:
             raise SystemExit(f"{lane} output differs from Python at {rows} rows in {project.name}")
     samples = {lane: [] for lane in lanes}
-    memory = {lane: [] for lane in lanes}
     for _ in range(trials):
         order = list(lanes)
         rng.shuffle(order)
         for lane in order:
-            seconds, peak_mib = timed_run(lanes[lane], project)
-            samples[lane].append(seconds)
-            memory[lane].append(peak_mib)
+            started = time.perf_counter()
+            subprocess.run(lanes[lane], cwd=project, check=True, capture_output=True)
+            samples[lane].append(time.perf_counter() - started)
+    # Memory is measured apart from the timing, so the timing method is the one earlier runs used.
+    memory = {lane: [peak_mib(lanes[lane], project) for _ in range(MEMORY_RUNS)] for lane in lanes}
     return samples, memory
 
 
