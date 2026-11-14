@@ -4066,7 +4066,9 @@
   {
    "functions": [
     {
-     "effects": [],
+     "effects": [
+      "filesystem.write"
+     ],
      "name": "sqlite_begin",
      "parameters": [
       {
@@ -4079,7 +4081,9 @@
      "source": "std:sqlite"
     },
     {
-     "effects": [],
+     "effects": [
+      "filesystem.read"
+     ],
      "name": "sqlite_begin_read",
      "parameters": [
       {
@@ -4105,7 +4109,9 @@
      "source": "std:sqlite"
     },
     {
-     "effects": [],
+     "effects": [
+      "filesystem.write"
+     ],
      "name": "sqlite_commit",
      "parameters": [
       {
@@ -4118,7 +4124,9 @@
      "source": "std:sqlite"
     },
     {
-     "effects": [],
+     "effects": [
+      "filesystem.write"
+     ],
      "name": "sqlite_execute",
      "parameters": [
       {
@@ -4139,7 +4147,10 @@
      "source": "std:sqlite"
     },
     {
-     "effects": [],
+     "effects": [
+      "filesystem.read",
+      "filesystem.write"
+     ],
      "name": "sqlite_open",
      "parameters": [
       {
@@ -4152,7 +4163,9 @@
      "source": "std:sqlite"
     },
     {
-     "effects": [],
+     "effects": [
+      "filesystem.read"
+     ],
      "name": "sqlite_query",
      "parameters": [
       {
@@ -4173,7 +4186,9 @@
      "source": "std:sqlite"
     },
     {
-     "effects": [],
+     "effects": [
+      "filesystem.write"
+     ],
      "name": "sqlite_rollback",
      "parameters": [
       {
