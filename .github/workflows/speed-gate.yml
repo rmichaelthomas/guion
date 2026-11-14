@@ -73,3 +73,33 @@ jobs:
           path: speed-gate-${{ matrix.runner }}.json
           if-no-files-found: warn
           retention-days: 90
+
+      # Where the x86_64 text lane spends its time. Software clock sampling (VMs have no hardware
+      # counters), 200,000-row text workload, source lane. Symbols come from the PGO build, so
+      # inlined frames are attributed to their caller; read the report as a hot-function list.
+      - name: Profile the text workload
+        if: always()
+        shell: bash
+        run: |
+          sudo apt-get install -y --no-install-recommends linux-tools-common "linux-tools-$(uname -r)" || true
+          mkdir -p profile && cd profile
+          printf '[package]\nname = "tp"\nversion = "0.1.0"\n[runtime]\ninstruction_limit = 2000000000\nallocation_limit_bytes = 8589934592\n' > guion.toml
+          sed 's/40000/200000/' ../evaluation/development/famous_benchmarks/text_processing.vr > main.gu
+          # a loop of runs so the sampler sees enough samples
+          sudo sysctl -w kernel.perf_event_paranoid=-1 || true
+          if command -v perf >/dev/null; then
+            perf record -e cpu-clock -F 4999 -g -o perf.data -- sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do ../target/pgo/guion run main.gu >/dev/null; done' || true
+            perf report -i perf.data --no-children --sort symbol --stdio 2>/dev/null | head -80 > ../profile-${{ matrix.runner }}.txt || true
+          else
+            echo "perf is not available on this runner" > ../profile-${{ matrix.runner }}.txt
+          fi
+          cat ../profile-${{ matrix.runner }}.txt | tee -a "$GITHUB_STEP_SUMMARY" | head -40
+
+      - name: Retain the profile
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: text-profile-${{ matrix.runner }}-${{ github.run_id }}
+          path: profile-${{ matrix.runner }}.txt
+          if-no-files-found: warn
+          retention-days: 30
