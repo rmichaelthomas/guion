@@ -1,6 +1,6 @@
-# Comprehension harness — H-1.3
+# Comprehension harness — H-1.4
 
-**Frozen:** 2026-11-14, against Guion 0.4.0, artifact format 73. Successor to H-1.0 (frozen 2026-11-12 against 0.2.0; kept as `HARNESS-H-1.0.md`, its receipts stay H-1.0; H-1.1 is `HARNESS-H-1.1.md`, H-1.2 is `HARNESS-H-1.2.md`).
+**Frozen:** 2026-11-14, against Guion 0.4.0, artifact format 73. H-1.4 adds the website track (T6) and leaves T1–T5, their starters and the H-1.3 prompt unchanged; H-1.3 is `HARNESS-H-1.3.md`. Successor to H-1.0 (frozen 2026-11-12 against 0.2.0; kept as `HARNESS-H-1.0.md`, its receipts stay H-1.0; H-1.1 is `HARNESS-H-1.1.md`, H-1.2 is `HARNESS-H-1.2.md`).
 **Question it answers:** can a competent outsider, given only what ships in
 `share/guion/`, get three ordinary things right — and how many wrong turns does it
 take?
@@ -210,3 +210,28 @@ false wrong turns, which is worse than reporting nothing.
   wording, not the language's legibility. The task now asks, and a wrong answer ("yes, `unique`")
   is a W2 with a quote. The check on the program is unchanged.
 - Everything else is unchanged from H-1.2; T1, T3, T4 and T5 receipts remain comparable.
+
+## The website track (T6, added in H-1.4)
+
+T1–T5 ask whether an agent can find things in the distribution. T6 asks the question a
+newcomer meets first: **can someone who has only the website, and the download its button
+gives, get a first program running?**
+
+- **Subject's materials.** `site/` (the built pages as text, links kept, so the target of
+  the Download button is visible), `download/` (the release archive, unextracted), an empty
+  `work/`, and `home/` as its home directory. No `docs/` folder is handed over; whatever
+  the subject finds in the archive it found as a newcomer would.
+- **Task.** `tasks/T6.md`: install, run the hello-world the site shows, change it to print
+  exactly `Hello, Ada!`. Prompt: `PROMPT-SITE.md`.
+- **Scoring.** `run.py score t6 ROOT` finds the binary the subject installed under `home/`
+  and runs the subject's program with it. Output must be exactly `Hello, Ada!`.
+- **Three numbers, never blended.** Tasks closed (right output and zero wrong turns), wrong
+  turns, and **site gaps**: places where the subject needed something no site page states.
+  Site gaps are findings about the website, not mistakes by the subject, so they are
+  counted apart from wrong turns.
+- **One new wrong turn, W7.** The subject attributes a step to the website that the website
+  does not contain. The scorer prompts for it; check each "where I learned it" against `site/`.
+- **Limits.** The subject is an agent. It reads every word and does not skim, tire or give
+  up, so this finds missing steps and misleading text, and it cannot tell whether a person
+  is confused or enjoys it. That is the job of the human first-hour protocol, which is
+  separate and not yet written.
