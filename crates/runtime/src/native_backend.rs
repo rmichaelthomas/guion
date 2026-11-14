@@ -762,9 +762,13 @@ impl NativeBackend {
         symbols: NativeSymbols,
         profile_guest_branches: bool,
         root: Option<usize>,
+        call_depth_limit: usize,
     ) -> Option<Self> {
-        let (mut eligible, mut rejection_profiles) =
-            native_eligibility_report(artifact, cfg!(feature = "native-value-bridge"));
+        let (mut eligible, mut rejection_profiles) = native_eligibility_report(
+            artifact,
+            cfg!(feature = "native-value-bridge"),
+            call_depth_limit,
+        );
         // Compiling costs far more than most library functions a program imports but never
         // calls would ever return. The reachable set is closed under calls, so what remains
         // eligible can still call everything it needs.
@@ -1313,9 +1317,15 @@ impl NativeBackend {
         })
     }
 
-    pub(crate) fn eligibility_profile_json(artifact: &Artifact) -> serde_json::Value {
-        let (_, rejected) =
-            native_eligibility_report(artifact, cfg!(feature = "native-value-bridge"));
+    pub(crate) fn eligibility_profile_json(
+        artifact: &Artifact,
+        call_depth_limit: usize,
+    ) -> serde_json::Value {
+        let (_, rejected) = native_eligibility_report(
+            artifact,
+            cfg!(feature = "native-value-bridge"),
+            call_depth_limit,
+        );
         serde_json::json!({
             "functions": [],
             "rejected_functions": rejected.into_iter().flatten().map(|profile| {
@@ -6517,9 +6527,15 @@ fn instruction_may_allocate_native_arena_value(op: &Op) -> bool {
     )
 }
 
+/// The deepest call-depth limit at which recursive functions are compiled natively. A native
+/// call uses the machine stack, which the VM's heap frames do not, so a higher limit keeps
+/// recursion on the VM.
+const MAX_NATIVE_RECURSION_DEPTH: usize = 256;
+
 fn native_eligibility_report(
     artifact: &Artifact,
     native_value_bridge_enabled: bool,
+    call_depth_limit: usize,
 ) -> (Vec<bool>, Vec<Option<NativeFunctionRejectionProfile>>) {
     let recursive = recursive_functions(&artifact.functions);
     let allocation_sites = native_arena_allocation_sites(artifact);
@@ -6543,11 +6559,13 @@ fn native_eligibility_report(
         .iter()
         .enumerate()
         .map(|(index, function)| {
-            if recursive[index] {
+            if recursive[index] && call_depth_limit > MAX_NATIVE_RECURSION_DEPTH {
                 return Some(NativeFunctionRejectionProfile {
                     name: function.name.clone(),
                     reason_code: "recursive_function".into(),
-                    reason: "recursive functions are not compiled by the native backend".into(),
+                    reason: format!(
+                        "recursive functions are compiled natively only when the call depth limit is at most {MAX_NATIVE_RECURSION_DEPTH}; native calls use the machine stack, and this limit is {call_depth_limit}"
+                    ),
                     blocking_instruction: None,
                     blocking_callee: None,
                 });
@@ -7048,7 +7066,13 @@ fn fuel_reservation_requirements(
                 add_successor(*target)?;
                 add_successor(last_ip.checked_add(1)?)?;
             }
-            Op::Call(_, _) => add_successor(last_ip.checked_add(1)?)?,
+            Op::Call(_, _) => {
+                add_successor(last_ip.checked_add(1)?)?;
+                // The callee spends from the same fuel the caller reserved, so what follows
+                // a call is checked afresh instead of relying on the reservation made before it.
+                let after = *block_for_ip.get(last_ip.checked_add(1)?)?;
+                region_starts[after] = true;
+            }
             Op::Return => {}
             _ if last_ip + 1 < function.code.len() => add_successor(last_ip + 1)?,
             _ => return None,

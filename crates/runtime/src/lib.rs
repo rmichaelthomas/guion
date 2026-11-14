@@ -8452,7 +8452,7 @@ impl Instance {
 
     pub fn native_compile_profile(&self) -> serde_json::Value {
         self.native.as_ref().map_or_else(
-            || NativeBackend::eligibility_profile_json(&self.artifact),
+            || NativeBackend::eligibility_profile_json(&self.artifact, self.policy.call_depth_limit),
             NativeBackend::compile_profile_json,
         )
     }
@@ -8599,6 +8599,7 @@ impl Instance {
                 },
                 runtime_profile.is_some(),
                 self.native_whole_program_entry.then_some(index),
+                self.policy.call_depth_limit,
             );
             if let Some(native) = self.native.as_ref() {
                 self.native_code = Some(native.shared_code());
