@@ -1,0 +1,39 @@
+# CI workflow
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+      - main
+      - 'release/**'
+env:
+  RUST_BACKTRACE: 1
+  RATIO: 0.5
+  FLAG: true
+  NOTHING: null
+  TILDE: ~
+  ANSWER: NO
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust: ["stable", "1.75"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Test # trailing comment
+        run: |
+          cargo build --locked
+          cargo test --locked
+      - name: Summary
+        run: >
+          echo one
+          two
+
+          three

@@ -1479,6 +1479,45 @@ mod tests {
     }
 
     #[test]
+    fn the_yaml_instruction_is_gated_on_format_72() {
+        assert_gated(Op::YamlParse, 72);
+    }
+
+    #[test]
+    fn a_format_71_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 71,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::GzipCompress,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 72;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
     fn a_format_70_artifact_still_loads() {
         let mut artifact = Artifact {
             format_version: 70,
@@ -4180,6 +4219,7 @@ pub enum Op {
     GzipDecompress,
     ZlibCompress,
     ZlibDecompress,
+    YamlParse,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4337,7 +4377,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 71;
+    pub const CURRENT_VERSION: u32 = 72;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4643,6 +4683,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 72 && artifact_uses_yaml(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the YAML instruction requires artifact format 72",
             ));
         }
         if self.format_version < 71 && artifact_uses_compression(self) {
@@ -5012,6 +5058,7 @@ impl Artifact {
                     Op::GzipDecompress => w.u8(206),
                     Op::ZlibCompress => w.u8(207),
                     Op::ZlibDecompress => w.u8(208),
+                    Op::YamlParse => w.u8(209),
                     Op::CallFn(argc) => {
                         w.u8(199);
                         w.count(*argc)?;
@@ -5603,6 +5650,13 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "compression instructions require artifact format 71",
+                        ));
+                    }
+                    209 if format_version >= 72 => Op::YamlParse,
+                    209 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "the YAML instruction requires artifact format 72",
                         ));
                     }
                     202 if format_version >= 69 => Op::SqliteBeginRead,
@@ -6306,6 +6360,15 @@ fn artifact_uses_compression(artifact: &Artifact) -> bool {
                     )
             )
         })
+    })
+}
+
+fn artifact_uses_yaml(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::YamlParse))
     })
 }
 

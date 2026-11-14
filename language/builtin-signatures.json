@@ -2062,6 +2062,14 @@
       "operation": "ZlibDecompress"
     },
     {
+      "name": "native_yaml_parse",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Json, Record[StdError]]",
+      "operation": "YamlParse"
+    },
+    {
       "name": "native_crypto_verify_hmac_sha256",
       "parameters": [
         "Bytes",

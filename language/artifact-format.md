@@ -1,6 +1,6 @@
 # Guion artifact format
 
-This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **71**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
+This document specifies the canonical artifact encoding currently emitted by the Guion compiler and accepted by the native model reader. The current format is **72**. Multi-byte integers are unsigned little-endian unless a value is explicitly described as signed or textual. Strings are UTF-8 prefixed by a `u32` byte length; counts use a `u32` and are bounded to 1,000,000. A complete artifact is at most 64 MiB. Recursive values and types are limited to 64 nested levels. Readers reject truncation, overflow, unknown tags, invalid indexes, trailing bytes, and version-incompatible instructions.
 
 ## Top-level layout
 
@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 71. The current writer emits 71. |
+| Format version | `u32` | Reader accepts versions 14 through 72. The current writer emits 72. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -289,6 +289,7 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 206 | `GzipDecompress` | — (format 71: pops an `Int` output ceiling and then a `Bytes` and pushes `Result[Bytes, StdError]`: all gzip members of the input, concatenated; the ceiling is the smaller of the operand and the host's `decompress_limit_bytes`, and output past it is `Err` with code `E_COMPRESS_LIMIT` having produced no more than the ceiling; a negative operand is `E_COMPRESS_ARGUMENT`; empty or short input is `E_COMPRESS_TRUNCATED`; a bad header, checksum or deflate data is `E_COMPRESS_CORRUPT`; bytes after the last member that do not begin another are `E_COMPRESS_TRAILING_DATA`; needs no grant; a reader rejects tag 206 below format 71) |
 | 207 | `ZlibCompress` | — (format 71: as 205 for a zlib stream, RFC 1950) |
 | 208 | `ZlibDecompress` | — (format 71: as 206 for one zlib stream; any bytes after the end of the stream are `E_COMPRESS_TRAILING_DATA`) |
+| 209 | `YamlParse` | — (format 72: pops a `Text` and pushes `Result[Json, StdError]`: the one YAML document in the text, read as the documented read-only subset (block and flow collections, plain, quoted, literal and folded scalars; plain scalars are text except lowercase `true` and `false`, `null` and `~`, and an integer or decimal that reads back unchanged); anchors, aliases, tags, the merge key, complex keys, directives and multi-document streams are `Err` with code `YAML_UNSUPPORTED`; other failures are `YAML_SYNTAX`, `YAML_DUPLICATE_KEY` and `YAML_LIMIT`, each with the 1-based `line` and `column`; needs no grant; a reader rejects tag 209 below format 72) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -325,6 +326,8 @@ Format 69 adds `SqliteBeginRead` (tag 202) for `sqlite_begin_read`. An artifact 
 Format 70 adds `LogAppend` (tag 203) and `LogDefaultLevel` (tag 204) for `std:log`. An artifact below format 70 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 69 remain readable.
 
 Format 71 adds `GzipCompress`, `GzipDecompress`, `ZlibCompress` and `ZlibDecompress` (tags 205 to 208) and `Fs` function codes 13 to 17 (`gzip_compress_file`, `gzip_decompress_file`, `tar_write`, `tar_read`, `tar_list`) for `std:compress` and `std:tar`. An artifact below format 71 that uses any of them is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 70 remain readable.
+
+Format 72 adds `YamlParse` (tag 209) for `std:yaml`. An artifact below format 72 that uses it is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 71 remain readable.
 
 ## Build metadata and reproducibility
 

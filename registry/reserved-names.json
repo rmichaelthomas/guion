@@ -34,7 +34,8 @@
     "types",
     "unicode",
     "url",
-    "websocket"
+    "websocket",
+    "yaml"
   ],
   "prefixes": [
     "guion-"

@@ -5155,6 +5155,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::GzipDecompress => "GzipDecompress",
         Op::ZlibCompress => "ZlibCompress",
         Op::ZlibDecompress => "ZlibDecompress",
+        Op::YamlParse => "YamlParse",
         Op::SqliteExecute => "SqliteExecute",
         Op::SqliteQuery => "SqliteQuery",
         Op::SqliteCommit => "SqliteCommit",
@@ -8222,6 +8223,15 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::Bytes),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::YamlParse => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("yaml_parse requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Json),
                     Box::new(Type::Record("StdError".into())),
                 ));
             }

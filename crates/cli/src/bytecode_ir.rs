@@ -446,6 +446,7 @@ fn parse_instruction(
         "GzipDecompress" => Op::GzipDecompress,
         "ZlibCompress" => Op::ZlibCompress,
         "ZlibDecompress" => Op::ZlibDecompress,
+        "YamlParse" => Op::YamlParse,
         "SqliteExecute" => Op::SqliteExecute,
         "SqliteQuery" => Op::SqliteQuery,
         "SqliteCommit" => Op::SqliteCommit,

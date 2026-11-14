@@ -43,6 +43,7 @@ const STDLIB_MODULE_NAMES: &[&str] = &[
     "unicode",
     "url",
     "websocket",
+    "yaml",
 ];
 
 /// Names reserved in addition to the standard-library modules.

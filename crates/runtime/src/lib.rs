@@ -37,6 +37,7 @@ mod process_ops;
 pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
+mod yaml;
 
 mod entropy;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
@@ -6224,6 +6225,48 @@ impl VmHost for Instance {
                         found.code,
                         found.message,
                     )))),
+                }
+            }
+            Op::YamlParse => {
+                let source = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "yaml_parse requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if source.len() > self.policy.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_TEXT_LIMIT",
+                        "YAML input exceeds the configured byte limit",
+                        instruction.span,
+                    ));
+                }
+                match yaml::parse(&source) {
+                    Ok(parsed) => {
+                        let shared = SharedJson::from_serde(parsed);
+                        let value = finish_shared_json(
+                            shared.as_ref().clone(),
+                            &self.policy.vm_limits(),
+                            budget.as_ref(),
+                            instruction.span,
+                        )?;
+                        push_stack!(Value::ResultOk(Box::new(value)));
+                    }
+                    Err(found) => {
+                        push_stack!(Value::ResultErr(Box::new(service_error_value(
+                            stdlib_services::ServiceError {
+                                code: found.code.to_owned(),
+                                message: found.message,
+                                path: String::new(),
+                                line: found.line,
+                                column: found.column,
+                            }
+                        ))));
+                    }
                 }
             }
             Op::LogDefaultLevel => {

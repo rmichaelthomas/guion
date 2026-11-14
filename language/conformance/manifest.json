@@ -10760,6 +10760,34 @@
       }
     },
     {
+      "id": "opcode-yaml-parse",
+      "kind": "opcode",
+      "name": "YamlParse",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-yaml-parse.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-yaml-parse.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-yaml-parse.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
       "id": "type-fn",
       "kind": "type",
       "name": "Fn",
