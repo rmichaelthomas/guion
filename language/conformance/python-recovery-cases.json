@@ -37,25 +37,11 @@
       "replacement": "import \"helpers.gu\"\n\nfn main() -> Int:\n    return answer()\n"
     },
     {
-      "id": "range-loop",
-      "source": "fn main() -> Int:\n    var total = 0\n    for i in range(3):\n        set total = total + i\n    return total\n",
-      "diagnostic_code": "E_PYTHON_RANGE",
-      "message_contains": "use `for i in [0, 1, 2]`",
-      "replacement": "fn main() -> Int:\n    var total = 0\n    for i in [0, 1, 2]:\n        set total = total + i\n    return total\n"
-    },
-    {
       "id": "list-comprehension",
       "source": "fn main() -> Int:\n    let squares = [value * value for value in [1, 2, 3]]\n    return len(squares)\n",
       "diagnostic_code": "E_PYTHON_COMPREHENSION",
       "message_contains": "explicit loop with `list_push`",
       "replacement": "fn main() -> Int:\n    var squares: List[Int] = []\n    for value in [1, 2, 3]:\n        set squares = list_push(squares, value * value)\n    return len(squares)\n"
-    },
-    {
-      "id": "f-string",
-      "source": "fn greet(name: Text) -> Text:\n    return f\"hello {name}\"\n\nfn main() -> Int:\n    print(greet(\"Guion\"))\n    return 0\n",
-      "diagnostic_code": "E_PYTHON_FSTRING",
-      "message_contains": "text concatenation with `+` for `Text` values",
-      "replacement": "fn greet(name: Text) -> Text:\n    return \"hello \" + name\n\nfn main() -> Int:\n    print(greet(\"Guion\"))\n    return 0\n"
     },
     {
       "id": "try-except",

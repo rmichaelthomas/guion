@@ -3800,6 +3800,27 @@ fn format_source_line(line: &str) -> String {
             {
                 cursor += 1;
             }
+            // `f"..."` is one token: the prefix touches the quote.
+            if cursor - start == 1
+                && characters[start] == 'f'
+                && characters.get(cursor) == Some(&'"')
+            {
+                cursor += 1;
+                let mut escaped = false;
+                while cursor < characters.len() {
+                    let current = characters[cursor];
+                    cursor += 1;
+                    if escaped {
+                        escaped = false;
+                    } else if current == '\\' {
+                        escaped = true;
+                    } else if current == '"' {
+                        break;
+                    }
+                }
+                tokens.push((characters[start..cursor].iter().collect(), 2));
+                continue;
+            }
             let text = characters[start..cursor].iter().collect::<String>();
             let kind = if matches!(text.as_str(), "and" | "or" | "not") {
                 3
@@ -3840,7 +3861,16 @@ fn format_source_line(line: &str) -> String {
         } else {
             String::new()
         };
-        if matches!(two.as_str(), "->" | "==" | "!=" | "<=" | ">=" | "//") {
+        let compound = characters.get(cursor..cursor + 3).is_some_and(|window| {
+            window == ['/', '/', '=']
+        });
+        if compound {
+            tokens.push(("//=".to_owned(), 3));
+            cursor += 3;
+        } else if matches!(
+            two.as_str(),
+            "->" | "==" | "!=" | "<=" | ">=" | "//" | "+=" | "-=" | "*=" | "/=" | "%="
+        ) {
             tokens.push((two, 3));
             cursor += 2;
         } else {

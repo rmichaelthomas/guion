@@ -385,7 +385,7 @@ fn python_syntax_recovery_cases_match_bootstrap_and_self_hosted_compilers() {
             .expect("parse recovery corpus");
     assert_eq!(corpus["schema_version"], 1);
     let cases = corpus["cases"].as_array().expect("recovery cases");
-    assert_eq!(cases.len(), 11);
+    assert_eq!(cases.len(), 9);
 
     let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
     for case in cases {

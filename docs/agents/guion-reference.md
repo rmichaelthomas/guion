@@ -15,6 +15,8 @@ Generated from the current Guion language contract, builtin signature catalog, s
 
 Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in list`, exhaustive `match` statements for `Option` and `Result`, and a call expression as a statement. `if` and `while` conditions must be `Bool`. `break` leaves the innermost enclosing `while` or `for` loop, and `continue` skips the rest of the loop body (in a `for`, it advances to the next item; in a `while`, it re-tests the condition). Each is a statement on its own line, valid only inside a loop body, including inside `if` and `match` arms nested in that loop; in a function with its own loops (such as a `parallel_map` worker) it binds to that function's loop. Outside any loop, `break` and `continue` are rejected with `E_NO_LOOP` ("`break` outside a loop" / "`continue` outside a loop"). Both lower to the existing jump instructions, so the artifact format is unchanged. `break` and `continue` are reserved words at the start of a statement. Resource handles such as a `FileReader` are not tied to a loop: leaving a loop early does not close one, and the runtime closes any handle still open at the end of the invocation. A function body is indented under its declaration. `else` aligns with `if`.
 
+Everyday forms (see `docs/reference.md`): `else if c:`, `for i in range(a, b, step)`, `set x += e`, `f"a {expr}"`, `set r.f = v`, `priv f: T` record fields.
+
 - Expressions: arbitrary-precision decimal integer literals, finite `Float64` literals with a decimal point or exponent, booleans (`true`, `false`), double-quoted UTF-8 text with `\u{H...}` Unicode scalar escapes (one to six hexadecimal digits; surrogate values and values above U+10FFFF are invalid), local/function names, calls, record construction/access, list literals, map literals with unique text keys, list/map/text indexing, parentheses, unary `-` and `not`, and binary `*`, `/`, `//`, `%`, `+`, `-`, comparisons `== != < <= > >=`, and short-circuit `and` / `or`. `Float64` is IEEE 754 binary64; its arithmetic and comparisons require two `Float64` values, reject non-finite literals/results, and never convert `Int` implicitly. `sqrt(Float64)` returns the non-negative square root; a negative input raises `R_MATH_DOMAIN`. Float division by zero raises `R_DIV_ZERO`. Integer `/` truncates toward zero; `//` rounds down; `%` follows the divisor's sign, so `a == (a // b) * b + (a % b)`. All three integer division operators raise `R_DIV_ZERO` on a zero divisor. Map literals infer one homogeneous value type; an empty map needs a `Map[Text, T]` annotation or other expected type, and keys must be text literals. Empty list literals likewise need an expected `List[T]` type. `list_push(List[T], T)` appends and `list_set(List[T], Int, T)` replaces an existing zero-based index; both return immutable copies, and the compiler may use copy-on-write for updates assigned back to the same mutable local while preserving aliases; out-of-range replacement raises `R_LIST_INDEX`. `Map[Text, T]` is immutable, `map_set` returns an updated copy, `map_has` tests membership, keys iterate and display in Unicode scalar lexicographic order, lookup of an absent key raises `R_MAP_KEY_MISSING`, and `len` supports lists, maps, Bytes (byte count), and Text (Unicode scalar count). Text indexing is zero-based by Unicode scalar and out-of-range access is a runtime error. `text_slice(text, start, end)` returns a copied half-open range by Unicode scalar index, with a non-negative start, an exclusive end, and `0 <= start <= end <= len(text)`; an invalid range raises `R_INDEX_BOUNDS`. Types include `List[T]`, `Map[Text, T]`, `Option[T]`, and `Result[T, E]`; `Some(value)` and `None` are Option constructors in Option-returning functions. Precedence from low to high: `or`, `and`, comparisons, `+ -`, `* / // %`, unary, calls/indexing/field access/atoms. `+` accepts two Ints, two Float64 values, or two Text values.
 
 ## Runtime rules
@@ -976,6 +978,7 @@ E_EXTERN_PUBLIC
 E_EXTERN_TARGET
 E_EXTERN_TYPE
 E_FIELD_LITERAL
+E_FIELD_PRIVATE
 E_FIELD_UNKNOWN
 E_FILE
 E_FLOAT_LITERAL
@@ -987,10 +990,13 @@ E_FRAME_COLUMN
 E_FRAME_KIND
 E_FRAME_PARSE
 E_FRAME_SHAPE
+E_FSTRING_HOLE
+E_FSTRING_TYPE
 E_FS_WALK
 E_FS_WALK_LIMIT
 E_FS_WALK_ROOT
 E_FS_WALK_UTF8
+E_FUEL_BLOCK
 E_FUNCTION_VALUES
 E_GENERAL_SORT
 E_HEX_INVALID
@@ -1132,10 +1138,13 @@ E_PYTHON_RANGE
 E_PYTHON_TRY
 E_RANDOM_BYTES
 E_RANDOM_COUNT
+E_RANGE_CONTEXT
+E_RANGE_STEP
 E_RECORD_EMPTY
 E_RECORD_FIELD_DUPLICATE
 E_RECORD_NAME
 E_RECORD_UNCLOSED
+E_RECURSION_DEPTH
 E_REGEX_INVALID
 E_REGISTRY
 E_REGISTRY_AT_A_TIME
@@ -1228,6 +1237,7 @@ E_TOML_KEY
 E_TOML_LIMIT
 E_TOML_PARSE
 E_TOML_TYPE
+E_TYPE
 E_TYPES
 E_TYPE_ANNOTATION
 E_TYPE_ARGUMENT
@@ -1600,4 +1610,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:8a71a4ec01685cddb9e3e83d19ac2df68f9204a32936245ba3ffdf032ab9f38e. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:ac60adcf2430b4462e5c0cf0134e7ccfe29942cba754c0b1169c22569437702d. Validated by `cargo xtask agent-reference --check`. -->

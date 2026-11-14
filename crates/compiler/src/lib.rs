@@ -49,6 +49,8 @@ enum Kind {
     Name,
     Number,
     Text,
+    /// `f"..."`: text whose `{...}` holes are expressions.
+    FormatText,
     Symbol,
     Newline,
     Indent,
@@ -233,10 +235,14 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
             let start = i;
             let kind;
             let text;
-            if let Some(prefix_len) = python_fstring_prefix(bytes, i) {
+            let format_literal = c == 'f' && bytes.get(i + 1) == Some(&b'"');
+            if format_literal {
+                i += 1;
+            }
+            if let Some(prefix_len) = python_fstring_prefix(bytes, i).filter(|_| !format_literal) {
                 return Err(diagnostic(
                     "E_PYTHON_FSTRING",
-                    "Python f-strings are not supported; use text concatenation with `+` for `Text` values. General numeric interpolation has no built-in text formatter yet.",
+                    "Guion text with values inside is written f\"... {name} ...\" with a double quote and no other prefix; for other text use concatenation with `+`.",
                     Span {
                         source_id,
                         start: offset + i,
@@ -245,7 +251,7 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
                         column: line[..i].chars().count() + 1,
                     },
                 ));
-            } else if c.is_ascii_alphabetic() || c == '_' {
+            } else if (c.is_ascii_alphabetic() || c == '_') && !format_literal {
                 i += 1;
                 while i < bytes.len()
                     && ((bytes[i] as char).is_ascii_alphanumeric() || bytes[i] == b'_')
@@ -304,7 +310,7 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
                 }
                 kind = Kind::Number;
                 text = line[start..i].to_owned();
-            } else if c == '"' {
+            } else if c == '"' || format_literal {
                 i += 1;
                 let mut value = String::new();
                 let mut closed = false;
@@ -418,7 +424,11 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
                         },
                     ));
                 }
-                kind = Kind::Text;
+                kind = if format_literal {
+                    Kind::FormatText
+                } else {
+                    Kind::Text
+                };
                 text = value;
             } else {
                 let pair = bytes
@@ -548,7 +558,7 @@ fn python_recovery_diagnostic(tokens: &[Token]) -> Option<Diagnostic> {
             ),
             "elif" if starts_statement(tokens, index) => (
                 "E_PYTHON_ELIF",
-                "Python `elif` is not Guion syntax; write a nested `if` inside `else`.",
+                "Python `elif` is not Guion syntax; write `else if condition:` (or a nested `if` inside `else`).",
             ),
             "class" if starts_statement(tokens, index) => (
                 "E_PYTHON_CLASS",
@@ -580,24 +590,6 @@ fn python_recovery_diagnostic(tokens: &[Token]) -> Option<Diagnostic> {
         return Some(diagnostic(code, message, token.span));
     }
 
-    for window in tokens.windows(5) {
-        if window[0].kind == Kind::Name
-            && window[0].text == "for"
-            && window[1].kind == Kind::Name
-            && window[2].kind == Kind::Name
-            && window[2].text == "in"
-            && window[3].kind == Kind::Name
-            && window[3].text == "range"
-            && window[4].kind == Kind::Symbol
-            && window[4].text == "("
-        {
-            return Some(diagnostic(
-                "E_PYTHON_RANGE",
-                "Python `range()` is not a built-in; use `for i in [0, 1, 2]` for a fixed sequence, or a `while` loop with an explicit counter.",
-                window[3].span,
-            ));
-        }
-    }
 
     let mut bracket_depth = 0usize;
     for token in tokens {
@@ -634,6 +626,9 @@ struct ImportAst {
 struct RecordAst {
     name: String,
     fields: Vec<(String, Type, Span)>,
+    /// Fields written `priv name: Type`: read, assigned and constructed only in the module that
+    /// declares the record.
+    private_fields: Vec<String>,
     span: Span,
     public: bool,
     module_id: usize,
@@ -699,6 +694,13 @@ enum Expr {
     Map(Vec<(Expr, Expr)>, Span),
     Index(Box<Expr>, Box<Expr>, Span),
     Field(Box<Expr>, String, Span),
+    /// `f"text {expression} text"`.
+    Interpolated(Vec<FormatPart>, Span),
+}
+#[derive(Clone, Debug)]
+enum FormatPart {
+    Literal(String),
+    Hole(Expr),
 }
 impl Expr {
     fn span(&self) -> Span {
@@ -713,6 +715,7 @@ impl Expr {
             | Expr::Call(_, _, _, s) => *s,
             Expr::Try(_, s) => *s,
             Expr::List(_, s) | Expr::Map(_, s) | Expr::Index(_, _, s) | Expr::Field(_, _, s) => *s,
+            Expr::Interpolated(_, s) => *s,
         }
     }
 }
@@ -781,6 +784,85 @@ impl Parser {
     fn expect(&mut self, s: &str) -> Result<Token, Diagnostic> {
         self.eat(s)
             .ok_or_else(|| diagnostic("E_SYNTAX", format!("expected `{s}`"), self.cur().span))
+    }
+    /// Splits `f"..."` text into literal pieces and `{expression}` holes. `{{` and `}}` are
+    /// literal braces. A hole holds an expression without string literals.
+    fn format_text(&self, token: &Token) -> Result<Expr, Diagnostic> {
+        let mut parts = Vec::new();
+        let mut literal = String::new();
+        let mut chars = token.text.chars().peekable();
+        while let Some(character) = chars.next() {
+            match character {
+                '{' if chars.peek() == Some(&'{') => {
+                    chars.next();
+                    literal.push('{');
+                }
+                '}' if chars.peek() == Some(&'}') => {
+                    chars.next();
+                    literal.push('}');
+                }
+                '}' => {
+                    return Err(diagnostic(
+                        "E_FSTRING_HOLE",
+                        "a lone `}` in f-text; write `}}` for a literal brace",
+                        token.span,
+                    ));
+                }
+                '{' => {
+                    let mut hole = String::new();
+                    let mut closed = false;
+                    for inner in chars.by_ref() {
+                        if inner == '}' {
+                            closed = true;
+                            break;
+                        }
+                        hole.push(inner);
+                    }
+                    if !closed {
+                        return Err(diagnostic(
+                            "E_FSTRING_HOLE",
+                            "a `{` in f-text is not closed; write `{{` for a literal brace",
+                            token.span,
+                        ));
+                    }
+                    let hole = hole.trim();
+                    if hole.is_empty() || hole.contains('"') || hole.contains('\\') || hole.contains('{') {
+                        return Err(diagnostic(
+                            "E_FSTRING_HOLE",
+                            "a hole in f-text holds one expression without string literals, such as {count} or {point.x + 1}",
+                            token.span,
+                        ));
+                    }
+                    let mut tokens = lex(hole, token.span.source_id)?;
+                    for hole_token in &mut tokens {
+                        hole_token.span = token.span;
+                    }
+                    let mut sub = Parser {
+                        tokens,
+                        at: 0,
+                        module_id: self.module_id,
+                        array_elements: Vec::new(),
+                    };
+                    let expression = sub.expr(0)?;
+                    if !matches!(sub.cur().kind, Kind::Newline | Kind::Eof | Kind::Dedent) {
+                        return Err(diagnostic(
+                            "E_FSTRING_HOLE",
+                            "a hole in f-text holds one expression",
+                            token.span,
+                        ));
+                    }
+                    if !literal.is_empty() {
+                        parts.push(FormatPart::Literal(std::mem::take(&mut literal)));
+                    }
+                    parts.push(FormatPart::Hole(expression));
+                }
+                other => literal.push(other),
+            }
+        }
+        if !literal.is_empty() || parts.is_empty() {
+            parts.push(FormatPart::Literal(literal));
+        }
+        Ok(Expr::Interpolated(parts, token.span))
     }
     fn name(&mut self) -> Result<Token, Diagnostic> {
         if self.cur().kind == Kind::Name {
@@ -918,16 +1000,28 @@ impl Parser {
         }
         self.advance();
         let mut fields = Vec::new();
+        let mut private_fields = Vec::new();
         let mut names = std::collections::HashSet::new();
         while self.cur().kind != Kind::Dedent && self.cur().kind != Kind::Eof {
             if self.cur().kind == Kind::Newline {
                 self.advance();
                 continue;
             }
+            let private = self.cur().text == "priv"
+                && self
+                    .tokens
+                    .get(self.at + 1)
+                    .is_some_and(|next| next.kind == Kind::Name);
+            if private {
+                self.advance();
+            }
             let field = self.name()?;
             self.expect(":")?;
             let ty = self.ty()?;
             self.expect_newline()?;
+            if private {
+                private_fields.push(field.text.clone());
+            }
             if !names.insert(field.text.clone()) {
                 return Err(diagnostic(
                     "E_RECORD_FIELD_DUPLICATE",
@@ -951,6 +1045,7 @@ impl Parser {
         Ok(RecordAst {
             name: name.text,
             fields,
+            private_fields,
             span: start,
             public,
             module_id: self.module_id,
@@ -1195,6 +1290,31 @@ impl Parser {
                     target.push('.');
                     target.push_str(&field.text);
                 }
+                // `set x += e` (also `-=`, `*=`, `/=`, `//=`, `%=`) is `set x = x + e`. The two
+                // characters must touch, so `set x + = e` stays an error.
+                let compound = ["+", "-", "*", "//", "/", "%"].into_iter().find(|operator| {
+                    self.cur().text == *operator
+                        && self.tokens.get(self.at + 1).is_some_and(|next| {
+                            next.text == "=" && next.span.start == self.cur().span.end
+                        })
+                });
+                if let Some(operator) = compound {
+                    let operator_span = self.advance().span;
+                    self.expect("=")?;
+                    let operand = self.expr(0)?;
+                    self.expect_newline()?;
+                    let mut read: Expr = Expr::Name(n.text.clone(), n.span);
+                    for field in target[n.text.len()..].split('.').filter(|part| !part.is_empty()) {
+                        read = Expr::Field(Box::new(read), field.to_owned(), n.span);
+                    }
+                    let combined = Expr::Binary(
+                        operator.to_owned(),
+                        Box::new(read),
+                        Box::new(operand),
+                        operator_span,
+                    );
+                    return Ok(Stmt::Set(target, combined, t.span));
+                }
                 self.expect("=")?;
                 let e = self.expr(0)?;
                 self.expect_newline()?;
@@ -1213,9 +1333,15 @@ impl Parser {
                 self.expect_newline()?;
                 let yes = self.block()?;
                 let no = if self.eat("else").is_some() {
-                    self.expect(":")?;
-                    self.expect_newline()?;
-                    self.block()?
+                    if self.cur().text == "if" {
+                        // `else if condition:` is an `if` that is the whole `else` branch; it
+                        // reads its own `else if` / `else` chain.
+                        vec![self.statement()?]
+                    } else {
+                        self.expect(":")?;
+                        self.expect_newline()?;
+                        self.block()?
+                    }
                 } else {
                     Vec::new()
                 };
@@ -1352,6 +1478,7 @@ impl Parser {
                 t.span,
             ),
             Kind::Text => Expr::Text(t.text, t.span),
+            Kind::FormatText => self.format_text(&t)?,
             Kind::Name if t.text == "true" => Expr::Bool(true, t.span),
             Kind::Name if t.text == "false" => Expr::Bool(false, t.span),
             Kind::Name if t.text == "fn" => {
@@ -1602,6 +1729,10 @@ fn expression_reads_path(expression: &Expr, path: &str) -> bool {
             expression_reads_path(key, path) || expression_reads_path(value, path)
         }),
         Expr::Field(inner, _, _) => expression_reads_path(inner, path),
+        Expr::Interpolated(parts, _) => parts.iter().any(|part| match part {
+            FormatPart::Literal(_) => false,
+            FormatPart::Hole(inner) => expression_reads_path(inner, path),
+        }),
         Expr::Name(..) => true,
     }
 }
@@ -1649,6 +1780,26 @@ impl<'a> FnCompiler<'a> {
         let i = self.code.len();
         self.code.push(Instruction { op, span });
         i
+    }
+    /// Refuses a private field of a record declared in another module.
+    fn check_private_field(
+        &self,
+        record_name: &str,
+        field_name: &str,
+        span: Span,
+    ) -> Result<(), Diagnostic> {
+        if let Some(record) = self.records.iter().find(|record| record.name == record_name) {
+            if record.module_id != self.ast.module_id
+                && record.private_fields.iter().any(|field| field == field_name)
+            {
+                return Err(diagnostic(
+                    "E_FIELD_PRIVATE",
+                    format!("field `{field_name}` of `{record_name}` is private to the module that declares it"),
+                    span,
+                ));
+            }
+        }
+        Ok(())
     }
     fn record_index_of(&self, record_name: &str) -> Option<usize> {
         self.records.iter().position(|record| record.name == record_name)
@@ -2284,6 +2435,11 @@ impl<'a> FnCompiler<'a> {
                 if let Some(path) = dotted_path(value) {
                     let hidden = format!("{path}.{field_name}");
                     if self.locals.get(&path).is_some_and(|local| local.split.is_some()) {
+                        if let Some(Local { ty: Type::Record(record_name), .. }) =
+                            self.locals.get(&path)
+                        {
+                            self.check_private_field(record_name, field_name, *span)?;
+                        }
                         if let Some(local) = self.locals.get(&hidden).cloned() {
                             match local.split {
                                 Some(inner) => self.materialize_record(&hidden, inner, *span),
@@ -2333,6 +2489,7 @@ impl<'a> FnCompiler<'a> {
                         *span,
                     ));
                 };
+                self.check_private_field(&record_name, field_name, *span)?;
                 self.emit(Op::GetField(record_index, field_index), *span);
                 Ok(field_type.clone())
             }
@@ -2500,6 +2657,55 @@ impl<'a> FnCompiler<'a> {
                 } else {
                     Ok(lt)
                 }
+            }
+            Expr::Interpolated(parts, span) => {
+                let mut converted: Vec<Expr> = Vec::new();
+                for part in parts {
+                    match part {
+                        FormatPart::Literal(text) => converted.push(Expr::Text(text.clone(), *span)),
+                        FormatPart::Hole(hole) => {
+                            // Type the hole, then drop the code: the converted call below is
+                            // what gets compiled.
+                            let mark = self.code.len();
+                            let ty = self.expr(hole)?;
+                            self.code.truncate(mark);
+                            converted.push(match ty {
+                                Type::Text => hole.clone(),
+                                Type::Int => Expr::Call(
+                                    "int_to_text".to_owned(),
+                                    vec![hole.clone()],
+                                    Vec::new(),
+                                    *span,
+                                ),
+                                Type::Float64 => Expr::Call(
+                                    "float_to_text".to_owned(),
+                                    vec![hole.clone()],
+                                    Vec::new(),
+                                    *span,
+                                ),
+                                other => {
+                                    return Err(diagnostic(
+                                        "E_FSTRING_TYPE",
+                                        format!("a hole in f-text holds Int, Float64 or Text, not {other:?}; convert it first"),
+                                        hole.span(),
+                                    ))
+                                }
+                            });
+                        }
+                    }
+                }
+                let mut chain = converted.remove(0);
+                for next in converted {
+                    chain = Expr::Binary("+".to_owned(), Box::new(chain), Box::new(next), *span);
+                }
+                self.expr_with_expected(&chain, expected)
+            }
+            Expr::Call(name, _, _, s) if name == "range" && !self.visible_functions.contains_key(name) => {
+                Err(diagnostic(
+                    "E_RANGE_CONTEXT",
+                    "`range(...)` is only valid as the sequence of a `for` loop: `for i in range(3):`; to get a list use a `while` loop",
+                    *s,
+                ))
             }
             Expr::Call(name, args, keywords, s) => {
                 // A local of function type is called through its value; a local of any other
@@ -3365,6 +3571,13 @@ impl<'a> FnCompiler<'a> {
                             keywords[0].2,
                         ));
                     }
+                    if record.module_id != self.ast.module_id && !record.private_fields.is_empty() {
+                        return Err(diagnostic(
+                            "E_FIELD_PRIVATE",
+                            format!("record `{name}` has private fields, so it is built only by functions in the module that declares it"),
+                            *s,
+                        ));
+                    }
                     if args.len() != record.fields.len() {
                         return Err(diagnostic(
                             "E_CALL_ARITY",
@@ -3618,6 +3831,29 @@ impl<'a> FnCompiler<'a> {
                         }
                         other => other,
                     };
+                    if name.contains('.') {
+                        // Every record along `a.b.c` must allow its field to be assigned here.
+                        let mut parts = name.split('.');
+                        let root = parts.next().unwrap_or(name);
+                        let mut current = self.locals.get(root).map(|local| local.ty.clone());
+                        for field in parts {
+                            let Some(Type::Record(record_name)) = current.clone() else {
+                                break;
+                            };
+                            self.check_private_field(&record_name, field, *span)?;
+                            current = self
+                                .records
+                                .iter()
+                                .find(|record| record.name == record_name)
+                                .and_then(|record| {
+                                    record
+                                        .fields
+                                        .iter()
+                                        .find(|(field_name, _, _)| field_name == field)
+                                        .map(|(_, ty, _)| ty.clone())
+                                });
+                        }
+                    }
                     let local = self.locals.get(name).cloned().ok_or_else(|| {
                         diagnostic("E_NAME_UNKNOWN", format!("unknown name `{name}`"), *span)
                     })?;
@@ -3917,6 +4153,110 @@ impl<'a> FnCompiler<'a> {
                     }
                     for jump in frame.continues {
                         self.patch(jump, start);
+                    }
+                }
+                Stmt::For(name, Expr::Call(callee, range_args, range_keywords, call_span), body, span)
+                    if callee == "range" =>
+                {
+                    if !range_keywords.is_empty() || range_args.is_empty() || range_args.len() > 3 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "range takes one to three integers: range(end), range(start, end) or range(start, end, step)",
+                            *call_span,
+                        ));
+                    }
+                    if self.locals.contains_key(name) {
+                        return Err(diagnostic(
+                            "E_NAME_DUPLICATE",
+                            format!("`{name}` is already defined in this function"),
+                            *span,
+                        ));
+                    }
+                    let step = match range_args.get(2) {
+                        None => 1i64,
+                        Some(Expr::Int(value, _)) => value.to_string().parse::<i64>().unwrap_or(0),
+                        Some(Expr::Unary(op, inner, _)) if op == "-" => match inner.as_ref() {
+                            Expr::Int(value, _) => {
+                                -value.to_string().parse::<i64>().unwrap_or(0)
+                            }
+                            _ => 0,
+                        },
+                        Some(_) => 0,
+                    };
+                    if step == 0 {
+                        return Err(diagnostic(
+                            "E_RANGE_STEP",
+                            "the step of range must be a non-zero whole number written in the source, such as 2 or -1",
+                            range_args.get(2).map_or(*call_span, Expr::span),
+                        ));
+                    }
+                    let current_slot = self.next_local;
+                    let end_slot = current_slot + 1;
+                    self.next_local += 2;
+                    let (start_expr, end_expr) = if range_args.len() == 1 {
+                        (None, &range_args[0])
+                    } else {
+                        (Some(&range_args[0]), &range_args[1])
+                    };
+                    match start_expr {
+                        Some(start) => {
+                            if self.expr_with_expected(start, Some(&Type::Int))? != Type::Int {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    "range bounds must be Int",
+                                    start.span(),
+                                ));
+                            }
+                        }
+                        None => {
+                            self.emit(Op::Const(Value::Int(BigInt::zero())), *span);
+                        }
+                    }
+                    self.emit(Op::Store(current_slot), *span);
+                    if self.expr_with_expected(end_expr, Some(&Type::Int))? != Type::Int {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "range bounds must be Int",
+                            end_expr.span(),
+                        ));
+                    }
+                    self.emit(Op::Store(end_slot), *span);
+                    let start_ip = self.code.len();
+                    self.emit(Op::Load(current_slot), *span);
+                    self.emit(Op::Load(end_slot), *span);
+                    self.emit(if step > 0 { Op::Less } else { Op::Greater }, *span);
+                    let exit = self.emit(Op::JumpIfFalse(0), *span);
+                    let old_locals = self.locals.clone();
+                    let item_slot = self.next_local;
+                    self.next_local += 1;
+                    self.emit(Op::Load(current_slot), *span);
+                    self.emit(Op::Store(item_slot), *span);
+                    self.locals.insert(
+                        name.clone(),
+                        Local {
+                            slot: item_slot,
+                            ty: Type::Int,
+                            mutable: false,
+                            split: None,
+                        },
+                    );
+                    self.loops.push(LoopFrame::default());
+                    self.stmts(body)?;
+                    let frame = self.loops.pop().expect("loop frame was pushed above");
+                    self.locals = old_locals;
+                    let advance = self.code.len();
+                    self.emit(Op::Load(current_slot), *span);
+                    self.emit(Op::Const(Value::Int(BigInt::from_i64(step))), *span);
+                    self.emit(Op::Add, *span);
+                    self.emit(Op::Store(current_slot), *span);
+                    self.emit(Op::Jump(start_ip), *span);
+                    let end = self.code.len();
+                    self.patch(exit, end);
+                    for jump in frame.breaks {
+                        self.patch(jump, end);
+                    }
+                    for jump in frame.continues {
+                        self.patch(jump, advance);
                     }
                 }
                 Stmt::For(name, values, body, span) => {
