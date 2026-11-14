@@ -5,7 +5,8 @@
 # session A fails in session B. It dies with its session: after `session_rotate`, `session_destroy`
 # or expiry the old token no longer verifies, so a page rendered before login has to be rendered
 # again after it. The token is checked with `crypto_verify_hmac_sha256`, which compares the MACs in
-# constant time; a token of the wrong length or alphabet is refused before any comparison.
+# constant time; a token of the wrong length or alphabet, or one that is not the exact spelling the
+# server hands out (a non-zero padding bit in the last character), is refused before any comparison.
 #
 # `csrf_middleware(store, policy)` checks every request whose method is not exactly GET, HEAD or
 # OPTIONS (so POST, PUT, PATCH, DELETE, TRACE, CONNECT and anything else, including a lower-case
@@ -82,6 +83,14 @@ fn cs_presented(request: Request) -> Option[Text]:
                                 return cs_absent()
                             return cs_present(values[0])
 
+# base64url_decode ignores the unused low bits of the last character, so two different strings can
+# decode to one MAC. Only the spelling `csrf_token` hands out is accepted: a MAC of 32 bytes whose
+# re-encoding is the presented text. This compares the presented text with its own re-encoding, both
+# derived from the request alone, so no secret is involved; the MAC itself is still checked, after
+# this, only by `crypto_verify_hmac_sha256`.
+fn cs_canonical(presented: Text, decoded: Bytes) -> Bool:
+    return len(decoded) == 32 and base64url_encode(decoded) == presented
+
 # Does the request present the right token for its session? The same check the middleware makes.
 pub fn csrf_verify(store: SessionStore, policy: SessionPolicy, request: Request) -> Result[Bool, HttpFailure]:
     match session_id_of(policy, request):
@@ -98,6 +107,8 @@ pub fn csrf_verify(store: SessionStore, policy: SessionPolicy, request: Request)
                         Err(problem):
                             return Ok(false)
                         Ok(given):
+                            if not cs_canonical(token, given):
+                                return Ok(false)
                             if not crypto_verify_hmac_sha256(store.secret, cs_message(id), given):
                                 return Ok(false)
                             return session_exists(store, policy, request)

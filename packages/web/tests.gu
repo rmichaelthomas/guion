@@ -6,6 +6,7 @@ import "std:fs"
 import "std:log"
 import "std:sqlite"
 import "std:crypto"
+import "std:process"
 import "std:encoding"
 import "std:types"
 import "std:url"
@@ -256,7 +257,7 @@ fn test_an_after_hook_failure_is_also_a_500() -> Unit:
     assert(text_of(response) == "Internal Server Error")
 
 fn test_the_failure_is_logged_through_std_log() -> Unit:
-    let path = "web-test-500.log"
+    let path = scratch("500.log")
     let opened = unwrap(log_open(path, "info"))
     let logged = app_log(app(sample_router_with_trace()), opened)
     let response = app_respond(logged, get("/boom"))
@@ -270,15 +271,20 @@ fn test_the_failure_is_logged_through_std_log() -> Unit:
 
 # ---- sessions and CSRF (F8) ----
 
+# Every scratch file a test writes carries this process's id, so two `guion test` runs in one
+# directory (a hand run beside the cargo test, say) never share a database, log or fixture directory.
+fn scratch(name: Text) -> Text:
+    return "web-test-" + int_to_text(process_pid()) + "-" + name
+
 fn db_path() -> Text:
-    return "web-test-sessions.db"
+    return scratch("sessions.db")
 
 fn clean_db() -> Unit:
-    let a = fs_remove("web-test-sessions.db")
-    let b = fs_remove("web-test-sessions.db-wal")
-    let c = fs_remove("web-test-sessions.db-shm")
-    let d = fs_remove("web-test-sessions.db-journal")
-    let e = fs_remove("web-test-sessions.log")
+    let a = fs_remove(db_path())
+    let b = fs_remove(db_path() + "-wal")
+    let c = fs_remove(db_path() + "-shm")
+    let d = fs_remove(db_path() + "-journal")
+    let e = fs_remove(scratch("sessions.log"))
 
 fn fresh_store() -> SessionStore:
     clean_db()
@@ -763,14 +769,42 @@ fn test_a_malformed_or_altered_token_is_refused() -> Unit:
     let application = full_app(fresh_store())
     let a = visit(application)
     assert(len(a.token) == 44)
-    let last = text_slice(a.token, 42, 43)
-    var other = "A"
-    if last == "A":
-        set other = "B"
-    let altered = text_slice(a.token, 0, 42) + other + "="
-    for bad in ["x", "AAAA", a.token + "A", text_slice(a.token, 0, 43), altered, a.token + "=", "", "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"]:
+    for bad in ["x", "AAAA", a.token + "A", text_slice(a.token, 0, 43), a.token + "=", "", "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"]:
         assert(status_of(application, req("POST", "/item", a.cookie, bad)) == 403)
     assert(status_of(application, req("POST", "/item", a.cookie, a.token)) == 200)
+    clean_db()
+
+# The last data character of a 32-byte MAC carries four bits and two unused padding bits. Trying every
+# alphabet character there covers a changed MAC (a different value in the four bits) and the same MAC
+# spelt another way (the padding bits set); the first is wrong and the second is not the token the
+# server hands out, so each is refused whatever the random secret made this run's token. The token
+# itself, at its own position in the alphabet, is the one that passes.
+fn test_every_other_spelling_of_the_last_token_character_is_refused() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    assert(len(a.token) == 44)
+    assert(text_slice(a.token, 43, 44) == "=")
+    let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    assert(len(alphabet) == 64)
+    let head = text_slice(a.token, 0, 42)
+    let own = text_slice(a.token, 42, 43)
+    var refused = 0
+    var accepted = 0
+    var i = 0
+    while i < 64:
+        let c = text_slice(alphabet, i, i + 1)
+        let variant = head + c + "="
+        let status = status_of(application, req("POST", "/item", a.cookie, variant))
+        if c == own:
+            assert(variant == a.token)
+            assert(status == 200)
+            set accepted = accepted + 1
+        else:
+            assert(status == 403)
+            set refused = refused + 1
+        set i = i + 1
+    assert(accepted == 1)
+    assert(refused == 63)
     clean_db()
 
 fn test_the_token_can_ride_in_a_form_field_and_the_header_wins() -> Unit:
@@ -887,7 +921,7 @@ fn test_a_session_read_completes_while_another_connection_holds_a_write_transact
 
 fn test_nothing_about_a_session_reaches_the_log() -> Unit:
     let store = fresh_store()
-    let opened = unwrap(log_open("web-test-sessions.log", "debug"))
+    let opened = unwrap(log_open(scratch("sessions.log"), "debug"))
     let application = app_log(full_app(store), opened)
     let a = visit(application)
     let response = app_respond(application, req("GET", "/broken", a.cookie, ""))
@@ -895,7 +929,7 @@ fn test_nothing_about_a_session_reaches_the_log() -> Unit:
     assert(text_from_bytes_lossy(response.body.data) == "Internal Server Error")
     let refused = app_respond(application, req("POST", "/item", a.cookie, "tampered"))
     assert(refused.status == 403)
-    let lines = unwrap(read_text("web-test-sessions.log"))
+    let lines = unwrap(read_text(scratch("sessions.log")))
     assert(text_find(lines, "\"code\":\"E_HANDLER\"", 0) >= 0)
     assert(text_find(lines, id_in(a.cookie), 0) < 0)
     assert(text_find(lines, a.token, 0) < 0)
@@ -986,7 +1020,7 @@ fn static_app(dir: Text) -> App:
     return app_with(table,[static_files("/assets", static_fixture(dir))])
 
 fn test_static_files_serve_under_the_prefix_and_leave_other_paths_to_the_router() -> Unit:
-    let dir = "web-test-static-a"
+    let dir = scratch("static-a")
     let served = app_respond(static_app(dir), get("/assets/app.css"))
     assert(served.status == 200)
     assert(unwrap(unwrap(response_file_plan(served))).length == 6)
@@ -997,10 +1031,11 @@ fn test_static_files_serve_under_the_prefix_and_leave_other_paths_to_the_router(
     let cleaned = fs_remove_all(dir)
 
 fn test_static_files_refuse_escapes_and_answer_head_and_validators() -> Unit:
-    let dir = "web-test-static-b"
+    let dir = scratch("static-b")
     let site = static_app(dir)
-    let secret = write_text("web-test-static-b-secret.txt", "secret")
-    let escape = app_respond(site, get("/assets/%2e%2e%2fweb-test-static-b-secret.txt"))
+    let secret_path = dir + "-secret.txt"
+    let secret = write_text(secret_path, "secret")
+    let escape = app_respond(site, get("/assets/%2e%2e%2f" + secret_path))
     assert(escape.status == 404)
     let head = app_respond(site, request_new("HEAD", "/assets/app.css"))
     assert(head.status == 200)
@@ -1012,4 +1047,4 @@ fn test_static_files_refuse_escapes_and_answer_head_and_validators() -> Unit:
     # Other methods under the prefix are the router's: no route, so 404 rather than a file.
     assert(app_respond(site, request_new("POST", "/assets/app.css")).status == 404)
     let cleaned = fs_remove_all(dir)
-    let removed = fs_remove("web-test-static-b-secret.txt")
+    let removed = fs_remove(secret_path)
