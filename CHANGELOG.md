@@ -2,6 +2,11 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## Unreleased
+
+- `docs/basics.md`: a versioned list of the tasks a small program needs and what covers each, with the ones deliberately not covered. A test (`crates/cli/tests/basics_list.rs`) fails if a function the list names is not shipped, so the claim "covers the basics as of this list" can be checked.
+- The Debian 12 `tar -tzf` check of `tar_write` archives now passes (known-issues row 24).
+
 ## 0.4.0 — 2026-11-14
 
 Gives each web-facing seam one hardened crossing (labelled F1 to F10 below, with the commit that made each). Four new standard-library modules (`std:http_response`, `std:cookie`, `std:http_body`, `std:http_static`) hold request and response values, cookies, body parsing and static files; a `web` package (`packages/web`, not published to the registry) holds routing, sessions with CSRF and checked templates and shows the package system can host a framework; and a six-route application in `evaluation/frameworks/publish-page` proves the pieces compose. The artifact format goes from 72 to 73; every format 14 through 73 still loads. Two deliberate breaks against 0.3.0, stated here because VERSIONING.md requires it: the effect analysis now reports SQLite as file access (the `std:sqlite` functions are re-signed), and a project approves no package capabilities until it says so. Everything else is additions only: see Compatibility at the end of this section.
