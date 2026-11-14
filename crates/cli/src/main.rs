@@ -848,6 +848,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             Err(error) => return Err(render_diagnostic(&path, &error)),
         }
     };
+    if matches!(command, "check" | "build" | "run") {
+        enforce_approved_package_effects(&path, &project_root, &artifact)?;
+    }
     match command {
         "check" => {
             let writes_files =
@@ -945,10 +948,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         "inspect" => {
             if json_inspect {
-                println!(
-                    "{}",
-                    inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"))
-                );
+                let mut report =
+                    inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
+                report["package_effects"] =
+                    api_report(&path, &project_root, &artifact)["package_effects"].clone();
+                println!("{report}");
                 return Ok(ExitCode::SUCCESS);
             }
             let effects_report =
@@ -981,6 +985,24 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             }
             if !artifact.externals.is_empty() {
                 println!("  Python declarations are opaque external effects; declared types do not prove behavior.");
+            }
+            let package_report =
+                api_report(&path, &project_root, &artifact)["package_effects"].clone();
+            for (package, entry) in package_report.as_object().into_iter().flatten() {
+                let effects = entry["effects"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>();
+                println!(
+                    "  package {package}: {}",
+                    if effects.is_empty() {
+                        "no known host effects".to_owned()
+                    } else {
+                        effects.join(", ")
+                    }
+                );
             }
             if entry_writes_files(&effects_report) {
                 println!("{}", file_write_notice(&project_root));
@@ -3079,9 +3101,88 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
             "required_modules": required_stdlib,
         },
         "native_packages": packages,
+        "package_effects": package_effects_report(&functions, &packages, project_root),
         "optional_profiles": if artifact.externals.is_empty() { Vec::<String>::new() } else { vec!["python-interop".to_owned()] },
         "capabilities": inspected["network_grant"],
     })
+}
+
+/// Per linked package, the union of the effects of the functions it defines (a function's effects
+/// already include everything it reaches, in this package, another package or the standard
+/// library), and, when the project keeps `[approved-capabilities.NAME]`, what that approval does
+/// not cover. A package function that calls into another package is attributed to the caller's
+/// package with the callee's effects, so an approval is checked against what really runs.
+fn package_effects_report(
+    functions: &[serde_json::Value],
+    packages: &BTreeSet<String>,
+    project_root: &Path,
+) -> serde_json::Value {
+    let approved = native_packages::project_approved_capabilities(project_root)
+        .ok()
+        .flatten();
+    let mut report = serde_json::Map::new();
+    for package in packages {
+        let prefix = format!("pkg:{package}/");
+        let mut effects = BTreeSet::<String>::new();
+        for function in functions {
+            if function["source"]
+                .as_str()
+                .is_some_and(|s| s.starts_with(&prefix))
+            {
+                effects.extend(
+                    function["effects"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|e| e.as_str().map(str::to_owned)),
+                );
+            }
+        }
+        let (approved_json, beyond) = match &approved {
+            Some(map) => {
+                let entry = map.get(package).cloned().unwrap_or_default();
+                (entry.to_toml_json(), entry.uncovered_effects(&effects))
+            }
+            None => (serde_json::Value::Null, Vec::new()),
+        };
+        report.insert(
+            package.clone(),
+            serde_json::json!({
+                "effects": effects.iter().collect::<Vec<_>>(),
+                "approved": approved_json,
+                "beyond_approved": beyond,
+            }),
+        );
+    }
+    serde_json::Value::Object(report)
+}
+
+/// With `[approved-capabilities]` in the project manifest, a program whose linked packages reach
+/// effects beyond their approval does not check, build or run.
+fn enforce_approved_package_effects(
+    source: &str,
+    project_root: &Path,
+    artifact: &Artifact,
+) -> Result<(), String> {
+    if native_packages::project_approved_capabilities(project_root)?.is_none() {
+        return Ok(());
+    }
+    let report = api_report(source, project_root, artifact);
+    let mut lines = Vec::new();
+    for (package, entry) in report["package_effects"].as_object().into_iter().flatten() {
+        for beyond in entry["beyond_approved"].as_array().into_iter().flatten() {
+            if let Some(beyond) = beyond.as_str() {
+                lines.push(format!("  {package}: {beyond}"));
+            }
+        }
+    }
+    if lines.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "linked packages reach effects beyond what the project approved:\n{}\nwiden [approved-capabilities.NAME] in guion.toml, or remove the call",
+        lines.join("\n")
+    ))
 }
 
 fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {

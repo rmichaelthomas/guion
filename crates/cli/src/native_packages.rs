@@ -1399,6 +1399,20 @@ fn approved_capabilities(
     Ok(Some(approved))
 }
 
+/// The project's `[approved-capabilities]` tables, read from its manifest; `None` when the
+/// project keeps none (or has no manifest).
+pub(crate) fn project_approved_capabilities(
+    project: &Path,
+) -> Result<Option<BTreeMap<String, crate::package_capabilities::Capabilities>>, String> {
+    let manifest_path = project_manifest_path(project);
+    let Ok(text) = fs::read_to_string(&manifest_path) else {
+        return Ok(None);
+    };
+    let manifest: toml::Value = toml::from_str(&text)
+        .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    approved_capabilities(&manifest)
+}
+
 /// A project that keeps `[approved-capabilities]` refuses to install a package that declares more
 /// than its entry, naming the difference. With `approve`, the difference is returned so it can be
 /// recorded once the install commits.

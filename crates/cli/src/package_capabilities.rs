@@ -44,6 +44,10 @@ impl Capabilities {
         *self == Capabilities::default()
     }
 
+    pub fn to_toml_json(&self) -> serde_json::Value {
+        serde_json::to_value(self.to_toml()).unwrap_or(serde_json::Value::Null)
+    }
+
     pub fn from_toml(value: Option<&toml::Value>) -> Result<Capabilities, String> {
         let Some(value) = value else {
             return Ok(Capabilities::default());
@@ -161,6 +165,43 @@ impl Capabilities {
             lines.push("python: +true".into());
         }
         lines
+    }
+
+    /// The effects in `used` that this declaration does not cover, each with the entry that would
+    /// cover it, for example `filesystem.write (files = ["write"])`. Effects with no capability
+    /// (output, concurrency) are never listed.
+    pub fn uncovered_effects(&self, used: &BTreeSet<String>) -> Vec<String> {
+        let network = !self.network.is_empty();
+        let rows: [(&str, bool, &str); 8] = [
+            (
+                "filesystem.read",
+                self.files.contains("read"),
+                "files = [\"read\"]",
+            ),
+            (
+                "filesystem.write",
+                self.files.contains("write"),
+                "files = [\"write\"]",
+            ),
+            ("network.http", network, "network = [\"host\"]"),
+            ("network.socket", network, "network = [\"host\"]"),
+            (
+                "process.environment",
+                !self.environment.is_empty(),
+                "environment = [\"NAME\"]",
+            ),
+            (
+                "process.spawn",
+                !self.processes.is_empty(),
+                "processes = [\"command\"]",
+            ),
+            ("clock.read", self.clock, "clock = true"),
+            ("python.opaque", self.python, "python = true"),
+        ];
+        rows.iter()
+            .filter(|(effect, covered, _)| used.contains(*effect) && !covered)
+            .map(|(effect, _, entry)| format!("{effect} ({entry})"))
+            .collect()
     }
 
     /// Compares a declaration with the effects static inspection found in the library's own

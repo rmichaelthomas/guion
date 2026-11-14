@@ -338,3 +338,216 @@ fn a_project_with_approved_capabilities_refuses_a_path_package_that_asks_for_mor
     assert!(manifest.contains("git"), "{manifest}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+const UPLOADS_LIB: &str = "import \"std:http_body\"\nimport \"std:http_response\"\nimport \"std:time\"\n\npub fn handle_upload(request: Request) -> Result[Response, HttpFailure]:\n    let limits = BodyLimits(1048576, 1048576, 16, 16, 1048576)\n    let parsed = multipart_parse(request, \"uploads\", limits)?\n    return Ok(response_text(200, \"stored\"))\n\npub fn stamp() -> Int:\n    return unix_time_ms()\n";
+
+fn write_uploads(root: &Path) {
+    write_library(
+        root,
+        "\n[capabilities]\nfiles = [\"read\", \"write\"]\nclock = true\n",
+        UPLOADS_LIB,
+    );
+    std::fs::write(
+        root.join("guion.toml"),
+        std::fs::read_to_string(root.join("guion.toml"))
+            .unwrap()
+            .replace("fetcher", "uploads"),
+    )
+    .unwrap();
+}
+
+fn json_of(output: &Output) -> serde_json::Value {
+    serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("not JSON ({error}): {}", text(output)))
+}
+
+fn function_effects(report: &serde_json::Value, key_in_functions: &str) -> Vec<String> {
+    let entry = match &report["functions"] {
+        serde_json::Value::Array(items) => items
+            .iter()
+            .find(|f| f["name"] == key_in_functions)
+            .unwrap_or_else(|| panic!("no function {key_in_functions}"))
+            .clone(),
+        other => other[key_in_functions].clone(),
+    };
+    entry["effects"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no effects for {key_in_functions}"))
+        .iter()
+        .map(|e| e.as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn package_set(report: &serde_json::Value, package: &str, key: &str) -> Vec<String> {
+    report["package_effects"][package][key]
+        .as_array()
+        .unwrap_or_else(|| panic!("no package_effects.{package}.{key}: {report}"))
+        .iter()
+        .map(|e| e.as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn upload_app(dir: &Path, manifest_tail: &str, source: &str) -> std::path::PathBuf {
+    let project = dir.join("app");
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        format!("[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n{manifest_tail}"),
+    )
+    .unwrap();
+    std::fs::write(project.join("src/main.gu"), source).unwrap();
+    project
+}
+
+const UPLOAD_APP: &str = "import \"pkg:uploads/src/lib.gu\"\nimport \"std:http_response\"\n\nfn route(request: Request) -> Result[Response, HttpFailure]:\n    return handle_upload(request)\n\nfn main() -> Int:\n    return stamp()\n";
+
+#[test]
+fn effects_cross_package_boundaries() {
+    let dir = scratch("f2-effects");
+    let library = dir.join("uploads");
+    write_uploads(&library);
+    let project = upload_app(
+        &dir,
+        "\n[clock]\nenabled = true\n\n[approved-capabilities.uploads]\nfiles = [\"read\", \"write\"]\nclock = true\n",
+        UPLOAD_APP,
+    );
+    let added = guion(
+        &project,
+        &["add", "uploads", "--path", library.to_str().unwrap()],
+    );
+    assert!(added.status.success(), "{}", text(&added));
+
+    // The upload handler's file write is only visible through the package, and it is attributed to
+    // the package function and to the application function that calls it.
+    let doc = json_of(&guion(&project, &["doc", "--json", "src/main.gu"]));
+    assert_eq!(
+        function_effects(&doc, "handle_upload"),
+        ["filesystem.write"]
+    );
+    assert_eq!(function_effects(&doc, "route"), ["filesystem.write"]);
+    assert_eq!(function_effects(&doc, "stamp"), ["clock.read"]);
+    assert_eq!(function_effects(&doc, "main"), ["clock.read"]);
+    assert_eq!(
+        package_set(&doc, "uploads", "effects"),
+        ["clock.read", "filesystem.write"]
+    );
+    assert!(package_set(&doc, "uploads", "beyond_approved").is_empty());
+
+    // `guion inspect` of the built artifact agrees with `guion doc`.
+    let built = guion(&project, &["build", "src/main.gu", "-o", "app.gub"]);
+    assert!(built.status.success(), "{}", text(&built));
+    let inspected = json_of(&guion(&project, &["inspect", "--json", "app.gub"]));
+    for name in ["handle_upload", "route", "stamp", "main"] {
+        assert_eq!(
+            function_effects(&inspected, name),
+            function_effects(&doc, name),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        package_set(&inspected, "uploads", "effects"),
+        package_set(&doc, "uploads", "effects")
+    );
+    assert_eq!(inspected["grant_assessment"]["clock_read"], "present");
+    let human = text(&guion(&project, &["inspect", "app.gub"]));
+    assert!(
+        human.contains("package uploads: clock.read, filesystem.write"),
+        "{human}"
+    );
+
+    // Removing the file grant from the app's manifest changes the reported set, and the capability
+    // check at check, build and run refuses the program.
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n\n[clock]\nenabled = true\n\n[approved-capabilities.uploads]\nfiles = [\"read\"]\nclock = true\n",
+    )
+    .unwrap();
+    let doc = json_of(&guion(&project, &["doc", "--json", "src/main.gu"]));
+    assert_eq!(
+        package_set(&doc, "uploads", "beyond_approved"),
+        ["filesystem.write (files = [\"write\"])"]
+    );
+    for command in [
+        vec!["check", "src/main.gu"],
+        vec!["build", "src/main.gu", "-o", "again.gub"],
+        vec!["run", "src/main.gu"],
+    ] {
+        let refused = guion(&project, &command);
+        assert!(!refused.status.success(), "{command:?}");
+        assert!(
+            text(&refused).contains("uploads: filesystem.write (files = [\"write\"])"),
+            "{command:?}: {}",
+            text(&refused)
+        );
+    }
+    assert!(!project.join("again.gub").exists());
+
+    // The clock grant works the same way for the part of the set the manifest does grant.
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+    )
+    .unwrap();
+    let built = guion(&project, &["build", "src/main.gu", "-o", "app.gub"]);
+    assert!(built.status.success(), "{}", text(&built));
+    let inspected = json_of(&guion(&project, &["inspect", "--json", "app.gub"]));
+    assert_eq!(inspected["grant_assessment"]["clock_read"], "missing");
+    assert!(inspected["package_effects"]["uploads"]["approved"].is_null());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn effects_reached_through_another_package_are_attributed_and_checked() {
+    let dir = scratch("f2-nested");
+    let uploads = dir.join("uploads");
+    let gateway = dir.join("gateway");
+    write_uploads(&uploads);
+    std::fs::create_dir_all(gateway.join("src")).unwrap();
+    std::fs::write(
+        gateway.join("guion.toml"),
+        format!(
+            "[package]\nname = \"gateway\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n\n[dependencies.uploads]\nversion = \"1.0.0\"\npath = {:?}\n",
+            "../uploads"
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        gateway.join("src/lib.gu"),
+        "import \"pkg:uploads/src/lib.gu\"\nimport \"std:http_response\"\n\npub fn front_door(request: Request) -> Result[Response, HttpFailure]:\n    return handle_upload(request)\n",
+    )
+    .unwrap();
+    let project = upload_app(
+        &dir,
+        "\n[approved-capabilities.uploads]\nfiles = [\"read\", \"write\"]\nclock = true\n\n[approved-capabilities.gateway]\nfiles = [\"write\"]\n",
+        "import \"pkg:gateway/src/lib.gu\"\nimport \"std:http_response\"\n\nfn route(request: Request) -> Result[Response, HttpFailure]:\n    return front_door(request)\n\nfn main() -> Int:\n    return 0\n",
+    );
+    let added = guion(
+        &project,
+        &["add", "gateway", "--path", gateway.to_str().unwrap()],
+    );
+    assert!(added.status.success(), "{}", text(&added));
+    let doc = json_of(&guion(&project, &["doc", "--json", "src/main.gu"]));
+    assert_eq!(function_effects(&doc, "front_door"), ["filesystem.write"]);
+    assert_eq!(function_effects(&doc, "route"), ["filesystem.write"]);
+    assert_eq!(
+        package_set(&doc, "gateway", "effects"),
+        ["filesystem.write"]
+    );
+    assert!(package_set(&doc, "gateway", "beyond_approved").is_empty());
+    assert!(guion(&project, &["check", "src/main.gu"]).status.success());
+
+    // Approving gateway for nothing is not enough: its effect comes from the package it imports.
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n\n[approved-capabilities.uploads]\nfiles = [\"read\", \"write\"]\nclock = true\n\n[approved-capabilities.gateway]\nclock = true\n",
+    )
+    .unwrap();
+    let refused = guion(&project, &["check", "src/main.gu"]);
+    assert!(!refused.status.success());
+    assert!(
+        text(&refused).contains("gateway: filesystem.write (files = [\"write\"])"),
+        "{}",
+        text(&refused)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
