@@ -2,7 +2,7 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
-## 0.4.0 (unreleased)
+## 0.4.0 — 2026-11-14
 
 Gives each web-facing seam one hardened crossing (labelled F1 to F10 below, with the commit that made each). Four new standard-library modules (`std:http_response`, `std:cookie`, `std:http_body`, `std:http_static`) hold request and response values, cookies, body parsing and static files; a `web` package (`packages/web`, not published to the registry) holds routing, sessions with CSRF and checked templates and shows the package system can host a framework; and a six-route application in `evaluation/frameworks/publish-page` proves the pieces compose. The artifact format goes from 72 to 73; every format 14 through 73 still loads. Two deliberate breaks against 0.3.0, stated here because VERSIONING.md requires it: the effect analysis now reports SQLite as file access (the `std:sqlite` functions are re-signed), and a project approves no package capabilities until it says so. Everything else is additions only: see Compatibility at the end of this section.
 
@@ -84,7 +84,9 @@ All additive; a project that uses none of them behaves as in 0.3.0.
 - Behaviour changes, both small: `guion update` words a capability widening as one delta line per kind of access (the refusal and the unchanged lock are as before), and `http_server_respond`, `http_server_reply` and `http_server_send` now refuse a content type containing a line break with `E_HTTP_HEADER_INVALID` where 0.3.0 sent it (a response-splitting hole). Neither changes a program that was correct.
 - Nothing is removed or renamed, only the `std:sqlite` functions are re-signed (their effects), and no word is newly reserved in the language. See [compatibility and migrations](docs/compatibility-and-migrations.md).
 
-## 0.3.0 (unreleased)
+## 0.3.0 — 2026-11-14 (shipped inside 0.4.0)
+
+0.3.0 was built and verified on its own branch and is released together with 0.4.0: there is no separate 0.3.0 download, and 0.4.0 contains everything below.
 
 Closes the fourteen build gaps an outside evaluation of 0.2.0 found (labelled B1 to B14 below), and adds checks that keep later releases additive. The artifact format goes from 64 to 72; every format 14 through 72 still loads.
 
