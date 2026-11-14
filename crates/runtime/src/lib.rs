@@ -8886,6 +8886,10 @@ impl Instance {
             .map(|(value, ty)| match (value, ty) {
                 (Value::Int(integer), Type::Int) => integer.to_i64(),
                 (Value::Float64(float), Type::Float64) => Some(float.get().to_bits() as i64),
+                // Native code reads a Bool parameter as a raw 0 or 1. Without this arm the
+                // value fell through to the handle table below, and a handle is never 0, so a
+                // `false` entering from a VM caller arrived as true.
+                (Value::Bool(flag), Type::Bool) => Some(i64::from(*flag)),
                 (Value::Float64List(items), Type::List(item)) if **item == Type::Float64 => {
                     let storage_id = native_arena.float_storage.len();
                     native_arena.float_storage.push(items.as_ref().clone());
