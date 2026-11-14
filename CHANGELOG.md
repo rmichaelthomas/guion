@@ -4,6 +4,7 @@ Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview
 
 ## Unreleased
 
+- Comprehension campaign (n=3 per task, subagent subjects): 17 runs, no wrong turns, T1/T3/T4/T5 closed in every run. T2's answer key and wording were changed (H-1.3) after six runs showed the task gave subjects no reason to report that no dedupe or count-by builtin exists; the three H-1.3 runs closed. `docs/reference.md` now lists `map_get` among the built-ins (subjects reached for the `std:collections` wrappers instead). Receipts are in `evaluation/comprehension/receipts/`.
 - `evaluation/comprehension/`: the comprehension harness (H-1.2), brought into the repo with a runner and an n=1 pilot of five tasks (all closed, no wrong turns; one shipped-docs defect found and fixed below). T2 was replaced because `sort` now exists, and T4 and T5 were added; ground truth was re-run on 0.4.0. See `HARNESS.md`.
 - The release now ships `docs/concurrency.md`, `docs/registry-protocol.md` and the agent example programs that the shipped standard library and docs point to (the pilot found `std:http_server` named two files the 0.4.0 archive did not contain). A test fails if a shipped file points to a doc that is not shipped.
 - `docs/basics.md`: a versioned list of the tasks a small program needs and what covers each, with the ones deliberately not covered. A test (`crates/cli/tests/basics_list.rs`) fails if a function the list names is not shipped, so the claim "covers the basics as of this list" can be checked.

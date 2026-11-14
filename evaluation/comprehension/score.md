@@ -1,4 +1,4 @@
-# Scoring — H-1.1
+# Scoring — H-1.3
 
 Two numbers, never blended. Success answers "did it get there"; wrong turns answer
 "what did it say on the way". The second is the one that predicts what will be
@@ -42,7 +42,7 @@ asking about report format, reading the wrong doc first.
 Append-only. Corrections are new receipts that reference the old one.
 
 ```
-H-1.1 / T1 / run 1 of 3 / 2026-11-13 / artifact format 64
+H-1.3 / T1 / run 1 of 3 / 2026-11-13 / artifact format 64
 subject: <model or person; anything it was told that a fresh subject is not>
 budget hit: tool calls (28/40) | time (14/20 min)
 contamination: clean | review — <note>
@@ -63,7 +63,7 @@ a result about legibility; it is a result about being told the answer.
 Only after every task has runs:
 
 ```
-H-1.1 campaign / <date> / <artifact version> / n per task
+H-1.3 campaign / <date> / <artifact version> / n per task
 tasks closed: 1 of 3     (closed = correct AND zero wrong turns)
 wrong turns: 5           (across all runs, with the list)
 ```
