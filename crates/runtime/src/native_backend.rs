@@ -743,6 +743,7 @@ fn functions_reachable_from(artifact: &Artifact, root: usize) -> Vec<bool> {
         for instruction in &artifact.functions[index].code {
             if let Op::Call(target, _)
             | Op::MakeFn(target)
+            | Op::MakeClosure(target, _)
             | Op::ParallelMap(target)
             | Op::SortBy(target)
             | Op::SortByKey(target)

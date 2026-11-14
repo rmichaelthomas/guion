@@ -175,6 +175,15 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                         f.name
                     )));
                 }
+                Op::MakeClosure(target, captured)
+                    if target >= artifact.functions.len()
+                        || captured > artifact.functions[target].parameters.len() =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` forms a closure of a missing function",
+                        f.name
+                    )));
+                }
                 Op::MakeFn(target) if target >= artifact.functions.len() => {
                     return Err(fail(format!(
                         "function `{}` forms a value of a missing function",
@@ -376,7 +385,7 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::HttpError(_) => Type::HttpError,
         // A function value is never a constant; the verifier only learns its type from the
         // function table (`MakeFn`).
-        Value::Function(_) => return None,
+        Value::Function(_) | Value::Closure(..) => return None,
     })
 }
 
@@ -1489,6 +1498,27 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 })?;
                 state.stack.push(Type::Fn(
                     callee.parameters.clone(),
+                    Box::new(callee.result.clone()),
+                ));
+            }
+            Op::MakeClosure(target, captured) => {
+                let callee = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("closure references missing function at instruction {pc}")
+                })?;
+                if *captured > callee.parameters.len() {
+                    return Err(format!(
+                        "closure captures more values than its function takes at instruction {pc}"
+                    ));
+                }
+                for expected in callee.parameters[..*captured].iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "closure captured value type mismatch at instruction {pc}"
+                        ));
+                    }
+                }
+                state.stack.push(Type::Fn(
+                    callee.parameters[*captured..].to_vec(),
                     Box::new(callee.result.clone()),
                 ));
             }

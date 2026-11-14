@@ -1355,8 +1355,9 @@ impl VmHost for Instance {
                 }
             }
             Op::HigherOrder(kind) => {
-                let target = match pop!() {
-                    Value::Function(index) => index,
+                let (target, captured) = match pop!() {
+                    Value::Function(index) => (index, None),
+                    Value::Closure(index, values) => (index, Some(values)),
                     _ => {
                         return Err(RuntimeError::new(
                             "R_FN_INVALID",
@@ -1374,7 +1375,10 @@ impl VmHost for Instance {
                     .artifact
                     .functions
                     .get(target)
-                    .is_none_or(|callee| callee.parameters.len() != wanted)
+                    .is_none_or(|callee| {
+                        callee.parameters.len()
+                            != wanted + captured.as_ref().map_or(0, |values| values.len())
+                    })
                 {
                     return Err(RuntimeError::new(
                         "R_FN_INVALID",
@@ -1407,6 +1411,14 @@ impl VmHost for Instance {
                     instruction.span,
                 )?;
                 let call = |this: &mut Self, args: Vec<Value>| -> Result<Value, RuntimeError> {
+                    let args = match &captured {
+                        Some(values) => {
+                            let mut with_captured = values.as_ref().clone();
+                            with_captured.extend(args);
+                            with_captured
+                        }
+                        None => args,
+                    };
                     this.invoke_inner(target, args, depth + 1, budget.clone())
                         .map_err(|mut error| {
                             error.trace.push(instruction.span);
@@ -6073,8 +6085,16 @@ impl Instance {
         } else {
             None
         };
-        let Some(Value::Function(index)) = stack.pop() else {
-            return Err(invalid());
+        let index = match stack.pop() {
+            Some(Value::Function(index)) => index,
+            Some(Value::Closure(..)) => {
+                return Err(RuntimeError::new(
+                    "R_FN_CLOSURE",
+                    "sorts and parallel_map take a named function, not a function that captures values",
+                    span,
+                ));
+            }
+            _ => return Err(invalid()),
         };
         if self
             .artifact
@@ -8375,6 +8395,15 @@ fn native_runtime_error(
 
 fn input_value_allocation(value: &Value) -> usize {
     match value {
+        Value::Closure(_, captured) => size_of::<Value>()
+            .saturating_add(size_of::<Vec<Value>>())
+            .saturating_add(captured.len().saturating_mul(size_of::<Value>()))
+            .saturating_add(
+                captured
+                    .iter()
+                    .map(input_value_allocation)
+                    .fold(0usize, usize::saturating_add),
+            ),
         Value::Record(name, fields) => size_of::<Value>()
             .saturating_add(size_of::<String>() + name.len())
             .saturating_add(size_of::<Vec<Value>>())

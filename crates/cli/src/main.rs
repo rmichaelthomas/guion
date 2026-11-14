@@ -2806,7 +2806,7 @@ fn inspection_report(
             match &instruction.op {
                 // A function value takes on its function's effects where it is formed;
                 // calling through it adds nothing further.
-                Op::Call(target, _) | Op::MakeFn(target) => {
+                Op::Call(target, _) | Op::MakeFn(target) | Op::MakeClosure(target, _) => {
                     calls[function_index].insert(*target);
                 }
                 Op::HigherOrder(guion_model::HigherOrderKind::ParallelMap) => {

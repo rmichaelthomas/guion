@@ -10480,6 +10480,34 @@
       }
     },
     {
+      "id": "opcode-make-closure",
+      "kind": "opcode",
+      "name": "MakeClosure",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "partial"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-make-closure.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-make-closure.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-make-closure.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
       "id": "opcode-call-fn",
       "kind": "opcode",
       "name": "CallFn",

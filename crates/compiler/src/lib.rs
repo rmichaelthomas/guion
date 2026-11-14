@@ -13,8 +13,6 @@ use std::{
 
 mod builtin_catalog;
 
-const FN_NO_CLOSURES_MESSAGE: &str =
-    "function values name an existing function; closures are not supported";
 
 /// Opt-in timings for source-module loading and function lowering.
 #[derive(Clone, Debug, Default)]
@@ -615,6 +613,20 @@ struct Program {
     records: Vec<RecordAst>,
     imports: Vec<ImportAst>,
     array_elements: Vec<(usize, String, Span)>,
+    enums: Vec<EnumAst>,
+}
+/// `enum Name:` with variants that may carry fields. It lowers to a record named `Name` with an
+/// Int `tag` field and one `Variant_field` field per variant field, before type checking.
+#[derive(Clone, Debug)]
+struct EnumAst {
+    name: String,
+    variants: Vec<VariantAst>,
+}
+#[derive(Clone, Debug)]
+struct VariantAst {
+    name: String,
+    fields: Vec<(String, Type, Span)>,
+    span: Span,
 }
 #[derive(Clone, Debug)]
 struct ImportAst {
@@ -646,6 +658,8 @@ struct ExternalAst {
 #[derive(Clone, Debug)]
 struct FunctionAst {
     name: String,
+    /// `fn first[T](...)`: the type parameter names; empty for an ordinary function.
+    type_params: Vec<String>,
     params: Vec<(String, Type, Span)>,
     result: Type,
     body: Vec<Stmt>,
@@ -678,6 +692,8 @@ enum MatchPattern {
     None,
     Ok(String, Span),
     Err(String, Span),
+    /// A user enum variant with its positional bindings (`_` binds nothing).
+    Variant(String, Vec<(String, Span)>, Span),
 }
 #[derive(Clone, Debug)]
 enum Expr {
@@ -689,6 +705,10 @@ enum Expr {
     Unary(String, Box<Expr>, Span),
     Binary(String, Box<Expr>, Box<Expr>, Span),
     Call(String, Vec<Expr>, Vec<(String, Expr, Span)>, Span),
+    /// `fn(a: Int) -> Int: expression`: a function value that may capture variables in scope.
+    Lambda(Vec<(String, Type, Span)>, Type, Vec<Stmt>, Span),
+    /// `name[Type, ...](args)`: a call to a generic function with its type arguments written.
+    GenericCall(String, Vec<Type>, Vec<Expr>, Span),
     Try(Box<Expr>, Span),
     List(Vec<Expr>, Span),
     Map(Vec<(Expr, Expr)>, Span),
@@ -712,7 +732,9 @@ impl Expr {
             | Expr::Name(_, s)
             | Expr::Unary(_, _, s)
             | Expr::Binary(_, _, _, s)
-            | Expr::Call(_, _, _, s) => *s,
+            | Expr::Call(_, _, _, s)
+            | Expr::GenericCall(_, _, _, s)
+            | Expr::Lambda(_, _, _, s) => *s,
             Expr::Try(_, s) => *s,
             Expr::List(_, s) | Expr::Map(_, s) | Expr::Index(_, _, s) | Expr::Field(_, _, s) => *s,
             Expr::Interpolated(_, s) => *s,
@@ -986,6 +1008,81 @@ impl Parser {
             }
         }
     }
+    fn enum_declaration(&mut self, public: bool) -> Result<(EnumAst, RecordAst), Diagnostic> {
+        let start = self.expect("enum")?.span;
+        let name = self.name()?;
+        self.expect(":")?;
+        self.expect_newline()?;
+        if self.cur().kind != Kind::Indent {
+            return Err(diagnostic(
+                "E_ENUM_EMPTY",
+                "an enum must declare at least one variant",
+                self.cur().span,
+            ));
+        }
+        self.advance();
+        let mut variants: Vec<VariantAst> = Vec::new();
+        while self.cur().kind != Kind::Dedent && self.cur().kind != Kind::Eof {
+            if self.cur().kind == Kind::Newline {
+                self.advance();
+                continue;
+            }
+            let variant = self.name()?;
+            let mut fields = Vec::new();
+            if self.eat("(").is_some() {
+                fields = self.parameters_after_open()?;
+            }
+            self.expect_newline()?;
+            if variants.iter().any(|existing| existing.name == variant.text) {
+                return Err(diagnostic(
+                    "E_ENUM_VARIANT_DUPLICATE",
+                    format!("enum `{}` declares `{}` more than once", name.text, variant.text),
+                    variant.span,
+                ));
+            }
+            variants.push(VariantAst {
+                name: variant.text,
+                fields,
+                span: variant.span,
+            });
+        }
+        if self.cur().kind != Kind::Dedent {
+            return Err(diagnostic(
+                "E_ENUM_UNCLOSED",
+                "enum declaration is not closed",
+                self.cur().span,
+            ));
+        }
+        self.advance();
+        if variants.is_empty() {
+            return Err(diagnostic(
+                "E_ENUM_EMPTY",
+                "an enum must declare at least one variant",
+                start,
+            ));
+        }
+        let mut fields = vec![("tag".to_owned(), Type::Int, start)];
+        for variant in &variants {
+            for (field, ty, span) in &variant.fields {
+                fields.push((format!("{}_{field}", variant.name), ty.clone(), *span));
+            }
+        }
+        let record = RecordAst {
+            name: name.text.clone(),
+            fields,
+            private_fields: Vec::new(),
+            span: start,
+            public,
+            module_id: self.module_id,
+        };
+        Ok((
+            EnumAst {
+                name: name.text,
+                variants,
+            },
+            record,
+        ))
+    }
     fn record(&mut self, public: bool) -> Result<RecordAst, Diagnostic> {
         let start = self.expect("record")?.span;
         let name = self.name()?;
@@ -1055,6 +1152,7 @@ impl Parser {
         let mut functions = Vec::new();
         let mut externals = Vec::new();
         let mut records = Vec::new();
+        let mut enums = Vec::new();
         let mut imports = Vec::new();
         while self.cur().kind != Kind::Eof {
             while self.cur().kind == Kind::Newline {
@@ -1102,6 +1200,12 @@ impl Parser {
             let public = self.eat("pub").is_some();
             if self.cur().text == "record" {
                 records.push(self.record(public)?);
+                continue;
+            }
+            if self.cur().text == "enum" {
+                let (enum_ast, record) = self.enum_declaration(public)?;
+                enums.push(enum_ast);
+                records.push(record);
                 continue;
             }
             if self.cur().text == "extern" {
@@ -1165,6 +1269,24 @@ impl Parser {
             }
             let start = self.expect("fn")?.span;
             let name = self.name()?;
+            let mut type_params = Vec::new();
+            if self.eat("[").is_some() {
+                loop {
+                    let parameter = self.name()?;
+                    if type_params.contains(&parameter.text) {
+                        return Err(diagnostic(
+                            "E_GENERIC_PARAMETER",
+                            format!("type parameter `{}` is declared twice", parameter.text),
+                            parameter.span,
+                        ));
+                    }
+                    type_params.push(parameter.text);
+                    if self.eat(",").is_none() {
+                        break;
+                    }
+                }
+                self.expect("]")?;
+            }
             self.expect("(")?;
             let params = self.parameters_after_open()?;
             self.expect("->")?;
@@ -1174,6 +1296,7 @@ impl Parser {
             let body = self.block()?;
             functions.push(FunctionAst {
                 name: name.text,
+                type_params,
                 params,
                 result,
                 body,
@@ -1182,7 +1305,7 @@ impl Parser {
                 module_id: self.module_id,
             });
         }
-        if functions.is_empty() && externals.is_empty() && records.is_empty() {
+        if functions.is_empty() && externals.is_empty() && records.is_empty() && enums.is_empty() {
             return Err(diagnostic(
                 "E_MODULE_EMPTY",
                 "module must define at least one function, external, or record",
@@ -1195,6 +1318,7 @@ impl Parser {
             records,
             imports,
             array_elements: std::mem::take(&mut self.array_elements),
+            enums,
         })
     }
     fn parameters(&mut self) -> Result<Vec<(String, Type, Span)>, Diagnostic> {
@@ -1266,6 +1390,30 @@ impl Parser {
     fn statement(&mut self) -> Result<Stmt, Diagnostic> {
         let t = self.cur().clone();
         match t.text.as_str() {
+            "fn" if self
+                .tokens
+                .get(self.at + 1)
+                .is_some_and(|next| next.kind == Kind::Name) =>
+            {
+                // `fn name(params) -> Type:` inside a function: a local function value that
+                // captures what it uses, the same as `let name = fn(params) -> Type: ...`.
+                self.advance();
+                let name = self.name()?;
+                self.expect("(")?;
+                let params = self.parameters_after_open()?;
+                self.expect("->")?;
+                let result = self.ty()?;
+                self.expect(":")?;
+                self.expect_newline()?;
+                let body = self.block()?;
+                Ok(Stmt::Let(
+                    name.text,
+                    false,
+                    None,
+                    Expr::Lambda(params, result, body, t.span),
+                    t.span,
+                ))
+            }
             "let" | "var" => {
                 let mutable = self.advance().text == "var";
                 let n = self.name()?;
@@ -1407,11 +1555,20 @@ impl Parser {
                         }
                         "None" => MatchPattern::None,
                         _ => {
-                            return Err(diagnostic(
-                                "E_MATCH_PATTERN",
-                                "expected Some(name), None, Ok(name), or Err(name)",
-                                variant.span,
-                            ));
+                            let mut bindings = Vec::new();
+                            if self.eat("(").is_some() {
+                                if self.cur().text != ")" {
+                                    loop {
+                                        let binding = self.name()?;
+                                        bindings.push((binding.text, binding.span));
+                                        if self.eat(",").is_none() {
+                                            break;
+                                        }
+                                    }
+                                }
+                                self.expect(")")?;
+                            }
+                            MatchPattern::Variant(variant.text.clone(), bindings, variant.span)
                         }
                     };
                     self.expect(":")?;
@@ -1442,7 +1599,7 @@ impl Parser {
             }
             _ => {
                 let e = self.expr(0)?;
-                if !matches!(e, Expr::Call(_, _, _, _)) {
+                if !matches!(e, Expr::Call(_, _, _, _) | Expr::GenericCall(..)) {
                     return Err(diagnostic(
                         "E_STMT_EXPR",
                         "only a function call may be used as a statement",
@@ -1482,16 +1639,50 @@ impl Parser {
             Kind::Name if t.text == "true" => Expr::Bool(true, t.span),
             Kind::Name if t.text == "false" => Expr::Bool(false, t.span),
             Kind::Name if t.text == "fn" => {
-                return Err(diagnostic(
-                    "E_FN_NO_CLOSURES",
-                    FN_NO_CLOSURES_MESSAGE,
-                    t.span,
-                ));
+                self.expect("(")?;
+                let params = self.parameters_after_open()?;
+                self.expect("->")?;
+                let result = self.ty()?;
+                self.expect(":")?;
+                let body = self.expr(0)?;
+                Expr::Lambda(params, result, vec![Stmt::Return(body, t.span)], t.span)
             }
             Kind::Name if t.text == "not" || t.text == "-" => {
                 Expr::Unary(t.text, Box::new(self.expr(6)?), t.span)
             }
             Kind::Name => {
+                let mut type_arguments = None;
+                if self.cur().text == "[" {
+                    // `name[Type, ...](`: only a call can follow a name and a bracket group.
+                    let mut depth = 0usize;
+                    let mut close = None;
+                    for (offset, token) in self.tokens[self.at..].iter().enumerate() {
+                        match token.text.as_str() {
+                            "[" => depth += 1,
+                            "]" => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    close = Some(self.at + offset);
+                                    break;
+                                }
+                            }
+                            _ if token.kind == Kind::Newline || token.kind == Kind::Eof => break,
+                            _ => {}
+                        }
+                    }
+                    if close.is_some_and(|at| self.tokens.get(at + 1).is_some_and(|next| next.text == "(")) {
+                        self.advance();
+                        let mut types = Vec::new();
+                        loop {
+                            types.push(self.ty()?);
+                            if self.eat(",").is_none() {
+                                break;
+                            }
+                        }
+                        self.expect("]")?;
+                        type_arguments = Some(types);
+                    }
+                }
                 if self.eat("(").is_some() {
                     let mut args = Vec::new();
                     let mut keywords = Vec::new();
@@ -1524,7 +1715,18 @@ impl Parser {
                         }
                     }
                     self.expect(")")?;
-                    Expr::Call(t.text, args, keywords, t.span)
+                    if let Some(types) = type_arguments {
+                        if let Some((_, _, keyword_span)) = keywords.first() {
+                            return Err(diagnostic(
+                                "E_CALL_KEYWORD",
+                                "a generic call takes positional arguments only",
+                                *keyword_span,
+                            ));
+                        }
+                        Expr::GenericCall(t.text, types, args, t.span)
+                    } else {
+                        Expr::Call(t.text, args, keywords, t.span)
+                    }
                 } else {
                     Expr::Name(t.text, t.span)
                 }
@@ -1694,6 +1896,375 @@ fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
     out
 }
 
+
+/// Lowers every `enum` to its record and rewrites variant constructors and variant `match`
+/// statements, so the type checker only ever sees records, `if` and field reads.
+fn desugar_enums(program: &mut Program) -> Result<(), Diagnostic> {
+    if program.enums.is_empty() {
+        return Ok(());
+    }
+    // variant name -> (enum index, variant index)
+    let mut variants: HashMap<String, (usize, usize)> = HashMap::new();
+    for (enum_index, declared) in program.enums.iter().enumerate() {
+        for (variant_index, variant) in declared.variants.iter().enumerate() {
+            if matches!(variant.name.as_str(), "Some" | "None" | "Ok" | "Err") {
+                return Err(diagnostic(
+                    "E_ENUM_VARIANT_NAME",
+                    format!("`{}` is already a built-in name; pick another variant name", variant.name),
+                    variant.span,
+                ));
+            }
+            if let Some((other, _)) = variants.insert(variant.name.clone(), (enum_index, variant_index)) {
+                return Err(diagnostic(
+                    "E_ENUM_VARIANT_DUPLICATE",
+                    format!(
+                        "variant `{}` is declared by enums `{}` and `{}`; variant names are shared across the program, so rename one",
+                        variant.name, program.enums[other].name, declared.name
+                    ),
+                    variant.span,
+                ));
+            }
+            if program.functions.iter().any(|f| f.name == variant.name)
+                || program.records.iter().any(|r| r.name == variant.name)
+            {
+                return Err(diagnostic(
+                    "E_ENUM_VARIANT_NAME",
+                    format!("variant `{}` has the same name as a function or record", variant.name),
+                    variant.span,
+                ));
+            }
+            for (_, ty, span) in &variant.fields {
+                if enum_field_default(ty, *span).is_none() {
+                    return Err(diagnostic(
+                        "E_ENUM_FIELD_TYPE",
+                        "enum variant fields must be Int, Float64, Bool, Text or a List of those",
+                        *span,
+                    ));
+                }
+            }
+        }
+    }
+    let enums = program.enums.clone();
+    let mut counter = 0usize;
+    for function in &mut program.functions {
+        desugar_block(&mut function.body, &enums, &variants, &mut counter)?;
+    }
+    Ok(())
+}
+
+fn enum_field_default(ty: &Type, span: Span) -> Option<Expr> {
+    match ty {
+        Type::Int => Some(Expr::Int(BigInt::from_i64(0), span)),
+        Type::Float64 => Some(Expr::Float(Float64::new(0.0)?, span)),
+        Type::Bool => Some(Expr::Bool(false, span)),
+        Type::Text => Some(Expr::Text(String::new(), span)),
+        Type::List(item) if enum_field_default(item, span).is_some() => {
+            Some(Expr::List(Vec::new(), span))
+        }
+        _ => None,
+    }
+}
+
+fn desugar_variant_call(
+    enums: &[EnumAst],
+    position: (usize, usize),
+    args: Vec<Expr>,
+    span: Span,
+) -> Result<Expr, Diagnostic> {
+    let declared = &enums[position.0];
+    let variant = &declared.variants[position.1];
+    if args.len() != variant.fields.len() {
+        return Err(diagnostic(
+            "E_ENUM_ARITY",
+            format!(
+                "variant `{}` takes {} value(s), got {}",
+                variant.name,
+                variant.fields.len(),
+                args.len()
+            ),
+            span,
+        ));
+    }
+    let mut values = vec![Expr::Int(BigInt::from_i64(position.1 as i64), span)];
+    for (variant_index, other) in declared.variants.iter().enumerate() {
+        for (field_index, (_, ty, field_span)) in other.fields.iter().enumerate() {
+            if variant_index == position.1 {
+                values.push(args[field_index].clone());
+            } else {
+                values.push(enum_field_default(ty, *field_span).expect("checked field type"));
+            }
+        }
+    }
+    Ok(Expr::Call(declared.name.clone(), values, Vec::new(), span))
+}
+
+fn desugar_expr(
+    expression: &mut Expr,
+    enums: &[EnumAst],
+    variants: &HashMap<String, (usize, usize)>,
+    counter: &mut usize,
+) -> Result<(), Diagnostic> {
+    match expression {
+        Expr::Unary(_, inner, _) | Expr::Try(inner, _) | Expr::Field(inner, _, _) => {
+            desugar_expr(inner, enums, variants, counter)?
+        }
+        Expr::Binary(_, left, right, _) | Expr::Index(left, right, _) => {
+            desugar_expr(left, enums, variants, counter)?;
+            desugar_expr(right, enums, variants, counter)?;
+        }
+        Expr::List(items, _) => {
+            for item in items {
+                desugar_expr(item, enums, variants, counter)?;
+            }
+        }
+        Expr::Map(pairs, _) => {
+            for (key, value) in pairs {
+                desugar_expr(key, enums, variants, counter)?;
+                desugar_expr(value, enums, variants, counter)?;
+            }
+        }
+        Expr::Interpolated(parts, _) => {
+            for part in parts {
+                if let FormatPart::Hole(inner) = part {
+                    desugar_expr(inner, enums, variants, counter)?;
+                }
+            }
+        }
+        Expr::GenericCall(_, _, args, _) => {
+            for arg in args.iter_mut() {
+                desugar_expr(arg, enums, variants, counter)?;
+            }
+        }
+        Expr::Lambda(_, _, body, _) => desugar_block(body, enums, variants, counter)?,
+        Expr::Call(name, args, keywords, span) => {
+            for arg in args.iter_mut() {
+                desugar_expr(arg, enums, variants, counter)?;
+            }
+            for (_, value, _) in keywords.iter_mut() {
+                desugar_expr(value, enums, variants, counter)?;
+            }
+            if let Some(position) = variants.get(name.as_str()).copied() {
+                if let Some((_, _, keyword_span)) = keywords.first() {
+                    return Err(diagnostic(
+                        "E_ENUM_ARITY",
+                        "enum variants take positional values",
+                        *keyword_span,
+                    ));
+                }
+                let lowered = desugar_variant_call(enums, position, std::mem::take(args), *span)?;
+                *expression = lowered;
+            }
+        }
+        Expr::Name(name, span) => {
+            if let Some(position) = variants.get(name.as_str()).copied() {
+                *expression = desugar_variant_call(enums, position, Vec::new(), *span)?;
+            }
+        }
+        Expr::Int(..) | Expr::Float(..) | Expr::Bool(..) | Expr::Text(..) => {}
+    }
+    Ok(())
+}
+
+fn desugar_block(
+    body: &mut Vec<Stmt>,
+    enums: &[EnumAst],
+    variants: &HashMap<String, (usize, usize)>,
+    counter: &mut usize,
+) -> Result<(), Diagnostic> {
+    let statements = std::mem::take(body);
+    for statement in statements {
+        match statement {
+            Stmt::Let(name, mutable, ty, mut value, span) => {
+                desugar_expr(&mut value, enums, variants, counter)?;
+                body.push(Stmt::Let(name, mutable, ty, value, span));
+            }
+            Stmt::Set(name, mut value, span) => {
+                desugar_expr(&mut value, enums, variants, counter)?;
+                body.push(Stmt::Set(name, value, span));
+            }
+            Stmt::Return(mut value, span) => {
+                desugar_expr(&mut value, enums, variants, counter)?;
+                body.push(Stmt::Return(value, span));
+            }
+            Stmt::Expr(mut value, span) => {
+                desugar_expr(&mut value, enums, variants, counter)?;
+                body.push(Stmt::Expr(value, span));
+            }
+            Stmt::If(mut condition, mut yes, mut no, span) => {
+                desugar_expr(&mut condition, enums, variants, counter)?;
+                desugar_block(&mut yes, enums, variants, counter)?;
+                desugar_block(&mut no, enums, variants, counter)?;
+                body.push(Stmt::If(condition, yes, no, span));
+            }
+            Stmt::While(mut condition, mut inner, span) => {
+                desugar_expr(&mut condition, enums, variants, counter)?;
+                desugar_block(&mut inner, enums, variants, counter)?;
+                body.push(Stmt::While(condition, inner, span));
+            }
+            Stmt::For(name, mut iterable, mut inner, span) => {
+                desugar_expr(&mut iterable, enums, variants, counter)?;
+                desugar_block(&mut inner, enums, variants, counter)?;
+                body.push(Stmt::For(name, iterable, inner, span));
+            }
+            Stmt::Match(mut value, mut arms, span) => {
+                desugar_expr(&mut value, enums, variants, counter)?;
+                for arm in &mut arms {
+                    desugar_block(&mut arm.body, enums, variants, counter)?;
+                }
+                let has_variant = arms
+                    .iter()
+                    .any(|arm| matches!(arm.pattern, MatchPattern::Variant(..)));
+                if !has_variant {
+                    body.push(Stmt::Match(value, arms, span));
+                    continue;
+                }
+                lower_enum_match(body, value, arms, span, enums, variants, counter)?;
+            }
+            other => body.push(other),
+        }
+    }
+    Ok(())
+}
+
+fn lower_enum_match(
+    out: &mut Vec<Stmt>,
+    value: Expr,
+    arms: Vec<MatchArm>,
+    span: Span,
+    enums: &[EnumAst],
+    variants: &HashMap<String, (usize, usize)>,
+    counter: &mut usize,
+) -> Result<(), Diagnostic> {
+    let mut enum_index = None;
+    let mut covered: Vec<Option<usize>> = Vec::new();
+    for (arm_index, arm) in arms.iter().enumerate() {
+        let MatchPattern::Variant(name, _, arm_span) = &arm.pattern else {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                "a match on an enum uses only that enum's variants",
+                arm.span,
+            ));
+        };
+        let Some(&(owner, variant_index)) = variants.get(name.as_str()) else {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                format!("`{name}` is not a variant of any enum; expected Some(name), None, Ok(name), Err(name) or an enum variant"),
+                *arm_span,
+            ));
+        };
+        match enum_index {
+            None => {
+                enum_index = Some(owner);
+                covered = vec![None; enums[owner].variants.len()];
+            }
+            Some(existing) if existing != owner => {
+                return Err(diagnostic(
+                    "E_MATCH_PATTERN",
+                    format!(
+                        "`{name}` belongs to enum `{}`, but this match is on `{}`",
+                        enums[owner].name, enums[existing].name
+                    ),
+                    *arm_span,
+                ));
+            }
+            _ => {}
+        }
+        if covered[variant_index].is_some() {
+            return Err(diagnostic(
+                "E_MATCH_DUPLICATE",
+                format!("variant `{name}` is matched more than once"),
+                *arm_span,
+            ));
+        }
+        covered[variant_index] = Some(arm_index);
+    }
+    let owner = enum_index.expect("at least one arm");
+    let declared = &enums[owner];
+    let missing: Vec<&str> = declared
+        .variants
+        .iter()
+        .zip(&covered)
+        .filter(|(_, arm)| arm.is_none())
+        .map(|(variant, _)| variant.name.as_str())
+        .collect();
+    if !missing.is_empty() {
+        return Err(diagnostic(
+            "E_MATCH_MISSING_VARIANT",
+            format!(
+                "match on `{}` does not handle {}",
+                declared.name,
+                missing
+                    .iter()
+                    .map(|name| format!("`{name}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            span,
+        ));
+    }
+    *counter += 1;
+    let temp = format!("__enum_match_{counter}");
+    out.push(Stmt::Let(temp.clone(), false, None, value, span));
+    // Build the arms into a nested if / else chain, last arm as the final else.
+    let mut chain: Option<Vec<Stmt>> = None;
+    for arm in arms.into_iter().rev() {
+        let MatchPattern::Variant(name, bindings, arm_span) = arm.pattern else {
+            unreachable!("checked above")
+        };
+        let (_, variant_index) = variants[name.as_str()];
+        let variant = &declared.variants[variant_index];
+        if bindings.len() != variant.fields.len() {
+            return Err(diagnostic(
+                "E_ENUM_ARITY",
+                format!(
+                    "variant `{name}` has {} value(s); the pattern binds {}",
+                    variant.fields.len(),
+                    bindings.len()
+                ),
+                arm_span,
+            ));
+        }
+        let mut block = Vec::new();
+        for ((binding, binding_span), (field, _, _)) in bindings.iter().zip(&variant.fields) {
+            if binding == "_" {
+                continue;
+            }
+            block.push(Stmt::Let(
+                binding.clone(),
+                false,
+                None,
+                Expr::Field(
+                    Box::new(Expr::Name(temp.clone(), *binding_span)),
+                    format!("{name}_{field}"),
+                    *binding_span,
+                ),
+                *binding_span,
+            ));
+        }
+        block.extend(arm.body);
+        chain = Some(match chain {
+            None => block,
+            Some(rest) => vec![Stmt::If(
+                Expr::Binary(
+                    "==".to_owned(),
+                    Box::new(Expr::Field(
+                        Box::new(Expr::Name(temp.clone(), arm_span)),
+                        "tag".to_owned(),
+                        arm_span,
+                    )),
+                    Box::new(Expr::Int(BigInt::from_i64(variant_index as i64), arm_span)),
+                    arm_span,
+                ),
+                block,
+                rest,
+                arm_span,
+            )],
+        });
+    }
+    out.extend(chain.expect("at least one arm"));
+    Ok(())
+}
+
 /// The dotted path an expression of names and field reads spells (`a`, `a.b`), if it is one.
 fn dotted_path(expression: &Expr) -> Option<String> {
     match expression {
@@ -1720,6 +2291,10 @@ fn expression_reads_path(expression: &Expr, path: &str) -> bool {
         Expr::Binary(_, left, right, _) | Expr::Index(left, right, _) => {
             expression_reads_path(left, path) || expression_reads_path(right, path)
         }
+        Expr::GenericCall(_, _, arguments, _) => {
+            arguments.iter().any(|argument| expression_reads_path(argument, path))
+        }
+        Expr::Lambda(..) => true,
         Expr::Call(_, arguments, keywords, _) => {
             arguments.iter().any(|argument| expression_reads_path(argument, path))
                 || keywords.iter().any(|(_, value, _)| expression_reads_path(value, path))
@@ -1748,6 +2323,235 @@ struct Local {
     split: Option<usize>,
 }
 type ExternalSignature = (usize, Vec<(String, Type)>, Type);
+
+#[derive(Clone, Debug)]
+struct PendingInstance {
+    key: String,
+    symbol: String,
+    types: Vec<Type>,
+    /// A lifted lambda: the hidden function, instead of an instance of a generic one.
+    lambda: Option<FunctionAst>,
+}
+
+/// Names a block mentions, and the names it binds itself (`let`, `for`, match bindings).
+fn mentioned_in_block(body: &[Stmt], out: &mut Vec<String>, bound: &mut Vec<String>) {
+    for statement in body {
+        match statement {
+            Stmt::Let(name, _, _, value, _) => {
+                mentioned_names(value, out);
+                bound.push(name.clone());
+            }
+            Stmt::Set(target, value, _) => {
+                let root = target.split('.').next().unwrap_or(target).to_owned();
+                if !out.contains(&root) {
+                    out.push(root);
+                }
+                mentioned_names(value, out);
+            }
+            Stmt::Return(value, _) | Stmt::Expr(value, _) => mentioned_names(value, out),
+            Stmt::If(condition, yes, no, _) => {
+                mentioned_names(condition, out);
+                mentioned_in_block(yes, out, bound);
+                mentioned_in_block(no, out, bound);
+            }
+            Stmt::While(condition, inner, _) => {
+                mentioned_names(condition, out);
+                mentioned_in_block(inner, out, bound);
+            }
+            Stmt::For(name, iterable, inner, _) => {
+                mentioned_names(iterable, out);
+                bound.push(name.clone());
+                mentioned_in_block(inner, out, bound);
+            }
+            Stmt::Match(value, arms, _) => {
+                mentioned_names(value, out);
+                for arm in arms {
+                    match &arm.pattern {
+                        MatchPattern::Some(name, _)
+                        | MatchPattern::Ok(name, _)
+                        | MatchPattern::Err(name, _) => bound.push(name.clone()),
+                        MatchPattern::Variant(_, names, _) => {
+                            bound.extend(names.iter().map(|(name, _)| name.clone()))
+                        }
+                        MatchPattern::None => {}
+                    }
+                    mentioned_in_block(&arm.body, out, bound);
+                }
+            }
+            Stmt::Break(_) | Stmt::Continue(_) => {}
+        }
+    }
+}
+
+/// Names a lambda body mentions, in first-use order; the caller keeps the ones that are
+/// variables of the enclosing function.
+fn mentioned_names(expression: &Expr, out: &mut Vec<String>) {
+    let add = |name: &str, out: &mut Vec<String>| {
+        if !out.iter().any(|seen| seen == name) {
+            out.push(name.to_owned());
+        }
+    };
+    match expression {
+        Expr::Int(..) | Expr::Float(..) | Expr::Bool(..) | Expr::Text(..) => {}
+        Expr::Name(name, _) => add(name, out),
+        Expr::Unary(_, inner, _) | Expr::Try(inner, _) | Expr::Field(inner, _, _) => {
+            mentioned_names(inner, out)
+        }
+        Expr::Binary(_, left, right, _) | Expr::Index(left, right, _) => {
+            mentioned_names(left, out);
+            mentioned_names(right, out);
+        }
+        Expr::Call(name, args, keywords, _) => {
+            add(name, out);
+            for arg in args {
+                mentioned_names(arg, out);
+            }
+            for (_, value, _) in keywords {
+                mentioned_names(value, out);
+            }
+        }
+        Expr::GenericCall(_, _, args, _) => {
+            for arg in args {
+                mentioned_names(arg, out);
+            }
+        }
+        Expr::List(items, _) => {
+            for item in items {
+                mentioned_names(item, out);
+            }
+        }
+        Expr::Map(pairs, _) => {
+            for (key, value) in pairs {
+                mentioned_names(key, out);
+                mentioned_names(value, out);
+            }
+        }
+        Expr::Interpolated(parts, _) => {
+            for part in parts {
+                if let FormatPart::Hole(inner) = part {
+                    mentioned_names(inner, out);
+                }
+            }
+        }
+        Expr::Lambda(params, _, body, _) => {
+            let mut inner = Vec::new();
+            let mut bound: Vec<String> = params.iter().map(|(name, _, _)| name.clone()).collect();
+            mentioned_in_block(body, &mut inner, &mut bound);
+            for name in inner {
+                if !bound.contains(&name) {
+                    add(&name, out);
+                }
+            }
+        }
+    }
+}
+
+fn substitute_type(ty: &Type, bindings: &HashMap<String, Type>) -> Type {
+    match ty {
+        Type::Record(name) => bindings.get(name).cloned().unwrap_or_else(|| ty.clone()),
+        Type::List(item) => Type::List(Box::new(substitute_type(item, bindings))),
+        Type::Map(item) => Type::Map(Box::new(substitute_type(item, bindings))),
+        Type::Option(item) => Type::Option(Box::new(substitute_type(item, bindings))),
+        Type::Result(ok, err) => Type::Result(
+            Box::new(substitute_type(ok, bindings)),
+            Box::new(substitute_type(err, bindings)),
+        ),
+        Type::Fn(parameters, result) => Type::Fn(
+            parameters
+                .iter()
+                .map(|parameter| substitute_type(parameter, bindings))
+                .collect(),
+            Box::new(substitute_type(result, bindings)),
+        ),
+        _ => ty.clone(),
+    }
+}
+
+fn substitute_block(body: &mut [Stmt], bindings: &HashMap<String, Type>) {
+    for statement in body {
+        match statement {
+            Stmt::Let(_, _, Some(annotation), _, _) => {
+                *annotation = substitute_type(annotation, bindings)
+            }
+            Stmt::If(_, yes, no, _) => {
+                substitute_block(yes, bindings);
+                substitute_block(no, bindings);
+            }
+            Stmt::While(_, inner, _) | Stmt::For(_, _, inner, _) => {
+                substitute_block(inner, bindings)
+            }
+            Stmt::Match(_, arms, _) => {
+                for arm in arms {
+                    substitute_block(&mut arm.body, bindings);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Binds the type parameters in `pattern` to the parts of `actual` they line up with.
+fn unify_type(
+    pattern: &Type,
+    actual: &Type,
+    parameters: &[String],
+    bindings: &mut HashMap<String, Type>,
+) -> bool {
+    match (pattern, actual) {
+        (Type::Record(name), _) if parameters.contains(name) => match bindings.get(name) {
+            Some(bound) => bound == actual,
+            None => {
+                bindings.insert(name.clone(), actual.clone());
+                true
+            }
+        },
+        (Type::List(left), Type::List(right))
+        | (Type::Map(left), Type::Map(right))
+        | (Type::Option(left), Type::Option(right)) => {
+            unify_type(left, right, parameters, bindings)
+        }
+        (Type::Result(left_ok, left_err), Type::Result(right_ok, right_err)) => {
+            unify_type(left_ok, right_ok, parameters, bindings)
+                && unify_type(left_err, right_err, parameters, bindings)
+        }
+        (Type::Fn(left, left_result), Type::Fn(right, right_result)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(l, r)| unify_type(l, r, parameters, bindings))
+                && unify_type(left_result, right_result, parameters, bindings)
+        }
+        _ => pattern == actual,
+    }
+}
+
+fn instance_function(generic: &FunctionAst, types: &[Type]) -> FunctionAst {
+    let bindings: HashMap<String, Type> = generic
+        .type_params
+        .iter()
+        .cloned()
+        .zip(types.iter().cloned())
+        .collect();
+    let mut instance = generic.clone();
+    instance.type_params = Vec::new();
+    instance.public = false;
+    instance.name = format!(
+        "{}<{}>",
+        generic.name,
+        types
+            .iter()
+            .map(|ty| format!("{ty:?}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    for (_, ty, _) in &mut instance.params {
+        *ty = substitute_type(ty, &bindings);
+    }
+    instance.result = substitute_type(&instance.result, &bindings);
+    substitute_block(&mut instance.body, &bindings);
+    instance
+}
 struct FnCompiler<'a> {
     ast: &'a FunctionAst,
     signatures: &'a HashMap<String, (usize, Vec<Type>, Type)>,
@@ -1758,6 +2562,11 @@ struct FnCompiler<'a> {
     visible_records: &'a HashSet<String>,
     /// Symbols of functions declared in standard-library modules.
     standard_functions: &'a HashSet<String>,
+    /// Generic functions by symbol, and the function index of each instance already built.
+    generics: &'a HashMap<String, FunctionAst>,
+    instance_index: &'a HashMap<String, usize>,
+    /// Instances this pass needed that do not exist yet; the driver adds them and recompiles.
+    pending_instances: &'a std::cell::RefCell<Vec<PendingInstance>>,
     locals: HashMap<String, Local>,
     next_local: usize,
     code: Vec<Instruction>,
@@ -2706,6 +3515,99 @@ impl<'a> FnCompiler<'a> {
                     "`range(...)` is only valid as the sequence of a `for` loop: `for i in range(3):`; to get a list use a `while` loop",
                     *s,
                 ))
+            }
+            Expr::Lambda(params, result, body, s) => {
+                let mut mentioned = Vec::new();
+                let mut bound: Vec<String> =
+                    params.iter().map(|(name, _, _)| name.clone()).collect();
+                mentioned_in_block(body, &mut mentioned, &mut bound);
+                let mut captured: Vec<(String, Type)> = Vec::new();
+                for name in mentioned {
+                    if bound.contains(&name) {
+                        continue;
+                    }
+                    if let Some(local) = self.locals.get(&name) {
+                        captured.push((name, local.ty.clone()));
+                    }
+                }
+                let mut lifted_params: Vec<(String, Type, Span)> = captured
+                    .iter()
+                    .map(|(name, ty)| (name.clone(), ty.clone(), *s))
+                    .collect();
+                lifted_params.extend(params.iter().cloned());
+                let lifted = FunctionAst {
+                    name: format!("lambda@{}:{}", s.line, s.column),
+                    type_params: Vec::new(),
+                    params: lifted_params,
+                    result: result.clone(),
+                    body: body.clone(),
+                    span: *s,
+                    public: false,
+                    module_id: self.ast.module_id,
+                };
+                let key = format!(
+                    "lambda|{}|{}:{}|{}|{:?}",
+                    self.ast.module_id, s.line, s.column, self.ast.name, captured
+                );
+                let index = match self.instance_index.get(&key) {
+                    Some(index) => *index,
+                    None => {
+                        let mut pending = self.pending_instances.borrow_mut();
+                        if !pending.iter().any(|instance| instance.key == key) {
+                            pending.push(PendingInstance {
+                                key,
+                                symbol: String::new(),
+                                types: Vec::new(),
+                                lambda: Some(lifted),
+                            });
+                        }
+                        0
+                    }
+                };
+                for (name, _) in &captured {
+                    self.expr(&Expr::Name(name.clone(), *s))?;
+                }
+                if captured.is_empty() {
+                    self.emit(Op::MakeFn(index), *s);
+                } else {
+                    self.emit(Op::MakeClosure(index, captured.len()), *s);
+                }
+                Ok(Type::Fn(
+                    params.iter().map(|(_, ty, _)| ty.clone()).collect(),
+                    Box::new(result.clone()),
+                ))
+            }
+            Expr::GenericCall(name, types, args, s) => {
+                let Some(symbol) = self
+                    .visible_functions
+                    .get(name)
+                    .filter(|symbol| self.generics.contains_key(*symbol))
+                else {
+                    return Err(diagnostic(
+                        "E_GENERIC_CALL",
+                        format!("`{name}` is not a generic function"),
+                        *s,
+                    ));
+                };
+                let symbol = symbol.clone();
+                self.generic_call(name, &symbol, Some(types), args, *s)
+            }
+            Expr::Call(name, args, keywords, s)
+                if !self.locals.contains_key(name)
+                    && self
+                        .visible_functions
+                        .get(name)
+                        .is_some_and(|symbol| self.generics.contains_key(symbol)) =>
+            {
+                if let Some((_, _, keyword_span)) = keywords.first() {
+                    return Err(diagnostic(
+                        "E_CALL_KEYWORD",
+                        "a generic call takes positional arguments only",
+                        *keyword_span,
+                    ));
+                }
+                let symbol = self.visible_functions[name].clone();
+                self.generic_call(name, &symbol, None, args, *s)
             }
             Expr::Call(name, args, keywords, s) => {
                 // A local of function type is called through its value; a local of any other
@@ -3748,6 +4650,101 @@ impl<'a> FnCompiler<'a> {
                 Ok(result)
             }
         }
+    }
+    /// Compiles a call to a generic function: binds its type parameters from the written type
+    /// arguments or from the argument types, and calls the instance for those types.
+    fn generic_call(
+        &mut self,
+        name: &str,
+        symbol: &str,
+        explicit: Option<&[Type]>,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Type, Diagnostic> {
+        let generics = self.generics;
+        let generic = &generics[symbol];
+        if args.len() != generic.params.len() {
+            return Err(diagnostic(
+                "E_CALL_ARITY",
+                format!(
+                    "function `{name}` expects {} arguments, got {}",
+                    generic.params.len(),
+                    args.len()
+                ),
+                span,
+            ));
+        }
+        let mut bindings: HashMap<String, Type> = HashMap::new();
+        if let Some(types) = explicit {
+            if types.len() != generic.type_params.len() {
+                return Err(diagnostic(
+                    "E_GENERIC_ARITY",
+                    format!(
+                        "`{name}` has {} type parameter(s), got {} type argument(s)",
+                        generic.type_params.len(),
+                        types.len()
+                    ),
+                    span,
+                ));
+            }
+            for (parameter, ty) in generic.type_params.iter().zip(types) {
+                bindings.insert(parameter.clone(), ty.clone());
+            }
+        }
+        for (argument, (parameter_name, parameter_type, _)) in args.iter().zip(&generic.params) {
+            let expected = explicit.map(|_| substitute_type(parameter_type, &bindings));
+            let actual = self.expr_with_expected(argument, expected.as_ref())?;
+            if explicit.is_none()
+                && !unify_type(parameter_type, &actual, &generic.type_params, &mut bindings)
+            {
+                return Err(diagnostic(
+                    "E_TYPE_ARGUMENT",
+                    format!(
+                        "argument `{parameter_name}` to `{name}` has type {actual:?}, which does not fit {parameter_type:?} with the other arguments"
+                    ),
+                    argument.span(),
+                ));
+            }
+            let wanted = substitute_type(parameter_type, &bindings);
+            if wanted != actual {
+                return Err(diagnostic(
+                    "E_TYPE_ARGUMENT",
+                    format!("argument to `{name}` expects {wanted:?}, got {actual:?}"),
+                    argument.span(),
+                ));
+            }
+        }
+        let mut types = Vec::new();
+        for parameter in &generic.type_params {
+            let Some(ty) = bindings.get(parameter) else {
+                return Err(diagnostic(
+                    "E_GENERIC_INFER",
+                    format!(
+                        "cannot tell what `{parameter}` is in this call to `{name}`; write it: `{name}[Int](...)`"
+                    ),
+                    span,
+                ));
+            };
+            types.push(ty.clone());
+        }
+        let key = format!("{symbol}|{types:?}");
+        let index = match self.instance_index.get(&key) {
+            Some(index) => *index,
+            None => {
+                let mut pending = self.pending_instances.borrow_mut();
+                if !pending.iter().any(|instance| instance.key == key) {
+                    pending.push(PendingInstance {
+                        key,
+                        symbol: symbol.to_owned(),
+                        types: types.clone(),
+                        lambda: None,
+                    });
+                }
+                0
+            }
+        };
+        self.emit(Op::Call(index, args.len()), span);
+        Ok(substitute_type(&generic.result, &bindings))
     }
     fn stmts(&mut self, body: &[Stmt]) -> Result<(), Diagnostic> {
         for s in body {
@@ -5103,8 +6100,10 @@ fn compile_project_with_roots_inner(
         records: Vec::new(),
         imports: Vec::new(),
         array_elements: Vec::new(),
+        enums: Vec::new(),
     };
     for node in &nodes {
+        program.enums.extend(node.program.enums.clone());
         program.functions.extend(node.program.functions.clone());
         program.externals.extend(node.program.externals.clone());
         program.records.extend(node.program.records.clone());
@@ -5112,6 +6111,7 @@ fn compile_project_with_roots_inner(
             .array_elements
             .extend(node.program.array_elements.clone());
     }
+    desugar_enums(&mut program)?;
     let mut public_exports = HashMap::new();
     for module_id in 0..nodes.len() {
         public_module_exports(module_id, &nodes, &sources, &mut public_exports)?;
@@ -5186,8 +6186,76 @@ fn digest_sources(mut sources: Vec<(String, &str)>) -> String {
 fn compile_program(
     source_name: &str,
     sources: Vec<String>,
-    program: Program,
+    mut program: Program,
     scopes: HashMap<usize, ModuleScope>,
+) -> Result<Artifact, Diagnostic> {
+    let mut generics: HashMap<String, FunctionAst> = HashMap::new();
+    let mut ordinary = Vec::new();
+    for function in std::mem::take(&mut program.functions) {
+        if function.type_params.is_empty() {
+            ordinary.push(function);
+        } else {
+            generics.insert(function_symbol(function.module_id, &function.name), function);
+        }
+    }
+    program.functions = ordinary;
+    let base = program.functions.len();
+    let mut instances: Vec<PendingInstance> = Vec::new();
+    loop {
+        let instance_index: HashMap<String, usize> = instances
+            .iter()
+            .enumerate()
+            .map(|(offset, instance)| (instance.key.clone(), base + offset))
+            .collect();
+        let mut with_instances = program.clone();
+        for (offset, instance) in instances.iter().enumerate() {
+            match &instance.lambda {
+                Some(lambda) => {
+                    let mut lifted = lambda.clone();
+                    lifted.name = format!("{}#{offset}", lifted.name);
+                    with_instances.functions.push(lifted);
+                }
+                None => {
+                    let generic = &generics[&instance.symbol];
+                    with_instances
+                        .functions
+                        .push(instance_function(generic, &instance.types));
+                }
+            }
+        }
+        let pending = std::cell::RefCell::new(Vec::new());
+        let result = compile_program_pass(
+            source_name,
+            sources.clone(),
+            &with_instances,
+            &scopes,
+            &generics,
+            &instance_index,
+            &pending,
+        );
+        let discovered = pending.into_inner();
+        if discovered.is_empty() {
+            return result;
+        }
+        instances.extend(discovered);
+        if instances.len() > 512 {
+            return Err(diagnostic(
+                "E_GENERIC_LIMIT",
+                "generic functions created more than 512 instances; a generic function that calls itself with a growing type never ends",
+                Span::default(),
+            ));
+        }
+    }
+}
+
+fn compile_program_pass(
+    source_name: &str,
+    sources: Vec<String>,
+    program: &Program,
+    scopes: &HashMap<usize, ModuleScope>,
+    generics: &HashMap<String, FunctionAst>,
+    instance_index: &HashMap<String, usize>,
+    pending_instances: &std::cell::RefCell<Vec<PendingInstance>>,
 ) -> Result<Artifact, Diagnostic> {
     let reserved = [
         "Int",
@@ -5437,6 +6505,9 @@ fn compile_program(
             visible_externals: &visible_externals_by_module[&f.module_id],
             visible_records: &scopes[&f.module_id].records,
             standard_functions: &standard_functions,
+            generics,
+            instance_index,
+            pending_instances,
             locals: HashMap::new(),
             next_local: 0,
             code: Vec::new(),

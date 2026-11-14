@@ -2666,6 +2666,7 @@ impl ShareAcrossThreads for Value {
                 name.share_across_threads();
                 fields.share_across_threads();
             }
+            Value::Closure(_, captured) => captured.share_across_threads(),
             Value::Bytes(bytes) => bytes.share_across_threads(),
             Value::Text(text) => text.share_across_threads(),
             Value::List(items) => items.share_across_threads(),
@@ -3221,6 +3222,9 @@ pub enum Value {
     HttpError(Box<HttpErrorValue>),
     NativeResource(Box<NativeResourceValue>),
     Function(usize),
+    /// A function value with captured values (artifact format 74): the function index and
+    /// the values it was created with, passed before its own arguments.
+    Closure(usize, Shared<Vec<Value>>),
     Unit,
 }
 
@@ -3298,6 +3302,9 @@ impl PartialEq for Value {
             (Value::HttpError(left), Value::HttpError(right)) => left == right,
             (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
             (Value::Function(left), Value::Function(right)) => left == right,
+            (Value::Closure(left, left_captured), Value::Closure(right, right_captured)) => {
+                left == right && left_captured == right_captured
+            }
             (Value::Unit, Value::Unit) => true,
             _ => false,
         }
@@ -3423,6 +3430,7 @@ impl fmt::Display for Value {
             Value::HttpError(error) => write!(f, "HttpError({}, {})", error.code, error.message),
             Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
             Value::Function(index) => write!(f, "<function {index}>"),
+            Value::Closure(index, _) => write!(f, "<function {index}>"),
             Value::Unit => f.write_str("()"),
         }
     }
@@ -4261,6 +4269,7 @@ pub enum Op {
     SortNatural,
     SortByKey(usize),
     MakeFn(usize),
+    MakeClosure(usize, usize),
     CallFn(usize),
     HigherOrder(HigherOrderKind),
     RandomBytes,
@@ -4429,7 +4438,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 73;
+    pub const CURRENT_VERSION: u32 = 74;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4735,6 +4744,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 74 && artifact_uses_closures(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "closures require artifact format 74",
             ));
         }
         if self.format_version < 73 && artifact_uses_static_files(self) {
@@ -5107,6 +5122,11 @@ impl Artifact {
                     Op::MakeFn(target) => {
                         w.u8(198);
                         w.count(*target)?;
+                    }
+                    Op::MakeClosure(target, captured) => {
+                        w.u8(210);
+                        w.count(*target)?;
+                        w.count(*captured)?;
                     }
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
@@ -5672,6 +5692,16 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "general sort and sort_by with a key require artifact format 65",
+                        ));
+                    }
+                    210 if format_version >= 74 => {
+                        let target = r.count()?;
+                        Op::MakeClosure(target, r.count()?)
+                    }
+                    210 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "closures require artifact format 74",
                         ));
                     }
                     198 if format_version >= 66 => Op::MakeFn(r.count()?),
@@ -6485,6 +6515,15 @@ fn artifact_uses_sha256(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_closures(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::MakeClosure(..)))
+    })
+}
+
 fn artifact_uses_function_values(artifact: &Artifact) -> bool {
     artifact
         .records
@@ -6500,7 +6539,7 @@ fn artifact_uses_function_values(artifact: &Artifact) -> bool {
                     .code
                     .iter()
                     .any(|instruction| match &instruction.op {
-                        Op::MakeFn(_) | Op::CallFn(_) | Op::HigherOrder(_) => true,
+                        Op::MakeFn(_) | Op::MakeClosure(..) | Op::CallFn(_) | Op::HigherOrder(_) => true,
                         Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => ty.contains_fn(),
                         _ => false,
                     })
@@ -6938,6 +6977,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                     match instruction.op {
                         Op::Call(target, _)
                         | Op::MakeFn(target)
+                        | Op::MakeClosure(target, _)
                         | Op::SortBy(target)
                         | Op::SortByKey(target)
                         | Op::SortByIntKey(target)
@@ -7286,7 +7326,7 @@ impl Writer {
                     "arrays cannot be serialized as constants",
                 ));
             }
-            Value::Function(_) => {
+            Value::Function(_) | Value::Closure(..) => {
                 return Err(ArtifactError::new(
                     "E_ARTIFACT_VALUE",
                     "function values cannot be serialized as constants",

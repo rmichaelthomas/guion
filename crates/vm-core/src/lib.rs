@@ -3786,17 +3786,32 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             Op::MakeFn(target) => {
                 push_stack!(Value::Function(*target));
             }
+            Op::MakeClosure(target, captured) => {
+                let mut values = Vec::with_capacity(*captured);
+                for _ in 0..*captured {
+                    values.push(pop!());
+                }
+                values.reverse();
+                push_stack!(Value::Closure(*target, Shared::new(values)));
+            }
             Op::CallFn(argc) => {
                 // The index is only meaningful in the artifact that made it, and a worker or a
                 // host can hand a function a value built elsewhere, so it is checked here.
-                let target = match pop!() {
+                let (target, captured) = match pop!() {
                     Value::Function(index)
                         if artifact
                             .functions
                             .get(index)
                             .is_some_and(|callee| callee.parameters.len() == *argc) =>
                     {
-                        index
+                        (index, None)
+                    }
+                    Value::Closure(index, values)
+                        if artifact.functions.get(index).is_some_and(|callee| {
+                            callee.parameters.len() == values.len() + *argc
+                        }) =>
+                    {
+                        (index, Some(values))
                     }
                     _ => {
                         return Err(RuntimeError::new(
@@ -3807,11 +3822,16 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     }
                 };
                 let local_count = artifact.functions[target].local_count;
-                let mut call_args = pool.take(local_count.max(*argc));
+                let captured_count = captured.as_ref().map_or(0, |values| values.len());
+                let mut call_args = pool.take(local_count.max(captured_count + *argc));
+                if let Some(values) = &captured {
+                    call_args.extend(values.iter().cloned());
+                }
+                let first_argument = call_args.len();
                 for _ in 0..*argc {
                     call_args.push(pop!());
                 }
-                call_args.reverse();
+                call_args[first_argument..].reverse();
                 return Ok(VmStep::Call {
                     frame: VmFrame {
                         function_index,
@@ -5113,6 +5133,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::SortNatural => "SortNatural",
         Op::SortByKey(_) => "SortByKey",
         Op::MakeFn(_) => "MakeFn",
+        Op::MakeClosure(..) => "MakeClosure",
         Op::CallFn(_) => "CallFn",
         Op::RandomBytes => "RandomBytes",
         Op::HigherOrder(_) => "HigherOrder",
@@ -6193,6 +6214,7 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
             resource.kind() == expected
         }
         (Value::Function(_), Type::Fn(_, _)) => true,
+        (Value::Closure(..), Type::Fn(_, _)) => true,
         _ => false,
     }
 }

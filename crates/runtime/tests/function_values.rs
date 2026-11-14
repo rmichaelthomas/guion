@@ -224,22 +224,6 @@ fn calling_a_function_value_with_the_wrong_arity_or_type_is_a_check_error() {
 }
 
 #[test]
-fn a_nested_function_or_lambda_is_e_fn_no_closures() {
-    let lambda = check_error(&format!(
-        "{DOUBLE}fn main() -> Unit:\n    let f = fn(x: Int) -> Int: x + 1\n    print(f(1))\n"
-    ));
-    assert_eq!(lambda, ("E_FN_NO_CLOSURES".to_owned(), 5, 13));
-    let nested = check_error(
-        "fn main() -> Unit:\n    fn inner(x: Int) -> Int:\n        return x\n    print(1)\n",
-    );
-    assert_eq!(nested, ("E_FN_NO_CLOSURES".to_owned(), 2, 5));
-    let argument = check_error(&format!(
-        "{DOUBLE}fn apply(f: fn(Int) -> Int, x: Int) -> Int:\n    return f(x)\n\nfn main() -> Unit:\n    print(apply(fn(x: Int) -> Int: x, 1))\n"
-    ));
-    assert_eq!(argument.0, "E_FN_NO_CLOSURES");
-}
-
-#[test]
 fn comparing_function_values_is_e_fn_compare() {
     for operator in ["==", "!="] {
         let code = check_error(&format!(

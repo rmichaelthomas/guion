@@ -290,6 +290,7 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 207 | `ZlibCompress` | — (format 71: as 205 for a zlib stream, RFC 1950) |
 | 208 | `ZlibDecompress` | — (format 71: as 206 for one zlib stream; any bytes after the end of the stream are `E_COMPRESS_TRAILING_DATA`) |
 | 209 | `YamlParse` | — (format 72: pops a `Text` and pushes `Result[Json, StdError]`: the one YAML document in the text, read as the documented read-only subset (block and flow collections, plain, quoted, literal and folded scalars; plain scalars are text except lowercase `true` and `false`, `null` and `~`, and an integer or decimal that reads back unchanged); anchors, aliases, tags, the merge key, complex keys, directives and multi-document streams are `Err` with code `YAML_UNSUPPORTED`; other failures are `YAML_SYNTAX`, `YAML_DUPLICATE_KEY` and `YAML_LIMIT`, each with the 1-based `line` and `column`; needs no grant; a reader rejects tag 209 below format 72) |
+| 210 | `MakeClosure` | function index, then captured-value count (format 74: pops that many values and pushes a function value that calls the function with them before its own arguments) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -328,6 +329,8 @@ Format 70 adds `LogAppend` (tag 203) and `LogDefaultLevel` (tag 204) for `std:lo
 Format 71 adds `GzipCompress`, `GzipDecompress`, `ZlibCompress` and `ZlibDecompress` (tags 205 to 208) and `Fs` function codes 13 to 17 (`gzip_compress_file`, `gzip_decompress_file`, `tar_write`, `tar_read`, `tar_list`) for `std:compress` and `std:tar`. An artifact below format 71 that uses any of them is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 70 remain readable.
 
 Format 72 adds `YamlParse` (tag 209) for `std:yaml`. An artifact below format 72 that uses it is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 71 remain readable.
+
+Format 74 adds `MakeClosure(target, count)` (tag 210): it pops `count` values and pushes a function value that calls `target` with them before its own arguments; the target's first `count` parameters are the captured values. `CallFn` and the higher-order list builtins call such a value. An artifact below format 74 that uses it is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 73 remain readable.
 
 Format 73 adds `Fs` function codes 18 (`read_range`) and 19 (`confined_path`) for `std:http_static`. An artifact below format 73 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 72 remain readable.
 
