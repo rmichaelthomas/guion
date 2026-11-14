@@ -24,7 +24,7 @@
     },
     {
       "heading": "Beyond the tasks measured",
-      "body": "Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build and has not been rerun. Free-threaded Python and PyPy were not compared."
+      "body": "Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build, and GitHub's standard runners no longer offer one, so that result is unresolved. Free-threaded Python and PyPy were not compared."
     }
   ],
   "cli": {
@@ -59,8 +59,11 @@
       "group": "speed",
       "say": "On GitHub's x86_64 and ARM64 Linux runners, Guion took less time than CPython on every text, JSON Lines and CSV lane, at 20,000 and 200,000 rows. The worst 95% upper bound of Guion's time divided by Python's was 0.976 on x86_64 and 0.859 on ARM64.",
       "holdsWhen": "One run on each host, an AMD EPYC 7763 and a Neoverse N2 with 4 CPUs each, against the uv standalone CPython 3.14.7. Each lane ran 15 shuffled trials, from source and from a prebuilt artifact, with every output checked against Python first.",
-      "doesntTell": "Other programs or machines. On x86_64 the text margin is only 3–4%. An Intel Xeon runner measured worse on an earlier build and has not been rerun. Memory was not measured on these hosts, and the JSON Lines Python lane is the repository's data reference script, not the fastest possible Python.",
+      "doesntTell": "Other programs or machines. On x86_64 the text margin is thin: its 95% upper bound was 1.000, 1.048 and 0.988 in three runs on this lane, so it can land either side of 1.0. An Intel Xeon runner measured worse on an earlier build; GitHub's standard runners no longer offer one, so that result is unresolved. Peak memory at 200,000 rows, from a later run on the same two hosts: JSON Lines about 0.17 times Python's, text about 1.05 to 1.11 times Python's (Guion holds the whole document, as the Python script does), CSV equal to the measurement floor of about 11 to 13 MiB. The JSON Lines Python lane is the repository's data reference script, not the fastest possible Python.",
       "evidence": [
+        "evidence/2026-11-14-server-speed-gate-memory.md",
+        "evidence/2026-11-14-server-speed-gate-memory-x86_64.json",
+        "evidence/2026-11-14-server-speed-gate-memory-aarch64.json",
         "evidence/2026-11-03-server-speed-gate.md",
         "evidence/2026-11-03-server-speed-gate-x86_64.json",
         "evidence/2026-11-03-server-speed-gate-aarch64.json"
