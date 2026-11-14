@@ -1,6 +1,6 @@
 {
   "product": "Guion",
-  "status": "Pre-1.0. Release 0.2.0 is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon). It is the first release that is not a preview,.",
+  "status": "Pre-1.0. Release 0.4.0 is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon).",
   "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",
@@ -16,7 +16,7 @@
     },
     {
       "heading": "A release you can use",
-      "body": "Guion 0.2.0 is the first release that is not a preview, for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It has a written stability policy, a live package registry and native arrays. The Mac build is signed and notarized by Apple, so it opens without a warning; the first launch checks with Apple and needs an internet connection. Guion is still pre-1.0, and Python is a released language with a long track record."
+      "body": "Guion 0.4.0 is out for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It has a written stability policy, a live package registry, native arrays, first-class function values and a web package with sessions, CSRF protection and checked templates. The Mac build is signed and notarized by Apple, so it opens without a warning; the first launch checks with Apple and needs an internet connection. Guion is still pre-1.0, and Python is a released language with a long track record."
     },
     {
       "heading": "Learning it",
@@ -28,7 +28,7 @@
     }
   ],
   "cli": {
-    "version": "guion 0.2.0 (artifact format 64, timezone data 2026c)",
+    "version": "guion 0.4.0 (artifact format 73, timezone data 2026c)",
     "commands": [
       "new",
       "check",

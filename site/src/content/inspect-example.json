@@ -5,7 +5,7 @@
   "manifest": "[project]\nname = \"notes\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[network]\nhosts = [\"api.example.test\"]\n",
   "report": {
     "analysis_scope": "reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations",
-    "artifact_format": 64,
+    "artifact_format": 73,
     "capability_claim": "static_bytecode_reachability_not_sandbox",
     "clock_grant": {
       "grant_model": "wall-clock reads are denied unless explicitly enabled",
@@ -58,6 +58,7 @@
       "run_option": "guion run --allow-http-host HOST",
       "runtime_supplied_urls_require_an_explicit_hostname_grant": true
     },
+    "package_effects": {},
     "process_grant": {
       "grant_model": "exact command name; every command is denied when no grant is present; no shell, cleared environment, timeout and output caps apply",
       "manifest_key": "[process].commands",
