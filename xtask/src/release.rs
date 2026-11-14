@@ -24,6 +24,7 @@ const RELEASE_DOCS: &[&str] = &[
     "reference.md",
     "browser.md",
     "web.md",
+    "templates.md",
     "compatibility-and-migrations.md",
     "status.md",
     "stability-policy.md",

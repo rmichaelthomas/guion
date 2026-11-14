@@ -26,6 +26,19 @@ The rename is a pre-1.0 transition. The current CLI retains read compatibility f
 
 This compatibility is a migration aid, not a guarantee that old names will remain supported through 1.0. New projects and new outputs use Guion names. A Guion project may continue to contain a legacy-named manifest while it is being migrated; avoid creating both old and new manifest or lock files in the same project, because that makes project identity ambiguous.
 
+## Moving from 0.3.0 to 0.4.0
+
+Nothing is removed, renamed or re-signed, and no word is newly reserved: a 0.3.0 program compiles and runs unchanged. `language/surface-0.4.0.json` records the 0.4.0 public surface, and `cargo xtask surface-diff` against `surface-0.3.0.json` shows additions only.
+
+- **Artifact format 73.** The runtime reads formats 14 through 73 and writes 73. An artifact built by 0.3.0 (format 72 or lower) still loads and runs. A program that uses `std:http_static` needs a 0.4.0 runtime and is refused by an older one with `E_ARTIFACT_VERSION`.
+- **New modules.** `std:http_response`, `std:cookie`, `std:http_body` and `std:http_static`, and two functions in `std:http_server` (`http_request_value`, `http_server_send_response`). A program of your own that defines a function with one of these names and does not import the module is unaffected.
+- **Content types with a line break.** `http_server_respond`, `http_server_reply` and `http_server_send` now return `E_HTTP_HEADER_INVALID` for a content type containing CR or LF, where 0.3.0 wrote it into the response head. Remove the line break; a correct program is unaffected.
+- **`guion update` wording.** A capability widening is reported one line per kind of access (`network: +hosts ["api.example.com"]`) instead of a sentence per item. The refusal, the unchanged lock and `--approve-capabilities` are as before.
+- **Opt-in approvals.** An `[approved-capabilities.NAME]` table in `guion.toml` makes `guion add`, `update`, `check`, `build` and `run` refuse a package that declares or reaches more than the table allows. A project with no such table behaves as in 0.3.0.
+- **Templates.** A file named `NAME.gut` is now compiled by the CLI to `NAME.gut.gu` next to it. A project that already has a file with that name is refused with `TEMPLATE_OUTPUT_EXISTS` rather than overwritten. Add `*.gut.gu` to the project's ignore file if you keep generated files out of version control.
+- **Native `Bool` arguments.** A `Bool` passed to a function that runs as machine code could arrive as `true` when the caller ran in the interpreter (for example a `main` that also prints). 0.4.0 passes it correctly. A program that worked around this does not need to change, and a built artifact needs no rebuild.
+- **Packages.** `guion.lock` stays at format 2. The `web` package is not on the registry; install it with `guion add web --path PATH`.
+
 ## Moving from 0.2.0 to 0.3.0
 
 - **`break` and `continue` are reserved.** A 0.2.0 program that used either word as a variable, parameter or function name stops compiling in 0.3.0. Rename the identifier and run `guion check`; the compiler points at the statement. Outside a loop, the two words are `E_NO_LOOP`. No other source construct changed meaning, and the public surface recorded in `language/surface-0.3.0.json` only adds names.

@@ -1,10 +1,10 @@
 # Getting started
 
-This page describes Guion 0.3.0. Guion is downloadable from the project's GitHub releases, and it is still pre-1.0: the [stability policy](stability-policy.md) says what you can rely on between releases and what you cannot.
+This page describes Guion 0.4.0. Guion is downloadable from the project's GitHub releases, and it is still pre-1.0: the [stability policy](stability-policy.md) says what you can rely on between releases and what you cannot.
 
 ## Install a prebuilt package
 
-Prebuilt packages are on the project's [GitHub releases](https://github.com/rmichaelthomas/guion/releases/tag/v0.3.0). Each release, `v0.3.0` included, carries packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`), and for macOS on Apple Silicon (`guion-macos-aarch64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
+Prebuilt packages are on the project's [GitHub releases](https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0). Each release, `v0.4.0` included, carries packages for Debian 12-compatible Linux on ARM64 (`guion-debian-aarch64.tar.gz`) and x86_64 (`guion-debian-x86_64.tar.gz`), and for macOS on Apple Silicon (`guion-macos-aarch64.tar.gz`). Each archive has a `.sha256` checksum file beside it. No Rust, Python or uv is needed:
 
 ```sh
 sha256sum -c guion-debian-aarch64.tar.gz.sha256
