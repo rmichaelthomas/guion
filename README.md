@@ -77,7 +77,7 @@ You can try these examples and others [in your browser](https://rmichaelthomas.g
 
 ### Linux
 
-Download the archive for your machine from the [v0.2.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.2.0). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
+Download the archive for your machine from the [v0.4.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
 
 ```sh
 tar -xzf guion-debian-x86_64.tar.gz     # or guion-debian-aarch64.tar.gz
@@ -89,7 +89,7 @@ Each archive has a matching `.sha256` checksum file. You don't need Rust or Pyth
 
 ### macOS (Apple Silicon)
 
-Download `guion-macos-aarch64.tar.gz` and its `.sha256` file from the [v0.2.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.2.0).
+Download `guion-macos-aarch64.tar.gz` and its `.sha256` file from the [v0.4.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0).
 
 ```sh
 shasum -a 256 -c guion-macos-aarch64.tar.gz.sha256
