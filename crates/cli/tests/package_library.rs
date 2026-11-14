@@ -225,8 +225,8 @@ fn an_update_that_widens_capabilities_needs_explicit_approval() {
     let message = text(&refused);
     assert!(
         message.contains("widens package capabilities")
-            && message.contains("file access `write`")
-            && message.contains("command `git`")
+            && message.contains("files: +modes [\"write\"]")
+            && message.contains("processes: +commands [\"git\"]")
             && message.contains("--approve-capabilities"),
         "{message}"
     );
@@ -288,5 +288,53 @@ fn built_artifacts_record_the_packages_they_link() {
         lock.contains(&packages[0].sha256),
         "the artifact hash must be the locked hash"
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_project_with_approved_capabilities_refuses_a_path_package_that_asks_for_more() {
+    let dir = scratch("lib-approved");
+    let library = dir.join("fetcher");
+    let project = dir.join("app");
+    write_library(
+        &library,
+        "\n[capabilities]\nfiles = [\"read\"]\nprocesses = [\"git\"]\n",
+        READS_A_FILE,
+    );
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n\n[approved-capabilities.fetcher]\nfiles = [\"read\"]\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/main.gu"),
+        "fn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let refused = guion(
+        &project,
+        &["add", "fetcher", "--path", library.to_str().unwrap()],
+    );
+    assert!(!refused.status.success());
+    assert!(
+        text(&refused).contains("processes: +commands [\"git\"]"),
+        "{}",
+        text(&refused)
+    );
+    assert!(!project.join("guion.lock").exists());
+    let approved = guion(
+        &project,
+        &[
+            "add",
+            "fetcher",
+            "--path",
+            library.to_str().unwrap(),
+            "--approve-capabilities",
+        ],
+    );
+    assert!(approved.status.success(), "{}", text(&approved));
+    let manifest = std::fs::read_to_string(project.join("guion.toml")).unwrap();
+    assert!(manifest.contains("git"), "{manifest}");
     let _ = std::fs::remove_dir_all(&dir);
 }

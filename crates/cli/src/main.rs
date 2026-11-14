@@ -135,12 +135,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "sync" {
         if args.iter().any(|argument| argument == "--locked") {
-            if !args.iter().any(|argument| argument == "--offline") {
-                return Err("native sync currently requires --locked --offline".into());
-            }
             let project = std::env::current_dir()
                 .map_err(|error| format!("cannot inspect current directory: {error}"))?;
-            println!("{}", native_packages::sync_locked_offline(&project)?);
+            if args.iter().any(|argument| argument == "--offline") {
+                println!("{}", native_packages::sync_locked_offline(&project)?);
+            } else {
+                println!("{}", native_packages::sync_locked(&project)?);
+            }
             return Ok(ExitCode::SUCCESS);
         }
         #[cfg(not(feature = "python-interop"))]
@@ -289,7 +290,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             let path = args.get(index + 1).ok_or("--path requires a directory")?;
             println!(
                 "{}",
-                native_packages::add_path(&project, name, Path::new(path))?
+                native_packages::add_path(
+                    &project,
+                    name,
+                    Path::new(path),
+                    args.iter()
+                        .any(|argument| argument == "--approve-capabilities")
+                )?
             );
             return Ok(ExitCode::SUCCESS);
         }
@@ -305,7 +312,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         ) {
             println!(
                 "{}",
-                native_packages::add_url(&project, name, url, version, sha256)?
+                native_packages::add_url(
+                    &project,
+                    name,
+                    url,
+                    version,
+                    sha256,
+                    args.iter()
+                        .any(|argument| argument == "--approve-capabilities")
+                )?
             );
             return Ok(ExitCode::SUCCESS);
         }
@@ -315,7 +330,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 native_packages::add_from_registry(
                     &project,
                     name,
-                    get_option("--version").map(String::as_str)
+                    get_option("--version").map(String::as_str),
+                    args.iter()
+                        .any(|argument| argument == "--approve-capabilities")
                 )?
             );
             return Ok(ExitCode::SUCCESS);
@@ -482,6 +499,73 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "verify-package" {
         let json_verification = args.iter().any(|argument| argument == "--json");
+        let positional: Vec<&String> = args[1..]
+            .iter()
+            .filter(|argument| !argument.starts_with("--"))
+            .collect();
+        if positional.len() >= 2 {
+            // `NAME VERSION` checks a published release against the registry; `ARCHIVE NAME
+            // VERSION` checks archive bytes already on disk against the same record.
+            let (archive, name, version) = match positional.as_slice() {
+                [name, version] => (None, name, version),
+                [archive, name, version] => (Some(archive), name, version),
+                _ => {
+                    return Err(
+                        "usage: guion verify-package [--json] <package-directory> | [--json] [ARCHIVE] NAME VERSION"
+                            .into(),
+                    )
+                }
+            };
+            let project = std::env::current_dir()
+                .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+            let outcome = (|| {
+                let bytes = match archive {
+                    Some(path) => {
+                        Some(fs::read(path).map_err(|error| registry::VerifyFailure {
+                            code: "E_PACKAGE_ARCHIVE",
+                            message: format!("cannot read {path}: {error}"),
+                        })?)
+                    }
+                    None => None,
+                };
+                registry::Registry::configured(&project)
+                    .map_err(|message| registry::VerifyFailure {
+                        code: "E_PACKAGE_REGISTRY",
+                        message,
+                    })?
+                    .verify_release(name, version, bytes)
+            })();
+            return match outcome {
+                Ok(report) => {
+                    if json_verification {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "schema_version": 1,
+                                "kind": "guion_package_release_verification",
+                                "status": "verified",
+                                "name": name,
+                                "version": version,
+                                "sha256": report.sha256,
+                                "log_seq": report.log_seq,
+                                "key_id": report.key_id,
+                            })
+                        );
+                    } else {
+                        println!(
+                            "verified {name} {version}: archive {}, log entry {} signed",
+                            report.sha256, report.log_seq
+                        );
+                    }
+                    Ok(ExitCode::SUCCESS)
+                }
+                Err(failure) if json_verification => {
+                    print_cli_diagnostic(failure.code, &failure.message);
+                    Ok(ExitCode::from(1))
+                }
+                Err(failure) => Err(format!("{}: {}", failure.code, failure.message)),
+            };
+        }
         let path_index = if args.get(1).is_some_and(|argument| argument == "--json") {
             2
         } else {

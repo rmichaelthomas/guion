@@ -2,6 +2,18 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## 0.4.0 (unreleased)
+
+### Packages
+
+- A package that is large enough to be a framework can now be installed, checked and tested like any other. All of it is additive; nothing is removed or re-signed.
+- `guion add NAME [--version REQ] [--approve-capabilities]` (and `--path`, `--url`): a project may keep an `[approved-capabilities.NAME]` table in `guion.toml`, in the same shape as a package's `[capabilities]`. Once the table exists, installing or updating a package that declares more than its entry is refused, and the message names the difference one line per kind of access, for example `network: +hosts ["api.example.com"]`. `--approve-capabilities` lets the install through and records the approval. A project with no such table behaves as in 0.3.0.
+- `guion update` names a widening in the same form (`files: +modes ["write"]`, `processes: +commands ["git"]`) where 0.3.0 used a sentence per item. The refusal, the unchanged lock and `--approve-capabilities` are as before.
+- `guion verify-package [--json] NAME VERSION` and `guion verify-package [--json] ARCHIVE NAME VERSION` check one published release without installing it: the archive hashes to what the index and the hash log say, its manifest names that package and version, and the log entry is intact, chained and signed by a key the client trusts. Failures are typed: `E_PACKAGE_CHECKSUM`, `E_PACKAGE_SIGNATURE`, `E_PACKAGE_LOG`, `E_PACKAGE_MANIFEST`, `E_PACKAGE_NOT_FOUND`, `E_PACKAGE_REGISTRY`. A registry with no configured key fails with `E_PACKAGE_SIGNATURE`. `guion verify-package DIRECTORY` for application bundles is unchanged.
+- `guion sync --locked` (without `--offline`) installs whatever the manifest pins and the cache lacks, from the recorded URL and archive hash, and refuses to change `guion.lock`. Two projects with the same manifest and lock end with byte-identical package trees. `guion sync --locked --offline` is unchanged.
+- A package installed under `.guion/packages/NAME/VERSION` can run `guion test` (and `check`, `run`) in place: it resolves its dependencies from the installing project's lock, so it tests against exactly the pinned set, and running it leaves the installed tree unchanged.
+- `packages/web/` holds the manifest and an empty `tests.gu` for the `web` package; it has no modules yet.
+
 ## 0.3.0 (unreleased)
 
 Closes the fourteen build gaps an outside evaluation of 0.2.0 found (labelled B1 to B14 below), and adds checks that keep later releases additive. The artifact format goes from 64 to 72; every format 14 through 72 still loads.

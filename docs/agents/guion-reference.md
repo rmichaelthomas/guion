@@ -1020,13 +1020,20 @@ E_OPEN_READ_WRITE
 E_OPTION_CONSTRUCTOR_CONTEXT
 E_OPTION_CONSTRUCTOR_TYPE
 E_OWNER
+E_PACKAGE_ARCHIVE
 E_PACKAGE_ARGUMENT
+E_PACKAGE_CHECKSUM
 E_PACKAGE_FAILED
 E_PACKAGE_LOCK
+E_PACKAGE_LOG
+E_PACKAGE_MANIFEST
+E_PACKAGE_NOT_FOUND
 E_PACKAGE_NOT_LOCKED
 E_PACKAGE_OUTPUT_EXISTS
 E_PACKAGE_PROJECT
+E_PACKAGE_REGISTRY
 E_PACKAGE_SCOPE_RESERVED
+E_PACKAGE_SIGNATURE
 E_PACKAGE_VERIFY_FAILED
 E_PARALLEL_RESOURCE
 E_PRINT_VALUE
@@ -1520,4 +1527,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:436eba8847ec433b22cc32119c98cfef1aa7f3d674dae97a80e34cab3291c7cb. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:86d77cc53a0bea58345b4c46b9d07aa9e6f7dd378f578f5df24010431ef7f6ff. Validated by `cargo xtask agent-reference --check`. -->

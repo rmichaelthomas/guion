@@ -1,0 +1,4 @@
+# Skeleton: the web package's tests are added with its modules. Run with `guion test tests.gu`.
+
+fn main() -> Int:
+    return 0

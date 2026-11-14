@@ -24,6 +24,20 @@ fn parse_signature(text: &str) -> Result<[u8; 64], ()> {
 const MAX_INDEX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ARCHIVE_BYTES: usize = 32 * 1024 * 1024;
 
+/// What `verify_release` established about one published release.
+pub struct ReleaseReport {
+    pub sha256: String,
+    pub log_seq: u64,
+    pub key_id: Option<String>,
+}
+
+/// A failed release verification, with a stable code: `E_PACKAGE_CHECKSUM`, `E_PACKAGE_SIGNATURE`,
+/// `E_PACKAGE_LOG`, `E_PACKAGE_MANIFEST`, `E_PACKAGE_NOT_FOUND` or `E_PACKAGE_REGISTRY`.
+pub struct VerifyFailure {
+    pub code: &'static str,
+    pub message: String,
+}
+
 pub struct Registry {
     base: String,
     /// The ed25519 keys a log entry may be signed with; empty accepts unsigned entries.
@@ -297,27 +311,129 @@ impl Registry {
         if entry["hash"] != expected.as_str() {
             return Err(format!("registry log entry {seq} fails its own hash check"));
         }
-        if !self.public_keys.is_empty() {
-            // The signature covers the hash, which covers `prev`: a valid signature on an entry
-            // vouches for every entry before it.
-            let signature = entry["signature"]
-                .as_str()
-                .and_then(|text| parse_signature(text).ok());
-            let message = format!("guion-registry-log-v1:{seq}:{expected}");
-            let valid = signature.is_some_and(|signature| {
-                self.public_keys.iter().any(|key| {
-                    ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
-                        .verify(message.as_bytes(), &signature)
-                        .is_ok()
-                })
-            });
-            if !valid {
-                return Err(format!(
-                    "registry log entry {seq} is not signed by the registry's key; refusing to install"
-                ));
-            }
-        }
+        self.check_log_signature(seq, &entry, &expected)?;
         Ok(entry)
+    }
+
+    /// The signature on an entry covers its hash, which covers `prev`: a valid signature vouches
+    /// for every entry before it. With no key configured nothing can be checked, and that is not
+    /// reported as a failure here; `verify_release` asks for a key explicitly.
+    fn check_log_signature(&self, seq: u64, entry: &Value, hash: &str) -> Result<(), String> {
+        if self.public_keys.is_empty() {
+            return Ok(());
+        }
+        let signature = entry["signature"]
+            .as_str()
+            .and_then(|text| parse_signature(text).ok());
+        let message = format!("guion-registry-log-v1:{seq}:{hash}");
+        let valid = signature.is_some_and(|signature| {
+            self.public_keys.iter().any(|key| {
+                ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key)
+                    .verify(message.as_bytes(), &signature)
+                    .is_ok()
+            })
+        });
+        if valid {
+            Ok(())
+        } else {
+            Err(format!(
+                "registry log entry {seq} is not signed by the registry's key; refusing to install"
+            ))
+        }
+    }
+
+    /// `guion verify-package NAME VERSION [ARCHIVE]`: checks one published release end to end,
+    /// without installing it. The archive (fetched, or the bytes given) must hash to what the
+    /// index and the log say, carry the manifest the index promises, and the log entry must be
+    /// intact, chained and signed by a key this client trusts. A registry with no key configured
+    /// fails: a signature that cannot be checked is not a verified one.
+    pub fn verify_release(
+        &self,
+        name: &str,
+        version: &str,
+        archive: Option<Vec<u8>>,
+    ) -> Result<ReleaseReport, VerifyFailure> {
+        let fail = |code: &'static str, message: String| VerifyFailure { code, message };
+        let key = crate::package_name::collision_key(name);
+        let index = self
+            .index(name)
+            .map_err(|message| fail("E_PACKAGE_REGISTRY", message))?
+            .ok_or_else(|| {
+                fail(
+                    "E_PACKAGE_NOT_FOUND",
+                    format!("the registry has no package named `{name}`"),
+                )
+            })?;
+        let entry = index["versions"]
+            .as_array()
+            .and_then(|versions| {
+                versions
+                    .iter()
+                    .find(|entry| entry["version"].as_str() == Some(version))
+            })
+            .ok_or_else(|| {
+                fail(
+                    "E_PACKAGE_NOT_FOUND",
+                    format!("the registry has no {name} {version}"),
+                )
+            })?;
+        let expected = entry["sha256"]
+            .as_str()
+            .ok_or_else(|| fail("E_PACKAGE_REGISTRY", "the index entry has no sha256".into()))?
+            .to_ascii_lowercase();
+        let seq = entry["log_seq"].as_u64().ok_or_else(|| {
+            fail(
+                "E_PACKAGE_REGISTRY",
+                "the index entry has no log_seq".into(),
+            )
+        })?;
+        let bytes = match archive {
+            Some(bytes) => bytes,
+            None => self
+                .get(&format!("objects/{expected}.tar"), MAX_ARCHIVE_BYTES)
+                .map_err(|message| fail("E_PACKAGE_REGISTRY", message))?
+                .ok_or_else(|| {
+                    fail(
+                        "E_PACKAGE_REGISTRY",
+                        "the registry has no archive for that version".into(),
+                    )
+                })?,
+        };
+        let actual = format!("{:x}", Sha256::digest(&bytes));
+        if actual != expected {
+            return Err(fail(
+                "E_PACKAGE_CHECKSUM",
+                format!(
+                    "the archive hashes to {actual}, but the registry published {name} {version} as {expected}"
+                ),
+            ));
+        }
+        crate::native_packages::verify_archive_identity(&bytes, name, version)
+            .map_err(|message| fail("E_PACKAGE_MANIFEST", message))?;
+        if self.public_keys.is_empty() {
+            return Err(fail(
+                "E_PACKAGE_SIGNATURE",
+                "no registry public key is configured, so the log signature cannot be checked; set GUION_REGISTRY_PUBLIC_KEY or [registry] public_key".into(),
+            ));
+        }
+        self.verify_log(&key, version, &expected, seq)
+            .map_err(|message| {
+                let code = if message.contains("not signed by") {
+                    "E_PACKAGE_SIGNATURE"
+                } else {
+                    "E_PACKAGE_LOG"
+                };
+                fail(code, message)
+            })?;
+        let key_id = self
+            .log_entry(seq)
+            .ok()
+            .and_then(|entry| entry["key_id"].as_str().map(str::to_owned));
+        Ok(ReleaseReport {
+            sha256: expected,
+            log_seq: seq,
+            key_id,
+        })
     }
 
     #[cfg(test)]

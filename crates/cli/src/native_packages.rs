@@ -202,6 +202,7 @@ pub fn add_from_registry(
     project: &Path,
     name: &str,
     requirement: Option<&str>,
+    approve_capabilities: bool,
 ) -> Result<String, String> {
     crate::package_name::validate_new_package_name(name)?;
     let requirement_text = requirement;
@@ -229,6 +230,7 @@ pub fn add_from_registry(
         &chosen.sha256,
         false,
         Some(archive),
+        approve_capabilities,
     )?;
     // Remember the range so `guion update` can move to newer releases within it. Without an
     // explicit range, newer compatible releases (a caret on the chosen version) are allowed.
@@ -285,7 +287,7 @@ pub fn publish_library(library: &Path) -> Result<String, String> {
         copy_library_tree(&library, &checked)?;
         for (name, dependency) in &manifest.dependencies {
             if dependency.registry {
-                add_from_registry(&checked, name, Some(&dependency.version))
+                add_from_registry(&checked, name, Some(&dependency.version), false)
                     .map_err(|error| format!("dependency `{name}`: {error}"))?;
             }
         }
@@ -381,7 +383,12 @@ pub fn package_library(source: &Path, output: &Path) -> Result<String, String> {
     result
 }
 
-pub fn add_path(project: &Path, expected_name: &str, source: &Path) -> Result<String, String> {
+pub fn add_path(
+    project: &Path,
+    expected_name: &str,
+    source: &Path,
+    approve_capabilities: bool,
+) -> Result<String, String> {
     let source = fs::canonicalize(source).map_err(|error| {
         format!(
             "cannot resolve package source {}: {error}",
@@ -396,6 +403,7 @@ pub fn add_path(project: &Path, expected_name: &str, source: &Path) -> Result<St
         &source.display().to_string(),
         None,
         false,
+        approve_capabilities,
     )
 }
 
@@ -415,6 +423,7 @@ pub fn add_url(
     url: &str,
     version: &str,
     archive_sha256: &str,
+    approve_capabilities: bool,
 ) -> Result<String, String> {
     add_url_internal(
         project,
@@ -424,9 +433,11 @@ pub fn add_url(
         archive_sha256,
         false,
         None,
+        approve_capabilities,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_url_internal(
     project: &Path,
     expected_name: &str,
@@ -435,6 +446,7 @@ fn add_url_internal(
     archive_sha256: &str,
     updating: bool,
     prefetched: Option<Vec<u8>>,
+    approve_capabilities: bool,
 ) -> Result<String, String> {
     validate_package_name_for_add(expected_name, updating)?;
     validate_exact_version(version)?;
@@ -484,6 +496,7 @@ fn add_url_internal(
             url,
             Some(archive_sha256),
             updating,
+            approve_capabilities,
         )
     })();
     let _ = fs::remove_dir_all(&transaction);
@@ -529,6 +542,25 @@ fn download_package_archive(url: &str) -> Result<Vec<u8>, String> {
         }
         Ok(bytes.to_vec())
     })
+}
+
+/// Unpacks an archive the way `add` does and checks that its manifest names `name` and `version`.
+pub fn verify_archive_identity(bytes: &[u8], name: &str, version: &str) -> Result<(), String> {
+    let stage = temporary_path(&std::env::temp_dir(), "guion-verify")?;
+    fs::create_dir_all(&stage).map_err(|error| format!("cannot create a staging area: {error}"))?;
+    let result = (|| {
+        extract_tar_safely(bytes, &stage)?;
+        let manifest = read_library_manifest(&stage, Some(name))?;
+        if manifest.version != version {
+            return Err(format!(
+                "the archive's manifest says version {}, not {version}",
+                manifest.version
+            ));
+        }
+        Ok(())
+    })();
+    let _ = fs::remove_dir_all(&stage);
+    result
 }
 
 fn extract_tar_safely(bytes: &[u8], destination: &Path) -> Result<(), String> {
@@ -701,6 +733,7 @@ fn set_lock_source(lock_path: &Path, name: &str, kind: &str, source: &str) -> Re
     atomic_write(lock_path, serialized.as_bytes())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn install_package_graph(
     project: &Path,
     expected_name: &str,
@@ -709,6 +742,7 @@ fn install_package_graph(
     source_ref: &str,
     source_sha256: Option<&str>,
     updating: bool,
+    approve_capabilities: bool,
 ) -> Result<String, String> {
     validate_package_name_for_add(expected_name, updating)?;
     let project = fs::canonicalize(project)
@@ -743,6 +777,17 @@ fn install_package_graph(
         let _ = fs::remove_dir_all(&stage);
         return Err(error);
     }
+    let approvals = match check_approved_capabilities(
+        &project,
+        ordered.iter().map(|name| &resolved[name].manifest),
+        approve_capabilities,
+    ) {
+        Ok(approvals) => approvals,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&stage);
+            return Err(error);
+        }
+    };
 
     let manifest_path = project_manifest_path(&project);
     let lock_path = project_lock_path(&project);
@@ -810,6 +855,7 @@ fn install_package_graph(
             source_ref,
             source_sha256,
         )?;
+        record_approved_capabilities(&manifest_path, &approvals)?;
         Ok(())
     })();
     if let Err(error) = install_result {
@@ -1159,6 +1205,7 @@ fn update_from_registry(
     name: &str,
     current: &str,
     range: &str,
+    approve_capabilities: bool,
 ) -> Result<String, String> {
     let registry = crate::registry::Registry::configured(project)?;
     let requirement = crate::package_version::VersionReq::parse(range)?;
@@ -1176,6 +1223,7 @@ fn update_from_registry(
         &chosen.sha256,
         true,
         Some(archive),
+        approve_capabilities,
     )?;
     set_dependency_registry_range(&project_manifest_path(project), name, range)?;
     Ok(if chosen.version == current {
@@ -1273,11 +1321,21 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
                     &source.display().to_string(),
                     None,
                     true,
+                    approve_capabilities,
                 )?
             } else if let (Some(range), Some(_)) = (range, url) {
-                update_from_registry(&project, name, version, range)?
+                update_from_registry(&project, name, version, range, approve_capabilities)?
             } else if let Some((url, sha256)) = url {
-                add_url_internal(&project, name, url, version, sha256, true, None)?
+                add_url_internal(
+                    &project,
+                    name,
+                    url,
+                    version,
+                    sha256,
+                    true,
+                    None,
+                    approve_capabilities,
+                )?
             } else {
                 return Err(format!("dependency `{name}` has no update source"));
             };
@@ -1319,6 +1377,99 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
     ))
 }
 
+/// The project's `[approved-capabilities.NAME]` tables, or `None` when it keeps none (then only
+/// the lock's record of what a package last declared is compared on update).
+fn approved_capabilities(
+    manifest: &toml::Value,
+) -> Result<Option<BTreeMap<String, crate::package_capabilities::Capabilities>>, String> {
+    let Some(table) = manifest.get("approved-capabilities") else {
+        return Ok(None);
+    };
+    let table = table
+        .as_table()
+        .ok_or("[approved-capabilities] must be a table of per-package tables")?;
+    let mut approved = BTreeMap::new();
+    for (name, entry) in table {
+        let capabilities = crate::package_capabilities::Capabilities::from_toml(Some(entry))
+            .map_err(|error| {
+                error.replace("[capabilities]", &format!("[approved-capabilities.{name}]"))
+            })?;
+        approved.insert(name.clone(), capabilities);
+    }
+    Ok(Some(approved))
+}
+
+/// A project that keeps `[approved-capabilities]` refuses to install a package that declares more
+/// than its entry, naming the difference. With `approve`, the difference is returned so it can be
+/// recorded once the install commits.
+fn check_approved_capabilities<'a>(
+    project: &Path,
+    packages: impl Iterator<Item = &'a LibraryManifest>,
+    approve: bool,
+) -> Result<Vec<(String, crate::package_capabilities::Capabilities)>, String> {
+    let manifest_path = project_manifest_path(project);
+    let Ok(text) = fs::read_to_string(&manifest_path) else {
+        return Ok(Vec::new());
+    };
+    let manifest: toml::Value = toml::from_str(&text)
+        .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    let Some(approved) = approved_capabilities(&manifest)? else {
+        return Ok(Vec::new());
+    };
+    let mut refused = Vec::new();
+    let mut to_record = Vec::new();
+    for package in packages {
+        let allowed = approved.get(&package.name).cloned().unwrap_or_default();
+        let delta = package.capabilities.delta_beyond(&allowed);
+        if delta.is_empty() {
+            continue;
+        }
+        refused.push(format!(
+            "  {} {}:\n{}",
+            package.name,
+            package.version,
+            delta
+                .iter()
+                .map(|line| format!("    {line}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        ));
+        to_record.push((package.name.clone(), package.capabilities.clone()));
+    }
+    if refused.is_empty() || approve {
+        return Ok(to_record);
+    }
+    Err(format!(
+        "this install asks for capabilities beyond what the project approved:\n{}\nadd them to [approved-capabilities.NAME] in guion.toml, or rerun with `--approve-capabilities`",
+        refused.join("\n")
+    ))
+}
+
+/// Writes approved capabilities into the project's `[approved-capabilities]` table.
+fn record_approved_capabilities(
+    manifest_path: &Path,
+    approvals: &[(String, crate::package_capabilities::Capabilities)],
+) -> Result<(), String> {
+    if approvals.is_empty() {
+        return Ok(());
+    }
+    let text = fs::read_to_string(manifest_path)
+        .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
+    let mut manifest: toml::Value = toml::from_str(&text)
+        .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    let table = manifest
+        .as_table_mut()
+        .and_then(|root| root.get_mut("approved-capabilities"))
+        .and_then(toml::Value::as_table_mut)
+        .ok_or("[approved-capabilities] must be a table")?;
+    for (name, capabilities) in approvals {
+        table.insert(name.clone(), capabilities.to_toml());
+    }
+    let serialized = toml::to_string_pretty(&manifest)
+        .map_err(|error| format!("cannot serialize project manifest: {error}"))?;
+    atomic_write(manifest_path, serialized.as_bytes())
+}
+
 /// Capabilities a package declares in a lock, keyed by package name.
 fn locked_capabilities(
     lock_text: &str,
@@ -1356,11 +1507,15 @@ fn refuse_widened_capabilities(old_lock: Option<&[u8]>, project: &Path) -> Resul
         if !before.contains_key(name) {
             continue;
         }
-        let added = capabilities.widened_beyond(&earlier);
+        let added = capabilities.delta_beyond(&earlier);
         if !added.is_empty() {
             problems.push(format!(
-                "  - `{name}` now also requests: {}",
-                added.join(", ")
+                "  - `{name}` now also requests:\n{}",
+                added
+                    .iter()
+                    .map(|line| format!("      {line}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
             ));
         }
     }
@@ -1374,10 +1529,34 @@ fn refuse_widened_capabilities(old_lock: Option<&[u8]>, project: &Path) -> Resul
     }
 }
 
+/// For `<project>/.guion/packages/<name>/<version>`, the project, when its lock holds exactly
+/// that package at that version.
+fn hosting_project(package_root: &Path) -> Option<PathBuf> {
+    let version = package_root.file_name()?.to_str()?;
+    let name_directory = package_root.parent()?;
+    let name = name_directory.file_name()?.to_str()?;
+    let packages = name_directory.parent()?;
+    let guion = packages.parent()?;
+    if packages.file_name()? != "packages" || guion.file_name()? != ".guion" {
+        return None;
+    }
+    let host = guion.parent()?.to_path_buf();
+    let lock = read_lock(&host).ok()?;
+    let locked = lock.native.get(name)?;
+    (locked.get("version").and_then(toml::Value::as_str) == Some(version)).then_some(host)
+}
+
 pub fn load_locked_roots(project: &Path) -> Result<BTreeMap<String, PathBuf>, String> {
     let project = fs::canonicalize(project)
         .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
     let lock = read_lock(&project)?;
+    // A package installed in a project's cache has no lock of its own: its dependency set is the
+    // one the project pinned, so it builds and tests against exactly that.
+    if lock.native.is_empty() {
+        if let Some(host) = hosting_project(&project) {
+            return load_locked_roots(&host);
+        }
+    }
     let manifest_path = project_manifest_path(&project);
     let manifest: toml::Value = toml::from_str(
         &fs::read_to_string(&manifest_path)
@@ -1490,6 +1669,59 @@ fn verify_lock_has_no_cycles(native: &BTreeMap<String, toml::Value>) -> Result<(
         visit(name, native, &mut visiting, &mut visited)?;
     }
     Ok(())
+}
+
+/// `guion sync --locked`: installs what the manifest pins (each URL dependency, by version and
+/// archive hash) wherever the cache lacks it, then verifies the result against the lock. The lock
+/// is not allowed to move: if installing would change it, nothing is kept. Two projects with the
+/// same manifest and lock therefore end up with the same package tree.
+pub fn sync_locked(project: &Path) -> Result<String, String> {
+    let project = fs::canonicalize(project)
+        .map_err(|error| format!("cannot resolve project {}: {error}", project.display()))?;
+    let manifest_path = project_manifest_path(&project);
+    let manifest: toml::Value = toml::from_str(
+        &fs::read_to_string(&manifest_path)
+            .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?,
+    )
+    .map_err(|error| format!("{}: invalid TOML: {error}", manifest_path.display()))?;
+    let lock_path = project_lock_path(&project);
+    let lock_before = fs::read(&lock_path)
+        .map_err(|_| "guion sync --locked needs a guion.lock; run `guion add` first".to_owned())?;
+    let manifest_before = fs::read(&manifest_path)
+        .map_err(|error| format!("cannot read {}: {error}", manifest_path.display()))?;
+    let mut fetched = 0;
+    let result: Result<(), String> = (|| {
+        if let Some(dependencies) = manifest.get("dependencies").and_then(toml::Value::as_table) {
+            for (name, dependency) in dependencies {
+                let (Some(url), Some(sha256)) = (
+                    dependency.get("url").and_then(toml::Value::as_str),
+                    dependency.get("sha256").and_then(toml::Value::as_str),
+                ) else {
+                    continue;
+                };
+                let version = requirement_version(dependency)?;
+                let cache = project.join(CACHE_DIRECTORY).join(name).join(&version);
+                if cache.is_dir() {
+                    continue;
+                }
+                add_url_internal(&project, name, url, &version, sha256, false, None, false)?;
+                fetched += 1;
+            }
+        }
+        if fs::read(&lock_path).ok().as_deref() != Some(lock_before.as_slice()) {
+            return Err("installing from the lock would change guion.lock".into());
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        let _ = atomic_write(&manifest_path, &manifest_before);
+        let _ = atomic_write(&lock_path, &lock_before);
+        return Err(format!("guion sync --locked: {error}"));
+    }
+    let verified = sync_locked_offline(&project)?;
+    Ok(format!(
+        "installed {fetched} missing package(s); {verified}"
+    ))
 }
 
 pub fn sync_locked_offline(project: &Path) -> Result<String, String> {
