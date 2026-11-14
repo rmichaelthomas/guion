@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       trials:
-        description: Timed trials per lane
+        description: Timed trials per lane (5 to 15; the gate needs at least 5 for its statistic)
         default: "15"
   pull_request:
     paths:
