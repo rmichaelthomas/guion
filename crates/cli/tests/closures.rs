@@ -25,22 +25,19 @@ fn run(source: &str) -> (bool, String, String) {
 
 #[test]
 fn a_lambda_captures_the_variables_it_uses() {
-    let (ok, out, err) = run(
-        r##"fn main() -> Int:
+    let (ok, out, err) = run(r##"fn main() -> Int:
     let offset = 10
     let add = fn(x: Int) -> Int: x + offset
     print(f"{add(5)}")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "15\n");
 }
 
 #[test]
 fn a_closure_can_be_returned_and_keeps_its_values() {
-    let (ok, out, err) = run(
-        r##"fn adder(n: Int) -> fn(Int) -> Int:
+    let (ok, out, err) = run(r##"fn adder(n: Int) -> fn(Int) -> Int:
     return fn(x: Int) -> Int: x + n
 
 fn main() -> Int:
@@ -48,16 +45,14 @@ fn main() -> Int:
     let add40 = adder(40)
     print(f"{add2(1)} {add40(1)} {add2(add40(0))}")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "3 41 42\n");
 }
 
 #[test]
 fn closures_work_with_the_list_builtins() {
-    let (ok, out, err) = run(
-        r##"fn main() -> Int:
+    let (ok, out, err) = run(r##"fn main() -> Int:
     let limit = 3
     let scale = 10
     let numbers = [1, 2, 3, 4, 5]
@@ -68,63 +63,55 @@ fn closures_work_with_the_list_builtins() {
     if any_list(numbers, fn(x: Int) -> Bool: x == limit):
         print("found")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "2 96\nfound\n");
 }
 
 #[test]
 fn a_nested_fn_is_a_local_function_that_captures() {
-    let (ok, out, err) = run(
-        r##"fn main() -> Int:
+    let (ok, out, err) = run(r##"fn main() -> Int:
     let base = 100
     fn bump(x: Int) -> Int:
         let doubled = x * 2
         return doubled + base
     print(f"{bump(1)} {bump(2)}")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "102 104\n");
 }
 
 #[test]
 fn a_closure_captures_the_value_at_creation_not_a_later_change() {
-    let (ok, out, err) = run(
-        r##"fn main() -> Int:
+    let (ok, out, err) = run(r##"fn main() -> Int:
     var n = 1
     let show = fn() -> Int: n
     set n = 99
     print(f"{show()} {n}")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "1 99\n");
 }
 
 #[test]
 fn a_closure_cannot_change_what_it_captured() {
-    let (ok, _, err) = run(
-        r##"fn main() -> Int:
+    let (ok, _, err) = run(r##"fn main() -> Int:
     var n = 1
     fn bump() -> Int:
         set n = n + 1
         return n
     print(f"{bump()}")
     return 0
-"##,
-    );
+"##);
     assert!(!ok);
     assert!(!err.is_empty());
 }
 
 #[test]
 fn closures_capture_closures_and_other_values() {
-    let (ok, out, err) = run(
-        r##"record Config:
+    let (ok, out, err) = run(r##"record Config:
     prefix: Text
 
 fn main() -> Int:
@@ -133,22 +120,19 @@ fn main() -> Int:
     let twice = fn(n: Int) -> Text: label(n) + label(n + 1)
     print(twice(7))
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "id-7id-8\n");
 }
 
 #[test]
 fn sorting_with_a_closure_says_it_needs_a_named_function() {
-    let (ok, _, err) = run(
-        r##"fn main() -> Int:
+    let (ok, _, err) = run(r##"fn main() -> Int:
     let k = 2
     let sorted = sort_by_int_key([3, 1, 2], fn(x: Int) -> Int: x * k)
     print(f"{len(sorted)}")
     return 0
-"##,
-    );
+"##);
     assert!(!ok);
     assert!(err.contains("R_FN_CLOSURE"), "{err}");
 }

@@ -52,6 +52,14 @@ fn main() {
         .arg("-DLIBICAL_BUILD_DOCS=OFF")
         .arg("-DLIBICAL_ENABLE_BUILTIN_TZDATA=ON")
         .arg("-DCMAKE_DISABLE_FIND_PACKAGE_ICU=TRUE");
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        // Build the vendored library for the architecture being compiled, not the host's.
+        let architecture = match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+            Ok("x86_64") => "x86_64",
+            _ => "arm64",
+        };
+        configure.arg(format!("-DCMAKE_OSX_ARCHITECTURES={architecture}"));
+    }
     run(&mut configure, "configure pinned libical");
     run(
         Command::new("cmake")

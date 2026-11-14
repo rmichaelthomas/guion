@@ -7,7 +7,7 @@
 //! operation that does not match what was recorded.
 
 use guion_model::{
-    BigInt, Float64, HttpErrorValue, FileErrorValue, JsonErrorValue, NativeResourceValue,
+    BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
     RuntimeError, Shared, SharedJson, Span, TaskErrorValue, TextMap, Value,
 };
 use serde_json::{json, Value as Json};
@@ -33,7 +33,12 @@ fn unsupported(kind: &str) -> String {
 }
 
 fn spans_to_json(trace: &[Span]) -> Json {
-    Json::Array(trace.iter().map(|span| json!([span.line, span.column])).collect())
+    Json::Array(
+        trace
+            .iter()
+            .map(|span| json!([span.line, span.column]))
+            .collect(),
+    )
 }
 
 fn spans_from_json(value: &Json) -> Vec<Span> {
@@ -58,13 +63,17 @@ pub(crate) fn encode_value(value: &Value) -> Result<Json, String> {
         Value::Float64(number) => json!({"float": number.get().to_bits().to_string()}),
         Value::Bool(flag) => json!({"bool": flag}),
         Value::Text(text) => json!({"text": text.as_ref() as &str}),
-        Value::Bytes(bytes) => json!({"bytes": bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()}),
+        Value::Bytes(bytes) => {
+            json!({"bytes": bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()})
+        }
         Value::Unit => json!({"unit": true}),
         Value::OptionNone => json!({"none": true}),
         Value::OptionSome(inner) => json!({"some": encode_value(inner)?}),
         Value::ResultOk(inner) => json!({"ok": encode_value(inner)?}),
         Value::ResultErr(inner) => json!({"err": encode_value(inner)?}),
-        Value::List(items) => json!({"list": items.iter().map(encode_value).collect::<Result<Vec<_>, _>>()?}),
+        Value::List(items) => {
+            json!({"list": items.iter().map(encode_value).collect::<Result<Vec<_>, _>>()?})
+        }
         Value::Float64List(items) => json!({
             "list": items.iter().map(|item| json!({"float": item.get().to_bits().to_string()})).collect::<Vec<_>>()
         }),
@@ -79,7 +88,9 @@ pub(crate) fn encode_value(value: &Value) -> Result<Json, String> {
             }
             json!({"map": pairs})
         }
-        Value::Json(document) => json!({"json": serde_json::to_value(document.as_ref()).map_err(|e| e.to_string())?}),
+        Value::Json(document) => {
+            json!({"json": serde_json::to_value(document.as_ref()).map_err(|e| e.to_string())?})
+        }
         Value::TaskError(error) => json!({"task_error": {
             "index": error.index.to_string(), "code": error.code, "message": error.message,
             "trace": spans_to_json(&error.trace)}}),
@@ -103,7 +114,11 @@ pub(crate) fn decode_value(value: &Json) -> Result<Value, String> {
     let object = value.as_object().ok_or_else(bad)?;
     let (tag, body) = object.iter().next().ok_or_else(bad)?;
     let decode_list = |body: &Json| -> Result<Vec<Value>, String> {
-        body.as_array().ok_or_else(bad)?.iter().map(decode_value).collect()
+        body.as_array()
+            .ok_or_else(bad)?
+            .iter()
+            .map(decode_value)
+            .collect()
     };
     Ok(match tag.as_str() {
         "int" => Value::Int(BigInt::parse(body.as_str().ok_or_else(bad)?).map_err(|_| bad())?),
@@ -167,8 +182,16 @@ pub(crate) fn decode_value(value: &Json) -> Result<Value, String> {
         })),
         "resource" => Value::NativeResource(Box::new(NativeResourceValue::new(
             body["kind"].as_str().ok_or_else(bad)?,
-            body["owner"].as_str().ok_or_else(bad)?.parse().map_err(|_| bad())?,
-            body["id"].as_str().ok_or_else(bad)?.parse().map_err(|_| bad())?,
+            body["owner"]
+                .as_str()
+                .ok_or_else(bad)?
+                .parse()
+                .map_err(|_| bad())?,
+            body["id"]
+                .as_str()
+                .ok_or_else(bad)?
+                .parse()
+                .map_err(|_| bad())?,
         ))),
         _ => return Err(bad()),
     })
@@ -194,7 +217,9 @@ fn scrub_credentials(value: &Value) -> Value {
             }
             Value::Map(Shared::new(scrubbed))
         }
-        Value::List(items) => Value::List(Shared::new(items.iter().map(scrub_credentials).collect())),
+        Value::List(items) => {
+            Value::List(Shared::new(items.iter().map(scrub_credentials).collect()))
+        }
         Value::Record(name, fields) => Value::Record(
             name.clone(),
             Shared::new(fields.iter().map(scrub_credentials).collect()),
@@ -253,12 +278,23 @@ enum Outcome {
     /// The call touched something the project asked to keep off tapes; only its place is kept.
     Redacted,
     Values(Vec<Json>),
-    Error { code: String, message: String },
+    Error {
+        code: String,
+        message: String,
+    },
 }
 
 enum TapeState {
-    Recording { path: PathBuf, entries: Vec<Entry>, program_sha256: String, redact: Vec<String> },
-    Replaying { entries: Vec<Entry>, next: usize },
+    Recording {
+        path: PathBuf,
+        entries: Vec<Entry>,
+        program_sha256: String,
+        redact: Vec<String>,
+    },
+    Replaying {
+        entries: Vec<Entry>,
+        next: usize,
+    },
 }
 
 pub(crate) struct Tape {
@@ -296,13 +332,16 @@ impl Tape {
                 redact: redact.to_vec(),
             },
             TapeMode::Replay(path) | TapeMode::ReplayChanged(path) => {
-                let text = std::fs::read_to_string(path)
-                    .map_err(|error| fail(format!("cannot read tape {}: {error}", path.display())))?;
+                let text = std::fs::read_to_string(path).map_err(|error| {
+                    fail(format!("cannot read tape {}: {error}", path.display()))
+                })?;
                 let mut lines = text.lines();
                 let header: Json = serde_json::from_str(lines.next().unwrap_or(""))
                     .map_err(|error| fail(format!("tape header is not valid: {error}")))?;
                 if header["guion_tape"].as_u64() != Some(TAPE_VERSION) {
-                    return Err(fail("this tape was written by a different tape format".into()));
+                    return Err(fail(
+                        "this tape was written by a different tape format".into(),
+                    ));
                 }
                 if !matches!(mode, TapeMode::ReplayChanged(_))
                     && header["program_sha256"].as_str() != Some(hash.as_str())
@@ -340,7 +379,9 @@ impl Tape {
                 TapeState::Replaying { entries, next: 0 }
             }
         };
-        Ok(Tape { state: Mutex::new(state) })
+        Ok(Tape {
+            state: Mutex::new(state),
+        })
     }
 
     pub(crate) fn is_replay(&self) -> bool {
@@ -358,30 +399,46 @@ impl Tape {
         after: &Result<&[Value], &RuntimeError>,
     ) -> Result<(), RuntimeError> {
         let mut state = self.state.lock().unwrap();
-        let TapeState::Recording { entries, redact, .. } = &mut *state else {
+        let TapeState::Recording {
+            entries, redact, ..
+        } = &mut *state
+        else {
             return Ok(());
         };
         // A call whose arguments mention a redacted host or path keeps its place on the tape
         // but not its result.
-        let arguments_text: String = before.iter().map(|value| value.to_string()).collect::<Vec<_>>().join(" ");
-        let redacted = redact.iter().any(|pattern| !pattern.is_empty() && arguments_text.contains(pattern.as_str()));
+        let arguments_text: String = before
+            .iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let redacted = redact
+            .iter()
+            .any(|pattern| !pattern.is_empty() && arguments_text.contains(pattern.as_str()));
         let (kept, outcome) = if redacted {
             (before.len(), Outcome::Redacted)
         } else {
             match after {
-            Ok(after) => {
-                let kept = before.iter().zip(after.iter()).take_while(|(a, b)| a == b).count();
-                let tail = after[kept..]
-                    .iter()
-                    .map(encode_value)
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|message| RuntimeError::new("R_TAPE", message, span))?;
-                (kept, Outcome::Values(tail))
-            }
-            Err(error) => (
-                before.len(),
-                Outcome::Error { code: error.code.clone(), message: error.message.clone() },
-            ),
+                Ok(after) => {
+                    let kept = before
+                        .iter()
+                        .zip(after.iter())
+                        .take_while(|(a, b)| a == b)
+                        .count();
+                    let tail = after[kept..]
+                        .iter()
+                        .map(encode_value)
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|message| RuntimeError::new("R_TAPE", message, span))?;
+                    (kept, Outcome::Values(tail))
+                }
+                Err(error) => (
+                    before.len(),
+                    Outcome::Error {
+                        code: error.code.clone(),
+                        message: error.message.clone(),
+                    },
+                ),
             }
         };
         let (arguments_sha256, arguments) = stack_fingerprint(before);
@@ -411,7 +468,11 @@ impl Tape {
         let height = stack.len();
         let mut state = self.state.lock().unwrap();
         let TapeState::Replaying { entries, next } = &mut *state else {
-            return Err(RuntimeError::new("R_TAPE", "tape is not in replay mode", span));
+            return Err(RuntimeError::new(
+                "R_TAPE",
+                "tape is not in replay mode",
+                span,
+            ));
         };
         let diverged = |message: String| RuntimeError::new("R_TAPE_DIVERGED", message, span);
         let index = *next;
@@ -422,7 +483,11 @@ impl Tape {
                 span.line
             )));
         };
-        if entry.operation != operation || entry.line != span.line || entry.column != span.column || entry.height != height {
+        if entry.operation != operation
+            || entry.line != span.line
+            || entry.column != span.column
+            || entry.height != height
+        {
             return Err(diverged(format!(
                 "replay diverged at host call {}: the program called {operation} in `{function}` at line {}, but the tape recorded {} in `{}` at line {}",
                 index + 1,
@@ -485,10 +550,17 @@ impl Tape {
     /// Writes the tape file when recording; does nothing when replaying.
     pub(crate) fn finish_record(&self) -> Result<(), String> {
         let state = self.state.lock().unwrap();
-        let TapeState::Recording { path, entries, program_sha256, .. } = &*state else {
+        let TapeState::Recording {
+            path,
+            entries,
+            program_sha256,
+            ..
+        } = &*state
+        else {
             return Ok(());
         };
-        let mut text = json!({"guion_tape": TAPE_VERSION, "program_sha256": program_sha256}).to_string();
+        let mut text =
+            json!({"guion_tape": TAPE_VERSION, "program_sha256": program_sha256}).to_string();
         text.push('\n');
         for entry in entries {
             let mut line = json!({
@@ -500,12 +572,15 @@ impl Tape {
             match &entry.outcome {
                 Outcome::Redacted => line["redacted"] = json!(true),
                 Outcome::Values(tail) => line["tail"] = Json::Array(tail.clone()),
-                Outcome::Error { code, message } => line["error"] = json!({"code": code, "message": message}),
+                Outcome::Error { code, message } => {
+                    line["error"] = json!({"code": code, "message": message})
+                }
             }
             text.push_str(&line.to_string());
             text.push('\n');
         }
-        std::fs::write(path, text).map_err(|error| format!("cannot write tape {}: {error}", path.display()))
+        std::fs::write(path, text)
+            .map_err(|error| format!("cannot write tape {}: {error}", path.display()))
     }
 }
 

@@ -65,9 +65,14 @@ fn else_if_without_a_final_else_falls_through() {
 
 #[test]
 fn elif_still_points_at_else_if() {
-    let (ok, _, err) = run("fn main() -> Unit:\n    if true:\n        print(1)\n    elif false:\n        print(2)\n");
+    let (ok, _, err) = run(
+        "fn main() -> Unit:\n    if true:\n        print(1)\n    elif false:\n        print(2)\n",
+    );
     assert!(!ok);
-    assert!(err.contains("E_PYTHON_ELIF") && err.contains("else if"), "{err}");
+    assert!(
+        err.contains("E_PYTHON_ELIF") && err.contains("else if"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -140,7 +145,8 @@ fn private_fields_are_usable_in_their_module_and_refused_elsewhere() {
     assert!(ok, "{err}");
     assert_eq!(out, "1\n150\n");
 
-    let read = "import \"bank.gu\"\n\nfn main() -> Unit:\n    let a = open(1)\n    print(a.balance)\n";
+    let read =
+        "import \"bank.gu\"\n\nfn main() -> Unit:\n    let a = open(1)\n    print(a.balance)\n";
     let (ok, _, err) = run_project(&[("bank.gu", library), ("main.gu", read)]);
     assert!(!ok);
     assert!(err.contains("E_FIELD_PRIVATE"), "{err}");
@@ -150,7 +156,8 @@ fn private_fields_are_usable_in_their_module_and_refused_elsewhere() {
     assert!(!ok);
     assert!(err.contains("E_FIELD_PRIVATE"), "{err}");
 
-    let assign = "import \"bank.gu\"\n\nfn main() -> Unit:\n    var a = open(1)\n    set a.balance = 5\n";
+    let assign =
+        "import \"bank.gu\"\n\nfn main() -> Unit:\n    var a = open(1)\n    set a.balance = 5\n";
     let (ok, _, err) = run_project(&[("bank.gu", library), ("main.gu", assign)]);
     assert!(!ok);
     assert!(err.contains("E_FIELD_PRIVATE"), "{err}");
@@ -158,7 +165,9 @@ fn private_fields_are_usable_in_their_module_and_refused_elsewhere() {
 
 #[test]
 fn a_field_named_priv_is_still_a_plain_field() {
-    let (ok, out, err) = run("record R:\n    priv: Int\n\nfn main() -> Unit:\n    let r = R(4)\n    print(r.priv)\n");
+    let (ok, out, err) = run(
+        "record R:\n    priv: Int\n\nfn main() -> Unit:\n    let r = R(4)\n    print(r.priv)\n",
+    );
     assert!(ok, "{err}");
     assert_eq!(out, "4\n");
 }
@@ -189,6 +198,10 @@ fn the_formatter_keeps_the_new_forms_valid() {
         .current_dir(&directory)
         .output()
         .expect("guion starts");
-    assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
     assert_eq!(String::from_utf8_lossy(&run.stdout), "total is 10\n");
 }

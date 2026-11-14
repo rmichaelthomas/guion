@@ -11,7 +11,6 @@ mod compiler_driver;
 #[cfg(feature = "python-interop")]
 mod dependencies;
 mod lsp;
-mod repl;
 mod native_dependencies;
 mod native_packages;
 mod package_capabilities;
@@ -19,6 +18,7 @@ mod package_name;
 mod package_version;
 mod pool_alloc;
 mod registry;
+mod repl;
 mod source_run_cache;
 mod templates;
 
@@ -979,7 +979,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         "test" => {
             let json_report = args.iter().any(|argument| argument == "--json");
-            if !run_tests(&path, &artifact, &project_root, json_report, test_tape.as_ref())? {
+            if !run_tests(
+                &path,
+                &artifact,
+                &project_root,
+                json_report,
+                test_tape.as_ref(),
+            )? {
                 return Ok(ExitCode::from(1));
             }
         }
@@ -2696,7 +2702,10 @@ fn speed_report(artifact: &Artifact, json: bool) -> Result<ExitCode, String> {
     for function in &artifact.functions {
         // Functions from the standard library and packages are listed too, but only a
         // function written in this project has a line worth reporting.
-        let line = function.code.first().map_or(0, |instruction| instruction.span.line);
+        let line = function
+            .code
+            .first()
+            .map_or(0, |instruction| instruction.span.line);
         let entry = rejected.get(&function.name);
         let blocking_line = entry
             .and_then(|entry| entry["blocking_instruction"].as_str())
@@ -2720,7 +2729,9 @@ fn speed_report(artifact: &Artifact, json: bool) -> Result<ExitCode, String> {
         println!("{}", serde_json::json!({ "functions": rows }));
         return Ok(ExitCode::SUCCESS);
     }
-    println!("how each function runs (machine code is the fast path; the interpreter is the fallback):");
+    println!(
+        "how each function runs (machine code is the fast path; the interpreter is the fallback):"
+    );
     for row in &rows {
         let name = row["function"].as_str().unwrap_or("?");
         if row["runs_as"] == "machine code" {
@@ -3933,9 +3944,9 @@ fn format_source_line(line: &str) -> String {
         } else {
             String::new()
         };
-        let compound = characters.get(cursor..cursor + 3).is_some_and(|window| {
-            window == ['/', '/', '=']
-        });
+        let compound = characters
+            .get(cursor..cursor + 3)
+            .is_some_and(|window| window == ['/', '/', '=']);
         if compound {
             tokens.push(("//=".to_owned(), 3));
             cursor += 3;
@@ -4806,7 +4817,12 @@ fn tape_redactions(project_root: &Path) -> Vec<String> {
                 .get("record")?
                 .get("redact")?
                 .as_array()
-                .map(|items| items.iter().filter_map(|item| item.as_str().map(str::to_owned)).collect())
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| item.as_str().map(str::to_owned))
+                        .collect()
+                })
         })
         .unwrap_or_default()
 }

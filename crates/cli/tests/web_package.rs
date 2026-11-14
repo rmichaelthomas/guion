@@ -343,9 +343,15 @@ fn a_runtime_fault_in_a_handler_answers_500_and_the_server_keeps_serving() {
         let fault = get(port, "/fault");
         assert!(fault.starts_with("HTTP/1.1 500"), "{fault}");
         assert!(fault.ends_with("Internal Server Error"), "{fault}");
-        assert!(!fault.contains("R_INDEX") && !fault.contains("index"), "{fault}");
+        assert!(
+            !fault.contains("R_INDEX") && !fault.contains("index"),
+            "{fault}"
+        );
         let after = get(port, "/users/42");
-        assert!(after.starts_with("HTTP/1.1 200 OK"), "one worker kept serving: {after}");
+        assert!(
+            after.starts_with("HTTP/1.1 200 OK"),
+            "one worker kept serving: {after}"
+        );
         assert!(after.ends_with("user 42"), "{after}");
     }
 }

@@ -8200,7 +8200,11 @@ fn native_recursion_needs_exactly_the_instruction_budget_the_vm_needs() {
         let minimal = |vm: bool| {
             (1..4000u64)
                 .find(|budget| {
-                    let runtime = if vm { Runtime::vm_only() } else { Runtime::new() };
+                    let runtime = if vm {
+                        Runtime::vm_only()
+                    } else {
+                        Runtime::new()
+                    };
                     let mut instance = runtime
                         .load(
                             artifact.clone(),

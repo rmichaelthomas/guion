@@ -2406,4 +2406,3 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
     }
     Ok(())
 }
-

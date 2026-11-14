@@ -6542,7 +6542,10 @@ fn artifact_uses_function_values(artifact: &Artifact) -> bool {
                     .code
                     .iter()
                     .any(|instruction| match &instruction.op {
-                        Op::MakeFn(_) | Op::MakeClosure(..) | Op::CallFn(_) | Op::HigherOrder(_) => true,
+                        Op::MakeFn(_)
+                        | Op::MakeClosure(..)
+                        | Op::CallFn(_)
+                        | Op::HigherOrder(_) => true,
                         Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => ty.contains_fn(),
                         _ => false,
                     })

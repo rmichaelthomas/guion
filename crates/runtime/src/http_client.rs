@@ -32,7 +32,10 @@ pub(crate) struct HttpBytesResponse {
 }
 
 impl HttpBytesResponse {
-    pub(crate) fn into_text_json(self, max_text_bytes: usize) -> Result<serde_json::Value, HttpErrorValue> {
+    pub(crate) fn into_text_json(
+        self,
+        max_text_bytes: usize,
+    ) -> Result<serde_json::Value, HttpErrorValue> {
         if self.body.len() > max_text_bytes {
             return Err(http_error(
                 "R_HTTP_LIMIT",
@@ -49,7 +52,10 @@ impl HttpBytesResponse {
     }
 }
 
-pub(crate) fn validate_http_url(url: &reqwest::Url, policy: &HostPolicy) -> Result<String, HttpErrorValue> {
+pub(crate) fn validate_http_url(
+    url: &reqwest::Url,
+    policy: &HostPolicy,
+) -> Result<String, HttpErrorValue> {
     if !matches!(url.scheme(), "http" | "https")
         || !url.username().is_empty()
         || url.password().is_some()

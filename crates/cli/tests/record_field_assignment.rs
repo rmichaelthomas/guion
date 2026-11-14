@@ -130,7 +130,8 @@ fn two_hundred_thousand_appends_to_a_record_field_run_in_linear_time() {
 
 #[test]
 fn inspect_speed_names_the_functions_that_run_as_machine_code() {
-    let directory = std::env::temp_dir().join(format!("guion-inspect-speed-{}", std::process::id()));
+    let directory =
+        std::env::temp_dir().join(format!("guion-inspect-speed-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(
         directory.join("main.gu"),
@@ -142,7 +143,11 @@ fn inspect_speed_names_the_functions_that_run_as_machine_code() {
         .current_dir(&directory)
         .output()
         .expect("guion starts");
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let row = |name: &str| {
         report["functions"]
@@ -155,5 +160,8 @@ fn inspect_speed_names_the_functions_that_run_as_machine_code() {
     };
     assert_eq!(row("fib")["runs_as"], "machine code");
     assert_eq!(row("add")["runs_as"], "interpreter");
-    assert_eq!(row("add")["reason_code"], "unsupported_types_or_control_flow");
+    assert_eq!(
+        row("add")["reason_code"],
+        "unsupported_types_or_control_flow"
+    );
 }

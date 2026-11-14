@@ -23,7 +23,9 @@ fn converse(messages: Vec<Value>) -> Vec<Value> {
         stdin.write_all(&frame(message)).unwrap();
     }
     stdin
-        .write_all(&frame(&json!({"jsonrpc": "2.0", "id": 999, "method": "shutdown"})))
+        .write_all(&frame(
+            &json!({"jsonrpc": "2.0", "id": 999, "method": "shutdown"}),
+        ))
         .unwrap();
     stdin
         .write_all(&frame(&json!({"jsonrpc": "2.0", "method": "exit"})))
@@ -103,16 +105,24 @@ fn a_clean_buffer_has_no_diagnostics_and_a_broken_one_has_the_compiler_error() {
 #[test]
 fn a_change_replaces_the_diagnostics() {
     let mut messages = open(&SAMPLE.replace("bump(2)", "bumpp(2)"));
-    messages.push(json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+    messages.push(
+        json!({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
         "textDocument": {"uri": URI, "version": 2},
-        "contentChanges": [{"text": SAMPLE}]}}));
+        "contentChanges": [{"text": SAMPLE}]}}),
+    );
     let replies = converse(messages);
     let published: Vec<&Value> = replies
         .iter()
         .filter(|message| message["method"] == "textDocument/publishDiagnostics")
         .collect();
     assert_eq!(published.len(), 2);
-    assert_eq!(published[0]["params"]["diagnostics"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        published[0]["params"]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
     assert_eq!(published[1]["params"]["diagnostics"], json!([]));
 }
 
@@ -120,12 +130,18 @@ fn a_change_replaces_the_diagnostics() {
 fn hover_shows_signatures_and_doc_lines() {
     let mut messages = open(SAMPLE);
     // `bump` in `let total = bump(2)` (line 8, column 16), and the built-in `len`.
-    messages.push(json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {
-        "textDocument": {"uri": URI}, "position": {"line": 8, "character": 16}}}));
-    messages.push(json!({"jsonrpc": "2.0", "id": 3, "method": "textDocument/hover", "params": {
-        "textDocument": {"uri": URI}, "position": {"line": 0, "character": 0}}}));
+    messages.push(
+        json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {
+        "textDocument": {"uri": URI}, "position": {"line": 8, "character": 16}}}),
+    );
+    messages.push(
+        json!({"jsonrpc": "2.0", "id": 3, "method": "textDocument/hover", "params": {
+        "textDocument": {"uri": URI}, "position": {"line": 0, "character": 0}}}),
+    );
     let replies = converse(messages);
-    let hover = response(&replies, 2)["result"]["contents"]["value"].as_str().unwrap();
+    let hover = response(&replies, 2)["result"]["contents"]["value"]
+        .as_str()
+        .unwrap();
     assert!(hover.contains("fn bump(n: Int) -> Int"), "{hover}");
     assert!(hover.contains("Adds one."), "{hover}");
     assert!(response(&replies, 3)["result"].is_null());
@@ -134,8 +150,10 @@ fn hover_shows_signatures_and_doc_lines() {
 #[test]
 fn go_to_definition_finds_functions_and_records() {
     let mut messages = open(SAMPLE);
-    messages.push(json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/definition", "params": {
-        "textDocument": {"uri": URI}, "position": {"line": 8, "character": 16}}}));
+    messages.push(
+        json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/definition", "params": {
+        "textDocument": {"uri": URI}, "position": {"line": 8, "character": 16}}}),
+    );
     let replies = converse(messages);
     let location = &response(&replies, 2)["result"];
     assert_eq!(location["uri"], json!(URI));
@@ -146,8 +164,10 @@ fn go_to_definition_finds_functions_and_records() {
 #[test]
 fn completion_lists_names_in_scope_builtins_and_keywords() {
     let mut messages = open(SAMPLE);
-    messages.push(json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": {
-        "textDocument": {"uri": URI}, "position": {"line": 9, "character": 4}}}));
+    messages.push(
+        json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/completion", "params": {
+        "textDocument": {"uri": URI}, "position": {"line": 9, "character": 4}}}),
+    );
     let replies = converse(messages);
     let labels: Vec<&str> = response(&replies, 2)["result"]["items"]
         .as_array()
@@ -163,8 +183,10 @@ fn completion_lists_names_in_scope_builtins_and_keywords() {
 #[test]
 fn formatting_returns_the_formatted_document() {
     let mut messages = open("fn main() -> Int:\n    print(len([1,2]))\n    return 0\n");
-    messages.push(json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/formatting", "params": {
-        "textDocument": {"uri": URI}, "options": {"tabSize": 4, "insertSpaces": true}}}));
+    messages.push(
+        json!({"jsonrpc": "2.0", "id": 2, "method": "textDocument/formatting", "params": {
+        "textDocument": {"uri": URI}, "options": {"tabSize": 4, "insertSpaces": true}}}),
+    );
     let replies = converse(messages);
     let edits = response(&replies, 2)["result"].as_array().unwrap();
     assert_eq!(edits.len(), 1);
@@ -191,7 +213,12 @@ fn repl(input: &str) -> (String, String) {
         .stderr(Stdio::piped())
         .spawn()
         .expect("guion repl starts");
-    child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
     let output = child.wait_with_output().unwrap();
     (
         String::from_utf8_lossy(&output.stdout).into_owned(),
@@ -205,8 +232,7 @@ fn the_repl_shows_values_and_types_and_keeps_definitions() {
         "let x = 4\nx * 2\nfn double(n: Int) -> Int:\n    return n * 2\n\ndouble(x)\n\"hi\"\n[1, 2, 3]\nprint(\"printed\")\n1.5 + 1.0\n:quit\n",
     );
     assert_eq!(
-        out,
-        "ok\n8 : Int\nok\n8 : Int\nhi : Text\n[1, 2, 3] : List[Int]\nprinted\n2.5 : Float64\n",
+        out, "ok\n8 : Int\nok\n8 : Int\nhi : Text\n[1, 2, 3] : List[Int]\nprinted\n2.5 : Float64\n",
         "stderr: {err}"
     );
 }
@@ -224,6 +250,9 @@ fn the_repl_runs_statements_once_and_knows_records() {
         "record Pair:\n    a: Int\n    b: Int\n\nPair(1, 2)\nfor i in range(3):\n    print(f\"{i}\")\n\n:quit\n",
     );
     assert!(out.starts_with("ok\n"), "{out} {err}");
-    assert!(out.contains("Pair : Pair") || out.contains(": Pair"), "{out} {err}");
+    assert!(
+        out.contains("Pair : Pair") || out.contains(": Pair"),
+        "{out} {err}"
+    );
     assert!(out.ends_with("0\n1\n2\n"), "{out} {err}");
 }

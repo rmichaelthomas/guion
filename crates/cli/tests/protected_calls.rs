@@ -55,8 +55,7 @@ fn a_fault_in_one_item_does_not_stop_the_others() {
 
 #[test]
 fn it_works_with_a_closure_and_the_same_program_without_it_faults() {
-    let (ok, out, err) = run(
-        r##"fn main() -> Int:
+    let (ok, out, err) = run(r##"fn main() -> Int:
     let limit = 2
     let outcomes = try_map_list([1, 2, 3], fn(x: Int) -> Int: [100, 200][x - limit])
     print(f"{len(outcomes)}")
@@ -66,8 +65,7 @@ fn it_works_with_a_closure_and_the_same_program_without_it_faults() {
         Err(error):
             print("fault")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "3\n100\n");
     let (ok, _, err) = run(

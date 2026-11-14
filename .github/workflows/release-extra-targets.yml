@@ -1,0 +1,75 @@
+name: Intel Mac and Windows builds
+
+# Builds `guion` for macOS x86_64 and Windows x86_64 on standard GitHub-hosted runners (free for
+# a public repository), smoke-tests each binary, and keeps the archives as workflow artifacts.
+# A `v*-preview*` tag also attaches them to the matching pre-release once it exists. These
+# builds are not signed or notarized here; the Apple Silicon package is the signed one.
+on:
+  push:
+    tags: ["v*-preview*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-x86_64
+            runner: macos-15-intel
+            triple: x86_64-apple-darwin
+          - target: windows-x86_64
+            runner: windows-2025
+            triple: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the project Rust toolchain
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+          rustc --version
+
+      - name: Build the release binary
+        run: cargo build --locked --release -p guion-cli --bin guion --target ${{ matrix.triple }}
+
+      - name: Smoke test the binary
+        run: |
+          BIN=target/${{ matrix.triple }}/release/guion
+          if [ "${{ matrix.target }}" = "windows-x86_64" ]; then BIN="$BIN.exe"; fi
+          printf 'fn main() -> Unit:\n    let a = 2\n    fn add(x: Int) -> Int:\n        return x + a\n    print(add(40))\n' > smoke.gu
+          OUT=$("$BIN" run smoke.gu | tr -d '\r')
+          echo "output: $OUT"
+          test "$OUT" = "42"
+          "$BIN" check smoke.gu
+
+      - name: Package
+        run: |
+          mkdir -p dist stage
+          if [ "${{ matrix.target }}" = "windows-x86_64" ]; then
+            cp target/${{ matrix.triple }}/release/guion.exe stage/
+            powershell -Command "Compress-Archive -Path stage/* -DestinationPath dist/guion-${{ matrix.target }}.zip"
+          else
+            cp target/${{ matrix.triple }}/release/guion stage/
+            tar -C stage -czf dist/guion-${{ matrix.target }}.tar.gz guion
+          fi
+          cd dist
+          for f in *; do shasum -a 256 "$f" > "$f.sha256"; cat "$f.sha256"; done
+
+      - name: Retain the package
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: guion-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90

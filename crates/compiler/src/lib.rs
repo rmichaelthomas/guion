@@ -13,7 +13,6 @@ use std::{
 
 mod builtin_catalog;
 
-
 /// Opt-in timings for source-module loading and function lowering.
 #[derive(Clone, Debug, Default)]
 pub struct CompileProfile {
@@ -588,7 +587,6 @@ fn python_recovery_diagnostic(tokens: &[Token]) -> Option<Diagnostic> {
         return Some(diagnostic(code, message, token.span));
     }
 
-
     let mut bracket_depth = 0usize;
     for token in tokens {
         if token.kind == Kind::Symbol && token.text == "[" {
@@ -848,7 +846,11 @@ impl Parser {
                         ));
                     }
                     let hole = hole.trim();
-                    if hole.is_empty() || hole.contains('"') || hole.contains('\\') || hole.contains('{') {
+                    if hole.is_empty()
+                        || hole.contains('"')
+                        || hole.contains('\\')
+                        || hole.contains('{')
+                    {
                         return Err(diagnostic(
                             "E_FSTRING_HOLE",
                             "a hole in f-text holds one expression without string literals, such as {count} or {point.x + 1}",
@@ -1033,10 +1035,16 @@ impl Parser {
                 fields = self.parameters_after_open()?;
             }
             self.expect_newline()?;
-            if variants.iter().any(|existing| existing.name == variant.text) {
+            if variants
+                .iter()
+                .any(|existing| existing.name == variant.text)
+            {
                 return Err(diagnostic(
                     "E_ENUM_VARIANT_DUPLICATE",
-                    format!("enum `{}` declares `{}` more than once", name.text, variant.text),
+                    format!(
+                        "enum `{}` declares `{}` more than once",
+                        name.text, variant.text
+                    ),
                     variant.span,
                 ));
             }
@@ -1440,19 +1448,24 @@ impl Parser {
                 }
                 // `set x += e` (also `-=`, `*=`, `/=`, `//=`, `%=`) is `set x = x + e`. The two
                 // characters must touch, so `set x + = e` stays an error.
-                let compound = ["+", "-", "*", "//", "/", "%"].into_iter().find(|operator| {
-                    self.cur().text == *operator
-                        && self.tokens.get(self.at + 1).is_some_and(|next| {
-                            next.text == "=" && next.span.start == self.cur().span.end
-                        })
-                });
+                let compound = ["+", "-", "*", "//", "/", "%"]
+                    .into_iter()
+                    .find(|operator| {
+                        self.cur().text == *operator
+                            && self.tokens.get(self.at + 1).is_some_and(|next| {
+                                next.text == "=" && next.span.start == self.cur().span.end
+                            })
+                    });
                 if let Some(operator) = compound {
                     let operator_span = self.advance().span;
                     self.expect("=")?;
                     let operand = self.expr(0)?;
                     self.expect_newline()?;
                     let mut read: Expr = Expr::Name(n.text.clone(), n.span);
-                    for field in target[n.text.len()..].split('.').filter(|part| !part.is_empty()) {
+                    for field in target[n.text.len()..]
+                        .split('.')
+                        .filter(|part| !part.is_empty())
+                    {
                         read = Expr::Field(Box::new(read), field.to_owned(), n.span);
                     }
                     let combined = Expr::Binary(
@@ -1670,7 +1683,9 @@ impl Parser {
                             _ => {}
                         }
                     }
-                    if close.is_some_and(|at| self.tokens.get(at + 1).is_some_and(|next| next.text == "(")) {
+                    if close.is_some_and(|at| {
+                        self.tokens.get(at + 1).is_some_and(|next| next.text == "(")
+                    }) {
                         self.advance();
                         let mut types = Vec::new();
                         loop {
@@ -1859,10 +1874,10 @@ fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
                     if !target.contains('.')
                         && arguments.iter().any(|argument| {
                             matches!(argument, Expr::Call(call, inner, _, _)
-                                if call == "list_push"
-                                    && inner.first().and_then(dotted_path).is_some_and(|path| {
-                                        path.starts_with(&format!("{target}."))
-                                    }))
+                            if call == "list_push"
+                                && inner.first().and_then(dotted_path).is_some_and(|path| {
+                                    path.starts_with(&format!("{target}."))
+                                }))
                         }) =>
                 {
                     out.insert(target.clone());
@@ -1896,7 +1911,6 @@ fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
     out
 }
 
-
 /// Lowers every `enum` to its record and rewrites variant constructors and variant `match`
 /// statements, so the type checker only ever sees records, `if` and field reads.
 fn desugar_enums(program: &mut Program) -> Result<(), Diagnostic> {
@@ -1910,11 +1924,16 @@ fn desugar_enums(program: &mut Program) -> Result<(), Diagnostic> {
             if matches!(variant.name.as_str(), "Some" | "None" | "Ok" | "Err") {
                 return Err(diagnostic(
                     "E_ENUM_VARIANT_NAME",
-                    format!("`{}` is already a built-in name; pick another variant name", variant.name),
+                    format!(
+                        "`{}` is already a built-in name; pick another variant name",
+                        variant.name
+                    ),
                     variant.span,
                 ));
             }
-            if let Some((other, _)) = variants.insert(variant.name.clone(), (enum_index, variant_index)) {
+            if let Some((other, _)) =
+                variants.insert(variant.name.clone(), (enum_index, variant_index))
+            {
                 return Err(diagnostic(
                     "E_ENUM_VARIANT_DUPLICATE",
                     format!(
@@ -1929,7 +1948,10 @@ fn desugar_enums(program: &mut Program) -> Result<(), Diagnostic> {
             {
                 return Err(diagnostic(
                     "E_ENUM_VARIANT_NAME",
-                    format!("variant `{}` has the same name as a function or record", variant.name),
+                    format!(
+                        "variant `{}` has the same name as a function or record",
+                        variant.name
+                    ),
                     variant.span,
                 ));
             }
@@ -2291,13 +2313,17 @@ fn expression_reads_path(expression: &Expr, path: &str) -> bool {
         Expr::Binary(_, left, right, _) | Expr::Index(left, right, _) => {
             expression_reads_path(left, path) || expression_reads_path(right, path)
         }
-        Expr::GenericCall(_, _, arguments, _) => {
-            arguments.iter().any(|argument| expression_reads_path(argument, path))
-        }
+        Expr::GenericCall(_, _, arguments, _) => arguments
+            .iter()
+            .any(|argument| expression_reads_path(argument, path)),
         Expr::Lambda(..) => true,
         Expr::Call(_, arguments, keywords, _) => {
-            arguments.iter().any(|argument| expression_reads_path(argument, path))
-                || keywords.iter().any(|(_, value, _)| expression_reads_path(value, path))
+            arguments
+                .iter()
+                .any(|argument| expression_reads_path(argument, path))
+                || keywords
+                    .iter()
+                    .any(|(_, value, _)| expression_reads_path(value, path))
         }
         Expr::List(items, _) => items.iter().any(|item| expression_reads_path(item, path)),
         Expr::Map(pairs, _) => pairs.iter().any(|(key, value)| {
@@ -2597,9 +2623,16 @@ impl<'a> FnCompiler<'a> {
         field_name: &str,
         span: Span,
     ) -> Result<(), Diagnostic> {
-        if let Some(record) = self.records.iter().find(|record| record.name == record_name) {
+        if let Some(record) = self
+            .records
+            .iter()
+            .find(|record| record.name == record_name)
+        {
             if record.module_id != self.ast.module_id
-                && record.private_fields.iter().any(|field| field == field_name)
+                && record
+                    .private_fields
+                    .iter()
+                    .any(|field| field == field_name)
             {
                 return Err(diagnostic(
                     "E_FIELD_PRIVATE",
@@ -2611,7 +2644,9 @@ impl<'a> FnCompiler<'a> {
         Ok(())
     }
     fn record_index_of(&self, record_name: &str) -> Option<usize> {
-        self.records.iter().position(|record| record.name == record_name)
+        self.records
+            .iter()
+            .position(|record| record.name == record_name)
     }
     /// Spreads the record held in local `whole_slot` over the hidden field locals of `name`,
     /// creating them on first use, and recurses into field records that are assigned too.
@@ -2662,7 +2697,11 @@ impl<'a> FnCompiler<'a> {
         let fields = self.records[record_index].fields.clone();
         for (field_name, _, _) in &fields {
             let hidden = format!("{name}.{field_name}");
-            let local = self.locals.get(&hidden).cloned().expect("hidden field local");
+            let local = self
+                .locals
+                .get(&hidden)
+                .cloned()
+                .expect("hidden field local");
             match local.split {
                 Some(inner) => self.materialize_record(&hidden, inner, span),
                 None => {
@@ -2684,7 +2723,9 @@ impl<'a> FnCompiler<'a> {
     ) -> Result<(), Diagnostic> {
         let record = self.records[record_index].clone();
         if let Expr::Call(constructor, args, keywords, _) = value {
-            if *constructor == record.name && keywords.is_empty() && args.len() == record.fields.len()
+            if *constructor == record.name
+                && keywords.is_empty()
+                && args.len() == record.fields.len()
             {
                 // An argument `list_push(name.field, x)` for its own field is applied in place
                 // when no other argument reads that field or the whole record.
@@ -2699,12 +2740,9 @@ impl<'a> FnCompiler<'a> {
                         || call_args.len() != 2
                         || dotted_path(&call_args[0]).as_deref() != Some(hidden.as_str())
                         || expression_reads_path(&call_args[1], &hidden)
-                        || args
-                            .iter()
-                            .enumerate()
-                            .any(|(other, other_argument)| {
-                                other != index && expression_reads_path(other_argument, &hidden)
-                            })
+                        || args.iter().enumerate().any(|(other, other_argument)| {
+                            other != index && expression_reads_path(other_argument, &hidden)
+                        })
                     {
                         return None;
                     }
@@ -2716,9 +2754,14 @@ impl<'a> FnCompiler<'a> {
                 {
                     let (field_name, _, _) = &record.fields[index];
                     let hidden = format!("{name}.{field_name}");
-                    let local = self.locals.get(&hidden).cloned().expect("hidden field local");
+                    let local = self
+                        .locals
+                        .get(&hidden)
+                        .cloned()
+                        .expect("hidden field local");
                     if local.split.is_none() {
-                        if let (Some(pushed), Type::List(item)) = (in_place(index, argument), expected)
+                        if let (Some(pushed), Type::List(item)) =
+                            (in_place(index, argument), expected)
                         {
                             let actual = self.expr_with_expected(&pushed, Some(item.as_ref()))?;
                             if actual != **item {
@@ -2773,7 +2816,10 @@ impl<'a> FnCompiler<'a> {
         if ty != Type::Record(record.name.clone()) {
             return Err(diagnostic(
                 "E_TYPE_ASSIGN",
-                format!("`{name}` holds {:?}, but this expression is {ty:?}", Type::Record(record.name.clone())),
+                format!(
+                    "`{name}` holds {:?}, but this expression is {ty:?}",
+                    Type::Record(record.name.clone())
+                ),
                 span,
             ));
         }
@@ -4830,7 +4876,8 @@ impl<'a> FnCompiler<'a> {
                         {
                             let mut args = args.clone();
                             args[0] = Expr::Name(name.clone(), args[0].span());
-                            normalized = Expr::Call(call.clone(), args, keywords.clone(), *call_span);
+                            normalized =
+                                Expr::Call(call.clone(), args, keywords.clone(), *call_span);
                             &normalized
                         }
                         other => other,
@@ -5159,9 +5206,12 @@ impl<'a> FnCompiler<'a> {
                         self.patch(jump, start);
                     }
                 }
-                Stmt::For(name, Expr::Call(callee, range_args, range_keywords, call_span), body, span)
-                    if callee == "range" =>
-                {
+                Stmt::For(
+                    name,
+                    Expr::Call(callee, range_args, range_keywords, call_span),
+                    body,
+                    span,
+                ) if callee == "range" => {
                     if !range_keywords.is_empty() || range_args.is_empty() || range_args.len() > 3 {
                         return Err(diagnostic(
                             "E_CALL_ARITY",
@@ -5180,9 +5230,7 @@ impl<'a> FnCompiler<'a> {
                         None => 1i64,
                         Some(Expr::Int(value, _)) => value.to_string().parse::<i64>().unwrap_or(0),
                         Some(Expr::Unary(op, inner, _)) if op == "-" => match inner.as_ref() {
-                            Expr::Int(value, _) => {
-                                -value.to_string().parse::<i64>().unwrap_or(0)
-                            }
+                            Expr::Int(value, _) => -value.to_string().parse::<i64>().unwrap_or(0),
                             _ => 0,
                         },
                         Some(_) => 0,
@@ -6202,7 +6250,10 @@ fn compile_program(
         if function.type_params.is_empty() {
             ordinary.push(function);
         } else {
-            generics.insert(function_symbol(function.module_id, &function.name), function);
+            generics.insert(
+                function_symbol(function.module_id, &function.name),
+                function,
+            );
         }
     }
     program.functions = ordinary;

@@ -46,12 +46,9 @@ fn run_project(files: &[(&str, &str)]) -> (bool, String, String) {
     )
 }
 
-
-
 #[test]
 fn a_generic_function_is_compiled_for_each_type_it_is_used_with() {
-    let (ok, out, err) = run(
-        r##"fn first[T](items: List[T]) -> T:
+    let (ok, out, err) = run(r##"fn first[T](items: List[T]) -> T:
     return items[0]
 
 fn main() -> Int:
@@ -59,16 +56,14 @@ fn main() -> Int:
     print(first(["a", "b"]))
     print(f"{first([2.5, 1.0])}")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "4\na\n2.5\n");
 }
 
 #[test]
 fn type_arguments_can_be_written_when_they_cannot_be_inferred() {
-    let (ok, out, err) = run(
-        r##"fn empty[T]() -> List[T]:
+    let (ok, out, err) = run(r##"fn empty[T]() -> List[T]:
     let items: List[T] = []
     return items
 
@@ -76,24 +71,21 @@ fn main() -> Int:
     let numbers = empty[Int]()
     print(f"{len(numbers)}")
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "0\n");
 }
 
 #[test]
 fn a_generic_that_cannot_be_inferred_says_how_to_write_it() {
-    let (ok, _, err) = run(
-        r##"fn empty[T]() -> List[T]:
+    let (ok, _, err) = run(r##"fn empty[T]() -> List[T]:
     let items: List[T] = []
     return items
 
 fn main() -> Int:
     let numbers = empty()
     return 0
-"##,
-    );
+"##);
     assert!(!ok);
     assert!(err.contains("E_GENERIC_INFER"), "{err}");
     assert!(err.contains("empty[Int]"), "{err}");
@@ -101,8 +93,7 @@ fn main() -> Int:
 
 #[test]
 fn generics_call_generics_and_take_two_type_parameters() {
-    let (ok, out, err) = run(
-        r##"record Pair:
+    let (ok, out, err) = run(r##"record Pair:
     left: Int
     right: Text
 
@@ -118,23 +109,20 @@ fn main() -> Int:
     let pairs = [Pair(1, "one"), Pair(2, "two")]
     print(first(pairs).right)
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "x\none\n");
 }
 
 #[test]
 fn mismatched_argument_types_for_one_type_parameter_are_an_error() {
-    let (ok, _, err) = run(
-        r##"fn same[T](a: T, b: T) -> T:
+    let (ok, _, err) = run(r##"fn same[T](a: T, b: T) -> T:
     return a
 
 fn main() -> Int:
     let x = same(1, "two")
     return 0
-"##,
-    );
+"##);
     assert!(!ok);
     assert!(err.contains("E_TYPE_ARGUMENT"), "{err}");
 }

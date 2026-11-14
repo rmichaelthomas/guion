@@ -22,19 +22,35 @@ fn add_and_update_write_the_path_relative_to_the_project() {
         "[package]\nname = \"mylib\"\nversion = \"0.1.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n",
     )
     .unwrap();
-    std::fs::write(root.join("lib/src/lib.gu"), "pub fn five() -> Int:\n    return 5\n").unwrap();
+    std::fs::write(
+        root.join("lib/src/lib.gu"),
+        "pub fn five() -> Int:\n    return 5\n",
+    )
+    .unwrap();
     std::fs::write(
         root.join("app/guion.toml"),
         "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
     )
     .unwrap();
-    std::fs::write(root.join("app/src/main.gu"), "fn main() -> Int:\n    return 0\n").unwrap();
+    std::fs::write(
+        root.join("app/src/main.gu"),
+        "fn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
     let app = root.join("app");
 
     let added = guion(&app, &["add", "mylib", "--path", "../lib"]);
-    assert!(added.status.success(), "{}", String::from_utf8_lossy(&added.stderr));
+    assert!(
+        added.status.success(),
+        "{}",
+        String::from_utf8_lossy(&added.stderr)
+    );
     let updated = guion(&app, &["update"]);
-    assert!(updated.status.success(), "{}", String::from_utf8_lossy(&updated.stderr));
+    assert!(
+        updated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&updated.stderr)
+    );
 
     let manifest = std::fs::read_to_string(app.join("guion.toml")).unwrap();
     let lock = std::fs::read_to_string(app.join("guion.lock")).unwrap();

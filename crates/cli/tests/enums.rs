@@ -46,7 +46,6 @@ fn run_project(files: &[(&str, &str)]) -> (bool, String, String) {
     )
 }
 
-
 const SHAPES: &str = r##"enum Shape:
     Circle(radius: Float64)
     Rect(width: Float64, height: Float64)
@@ -105,8 +104,7 @@ fn a_variant_with_the_wrong_number_of_values_is_an_error() {
 
 #[test]
 fn enums_live_in_lists_and_work_with_text_and_list_fields() {
-    let (ok, out, err) = run(
-        r##"enum Token:
+    let (ok, out, err) = run(r##"enum Token:
     Word(text: Text)
     Number(value: Int)
     Group(items: List[Int])
@@ -128,8 +126,7 @@ fn main() -> Int:
     for token in tokens:
         print(describe(token))
     return 0
-"##,
-    );
+"##);
     assert!(ok, "{err}");
     assert_eq!(out, "hi\n#7\ngroup of 3\nend\n");
 }
@@ -152,7 +149,8 @@ fn enums_cross_modules() {
 
 #[test]
 fn a_variant_field_of_an_unsupported_type_is_an_error() {
-    let (ok, _, err) = run("enum Bad:\n    Wrap(x: Option[Int])\n\nfn main() -> Int:\n    return 0\n");
+    let (ok, _, err) =
+        run("enum Bad:\n    Wrap(x: Option[Int])\n\nfn main() -> Int:\n    return 0\n");
     assert!(!ok);
     assert!(err.contains("E_ENUM_FIELD_TYPE"), "{err}");
 }

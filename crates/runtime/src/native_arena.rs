@@ -8,7 +8,8 @@ use super::*;
 /// Boxed descriptors with stable addresses and constant-time address membership.
 pub(crate) struct AddressedBoxes<T> {
     pub(crate) items: Vec<Box<T>>,
-    pub(crate) addresses: std::collections::HashSet<usize, std::hash::BuildHasherDefault<AddressHasher>>,
+    pub(crate) addresses:
+        std::collections::HashSet<usize, std::hash::BuildHasherDefault<AddressHasher>>,
 }
 
 #[derive(Default)]
@@ -38,7 +39,10 @@ impl<T> AddressedBoxes<T> {
         }
     }
 
-    pub(crate) fn try_reserve(&mut self, additional: usize) -> Result<(), std::collections::TryReserveError> {
+    pub(crate) fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), std::collections::TryReserveError> {
         self.items.try_reserve(additional)?;
         self.addresses.try_reserve(additional)
     }
@@ -1190,7 +1194,10 @@ impl NativeListArena {
         });
     }
 
-    pub(crate) fn execute_native_operation(&mut self, request: NativeOperationRequest<'_>) -> Option<i64> {
+    pub(crate) fn execute_native_operation(
+        &mut self,
+        request: NativeOperationRequest<'_>,
+    ) -> Option<i64> {
         let NativeOperationRequest {
             operation,
             function_index,

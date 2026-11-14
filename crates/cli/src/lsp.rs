@@ -74,12 +74,19 @@ fn declared_symbols(text: &str) -> Vec<Symbol> {
         let indent = raw.len() - trimmed.len();
         let declaration = trimmed.strip_prefix("pub ").unwrap_or(trimmed);
         let doc = if index > 0 && lines[index - 1].trim_start().starts_with('#') {
-            lines[index - 1].trim_start().trim_start_matches('#').trim().to_owned()
+            lines[index - 1]
+                .trim_start()
+                .trim_start_matches('#')
+                .trim()
+                .to_owned()
         } else {
             String::new()
         };
         let take_name = |rest: &str| -> String {
-            rest.trim_start().chars().take_while(|c| is_name_char(*c)).collect()
+            rest.trim_start()
+                .chars()
+                .take_while(|c| is_name_char(*c))
+                .collect()
         };
         if indent == 0 {
             if let Some(rest) = declaration.strip_prefix("fn ") {
@@ -118,17 +125,30 @@ fn declared_symbols(text: &str) -> Vec<Symbol> {
                                     name: variant,
                                     kind: "variant",
                                     line: index + signature.lines().count() - 1,
-                                    signature: format!("{} variant of {name}: {}", "enum", member.trim()),
+                                    signature: format!(
+                                        "{} variant of {name}: {}",
+                                        "enum",
+                                        member.trim()
+                                    ),
                                     doc: String::new(),
                                 });
                             }
                         }
                     }
-                    symbols.push(Symbol { name, kind, line: index, signature, doc });
+                    symbols.push(Symbol {
+                        name,
+                        kind,
+                        line: index,
+                        signature,
+                        doc,
+                    });
                     break;
                 }
             }
-        } else if let Some(rest) = trimmed.strip_prefix("let ").or_else(|| trimmed.strip_prefix("var ")) {
+        } else if let Some(rest) = trimmed
+            .strip_prefix("let ")
+            .or_else(|| trimmed.strip_prefix("var "))
+        {
             let name = take_name(rest);
             if !name.is_empty() {
                 symbols.push(Symbol {
@@ -167,11 +187,19 @@ fn word_at(text: &str, line: usize, character: usize) -> Option<String> {
 }
 
 fn builtin_signature(builtin: &Builtin) -> String {
-    format!("{}({}) -> {}", builtin.name, builtin.parameters.join(", "), builtin.result)
+    format!(
+        "{}({}) -> {}",
+        builtin.name,
+        builtin.parameters.join(", "),
+        builtin.result
+    )
 }
 
 fn hover_text(text: &str, word: &str) -> Option<String> {
-    if let Some(symbol) = declared_symbols(text).into_iter().find(|symbol| symbol.name == word) {
+    if let Some(symbol) = declared_symbols(text)
+        .into_iter()
+        .find(|symbol| symbol.name == word)
+    {
         let mut body = format!("```guion\n{}\n```", symbol.signature);
         if !symbol.doc.is_empty() {
             body.push_str("\n\n");
@@ -180,7 +208,10 @@ fn hover_text(text: &str, word: &str) -> Option<String> {
         return Some(body);
     }
     if let Some(builtin) = builtins().iter().find(|builtin| builtin.name == word) {
-        return Some(format!("```guion\n{}\n```\n\nbuilt in", builtin_signature(builtin)));
+        return Some(format!(
+            "```guion\n{}\n```\n\nbuilt in",
+            builtin_signature(builtin)
+        ));
     }
     if KEYWORDS.contains(&word) {
         return Some(format!("`{word}` is a Guion keyword"));
@@ -260,7 +291,10 @@ fn diagnostics_for(uri: &str, text: &str) -> Vec<Value> {
                 .unwrap_or(1);
             let mut message = error.message.clone();
             if !error.suggestions().is_empty() {
-                message.push_str(&format!(" (did you mean {}?)", error.suggestions().join(", ")));
+                message.push_str(&format!(
+                    " (did you mean {}?)",
+                    error.suggestions().join(", ")
+                ));
             }
             vec![json!({
                 "range": {
@@ -292,7 +326,9 @@ fn completion_items(text: &str) -> Vec<Value> {
     }
     for builtin in builtins() {
         if seen.insert(builtin.name.clone()) {
-            items.push(json!({"label": builtin.name, "kind": 3, "detail": builtin_signature(builtin)}));
+            items.push(
+                json!({"label": builtin.name, "kind": 3, "detail": builtin_signature(builtin)}),
+            );
         }
     }
     for keyword in KEYWORDS {
@@ -338,10 +374,16 @@ pub fn serve(input: impl BufRead, mut output: impl Write) {
         let method = message["method"].as_str().unwrap_or("");
         let id = message.get("id").cloned();
         let params = &message["params"];
-        let uri = params["textDocument"]["uri"].as_str().unwrap_or("").to_owned();
+        let uri = params["textDocument"]["uri"]
+            .as_str()
+            .unwrap_or("")
+            .to_owned();
         let reply = |output: &mut dyn Write, result: Value| {
             if let Some(id) = &id {
-                send(output, &json!({"jsonrpc": "2.0", "id": id, "result": result}));
+                send(
+                    output,
+                    &json!({"jsonrpc": "2.0", "id": id, "result": result}),
+                );
             }
         };
         match method {
@@ -437,7 +479,10 @@ pub fn serve(input: impl BufRead, mut output: impl Write) {
                 reply(&mut output, result);
             }
             "textDocument/completion" => {
-                let items = documents.get(&uri).map(|text| completion_items(text)).unwrap_or_default();
+                let items = documents
+                    .get(&uri)
+                    .map(|text| completion_items(text))
+                    .unwrap_or_default();
                 reply(&mut output, json!({"isIncomplete": false, "items": items}));
             }
             "textDocument/formatting" => {

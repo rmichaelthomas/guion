@@ -47,7 +47,6 @@ mod yaml;
 
 mod entropy;
 mod tape;
-pub use tape::TapeMode;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
@@ -57,6 +56,7 @@ use native_backend::{
     NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_ERR,
     NATIVE_TAGGED_RESULT_OK,
 };
+pub use tape::TapeMode;
 
 struct JsonTextPairRows<'a> {
     groups: &'a TextMap,
@@ -218,7 +218,6 @@ mod native_inline_arena_tests {
         }
     }
 }
-
 
 const MAX_EFFECT_REPORT_ENTRIES: usize = 1024;
 const MAX_EFFECT_TARGET_CHARS: usize = 256;
@@ -569,7 +568,11 @@ impl Runtime {
         let tape = match &self.tape {
             Some(mode) => {
                 policy.max_parallelism = 1;
-                Some(Arc::new(tape::Tape::open(mode, &artifact, &self.tape_redact)?))
+                Some(Arc::new(tape::Tape::open(
+                    mode,
+                    &artifact,
+                    &self.tape_redact,
+                )?))
             }
             None => None,
         };
@@ -1225,7 +1228,12 @@ impl VmHost for Instance {
         } = context;
         let operation = opcode_profile_name(&instruction.op);
         if tape.is_replay() {
-            return match tape.replay(operation, &function.name, instruction.span, stack.as_slice())? {
+            return match tape.replay(
+                operation,
+                &function.name,
+                instruction.span,
+                stack.as_slice(),
+            )? {
                 Ok((kept, values)) => {
                     stack.truncate(kept);
                     stack.extend(values);
@@ -1448,15 +1456,10 @@ impl Instance {
                 } else {
                     1
                 };
-                if self
-                    .artifact
-                    .functions
-                    .get(target)
-                    .is_none_or(|callee| {
-                        callee.parameters.len()
-                            != wanted + captured.as_ref().map_or(0, |values| values.len())
-                    })
-                {
+                if self.artifact.functions.get(target).is_none_or(|callee| {
+                    callee.parameters.len()
+                        != wanted + captured.as_ref().map_or(0, |values| values.len())
+                }) {
                     return Err(RuntimeError::new(
                         "R_FN_INVALID",
                         "function value does not name a function of this program",
@@ -5888,7 +5891,12 @@ impl Instance {
 
     pub fn native_compile_profile(&self) -> serde_json::Value {
         self.native.as_ref().map_or_else(
-            || NativeBackend::eligibility_profile_json(&self.artifact, self.policy.call_depth_limit),
+            || {
+                NativeBackend::eligibility_profile_json(
+                    &self.artifact,
+                    self.policy.call_depth_limit,
+                )
+            },
             NativeBackend::compile_profile_json,
         )
     }
@@ -8924,8 +8932,6 @@ fn http_error(code: &str, message: impl Into<String>) -> HttpErrorValue {
         trace: Vec::new(),
     }
 }
-
-
 
 #[cfg(test)]
 mod unique_json_parser_tests {
