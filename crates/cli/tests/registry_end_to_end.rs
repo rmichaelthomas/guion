@@ -733,7 +733,12 @@ fn f1_a_library_declaring_every_capability_round_trips_through_the_registry() {
 
     let app = work.join("app");
     new_project(&app, "pkg:web-kit/src/lib.gu", "one()");
-    let added = guion(&app, &registry, None, &["add", "web-kit"]);
+    let added = guion(
+        &app,
+        &registry,
+        None,
+        &["add", "web-kit", "--approve-capabilities"],
+    );
     assert!(added.status.success(), "{}", text(&added));
     let lock: toml::Value =
         toml::from_str(&std::fs::read_to_string(app.join("guion.lock")).unwrap()).unwrap();
@@ -823,7 +828,12 @@ fn f1_update_refuses_a_widening_until_it_is_approved() {
         .success());
     let app = work.join("app");
     new_project(&app, "pkg:web-kit/src/lib.gu", "one()");
-    let added = guion(&app, &registry, None, &["add", "web-kit"]);
+    let added = guion(
+        &app,
+        &registry,
+        None,
+        &["add", "web-kit", "--approve-capabilities"],
+    );
     assert!(added.status.success(), "{}", text(&added));
     let lock_before = std::fs::read_to_string(app.join("guion.lock")).unwrap();
 
@@ -1079,7 +1089,12 @@ fn f1_two_installs_from_one_lockfile_are_byte_identical() {
         .success());
     let first = work.join("first");
     new_project(&first, "pkg:web-kit/src/lib.gu", "one()");
-    let added = guion(&first, &registry, None, &["add", "web-kit"]);
+    let added = guion(
+        &first,
+        &registry,
+        None,
+        &["add", "web-kit", "--approve-capabilities"],
+    );
     assert!(added.status.success(), "{}", text(&added));
 
     // A newer release now exists; installs from the lock must not move to it.
@@ -1178,7 +1193,12 @@ fn the_web_package_packs_installs_from_a_local_registry_and_tests_itself_there()
         "import \"pkg:web/src/lib.gu\"\n\nfn hello(request: Request) -> Result[Response, HttpFailure]:\n    return Ok(response_text(200, \"hello\"))\n\nfn main() -> Int:\n    let table = unwrap(router([route(\"GET\", \"/\", hello)]))\n    let answer = app_respond(app(table), request_new(\"GET\", \"/\"))\n    print(answer.status)\n    return 0\n",
     )
     .unwrap();
-    let added = guion(&app, &registry, None, &["add", "web"]);
+    let added = guion(
+        &app,
+        &registry,
+        None,
+        &["add", "web", "--approve-capabilities"],
+    );
     assert!(added.status.success(), "{}", text(&added));
     let lock = std::fs::read_to_string(app.join("guion.lock")).unwrap();
     assert!(
