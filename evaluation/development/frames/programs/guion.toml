@@ -1,5 +1,11 @@
+[approved-capabilities.frames]
+files = [
+    "read",
+    "write",
+]
+
 [dependencies.frames]
-path = "/Users/rmichaelthomas/guion/packages/frames"
+path = "../../../../packages/frames"
 version = "0.1.0"
 
 [project]

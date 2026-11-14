@@ -54,6 +54,30 @@ def cpu_model() -> str:
     return platform.processor()
 
 
+# Runs in a tiny interpreter that starts the lane and reports the lane's peak resident memory.
+# The extra process is needed because on Linux a child's peak starts at the high-water mark of
+# the process that launched it, so launching from this (much larger) script would put a floor
+# of this script's own size under every lane. The tiny interpreter's floor is about 7 MiB, so a
+# peak near that is a floor and not a measurement.
+MEMORY_PROBE = (
+    "import os,sys;os.chdir(sys.argv[1]);cmd=sys.argv[2:];"
+    "devnull=os.open(os.devnull,os.O_WRONLY);"
+    "pid=os.posix_spawnp(cmd[0],cmd,os.environ,file_actions=[(os.POSIX_SPAWN_DUP2,devnull,1),(os.POSIX_SPAWN_DUP2,devnull,2)]);"
+    "_,status,usage=os.wait4(pid,0);print(usage.ru_maxrss,status)"
+)
+MEMORY_RUNS = 5
+
+
+def peak_mib(command: list[str], cwd: Path) -> float:
+    """Peak resident memory of one fresh run of `command`, in MiB. Linux reports KiB, macOS bytes."""
+    out = subprocess.run([sys.executable, "-S", "-E", "-c", MEMORY_PROBE, str(cwd), *command],
+                         check=True, capture_output=True, text=True).stdout.split()
+    if int(out[1]) != 0:
+        raise subprocess.CalledProcessError(int(out[1]), command)
+    scale = 1 if platform.system() == "Darwin" else 1024
+    return int(out[0]) * scale / (1024 * 1024)
+
+
 def run(command: list[str], cwd: Path) -> str:
     return subprocess.run(command, cwd=cwd, check=True, capture_output=True, text=True).stdout
 
@@ -152,19 +176,24 @@ def measure(prepare, guion: str, python: str, scratch: Path, rows: int, trials: 
             started = time.perf_counter()
             subprocess.run(lanes[lane], cwd=project, check=True, capture_output=True)
             samples[lane].append(time.perf_counter() - started)
-    return samples
+    # Memory is measured apart from the timing, so the timing method is the one earlier runs used.
+    memory = {lane: [peak_mib(lanes[lane], project) for _ in range(MEMORY_RUNS)] for lane in lanes}
+    return samples, memory
 
 
-def summarize(samples: dict[str, list[float]], trials: int) -> dict[str, dict[str, float]]:
+def summarize(samples: dict[str, list[float]], trials: int, memory: dict[str, list[float]]) -> dict[str, dict[str, float]]:
     python_times = samples["python"]
-    summary = {"python": {"median_seconds": statistics.median(python_times)}}
+    python_mib = statistics.median(memory["python"])
+    summary = {"python": {"median_seconds": statistics.median(python_times), "median_peak_mib": python_mib}}
     for lane, times in samples.items():
         if lane == "python":
             continue
         ratios = [guion / python for guion, python in zip(times, python_times, strict=True)]
         upper = statistics.mean(ratios) + T_975[trials - 1] * statistics.stdev(ratios) / math.sqrt(trials)
+        lane_mib = statistics.median(memory[lane])
         summary[lane] = {"median_seconds": statistics.median(times),
-                         "median_ratio": statistics.median(ratios), "upper95": upper}
+                         "median_ratio": statistics.median(ratios), "upper95": upper,
+                         "median_peak_mib": lane_mib, "memory_ratio": lane_mib / python_mib}
     return summary
 
 
@@ -203,10 +232,12 @@ def main() -> int:
             report["workloads"][workload] = {}
             print(f"== {workload}", flush=True)
             for rows in sizes:
-                samples = measure(WORKLOADS[workload], guion, python, scratch, rows, options.trials, rng)
-                summary = summarize(samples, options.trials)
-                report["workloads"][workload][str(rows)] = {"summary": summary, "samples_seconds": samples}
-                print(f"rows={rows} python median {summary['python']['median_seconds']:.3f}s")
+                samples, memory = measure(WORKLOADS[workload], guion, python, scratch, rows, options.trials, rng)
+                summary = summarize(samples, options.trials, memory)
+                report["workloads"][workload][str(rows)] = {"summary": summary, "samples_seconds": samples,
+                                                            "samples_peak_mib": memory}
+                print(f"rows={rows} python median {summary['python']['median_seconds']:.3f}s "
+                      f"peak {summary['python']['median_peak_mib']:.1f} MiB")
                 for lane, values in summary.items():
                     if lane == "python":
                         continue
@@ -215,6 +246,7 @@ def main() -> int:
                         failures.append(f"{workload} {rows} {lane}")
                     print(f"  {lane:15s} median {values['median_seconds']:.3f}s ratio median "
                           f"{values['median_ratio']:.3f} upper95 {values['upper95']:.3f}"
+                          f"  peak {values['median_peak_mib']:.1f} MiB (x{values['memory_ratio']:.2f})"
                           f"{'' if passed else '  MISSED'}", flush=True)
     report["status"] = "failed" if failures else "passed"
     report["missed_lanes"] = failures

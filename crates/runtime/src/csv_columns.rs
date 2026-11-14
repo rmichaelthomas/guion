@@ -301,6 +301,13 @@ impl Builder {
                     self.flags.resize(rows, false);
                     self.flags.push(value);
                     self.mode = Mode::Bool;
+                } else if !self.quoted_empty {
+                    // Text from its first value on. Every earlier field was an unquoted empty
+                    // one, so each earlier row is missing and nothing needs to be read again.
+                    self.codes.resize(rows, 0);
+                    let code = self.dictionary.code(text);
+                    self.codes.push(code as i64);
+                    self.mode = Mode::Text;
                 } else {
                     self.give_up_numbers();
                     return Ok(());
@@ -566,6 +573,17 @@ fn open(path: &Path, max_record_bytes: usize) -> Result<ReaderResource, ColumnsE
     Ok(resource)
 }
 
+/// The bytes as text, or `None` when they are not valid UTF-8. A record that is all ASCII (the
+/// common case) skips the general validator, which costs more than the ASCII check on short records.
+fn as_str(bytes: &[u8]) -> Option<&str> {
+    if bytes.is_ascii() {
+        // SAFETY: every byte is below 0x80, and ASCII bytes are valid UTF-8 on their own.
+        Some(unsafe { std::str::from_utf8_unchecked(bytes) })
+    } else {
+        std::str::from_utf8(bytes).ok()
+    }
+}
+
 /// Calls `each` with the line, the text and the fields of every record that is not a blank
 /// line, in order. While `blank_is_value` is set (the header has one column), a blank line is
 /// the single empty field of a record instead of being skipped.
@@ -597,7 +615,7 @@ fn for_each_record(
                 let text = &available[..newline];
                 let text = text.strip_suffix(b"\r").unwrap_or(text);
                 if memchr::memchr2(b'"', b'\r', text).is_none() {
-                    if let Ok(text) = std::str::from_utf8(text) {
+                    if let Some(text) = as_str(text) {
                         if !text.is_empty() || blank_is_value.get() {
                             spans.clear();
                             let mut start = 0;
@@ -1016,7 +1034,8 @@ mod tests {
             "guion-csv-columns-{}-{name}.csv",
             std::process::id()
         ));
-        std::fs::write(&path, "n,s\n1,a\n2,b\n").unwrap();
+        // `s` starts as a number and turns out to be text, so it is read again in a second pass.
+        std::fs::write(&path, "n,s\n1,7\n2,b\n").unwrap();
         let result = read_with_hook(&path, || change(&path));
         let _ = std::fs::remove_file(&path);
         result
@@ -1035,30 +1054,61 @@ mod tests {
     }
 
     #[test]
+    fn a_column_that_is_text_from_its_first_value_needs_no_second_pass() {
+        let path = std::env::temp_dir().join(format!(
+            "guion-csv-columns-{}-one-pass.csv",
+            std::process::id()
+        ));
+        std::fs::write(&path, "n,s\n1,\n2,x\n3,y\n4,x\n").unwrap();
+        let mut passes = 0;
+        let result = read_with_hook(&path, || passes += 1);
+        let _ = std::fs::remove_file(&path);
+        let columns = result.unwrap();
+        assert_eq!(passes, 0, "the hook runs only when a second pass is needed");
+        assert_eq!(columns[1].kind, ColumnKind::Text);
+        assert_eq!(columns[1].dictionary, ["x", "y"]);
+        assert_eq!(columns[1].codes, [0, 0, 1, 0]);
+        assert_eq!(columns[1].valid, [false, true, true, true]);
+    }
+
+    #[test]
+    fn a_column_with_a_quoted_empty_before_its_first_text_is_still_read_again() {
+        let path = std::env::temp_dir().join(format!(
+            "guion-csv-columns-{}-quoted-empty.csv",
+            std::process::id()
+        ));
+        std::fs::write(&path, "s\n\"\"\nx\n").unwrap();
+        let columns = read_with_hook(&path, || {}).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(columns[0].dictionary, ["", "x"]);
+        assert_eq!(columns[0].valid, [true, true]);
+    }
+
+    #[test]
     fn an_unchanged_file_reads_both_passes() {
         let columns = changed_file("same", |_| {}).unwrap();
-        assert_eq!(columns[1].dictionary, ["a", "b"]);
+        assert_eq!(columns[1].dictionary, ["7", "b"]);
         assert_eq!(columns[1].codes.len(), columns[0].ints.len());
     }
 
     #[test]
     fn a_file_that_grows_between_the_passes_is_an_error() {
         assert_changed(changed_file("grows", |path| {
-            std::fs::write(path, "n,s\n1,a\n2,b\n3,c\n").unwrap()
+            std::fs::write(path, "n,s\n1,7\n2,b\n3,c\n").unwrap()
         }));
     }
 
     #[test]
     fn a_file_that_shrinks_between_the_passes_is_an_error() {
         assert_changed(changed_file("shrinks", |path| {
-            std::fs::write(path, "n,s\n1,a\n").unwrap()
+            std::fs::write(path, "n,s\n1,7\n").unwrap()
         }));
     }
 
     #[test]
     fn a_file_with_a_new_header_between_the_passes_is_an_error() {
         assert_changed(changed_file("header", |path| {
-            std::fs::write(path, "n,t\n1,a\n2,b\n").unwrap()
+            std::fs::write(path, "n,t\n1,7\n2,b\n").unwrap()
         }));
     }
 
@@ -1108,7 +1158,8 @@ mod tests {
     }
 
     fn text_rows(rows: usize) -> String {
-        let mut body = String::from("n,s\n");
+        // A number first, so the column is read again as text in a second pass.
+        let mut body = String::from("n,s\n-1,7\n");
         for row in 0..rows {
             body.push_str(&format!("{row},word{row}\n"));
         }
