@@ -32,6 +32,16 @@ const RELEASE_DOCS: &[&str] = &[
     "agents/start-here.md",
     "agents/recipes.md",
     "agents/guion-reference.md",
+    "concurrency.md",
+    "registry-protocol.md",
+    "agents/examples/cpu_pool_scaling.gu",
+    "agents/examples/concurrent_server.gu",
+    "agents/examples/concurrent_task.gu",
+    "agents/examples/failure_paths.gu",
+    "agents/examples/file_data_cli.gu",
+    "agents/examples/http_request.gu",
+    "agents/examples/native_temporal_resolution.gu",
+    "agents/examples/sqlite_toml.gu",
 ];
 
 #[derive(Clone, Debug)]
@@ -1314,6 +1324,42 @@ mod tests {
         assert!(
             !RELEASE_DOCS.contains(&"completion-report.md"),
             "the archived Veritas completion report must not ship as current Guion documentation"
+        );
+    }
+
+    #[test]
+    fn every_docs_path_the_shipped_files_point_to_is_shipped() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let mut sources: Vec<std::path::PathBuf> = fs::read_dir(root.join("language/stdlib"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect();
+        for doc in RELEASE_DOCS {
+            if doc.ends_with(".md") {
+                sources.push(root.join("docs").join(doc));
+            }
+        }
+        let mut missing = Vec::new();
+        for source in sources {
+            let text = fs::read_to_string(&source).unwrap();
+            for word in text
+                .split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '.' | '-')))
+            {
+                let Some(rest) = word.strip_prefix("docs/") else {
+                    continue;
+                };
+                let rest = rest.trim_end_matches('.');
+                if !(rest.ends_with(".md") || rest.ends_with(".gu")) {
+                    continue;
+                }
+                if root.join("docs").join(rest).is_file() && !RELEASE_DOCS.contains(&rest) {
+                    missing.push(format!("{} points to docs/{rest}", source.display()));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "shipped files point to docs that are not shipped: {missing:#?}"
         );
     }
 

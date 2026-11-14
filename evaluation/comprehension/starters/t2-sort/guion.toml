@@ -1,0 +1,4 @@
+[project]
+name = "t2-sort"
+version = "0.1.0"
+entry = "src/main.gu"

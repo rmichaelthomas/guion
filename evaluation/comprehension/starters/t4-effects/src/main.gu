@@ -1,0 +1,19 @@
+import "std:types"
+import "std:sqlite"
+
+fn save(note: Text) -> Int:
+    let opened = sqlite_open("notes.db")
+    if not is_ok(opened):
+        return 1
+    return 0
+
+fn fetch() -> Int:
+    let got = http_get("https://example.com/")
+    if not is_ok(got):
+        return 1
+    return 0
+
+fn main() -> Int:
+    let a = save("x")
+    let b = fetch()
+    return a + b

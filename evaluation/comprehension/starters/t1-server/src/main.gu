@@ -1,0 +1,23 @@
+import "std:http_server"
+import "std:net"
+
+# A small HTTP server. It accepts one connection, answers it, and goes back to
+# waiting. While it is busy with one client, other clients wait.
+
+fn main() -> Int:
+    let listening = http_server_listen("127.0.0.1", 8090)
+    if not is_ok(listening):
+        print("listen failed")
+        return 1
+    let listener = unwrap(listening)
+    print("listening on 127.0.0.1:8090")
+    var served = 0
+    while true:
+        let accepted = http_server_accept(listener, 30000)
+        if is_ok(accepted):
+            let conn = unwrap(accepted)
+            let request = http_server_read_request(conn, 10000, 1048576)
+            if is_ok(request):
+                let sent = http_server_respond_text(unwrap(request), 200, "ok")
+                set served = served + 1
+    return served

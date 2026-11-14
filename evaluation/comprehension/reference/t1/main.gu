@@ -1,0 +1,26 @@
+import "std:http_server"
+import "std:net"
+
+fn serve(listener: TcpListener) -> Int:
+    var served = 0
+    while true:
+        let accepted = http_server_accept(listener, 30000)
+        if is_ok(accepted):
+            let conn = unwrap(accepted)
+            let request = http_server_read_request(conn, 10000, 1048576)
+            if is_ok(request):
+                let sent = http_server_respond_text(unwrap(request), 200, "ok")
+                set served = served + 1
+    return served
+
+fn main() -> Int:
+    let listening = http_server_listen("127.0.0.1", 8090)
+    if not is_ok(listening):
+        print("listen failed")
+        return 1
+    let listener = unwrap(listening)
+    let slots: List[TcpListener] = [listener, listener, listener, listener, listener, listener, listener, listener]
+    print("listening with 8 workers")
+    let outcome = parallel_map(slots, serve, 8)
+    print("workers finished")
+    return 0

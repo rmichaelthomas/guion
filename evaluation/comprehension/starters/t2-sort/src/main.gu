@@ -1,0 +1,17 @@
+import "std:types"
+
+# Prints post titles in the order they appear in the list.
+
+record Post:
+    title: Text
+    views: Int
+
+fn posts() -> List[Post]:
+    let all: List[Post] = [Post("Zebra", 12), Post("apple", 3), Post("Mango", 47), Post("banana", 8), Post("Cherry", 21)]
+    return all
+
+fn main() -> Int:
+    let all = posts()
+    for post in all:
+        print(post.title + " (" + int_to_text(post.views) + ")")
+    return 0
