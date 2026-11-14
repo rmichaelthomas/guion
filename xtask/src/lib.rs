@@ -9,3 +9,4 @@ pub mod performance;
 pub mod release;
 pub mod runner;
 pub mod snapshot;
+pub mod surface_diff;

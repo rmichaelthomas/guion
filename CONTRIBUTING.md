@@ -21,6 +21,12 @@ Changes to the language, compiler seed, artifact reader, runtime, standard libra
 
 Artifact-format assertions in Rust tests must compare against `guion_model::Artifact::CURRENT_VERSION`, not a numeric format literal. The conformance, bootstrap, standard-library, runtime, product, release, performance, and builders gates run this source audit before their longer checks; `cargo xtask artifact-format-audit` runs the quick check by itself.
 
+## Release hygiene checks
+
+These keep a MINOR release additive (see [VERSIONING.md](VERSIONING.md)).
+
+- **Standard-library surface.** `language/surface-0.3.0.json` is the output of `guion doc --all --json` for 0.3.0, kept as the snapshot later releases are compared against. To check a build: `guion doc --all --json > /tmp/now.json`, then `cargo xtask surface-diff --from language/surface-0.3.0.json --to /tmp/now.json`. The command lists additions and exits 0; it exits 1 and names each module, function, record or record field that was removed or re-signed. A function is re-signed when its parameter names, parameter types, result type or effects differ. The `deprecated` note, `source` and summaries are not compared.
+
 ## Change expectations
 
 - Keep the source of truth in the implementation and `language/spec.md`; do not duplicate API signatures by hand when a generated report can provide them.
