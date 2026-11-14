@@ -5340,8 +5340,29 @@ impl AllocationPool {
     }
 }
 
+/// A value alone on its cache line. Workers write the shared instruction count often and read
+/// the fields beside it (the cancellation flags) at every loop iteration; without the padding
+/// each write evicts the line the others are reading.
+#[repr(align(64))]
+#[derive(Debug, Default)]
+pub struct CachePadded<T>(pub T);
+
+impl<T> CachePadded<T> {
+    pub const fn new(value: T) -> Self {
+        Self(value)
+    }
+}
+
+impl<T> std::ops::Deref for CachePadded<T> {
+    type Target = T;
+    #[inline]
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
 pub struct Budget {
-    pub remaining: AtomicU64,
+    pub remaining: CachePadded<AtomicU64>,
     /// The configured instruction ceiling, kept only to name it in `R_STEP_LIMIT`.
     pub instruction_limit: u64,
     pub allocation: Arc<AllocationPool>,
@@ -5364,9 +5385,10 @@ impl<'a> InstructionFuel<'a> {
         Self {
             budget,
             remaining: 0,
-            // Parallel workers share a bounded child budget. Keep their exact atomic
-            // charging so one worker cannot hide fuel from its siblings.
-            reserve_locally: budget.local_cancellation.is_none(),
+            // Parallel workers share a bounded child budget. They take fuel in blocks like any
+            // other run: one atomic operation per instruction made four workers slower than one.
+            // What a worker has not used when it stops is handed back to the shared budget.
+            reserve_locally: true,
         }
     }
 
@@ -5450,7 +5472,7 @@ impl Budget {
         runtime_profile: Option<Arc<RuntimeProfileCounters>>,
     ) -> Self {
         Self {
-            remaining: AtomicU64::new(instruction_limit),
+            remaining: CachePadded::new(AtomicU64::new(instruction_limit)),
             instruction_limit,
             allocation: Arc::new(AllocationPool::new(allocation_limit)),
             allocation_floor: 0,
@@ -5606,6 +5628,11 @@ pub const STEP_LIMIT_HINT: &str = "; raise `instruction_limit` under `[runtime]`
 /// ceiling allowed has been used; `used` is the ceiling less what the budget still holds.
 #[cold]
 pub fn step_limit_error(budget: &Budget, span: Span) -> RuntimeError {
+    // The workers of one `parallel_map` share a budget. Once one has found it dry, the others
+    // stop at their next check instead of running on over fuel that siblings hand back.
+    if let Some(flag) = &budget.local_cancellation {
+        flag.store(true, Ordering::Release);
+    }
     let limit = budget.instruction_limit;
     let used = limit.saturating_sub(budget.remaining.load(Ordering::Relaxed));
     let mut error = RuntimeError::new(
@@ -9621,10 +9648,10 @@ mod tests {
     }
 
     #[test]
-    fn parallel_worker_instruction_fuel_remains_directly_atomic() {
+    fn parallel_worker_instruction_fuel_is_taken_in_blocks_and_handed_back() {
         let parent = Budget::new(10, usize::MAX, CancellationToken::new(), None);
         let worker = Budget {
-            remaining: AtomicU64::new(3),
+            remaining: CachePadded::new(AtomicU64::new(3)),
             instruction_limit: parent.instruction_limit,
             allocation: parent.allocation.clone(),
             allocation_floor: 0,
@@ -9632,10 +9659,23 @@ mod tests {
             local_cancellation: Some(Arc::new(AtomicBool::new(false))),
             runtime_profile: None,
         };
-        let mut fuel = InstructionFuel::new(&worker);
+        {
+            let mut fuel = InstructionFuel::new(&worker);
 
-        assert!(fuel.consume());
-        assert_eq!(worker.remaining.load(Ordering::Relaxed), 2);
+            // The worker takes what is there (up to a block) in one step and spends it locally.
+            assert!(fuel.consume());
+            assert_eq!(worker.remaining.load(Ordering::Relaxed), 0);
+            assert!(fuel.consume());
+            assert!(fuel.consume());
+            assert!(!fuel.consume(), "the shared budget held three instructions");
+        }
+        // A worker that stops early gives back what it did not use.
+        worker.remaining.store(10, Ordering::Relaxed);
+        {
+            let mut fuel = InstructionFuel::new(&worker);
+            assert!(fuel.consume());
+        }
+        assert_eq!(worker.remaining.load(Ordering::Relaxed), 9);
     }
 
     #[test]

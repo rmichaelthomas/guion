@@ -9852,7 +9852,7 @@ impl Instance {
         // while keeping enough for the caller to inspect and handle the Result.
         // The workers share one bounded child budget, so the total remains bounded.
         let worker_budget = Arc::new(Budget {
-            remaining: AtomicU64::new(budget.reserve_parallel()),
+            remaining: guion_vm_core::CachePadded::new(AtomicU64::new(budget.reserve_parallel())),
             instruction_limit: budget.instruction_limit,
             allocation: budget.allocation.clone(),
             allocation_floor: budget.parallel_allocation_floor(),
@@ -10211,12 +10211,17 @@ unsafe extern "C" fn native_capture_vm_continuation_int2(
     }
 }
 
+/// The fewest instructions of fuel native code takes from the shared budget at a time.
+const NATIVE_FUEL_BLOCK: u64 = 4096;
+
 unsafe extern "C" fn native_reserve_fuel(budget: *const Budget, requested: u64) -> u64 {
     if budget.is_null() {
         return 0;
     }
-    // The pointer is created from a live Arc<Budget> for the full JIT call.
-    unsafe { (*budget).reserve(requested) }
+    // The pointer is created from a live Arc<Budget> for the full JIT call. Grabbing a larger
+    // block than asked for keeps workers off the shared counter: it is touched once per block,
+    // and the part a function does not use is handed back when it returns.
+    unsafe { (*budget).reserve(requested.max(NATIVE_FUEL_BLOCK)) }
 }
 
 unsafe extern "C" fn native_release_fuel(budget: *const Budget, count: u64) {
