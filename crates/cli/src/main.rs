@@ -2605,6 +2605,9 @@ fn inspection_report(
                         }
                         .into(),
                     );
+                    if function.also_reads() {
+                        direct_effects[function_index].insert("filesystem.read".into());
+                    }
                 }
                 Op::WriteText | Op::WriteTextAtomic | Op::WriteBytes => {
                     direct_effects[function_index].insert("filesystem.write".into());
@@ -3751,6 +3754,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             "call_depth_limit",
             "instruction_limit",
             "max_collection_items",
+            "decompress_limit_bytes",
             "max_file_bytes",
             "max_integer_digits",
             "max_parallelism",
@@ -3778,6 +3782,11 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             runtime_usize(runtime, "max_collection_items", policy.max_collection_items)?;
         policy.max_parallelism = runtime_usize(runtime, "max_parallelism", policy.max_parallelism)?;
         policy.max_file_bytes = runtime_usize(runtime, "max_file_bytes", policy.max_file_bytes)?;
+        policy.decompress_limit_bytes = runtime_usize(
+            runtime,
+            "decompress_limit_bytes",
+            policy.decompress_limit_bytes,
+        )?;
     }
     if let Some(network) = manifest.get("network") {
         let network = network

@@ -2028,6 +2028,40 @@
       "operation": "LogDefaultLevel"
     },
     {
+      "name": "native_gzip_compress",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "GzipCompress"
+    },
+    {
+      "name": "native_gzip_decompress",
+      "parameters": [
+        "Bytes",
+        "Int"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "GzipDecompress"
+    },
+    {
+      "name": "native_zlib_compress",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "ZlibCompress"
+    },
+    {
+      "name": "native_zlib_decompress",
+      "parameters": [
+        "Bytes",
+        "Int"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "ZlibDecompress"
+    },
+    {
       "name": "native_crypto_verify_hmac_sha256",
       "parameters": [
         "Bytes",
@@ -2939,6 +2973,50 @@
       ],
       "result": "Result[Bytes, FileError]",
       "operation": "FsOpSha256"
+    },
+    {
+      "name": "native_fs_gzip_compress_file",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpGzipCompressFile"
+    },
+    {
+      "name": "native_fs_gzip_decompress_file",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpGzipDecompressFile"
+    },
+    {
+      "name": "native_fs_tar_write",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpTarWrite"
+    },
+    {
+      "name": "native_fs_tar_read",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpTarRead"
+    },
+    {
+      "name": "native_fs_tar_list",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[List[Text], FileError]",
+      "operation": "FsOpTarList"
     },
     {
       "name": "native_fs_modified_ms",

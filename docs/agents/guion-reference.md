@@ -46,6 +46,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - Serialization boundaries: a type holds a function if it is a function type or a record, list, map, option or result that holds one. Such a type is rejected at check time with `E_FN_NOT_SERIALIZABLE`, naming the boundary, when it reaches a builtin or standard-library function that converts or transports typed values: JSON, CSV and TOML conversion, SQLite parameters and results, process arguments and the environment, HTTP requests and responses, file reads and writes, and `print` and `eprint`. A function value never becomes an artifact constant. `parallel_map` is deliberately not a boundary: workers run the same artifact and function table, so an index means the same function in every worker, and the VM checks the index in the worker (`R_FN_INVALID`). An index cannot be written in source, so a program cannot forge one.
 - Higher-order builtins (artifact format 66): `map_list(values: List[T], f: fn(T) -> U) -> List[U]`, `filter_list(values: List[T], f: fn(T) -> Bool) -> List[T]`, `fold_list(values: List[T], initial: A, f: fn(A, T) -> A) -> A`, `any_list(values: List[T], f: fn(T) -> Bool) -> Bool` and `all_list(values: List[T], f: fn(T) -> Bool) -> Bool` call the function once per item in order (`any_list` and `all_list` stop at the first deciding answer). A `Result` returned from the function is an ordinary value, so `map_list(xs, parse)` with `parse: fn(Int) -> Result[Int, Text]` gives a `List[Result[Int, Text]]`; a runtime error inside the function carries the callee's span first, then the builtin's call site. Each call is charged as a normal call. `sort_by`, `sort_by_int_key`, `merge_sorted_by_int_key` and `parallel_map` also take function values. A function of the wrong shape is `E_TYPE_ARGUMENT`.
 - Logging (artifact format 70): `std:log` writes one JSON object per line to a file. `log_open(root: Text, level: Text) -> Result[Logger, StdError]` returns a `Logger` value holding the log file path (`root`, inside a granted file root, created if missing, appended to) and the minimum level; there is no global logger. Levels are `debug` < `info` < `warn` < `error`; an unknown level is `E_LOG_LEVEL`, a path outside the file grant is the file error `R_HOST_DENIED`, and an empty level takes `[log] level` from `guion.toml` (`info` when absent; any other value or key under `[log]` is a manifest error). `log_debug`, `log_info`, `log_warn` and `log_error(logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]` write `{"level":..,"msg":..,<fields in sorted key order>}`; a field named `ts`, `level` or `msg` is written as `field.ts`, `field.level` or `field.msg`. These never read the clock, so the record has no `ts` and its schema does not depend on grants. `log_info_at(logger, instant, msg, fields)` puts `"ts"` first from a caller-supplied `Instant`; `log_info_now(logger, msg, fields)` reads the clock and so carries the effect `clock.read`. Effects are enforced when an operation runs, not before the program starts: without the clock grant `log_info_now` fails with `R_CLOCK_DENIED` at the call and writes nothing, and `guion inspect --json` reports `clock_grant.required_for_entry`. A record below the logger's level returns `Ok` without reading or formatting its fields. Field values are `Json`, so newline, quote, NUL and other control characters are escaped and a record is always one line; a lone surrogate cannot reach a field because `json_parse` rejects it. Two instructions, `LogAppend` and `LogDefaultLevel`, are new; artifacts below format 70 that use them are rejected with `E_ARTIFACT_VERSION`.
+- Compression and archives (artifact format 71): `std:compress` has `gzip_compress(data: Bytes) -> Bytes` and `zlib_compress(data: Bytes) -> Bytes`, `gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]` and `zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]`, and the streamed file forms `gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the compressed size) and `gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the decompressed size); the file forms need the file-read and file-write grants (effects `filesystem.read` and `filesystem.write`), follow the `std:fs` path rules, stream through 64 KiB buffers and write the destination through a sibling temporary file renamed on success. Every inflate has an output ceiling: `max_output` for the in-memory forms, capped by `[runtime] decompress_limit_bytes` (default 1 GiB, a positive integer in `guion.toml`), which is the only ceiling of the file and tar forms. Output past the ceiling is `E_COMPRESS_LIMIT` after at most the ceiling has been produced, never a crash or an unbounded allocation; a negative `max_output` is `E_COMPRESS_ARGUMENT`; short or empty input is `E_COMPRESS_TRUNCATED`; a bad header, checksum or deflate data is `E_COMPRESS_CORRUPT`. A gzip input may hold several members and the output is their concatenation (the ceiling counts them together); bytes after the last gzip member that do not begin another member (zero padding included), or after a zlib stream, are `E_COMPRESS_TRAILING_DATA`, never ignored. `std:tar` has `tar_write(directory: Text, archive: Text) -> Result[Int, StdError]`, `tar_read(archive: Text, destination: Text) -> Result[Int, StdError]` and `tar_list(archive: Text) -> Result[List[Text], StdError]`. `tar_write` archives the directory's contents with names relative to it, sorted, with fixed metadata (so the same tree gives the same archive), gzip-compressed when the archive name ends in `.gz` or `.tgz` (what `tar -tzf` reads) and plain otherwise; a symbolic link in the tree, or an archive path inside the directory, is `E_TAR_UNSAFE_PATH`. `tar_read` and `tar_list` detect gzip by its magic number. `tar_read` applies the `std:fs` confinement rules to every entry: an absolute name, a `..` component, or a link whose target is absolute or contains `..` is `E_TAR_UNSAFE_PATH`, device and FIFO entries are `E_TAR_UNSUPPORTED_ENTRY`, and a damaged archive is `E_TAR_CORRUPT`; entries before a refused one stay extracted. The bytes extracted and inflated are capped by the same ceiling. The crates behind it are `flate2` (its pure-Rust `miniz_oxide` backend) and `tar`, in the runtime only; the browser VM gains nothing. New instructions `GzipCompress`, `GzipDecompress`, `ZlibCompress` and `ZlibDecompress` and `Fs` function codes 13 to 17; artifacts below format 71 that use them are rejected with `E_ARTIFACT_VERSION`. zstd is not part of this release.
 - CSV into columns (artifact format 64): `csv_read_columns(path: Text, kinds: Map[Text, Text]) -> Result[List[Record[CsvColumn]], FileError]` reads a whole CSV file into typed columns and needs the `files` read capability, as `csv_open` does. `std:csv` declares `record CsvColumn` with `name: Text`, `kind: Text` (`"i64"`, `"f64"`, `"bool"` or `"text"`), `ints: Array[i64]`, `floats: Array[f64]`, `flags: Array[bool]`, `codes: Array[i64]`, `dictionary: List[Text]` and `valid: Array[bool]`. Only the storage for the column's kind has the column's length (for text, `codes` and `dictionary`); the other arrays are empty. `valid` is true where a value is present; a missing row holds 0, 0.0, false or code 0. The first record is the header; a leading UTF-8 byte-order mark is dropped and blank lines are skipped, except that in a file whose header has one column a blank line is a missing value; fields are split and quoted exactly as `csv_next` does, and a record with the wrong number of fields fails with `R_CSV_MALFORMED` and its line. A column not named in `kinds` takes the first of `i64`, `f64`, `bool`, `text` that holds every present value: `i64` is an integer within the i64 range (a larger one makes the column `f64`), `f64` is what `text_parse_float` accepts, `bool` is exactly `true` or `false`, and a column with no present value is `text`. An unquoted empty field is missing; a quoted empty field (`""`) is missing in a numeric or `bool` column and is the empty text in a `text` column, and does not force a column to `text`. `kinds` fixes a column's kind by name; a value that does not fit fails with `E_CSV_VALUE`, its line and 1-based column, and the message ``column `NAME`: `VALUE` is not KIND``; a name in `kinds` that is not in the header, or an unknown kind, fails with `E_CSV_VALUE` on line 1. Text codes are dense, in first-seen order. The file is streamed and is not checked against `max_file_bytes`; each record is held to that limit, and every array, list and text produced, including transient buffers, is charged to the allocation budget. `csv_open`, `csv_next` and `file_open_lines` stream the same way and no longer check the whole file against `max_file_bytes`; `read_text`, `read_bytes` and other whole-file reads still do. An `R_ALLOCATION_LIMIT` message ends with the setting that raises it, `allocation_limit_bytes` under `[runtime]` in `guion.toml`.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
@@ -310,6 +311,8 @@ native_crypto_sha256(Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 native_fs_copy(Text, Text) -> Result[Int, FileError]
 native_fs_exists(Text) -> Result[Bool, FileError]
+native_fs_gzip_compress_file(Text, Text) -> Result[Int, FileError]
+native_fs_gzip_decompress_file(Text, Text) -> Result[Int, FileError]
 native_fs_kind(Text) -> Result[Text, FileError]
 native_fs_list_dir(Text) -> Result[List[Text], FileError]
 native_fs_make_dir(Text) -> Result[Unit, FileError]
@@ -319,8 +322,13 @@ native_fs_remove_all(Text) -> Result[Unit, FileError]
 native_fs_rename(Text, Text) -> Result[Unit, FileError]
 native_fs_sha256(Text) -> Result[Bytes, FileError]
 native_fs_size(Text) -> Result[Int, FileError]
+native_fs_tar_list(Text) -> Result[List[Text], FileError]
+native_fs_tar_read(Text, Text) -> Result[Int, FileError]
+native_fs_tar_write(Text, Text) -> Result[Int, FileError]
 native_fs_temp_dir(Text) -> Result[Text, FileError]
 native_fs_temp_file(Text) -> Result[Text, FileError]
+native_gzip_compress(Bytes) -> Bytes
+native_gzip_decompress(Bytes, Int) -> Result[Bytes, Record[StdError]]
 native_hex_decode(Text) -> Option[Bytes]
 native_hex_encode(Bytes) -> Text
 native_log_append(Text, Text) -> Result[Unit, FileError]
@@ -398,6 +406,8 @@ native_toml_put_bool(TomlDocument, List[Text], Bool) -> Result[Unit, Record[StdE
 native_toml_put_int(TomlDocument, List[Text], Int) -> Result[Unit, Record[StdError]]
 native_toml_put_text(TomlDocument, List[Text], Text) -> Result[Unit, Record[StdError]]
 native_toml_render(TomlDocument) -> Text
+native_zlib_compress(Bytes) -> Bytes
+native_zlib_decompress(Bytes, Int) -> Result[Bytes, Record[StdError]]
 parallel_map(List[$T], NamedWorker[$T, $R], Int) -> Result[List[$R], TaskError]
 print(Any) -> Unit
 read_bytes(Text) -> Result[Bytes, FileError]
@@ -447,6 +457,12 @@ std:collections — pub fn list_get_text(values: List[Text], index: Int) -> Opti
 std:collections — pub fn list_get_int(values: List[Int], index: Int) -> Option[Int]
 std:collections — pub fn map_get_text(values: Map[Text, Text], key: Text) -> Option[Text]
 std:collections — pub fn map_get_int(values: Map[Text, Int], key: Text) -> Option[Int]
+std:compress — pub fn gzip_compress(data: Bytes) -> Bytes
+std:compress — pub fn gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]
+std:compress — pub fn zlib_compress(data: Bytes) -> Bytes
+std:compress — pub fn zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]
+std:compress — pub fn gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]
+std:compress — pub fn gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]
 std:crypto — pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes
 std:crypto — pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expected: Bytes) -> Bool
 std:crypto — pub fn crypto_sha256(data: Bytes) -> Bytes
@@ -598,6 +614,9 @@ std:sqlite — pub fn sqlite_query(transaction: Transaction, sql: Text, values: 
 std:sqlite — pub fn sqlite_commit(transaction: Transaction) -> Result[Unit, StdError]
 std:sqlite — pub fn sqlite_rollback(transaction: Transaction) -> Result[Unit, StdError]
 std:sqlite — pub fn sqlite_close(database: Db) -> Result[Unit, StdError]
+std:tar — pub fn tar_write(directory: Text, archive: Text) -> Result[Int, StdError]
+std:tar — pub fn tar_read(archive: Text, destination: Text) -> Result[Int, StdError]
+std:tar — pub fn tar_list(archive: Text) -> Result[List[Text], StdError]
 std:text — pub fn text_compare_scalar(left: Text, right: Text) -> Int
 std:text — pub fn text_compare_bytes(left: Text, right: Text) -> Int
 std:text — pub fn text_trim(value: Text) -> Text
@@ -860,6 +879,11 @@ E_CLI_UNKNOWN
 E_CLI_VALUE
 E_COLLECTION_ITEMS
 E_COMPILE_ARGUMENTS
+E_COMPRESS_ARGUMENT
+E_COMPRESS_CORRUPT
+E_COMPRESS_LIMIT
+E_COMPRESS_TRAILING_DATA
+E_COMPRESS_TRUNCATED
 E_CONSTANT_HANDLE_BASE
 E_COUNT
 E_CSV_VALUE
@@ -1092,6 +1116,10 @@ E_TAGGED_OPTION_NONE
 E_TAGGED_OPTION_SOME
 E_TAGGED_RESULT_ERR
 E_TAGGED_RESULT_OK
+E_TAR_CORRUPT
+E_TAR_LIMIT
+E_TAR_UNSAFE_PATH
+E_TAR_UNSUPPORTED_ENTRY
 E_TEMP_PREFIX
 E_TEST_SIGNATURE
 E_TEXT_DELIMITER
@@ -1172,6 +1200,7 @@ R_DIV_ZERO
 R_ENV_DENIED
 R_ENV_ENCODING
 R_EXPORT_UNKNOWN
+R_FILE_
 R_FILE_LIMIT
 R_FILE_NOT_FOUND
 R_FILE_PERMISSION
@@ -1486,4 +1515,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:987e109dddd52b7b1e4a4ccc71243dc89614ba0aa248b40da95aa056f0035ddb. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:f00ec7b999dcd2370d2ffd6c475e676b9db421b956f8828ad1425c773a45111c. Validated by `cargo xtask agent-reference --check`. -->

@@ -5151,6 +5151,10 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::SqliteBeginRead => "SqliteBeginRead",
         Op::LogAppend => "LogAppend",
         Op::LogDefaultLevel => "LogDefaultLevel",
+        Op::GzipCompress => "GzipCompress",
+        Op::GzipDecompress => "GzipDecompress",
+        Op::ZlibCompress => "ZlibCompress",
+        Op::ZlibDecompress => "ZlibDecompress",
         Op::SqliteExecute => "SqliteExecute",
         Op::SqliteQuery => "SqliteQuery",
         Op::SqliteCommit => "SqliteCommit",
@@ -8200,6 +8204,27 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 ));
             }
             Op::LogDefaultLevel => state.stack.push(Type::Text),
+            Op::GzipCompress | Op::ZlibCompress => {
+                if pop_type(&mut state.stack, pc)? != Type::Bytes {
+                    return Err(format!(
+                        "compression requires Bytes input at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Bytes);
+            }
+            Op::GzipDecompress | Op::ZlibDecompress => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Bytes
+                {
+                    return Err(format!(
+                        "decompression requires Bytes input and an Int output ceiling at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Bytes),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
             Op::SqliteExecute | Op::SqliteQuery => {
                 if pop_type(&mut state.stack, pc)?
                     != Type::List(Box::new(Type::Record("SqlValue".into())))
@@ -8990,6 +9015,11 @@ fn fs_result_type(function: FsFunction) -> Type {
         FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
         FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
         FsFunction::Sha256 => Type::Bytes,
+        FsFunction::GzipCompressFile
+        | FsFunction::GzipDecompressFile
+        | FsFunction::TarWrite
+        | FsFunction::TarRead => Type::Int,
+        FsFunction::TarList => Type::List(Box::new(Type::Text)),
         FsFunction::ListDir => Type::List(Box::new(Type::Text)),
         FsFunction::MakeDir | FsFunction::Remove | FsFunction::RemoveAll | FsFunction::Rename => {
             Type::Unit

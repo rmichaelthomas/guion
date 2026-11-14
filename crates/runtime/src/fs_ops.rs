@@ -17,7 +17,7 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 type Outcome = Result<Value, RuntimeError>;
 
-fn file_error(
+pub(crate) fn file_error(
     error: &std::io::Error,
     fallback: &'static str,
     what: &str,
@@ -50,7 +50,11 @@ fn granted_roots(policy: &HostPolicy) -> Vec<PathBuf> {
 
 /// Creates `requested` and any missing parents, one directory at a time, so every step is
 /// confined by the same resolver as an ordinary write.
-fn make_dir_all(policy: &HostPolicy, requested: &str, span: Span) -> Result<PathBuf, RuntimeError> {
+pub(crate) fn make_dir_all(
+    policy: &HostPolicy,
+    requested: &str,
+    span: Span,
+) -> Result<PathBuf, RuntimeError> {
     if let Some(parent) = Path::new(requested).parent() {
         let parent = parent.to_string_lossy();
         if !parent.is_empty() && host_file_path(policy, &parent, false, span).is_err() {
@@ -272,6 +276,13 @@ fn run_inner(
             let copied = fs::copy(&source_path, &destination_path)
                 .map_err(|error| file_error(&error, "R_FILE_WRITE", "copy", path, span))?;
             Ok(ok(int(i64::try_from(copied).unwrap_or(i64::MAX))))
+        }
+        FsFunction::GzipCompressFile
+        | FsFunction::GzipDecompressFile
+        | FsFunction::TarWrite
+        | FsFunction::TarRead
+        | FsFunction::TarList => {
+            super::compress::run_file_function(policy, function, operands, span)
         }
         FsFunction::TempDir | FsFunction::TempFile => {
             let valid = !path.is_empty()

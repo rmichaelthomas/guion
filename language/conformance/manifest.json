@@ -10648,6 +10648,118 @@
       }
     },
     {
+      "id": "opcode-gzip-compress",
+      "kind": "opcode",
+      "name": "GzipCompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-gzip-compress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-gzip-compress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-gzip-compress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-gzip-decompress",
+      "kind": "opcode",
+      "name": "GzipDecompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-gzip-decompress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-gzip-decompress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-gzip-decompress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-zlib-compress",
+      "kind": "opcode",
+      "name": "ZlibCompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-zlib-compress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-zlib-compress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-zlib-compress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-zlib-decompress",
+      "kind": "opcode",
+      "name": "ZlibDecompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-zlib-decompress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-zlib-decompress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-zlib-decompress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
       "id": "type-fn",
       "kind": "type",
       "name": "Fn",

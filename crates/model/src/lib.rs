@@ -1466,6 +1466,53 @@ mod tests {
     }
 
     #[test]
+    fn compression_instructions_are_gated_on_format_71() {
+        assert_gated(Op::GzipCompress, 71);
+        assert_gated(Op::GzipDecompress, 71);
+        assert_gated(Op::ZlibCompress, 71);
+        assert_gated(Op::ZlibDecompress, 71);
+        assert_gated(Op::Fs(FsFunction::GzipCompressFile), 71);
+        assert_gated(Op::Fs(FsFunction::GzipDecompressFile), 71);
+        assert_gated(Op::Fs(FsFunction::TarWrite), 71);
+        assert_gated(Op::Fs(FsFunction::TarRead), 71);
+        assert_gated(Op::Fs(FsFunction::TarList), 71);
+    }
+
+    #[test]
+    fn a_format_70_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 70,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::LogDefaultLevel,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 71;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
     fn a_format_69_artifact_still_loads() {
         let mut artifact = Artifact {
             format_version: 69,
@@ -3614,10 +3661,22 @@ pub enum FsFunction {
     TempFile,
     /// Streamed SHA-256 digest of a file (format 67); needs the file-read grant.
     Sha256,
+    /// Streamed gzip compression of one file into another (format 71).
+    GzipCompressFile,
+    /// Streamed gzip decompression of one file into another, bounded by the runtime ceiling
+    /// (format 71).
+    GzipDecompressFile,
+    /// Writes a directory's contents as a tar archive, gzip-compressed for `.tar.gz` and `.tgz`
+    /// names (format 71).
+    TarWrite,
+    /// Extracts a tar archive under the file-confinement rules (format 71).
+    TarRead,
+    /// Lists the entry names of a tar archive (format 71).
+    TarList,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 13] = [
+    const ALL: [FsFunction; 18] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -3631,6 +3690,11 @@ impl FsFunction {
         FsFunction::TempDir,
         FsFunction::TempFile,
         FsFunction::Sha256,
+        FsFunction::GzipCompressFile,
+        FsFunction::GzipDecompressFile,
+        FsFunction::TarWrite,
+        FsFunction::TarRead,
+        FsFunction::TarList,
     ];
 
     pub fn code(self) -> u8 {
@@ -3660,6 +3724,11 @@ impl FsFunction {
             FsFunction::TempDir => "FsOpTempDir",
             FsFunction::TempFile => "FsOpTempFile",
             FsFunction::Sha256 => "FsOpSha256",
+            FsFunction::GzipCompressFile => "FsOpGzipCompressFile",
+            FsFunction::GzipDecompressFile => "FsOpGzipDecompressFile",
+            FsFunction::TarWrite => "FsOpTarWrite",
+            FsFunction::TarRead => "FsOpTarRead",
+            FsFunction::TarList => "FsOpTarList",
         }
     }
 
@@ -3673,7 +3742,12 @@ impl FsFunction {
     /// Number of `Text` operands the function pops.
     pub fn arity(self) -> usize {
         match self {
-            FsFunction::Rename | FsFunction::Copy => 2,
+            FsFunction::Rename
+            | FsFunction::Copy
+            | FsFunction::GzipCompressFile
+            | FsFunction::GzipDecompressFile
+            | FsFunction::TarWrite
+            | FsFunction::TarRead => 2,
             _ => 1,
         }
     }
@@ -3688,6 +3762,18 @@ impl FsFunction {
                 | FsFunction::ModifiedMs
                 | FsFunction::ListDir
                 | FsFunction::Sha256
+                | FsFunction::TarList
+        )
+    }
+
+    /// Whether the function also reads files, in addition to the grant `writes` reports.
+    pub fn also_reads(self) -> bool {
+        matches!(
+            self,
+            FsFunction::GzipCompressFile
+                | FsFunction::GzipDecompressFile
+                | FsFunction::TarWrite
+                | FsFunction::TarRead
         )
     }
 }
@@ -4090,6 +4176,10 @@ pub enum Op {
     SqliteBeginRead,
     LogAppend,
     LogDefaultLevel,
+    GzipCompress,
+    GzipDecompress,
+    ZlibCompress,
+    ZlibDecompress,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -4247,7 +4337,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 70;
+    pub const CURRENT_VERSION: u32 = 71;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4553,6 +4643,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 71 && artifact_uses_compression(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "compression and tar instructions require artifact format 71",
             ));
         }
         if self.format_version < 70 && artifact_uses_log(self) {
@@ -4912,6 +5008,10 @@ impl Artifact {
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
                     Op::LogDefaultLevel => w.u8(204),
+                    Op::GzipCompress => w.u8(205),
+                    Op::GzipDecompress => w.u8(206),
+                    Op::ZlibCompress => w.u8(207),
+                    Op::ZlibDecompress => w.u8(208),
                     Op::CallFn(argc) => {
                         w.u8(199);
                         w.count(*argc)?;
@@ -5356,6 +5456,12 @@ impl Artifact {
                                 "SHA-256 instructions require artifact format 67",
                             ));
                         }
+                        if code >= 13 && format_version < 71 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "compression and tar instructions require artifact format 71",
+                            ));
+                        }
                         Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -5487,6 +5593,16 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "log instructions require artifact format 70",
+                        ));
+                    }
+                    205 if format_version >= 71 => Op::GzipCompress,
+                    206 if format_version >= 71 => Op::GzipDecompress,
+                    207 if format_version >= 71 => Op::ZlibCompress,
+                    208 if format_version >= 71 => Op::ZlibDecompress,
+                    205..=208 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "compression instructions require artifact format 71",
                         ));
                     }
                     202 if format_version >= 69 => Op::SqliteBeginRead,
@@ -6169,6 +6285,27 @@ fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::SortNatural | Op::SortByKey(_)))
+    })
+}
+
+fn artifact_uses_compression(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::GzipCompress
+                    | Op::GzipDecompress
+                    | Op::ZlibCompress
+                    | Op::ZlibDecompress
+                    | Op::Fs(
+                        FsFunction::GzipCompressFile
+                            | FsFunction::GzipDecompressFile
+                            | FsFunction::TarWrite
+                            | FsFunction::TarRead
+                            | FsFunction::TarList
+                    )
+            )
+        })
     })
 }
 

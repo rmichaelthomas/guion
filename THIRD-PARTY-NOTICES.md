@@ -6,6 +6,13 @@ Guion's own source is offered under the MIT License in [`LICENSE`](LICENSE). Thi
 
 The exact Rust dependency graph is recorded in [`Cargo.lock`](Cargo.lock). Release packaging copies license and notice files from the locked dependency sources and writes a target-specific `RUST-DEPENDENCIES.md` using [`distribution/collect-rust-licenses.py`](distribution/collect-rust-licenses.py). The collector fails if it cannot find a license notice for a resolved dependency. The bundled Apache-2.0-with-LLVM-exception text is in [`distribution/licenses/`](distribution/licenses/).
 
+### Compression and archives
+
+`std:compress` and `std:tar` use these pure-Rust crates, pinned exactly in the workspace `Cargo.toml` and linked into the native runtime only (not the browser VM). None of them needs a C compiler or a system zlib. The collector above copies each crate's own license files into release archives.
+
+- `flate2` 1.1.10 (MIT OR Apache-2.0), with its `miniz_oxide` 0.9.1 backend (MIT OR Zlib OR Apache-2.0), which in turn uses `adler2` 2.0.1 (0BSD OR MIT OR Apache-2.0), `simd-adler32` 0.3.10 (MIT) and `crc32fast` 1.5.2 (MIT OR Apache-2.0).
+- `tar` 0.4.46 (MIT OR Apache-2.0), with `filetime` 0.2.29 (MIT OR Apache-2.0).
+
 ## Other bundled or evaluated components
 
 - The pinned `uv` tool's Apache-2.0 and MIT license texts are retained in [`distribution/licenses/`](distribution/licenses/).

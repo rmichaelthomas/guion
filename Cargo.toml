@@ -27,6 +27,8 @@ base64 = "=0.22.1"
 reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "=1.53.2", features = ["rt-multi-thread", "time", "net", "macros"] }
 ring = "=0.17.14"
+flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
+tar = { version = "=0.4.46", default-features = false }
 
 
 # Self-hosting tests run the compiler in the VM; unoptimized, they exceed the CI time limit.

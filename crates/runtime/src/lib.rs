@@ -27,6 +27,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+mod compress;
 mod fs_ops;
 mod json_projection;
 mod native_backend;
@@ -2947,6 +2948,9 @@ pub struct HostPolicy {
     pub allow_file_read: bool,
     pub allow_file_write: bool,
     pub max_file_bytes: usize,
+    /// Ceiling on the bytes any inflate path may produce: `gzip_decompress`, `zlib_decompress`,
+    /// the streamed file variants and `tar_read`. From `[runtime] decompress_limit_bytes`.
+    pub decompress_limit_bytes: usize,
     pub arguments: Vec<String>,
     pub allowed_environment_variables: HashSet<String>,
     /// Whether wall-clock reads are explicitly granted to the guest.
@@ -3000,6 +3004,7 @@ impl Default for HostPolicy {
             allow_file_read: false,
             allow_file_write: false,
             max_file_bytes: 16 * 1024 * 1024,
+            decompress_limit_bytes: 1024 * 1024 * 1024,
             arguments: Vec::new(),
             allowed_environment_variables: HashSet::new(),
             allow_clock: false,
@@ -6161,6 +6166,65 @@ impl VmHost for Instance {
                     }
                 };
                 push_stack!(service_result_value(result));
+            }
+            Op::GzipCompress | Op::ZlibCompress => {
+                let data = match pop!() {
+                    Value::Bytes(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "compression input must be Bytes",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let packed = if matches!(instruction.op, Op::GzipCompress) {
+                    compress::gzip_compress(&data)
+                } else {
+                    compress::zlib_compress(&data)
+                };
+                charge_allocation(budget.as_ref(), packed.len(), instruction.span)?;
+                push_stack!(Value::Bytes(Shared::new(packed)));
+            }
+            Op::GzipDecompress | Op::ZlibDecompress => {
+                let max_output = match pop!() {
+                    Value::Int(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "max_output must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let data = match pop!() {
+                    Value::Bytes(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "compressed input must be Bytes",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let outcome = compress::inflate_bytes(
+                    matches!(instruction.op, Op::GzipDecompress),
+                    &data,
+                    &max_output,
+                    &self.policy,
+                );
+                match outcome {
+                    Ok(unpacked) => {
+                        charge_allocation(budget.as_ref(), unpacked.len(), instruction.span)?;
+                        push_stack!(Value::ResultOk(Box::new(Value::Bytes(Shared::new(
+                            unpacked
+                        )))));
+                    }
+                    Err(found) => push_stack!(Value::ResultErr(Box::new(entropy_error_value(
+                        found.code,
+                        found.message,
+                    )))),
+                }
             }
             Op::LogDefaultLevel => {
                 let level = self
