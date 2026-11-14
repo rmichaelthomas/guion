@@ -3207,7 +3207,11 @@ fn enforce_approved_package_effects(
     project_root: &Path,
     artifact: &Artifact,
 ) -> Result<(), String> {
-    if native_packages::project_approved_capabilities(project_root)?.is_none() {
+    // Nothing to approve unless the project has installed a package (which always writes a lock),
+    // so a project that links none pays no analysis cost.
+    if !project_lock_path(project_root).is_file()
+        || native_packages::project_approved_capabilities(project_root)?.is_none()
+    {
         return Ok(());
     }
     let report = api_report(source, project_root, artifact);
