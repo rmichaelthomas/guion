@@ -241,12 +241,15 @@
   .story { background: var(--lily); }
   .story .sectionhead p { color: var(--ink-2); }
   .story .overline { color: var(--ink); }
-  .time-ribbon { list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; position: relative; counter-reset: ribbon; padding-top: 2.2rem; }
-  .time-ribbon::before { content: ""; position: absolute; left: 0; right: 0; top: .7rem; border-top: 3px solid var(--ink); }
-  .time-ribbon > li { position: relative; padding: 1rem clamp(1rem, 2.4vw, 2.4rem) 0 0; }
-  .time-ribbon > li::before { content: ""; position: absolute; top: -1.9rem; left: 0; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--blue); border: 4px solid var(--lily); box-shadow: 0 0 0 3px var(--ink); }
-  .time-ribbon time { display: block; font: 800 .78rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); margin-bottom: .5rem; }
-  .time-ribbon h3 { font-size: clamp(1.5rem, 2.4vw, 2.2rem); margin-bottom: .6rem; }
+  /* A vertical ledger: one row per event, date in a left column, a spine with a dot, text in a readable measure. */
+  .time-ribbon { list-style: none; position: relative; margin-top: clamp(2rem, 5vw, 4rem); padding: 0; }
+  .time-ribbon::before { content: ""; position: absolute; top: .5rem; bottom: .5rem; left: calc(clamp(6.5rem, 14vw, 10rem) + 1.2rem); border-left: 3px solid var(--ink); }
+  .time-ribbon > li { position: relative; display: grid; grid-template-columns: clamp(6.5rem, 14vw, 10rem) minmax(0, 1fr); column-gap: 2.8rem; padding: 0 0 clamp(1.8rem, 3.5vw, 3rem); }
+  .time-ribbon > li:last-child { padding-bottom: 0; }
+  .time-ribbon > li::before { content: ""; position: absolute; top: .1rem; left: calc(clamp(6.5rem, 14vw, 10rem) + 1.2rem - .65rem + 1.5px); width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--blue); border: 4px solid var(--lily); box-shadow: 0 0 0 3px var(--ink); }
+  .time-ribbon time { grid-column: 1; grid-row: 1 / span 3; display: block; font: 800 .78rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); padding-top: .2rem; }
+  .time-ribbon > li > :not(time) { grid-column: 2; max-width: 64ch; }
+  .time-ribbon h3 { font-size: clamp(1.35rem, 2.2vw, 1.9rem); margin-bottom: .5rem; overflow-wrap: anywhere; }
   .time-ribbon p { color: var(--ink-2); }
   body:has(#view-dev:checked) .story .time-ribbon h3 { font-size: 1.2rem; }
 
@@ -279,10 +282,10 @@
     .route > li { padding: 0 0 0 4rem; min-height: 2.7rem; }
     .panel { grid-template-columns: minmax(0, 1fr); }
     .perm-grid, .inspect-grid, .receipts-top, .python-grid, .agents-grid, .footer-grid { grid-template-columns: minmax(0, 1fr); }
-    .time-ribbon { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); gap: 1.6rem; padding-top: 0; }
-    .time-ribbon::before { top: 0; bottom: 0; left: .6rem; right: auto; border-top: 0; border-left: 3px solid var(--ink); }
-    .time-ribbon > li { padding: 0 0 0 2.6rem; }
-    .time-ribbon > li::before { top: .1rem; left: 0; }
+    .time-ribbon::before { left: .6rem; }
+    .time-ribbon > li { display: block; padding-left: 2.6rem; }
+    .time-ribbon > li::before { left: 0; }
+    .time-ribbon time { margin-bottom: .35rem; padding-top: 0; }
     .receipt-list, body:has(#view-dev:checked) .receipt-list, body:has(#view-dev:checked) .python-receipts { grid-template-columns: minmax(0, 1fr); }
 
     .reasons > li, body:has(#view-dev:checked) .reasons > li { grid-template-columns: 2.5rem minmax(0, 1fr); }
