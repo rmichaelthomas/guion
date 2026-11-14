@@ -1,0 +1,134 @@
+# CSRF protection for the web package, tied to the session of session.gu.
+#
+# A token is base64url(HMAC-SHA256(server secret, session ID + "csrf")): 44 characters, one value per
+# session, unguessable without the server secret, and different in every session, so a token from
+# session A fails in session B. It dies with its session: after `session_rotate`, `session_destroy`
+# or expiry the old token no longer verifies, so a page rendered before login has to be rendered
+# again after it. The token is checked with `crypto_verify_hmac_sha256`, which compares the MACs in
+# constant time; a token of the wrong length or alphabet is refused before any comparison.
+#
+# `csrf_middleware(store, policy)` checks every request whose method is not exactly GET, HEAD or
+# OPTIONS (so POST, PUT, PATCH, DELETE, TRACE, CONNECT and anything else, including a lower-case
+# method, need the token). The token comes from the `x-csrf-token` header or, when there is no such
+# header and the body is `application/x-www-form-urlencoded`, from the `_csrf` form field; a header
+# that is present is the only thing read. A missing or wrong token is a 403 with the fixed body
+# `Forbidden`, with no detail about why. Nothing about the request is logged.
+#
+# Order: put it inside `session_middleware`, which makes the session the token is bound to. Without
+# a live session behind the cookie no token verifies (the check fails closed).
+#
+# This is the token check only. It does not read Origin or Referer, and the token is not a defence
+# against a script running in your own page.
+
+import "std:types"
+import "std:text"
+import "std:crypto"
+import "std:encoding"
+import "std:http_response"
+import "std:http_body"
+import "middleware.gu"
+import "session.gu"
+
+fn cs_absent() -> Option[Text]:
+    return None
+
+fn cs_present(value: Text) -> Option[Text]:
+    return Some(value)
+
+# GET, HEAD and OPTIONS, compared exactly, are the only methods that need no token.
+pub fn csrf_exempt_method(method: Text) -> Bool:
+    return method == "GET" or method == "HEAD" or method == "OPTIONS"
+
+fn cs_message(id: Text) -> Bytes:
+    return bytes_from_text(id + "csrf")
+
+# The token for the request's session. E_CSRF_NO_SESSION when the cookie is missing, malformed or
+# names no live session.
+pub fn csrf_token(store: SessionStore, policy: SessionPolicy, request: Request) -> Result[Text, HttpFailure]:
+    match session_id_of(policy, request):
+        None:
+            return Err(HttpFailure(500, "E_CSRF_NO_SESSION", "the request has no live session to bind a token to"))
+        Some(id):
+            if not session_exists(store, policy, request)?:
+                return Err(HttpFailure(500, "E_CSRF_NO_SESSION", "the request has no live session to bind a token to"))
+            return Ok(base64url_encode(crypto_hmac_sha256(store.secret, cs_message(id))))
+
+fn cs_content_is_form(request: Request) -> Bool:
+    match request_header(request, "content-type"):
+        None:
+            return false
+        Some(value):
+            let lowered = text_casefold(text_trim(value))
+            let form = "application/x-www-form-urlencoded"
+            return len(lowered) >= len(form) and text_slice(lowered, 0, len(form)) == form
+
+# The token the request presents, or None.
+fn cs_presented(request: Request) -> Option[Text]:
+    match request_header(request, "x-csrf-token"):
+        Some(value):
+            return cs_present(text_trim(value))
+        None:
+            if not cs_content_is_form(request):
+                return cs_absent()
+            match form_parse(request.body, body_limits_default()):
+                Err(failure):
+                    return cs_absent()
+                Ok(fields):
+                    match map_get(fields, "_csrf"):
+                        None:
+                            return cs_absent()
+                        Some(values):
+                            if len(values) != 1:
+                                return cs_absent()
+                            return cs_present(values[0])
+
+# Does the request present the right token for its session? The same check the middleware makes.
+pub fn csrf_verify(store: SessionStore, policy: SessionPolicy, request: Request) -> Result[Bool, HttpFailure]:
+    match session_id_of(policy, request):
+        None:
+            return Ok(false)
+        Some(id):
+            match cs_presented(request):
+                None:
+                    return Ok(false)
+                Some(token):
+                    if len(token) != 44:
+                        return Ok(false)
+                    match base64url_decode(token):
+                        Err(problem):
+                            return Ok(false)
+                        Ok(given):
+                            if not crypto_verify_hmac_sha256(store.secret, cs_message(id), given):
+                                return Ok(false)
+                            return session_exists(store, policy, request)
+
+fn cs_forbidden() -> Response:
+    return response_text(403, "Forbidden")
+
+fn cs_before(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
+    if csrf_exempt_method(request.method):
+        return Ok(request)
+    match session_policy_from_config(config):
+        Err(failure):
+            return Err(response_text(500, internal_error_body()))
+        Ok(policy):
+            match map_get(config, "store"):
+                None:
+                    return Err(response_text(500, internal_error_body()))
+                Some(path):
+                    match session_store_open(path):
+                        Err(failure):
+                            return Err(response_text(500, internal_error_body()))
+                        Ok(store):
+                            match csrf_verify(store, policy, request):
+                                Ok(good):
+                                    if good:
+                                        return Ok(request)
+                                    return Err(cs_forbidden())
+                                Err(failure):
+                                    return Err(response_text(500, internal_error_body()))
+
+# The CSRF layer. Its policy and store are the ones given to `session_middleware`.
+pub fn csrf_middleware(store: SessionStore, policy: SessionPolicy) -> Result[Middleware, HttpFailure]:
+    let checked = session_policy_check(policy)?
+    return Ok(middleware_before_configured(cs_before, session_config(store, checked)))

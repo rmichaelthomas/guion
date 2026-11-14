@@ -2,7 +2,7 @@
 name = "web"
 version = "0.1.0"
 entry = "src/lib.gu"
-exports = ["src/lib.gu", "src/router.gu", "src/middleware.gu", "src/serve.gu"]
+exports = ["src/lib.gu", "src/router.gu", "src/middleware.gu", "src/serve.gu", "src/session.gu", "src/csrf.gu"]
 
 # Capabilities are declared up front so the package system carries them from the first release;
 # `guion check` compares them with what the modules actually use once there are modules.
@@ -10,3 +10,8 @@ exports = ["src/lib.gu", "src/router.gu", "src/middleware.gu", "src/serve.gu"]
 files = ["read", "write"]
 network = ["127.0.0.1"]
 clock = true
+
+# `guion test` of this package reads the clock (session expiry); a project that uses the package grants
+# the clock itself, in its own guion.toml.
+[clock]
+enabled = true

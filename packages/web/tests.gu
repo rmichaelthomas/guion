@@ -4,6 +4,12 @@
 import "std:text"
 import "std:fs"
 import "std:log"
+import "std:sqlite"
+import "std:crypto"
+import "std:encoding"
+import "std:types"
+import "std:url"
+import "std:cookie"
 import "src/lib.gu"
 
 fn main() -> Int:
@@ -73,28 +79,28 @@ fn out_trace(response: Response, mark: Text) -> Result[Response, HttpFailure]:
             set trace = mark
     return response_set_header(response, "x-out", trace)
 
-fn before_a(request: Request) -> Result[Request, Response]:
+fn before_a(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     return Ok(with_trace(request, "a"))
 
-fn before_b(request: Request) -> Result[Request, Response]:
+fn before_b(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     return Ok(with_trace(request, "b"))
 
-fn before_c(request: Request) -> Result[Request, Response]:
+fn before_c(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     return Ok(with_trace(request, "c"))
 
-fn after_a(request: Request, response: Response) -> Result[Response, HttpFailure]:
+fn after_a(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
     return out_trace(response, "a")
 
-fn after_b(request: Request, response: Response) -> Result[Response, HttpFailure]:
+fn after_b(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
     return out_trace(response, "b")
 
-fn after_c(request: Request, response: Response) -> Result[Response, HttpFailure]:
+fn after_c(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
     return out_trace(response, "c")
 
-fn deny(request: Request) -> Result[Request, Response]:
+fn deny(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     return Err(response_text(401, "denied"))
 
-fn after_fail(request: Request, response: Response) -> Result[Response, HttpFailure]:
+fn after_fail(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
     return Err(HttpFailure(418, "E_AFTER", "teapot detail"))
 
 fn get(path: Text) -> Request:
@@ -189,11 +195,11 @@ fn test_a_known_path_with_another_method_is_405_with_allow() -> Unit:
 
 fn test_middleware_runs_outermost_first_and_unwinds_innermost_first() -> Unit:
     let base = app(sample_router_with_trace())
-    let stacked = wrap(wrap(wrap(base, Middleware(before_c, after_c)), Middleware(before_b, after_b)), Middleware(before_a, after_a))
+    let stacked = wrap(wrap(wrap(base, middleware(before_c, after_c)), middleware(before_b, after_b)), middleware(before_a, after_a))
     let response = unwrap(app_handle(stacked, get("/trace")))
     assert(text_of(response) == "a,b,c")
     assert(unwrap(response_header(response, "x-out")) == "c,b,a")
-    let listed = app_with(sample_router_with_trace(), [Middleware(before_a, after_a), Middleware(before_b, after_b), Middleware(before_c, after_c)])
+    let listed = app_with(sample_router_with_trace(), [middleware(before_a, after_a), middleware(before_b, after_b), middleware(before_c, after_c)])
     let again = unwrap(app_handle(listed, get("/trace")))
     assert(text_of(again) == "a,b,c")
     assert(unwrap(response_header(again, "x-out")) == "c,b,a")
@@ -219,7 +225,7 @@ fn test_middleware_helpers_pass_the_other_side_through() -> Unit:
     assert(unwrap(response_header(second, "x-out")) == "a")
 
 fn test_three_set_cookie_headers_survive_two_wrappers() -> Unit:
-    let stacked = wrap(wrap(app(sample_router_with_trace()), Middleware(before_b, after_b)), Middleware(before_a, after_a))
+    let stacked = wrap(wrap(app(sample_router_with_trace()), middleware(before_b, after_b)), middleware(before_a, after_a))
     let response = unwrap(app_handle(stacked, get("/cookies")))
     assert(len(response_header_values(response, "set-cookie")) == 3)
     let wire = text_from_bytes(unwrap(response_serialize(response)))
@@ -261,3 +267,663 @@ fn test_the_failure_is_logged_through_std_log() -> Unit:
     assert(text_find(lines, "\"msg\":\"handler failed\"", 0) >= 0)
     assert(text_find(lines, "\"path\":\"/boom\"", 0) >= 0)
     let removed = fs_remove(path)
+
+# ---- sessions and CSRF (F8) ----
+
+fn db_path() -> Text:
+    return "web-test-sessions.db"
+
+fn clean_db() -> Unit:
+    let a = fs_remove("web-test-sessions.db")
+    let b = fs_remove("web-test-sessions.db-wal")
+    let c = fs_remove("web-test-sessions.db-shm")
+    let d = fs_remove("web-test-sessions.db-journal")
+    let e = fs_remove("web-test-sessions.log")
+
+fn fresh_store() -> SessionStore:
+    clean_db()
+    return unwrap(session_store_open(db_path()))
+
+fn open_store() -> SessionStore:
+    return unwrap(session_store_open(db_path()))
+
+fn add_header(request: Request, name: Text, value: Text) -> Request:
+    var headers = request.headers
+    set headers = list_push(headers, Header(name, value))
+    return Request(request.method, request.path, request.query, headers, request.body, request.params)
+
+fn with_cookie(request: Request, name: Text, id: Text) -> Request:
+    return add_header(request, "Cookie", name + "=" + id)
+
+fn with_body(request: Request, content_type: Text, body: Text) -> Request:
+    let typed = add_header(request, "Content-Type", content_type)
+    return Request(typed.method, typed.path, typed.query, typed.headers, bytes_from_text(body), typed.params)
+
+fn req(method: Text, path: Text, cookie: Text, token: Text) -> Request:
+    var made = request_new(method, path)
+    if len(cookie) > 0:
+        set made = add_header(made, "Cookie", cookie)
+    if len(token) > 0:
+        set made = add_header(made, "x-csrf-token", token)
+    return made
+
+fn starts(value: Text, prefix: Text) -> Bool:
+    return len(value) >= len(prefix) and text_slice(value, 0, len(prefix)) == prefix
+
+fn cookie_name() -> Text:
+    return session_policy_default().cookie_name
+
+# The `name=value` part of the first Set-Cookie header ("" when there is none).
+fn cookie_pair(response: Response) -> Text:
+    let lines = response_header_values(response, "set-cookie")
+    if len(lines) == 0:
+        return ""
+    return text_split(lines[0], ";")[0]
+
+fn id_in(pair: Text) -> Text:
+    let at = text_find(pair, "=", 0)
+    return text_slice(pair, at + 1, len(pair))
+
+fn count_rows(sql: Text, values: List[SqlValue]) -> Int:
+    let db = unwrap(sqlite_open(db_path()))
+    let tx = unwrap(sqlite_begin_read(db))
+    let rows = unwrap(sqlite_query(tx, sql, values))
+    let n = rows[0].values[0].integer
+    let done = sqlite_commit(tx)
+    let closed = sqlite_close(db)
+    return n
+
+fn sha_hex(id: Text) -> Text:
+    return hex_encode(crypto_sha256_text(id))
+
+fn val(result: Result[Option[Text], HttpFailure]) -> Text:
+    match result:
+        Ok(found):
+            match found:
+                Some(text):
+                    return text
+                None:
+                    return "<none>"
+        Err(failure):
+            return "<err " + failure.code + ">"
+
+fn failure_code(result: Result[Text, HttpFailure]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(failure):
+            return failure.code
+
+fn test_a_session_id_is_64_lowercase_hex_digits() -> Unit:
+    let id = unwrap(session_id_new())
+    assert(len(id) == 64)
+    assert(session_id_valid(id))
+    assert(session_id_valid(text_slice(id, 0, 63)) == false)
+    assert(session_id_valid(id + "0") == false)
+    assert(session_id_valid("") == false)
+    assert(session_id_valid(text_replace(id, text_slice(id, 0, 1), "g")) == false)
+    let upper = "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789"
+    assert(session_id_valid(upper) == false)
+    let padded = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde="
+    assert(session_id_valid(padded) == false)
+    let spaced = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde "
+    assert(session_id_valid(spaced) == false)
+    let encoded = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd%41"
+    assert(session_id_valid(encoded) == false)
+    clean_db()
+
+fn first_word(id: Text) -> Int:
+    let bytes = bytes_to_ints(unwrap(hex_decode(text_slice(id, 0, 8))))
+    return ((bytes[0] * 256 + bytes[1]) * 256 + bytes[2]) * 256 + bytes[3]
+
+fn test_ten_thousand_session_ids_have_no_collision_and_no_sequence() -> Unit:
+    var seen: Map[Text, Bool] = {}
+    var prefixes: Map[Text, Bool] = {}
+    var differences: Map[Text, Bool] = {}
+    var previous = 0
+    var repeated_prefix = 0
+    var count = 0
+    while count < 10000:
+        let id = unwrap(session_id_new())
+        assert(session_id_valid(id))
+        assert(map_has(seen, id) == false)
+        set seen = map_set(seen, id, true)
+        let prefix = text_slice(id, 0, 16)
+        if map_has(prefixes, prefix):
+            set repeated_prefix = repeated_prefix + 1
+        set prefixes = map_set(prefixes, prefix, true)
+        let word = first_word(id)
+        if count > 0:
+            set differences = map_set(differences, int_to_text(word - previous), true)
+        set previous = word
+        set count = count + 1
+    assert(len(seen) == 10000)
+    # 8 shared bytes between two of 10,000 random 32-byte IDs has probability about 2^-33.
+    assert(repeated_prefix == 0)
+    # A counter or a step would give one or a few differences; random words give almost all distinct.
+    assert(len(differences) > 9900)
+    clean_db()
+
+fn test_a_malformed_cookie_id_is_rejected_before_the_database_is_touched() -> Unit:
+    clean_db()
+    let broken = SessionStore("no-such-directory/never.db", bytes_from_text("k"))
+    let policy = session_policy_default()
+    let good_shape = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # The wrong shapes never reach the store, so the unreachable store is never noticed.
+    assert(val(session_get_at(broken, policy, with_cookie(request_new("GET", "/"), cookie_name(), "short"), "user", 1000)) == "<none>")
+    assert(val(session_get_at(broken, policy, with_cookie(request_new("GET", "/"), cookie_name(), good_shape + "0"), "user", 1000)) == "<none>")
+    assert(val(session_get_at(broken, policy, with_cookie(request_new("GET", "/"), cookie_name(), "%41%42"), "user", 1000)) == "<none>")
+    assert(val(session_get_at(broken, policy, request_new("GET", "/"), "user", 1000)) == "<none>")
+    # A well-formed ID does go to the store, which here fails.
+    let reached = session_get_at(broken, policy, with_cookie(request_new("GET", "/"), cookie_name(), good_shape), "user", 1000)
+    assert(is_ok(reached) == false)
+    assert(error(reached).code == "E_SESSION_STORE")
+    clean_db()
+
+fn test_the_store_holds_the_hash_of_an_id_never_the_id() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let id = unwrap(session_open_at(store, policy, request_new("GET", "/"), 5000))
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions WHERE id_hash = ?", [sql_text(id)]) == 0)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions WHERE id_hash = ?", [sql_text(sha_hex(id))]) == 1)
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), id)
+    assert(unwrap(session_open_at(store, policy, request, 6000)) == id)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions", []) == 1)
+    clean_db()
+
+fn test_the_server_secret_is_made_once_and_kept() -> Unit:
+    let first = fresh_store()
+    let second = open_store()
+    assert(len(first.secret) == 32)
+    assert(first.secret == second.secret)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_secret", []) == 1)
+    clean_db()
+    let third = unwrap(session_store_open(db_path()))
+    assert(third.secret != first.secret)
+    clean_db()
+
+fn test_session_fixation_an_unknown_id_is_replaced_never_adopted() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let planted = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    assert(session_id_valid(planted))
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), planted)
+    let issued = unwrap(session_open_at(store, policy, request, 5000))
+    assert(issued != planted)
+    assert(session_id_valid(issued))
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions WHERE id_hash = ?", [sql_text(sha_hex(planted))]) == 0)
+    # What the attacker planted does not become a session later either.
+    let again = unwrap(session_open_at(store, policy, request, 6000))
+    assert(again != planted)
+    assert(again != issued)
+    clean_db()
+
+fn test_session_fixation_rotation_kills_an_id_the_attacker_knows() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    # The attacker gets a real session ID from the server and plants it in the victim's browser.
+    let known = unwrap(session_open_at(store, policy, request_new("GET", "/"), unix_time_ms()))
+    let victim = with_cookie(request_new("POST", "/login"), cookie_name(), known)
+    unwrap(session_set(store, policy, victim, "cart", "3 items"))
+    # The victim logs in; the application rotates on the privilege change.
+    let answered = unwrap(session_rotate(store, policy, victim, response_text(200, "welcome")))
+    let fresh = id_in(cookie_pair(answered))
+    assert(session_id_valid(fresh))
+    assert(fresh != known)
+    assert(starts(cookie_pair(answered), cookie_name() + "="))
+    # The planted ID is dead: it sees nothing and its data is gone.
+    let attacker = with_cookie(request_new("GET", "/me"), cookie_name(), known)
+    assert(val(session_get(store, policy, attacker, "cart")) == "<none>")
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions WHERE id_hash = ?", [sql_text(sha_hex(known))]) == 0)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_session_data WHERE id_hash = ?", [sql_text(sha_hex(known))]) == 0)
+    # The victim's data moved to the new ID.
+    let owner = with_cookie(request_new("GET", "/me"), cookie_name(), fresh)
+    assert(val(session_get(store, policy, owner, "cart")) == "3 items")
+    # Presenting the dead ID to the middleware's opener gives yet another ID, never the old one.
+    let reissued = unwrap(session_open(store, policy, attacker))
+    assert(reissued != known)
+    assert(reissued != fresh)
+    clean_db()
+
+fn test_a_forged_or_extended_cookie_value_is_a_new_session_never_an_existing_one() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let victim_id = unwrap(session_open_at(store, policy, request_new("GET", "/"), unix_time_ms()))
+    let victim = with_cookie(request_new("GET", "/"), cookie_name(), victim_id)
+    unwrap(session_set(store, policy, victim, "user", "alice"))
+    let last = text_slice(victim_id, 63, 64)
+    var flipped = "0"
+    if last == "0":
+        set flipped = "1"
+    let forged_values = [victim_id + "0", victim_id + "00", victim_id + "%00", text_slice(victim_id, 0, 63), text_slice(victim_id, 0, 63) + flipped, text_slice(victim_id, 1, 64), "\"" + victim_id + "x\""]
+    for forged in forged_values:
+        let request = with_cookie(request_new("GET", "/"), cookie_name(), forged)
+        let issued = unwrap(session_open(store, policy, request))
+        assert(issued != victim_id)
+        assert(val(session_get(store, policy, with_cookie(request_new("GET", "/"), cookie_name(), issued), "user")) == "<none>")
+    # The victim is untouched.
+    assert(val(session_get(store, policy, victim, "user")) == "alice")
+    clean_db()
+
+fn test_an_idle_session_expires_and_activity_keeps_it_alive() -> Unit:
+    let store = fresh_store()
+    let policy = SessionPolicy(100, 100000, session_policy_default().cookie_name, true, "Lax")
+    let id = unwrap(session_open_at(store, policy, request_new("GET", "/"), 1000000))
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), id)
+    # 99 s later (idle is 100 s) the same ID is still valid and the visit renews it.
+    assert(unwrap(session_open_at(store, policy, request, 1099000)) == id)
+    assert(unwrap(session_open_at(store, policy, request, 1198000)) == id)
+    # 100 s and a millisecond with no visit: gone.
+    let late = unwrap(session_open_at(store, policy, request, 1298001))
+    assert(late != id)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions WHERE id_hash = ?", [sql_text(sha_hex(id))]) == 0)
+    assert(val(session_get_at(store, policy, request, "k", 1298002)) == "<none>")
+    clean_db()
+
+fn test_an_absolute_limit_ends_a_session_that_is_never_idle() -> Unit:
+    let store = fresh_store()
+    let policy = SessionPolicy(100, 250, session_policy_default().cookie_name, true, "Lax")
+    let id = unwrap(session_open_at(store, policy, request_new("GET", "/"), 1000000))
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), id)
+    assert(unwrap(session_open_at(store, policy, request, 1090000)) == id)
+    assert(unwrap(session_open_at(store, policy, request, 1180000)) == id)
+    assert(unwrap(session_open_at(store, policy, request, 1250000)) == id)
+    # Visited 70 s ago, but the session is 250.001 s old: over the absolute limit.
+    assert(unwrap(session_open_at(store, policy, request, 1250001)) != id)
+    clean_db()
+
+fn test_an_expired_session_hides_its_data_and_purge_removes_it() -> Unit:
+    let store = fresh_store()
+    let policy = SessionPolicy(100, 100000, session_policy_default().cookie_name, true, "Lax")
+    let start = unix_time_ms()
+    let id = unwrap(session_open_at(store, policy, request_new("GET", "/"), start))
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), id)
+    unwrap(session_set(store, policy, request, "k", "v"))
+    assert(val(session_get_at(store, policy, request, "k", start)) == "v")
+    assert(val(session_get_at(store, policy, request, "k", start + 99999999999)) == "<none>")
+    # Nothing is expired yet, so a purge now removes nothing; a purge far later removes the session
+    # and its data.
+    assert(unwrap(session_purge_expired_at(store, policy, start)) == 0)
+    assert(unwrap(session_purge_expired_at(store, policy, start + 99999999999)) == 1)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions", []) == 0)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_session_data", []) == 0)
+    clean_db()
+
+fn test_session_values_belong_to_their_session_and_update_in_place() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let a = unwrap(session_open(store, policy, request_new("GET", "/")))
+    let b = unwrap(session_open(store, policy, request_new("GET", "/")))
+    assert(a != b)
+    let ra = with_cookie(request_new("GET", "/"), cookie_name(), a)
+    let rb = with_cookie(request_new("GET", "/"), cookie_name(), b)
+    unwrap(session_set(store, policy, ra, "user", "alice"))
+    assert(val(session_get(store, policy, ra, "user")) == "alice")
+    assert(val(session_get(store, policy, rb, "user")) == "<none>")
+    unwrap(session_set(store, policy, ra, "user", "alicia"))
+    assert(val(session_get(store, policy, ra, "user")) == "alicia")
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_session_data", []) == 1)
+    unwrap(session_remove(store, policy, ra, "user"))
+    assert(val(session_get(store, policy, ra, "user")) == "<none>")
+    clean_db()
+
+fn test_session_set_needs_a_live_session_and_a_sane_key() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let none = request_new("GET", "/")
+    assert(is_ok(session_set(store, policy, none, "k", "v")) == false)
+    assert(error(session_set(store, policy, none, "k", "v")).code == "E_SESSION_NONE")
+    let id = unwrap(session_open(store, policy, none))
+    let request = with_cookie(none, cookie_name(), id)
+    assert(error(session_set(store, policy, request, "", "v")).code == "E_SESSION_KEY")
+    var long_key = ""
+    var n = 0
+    while n < 129:
+        set long_key = long_key + "k"
+        set n = n + 1
+    assert(error(session_set(store, policy, request, long_key, "v")).code == "E_SESSION_KEY")
+    var long_value = ""
+    set n = 0
+    while n < 65:
+        set long_value = long_value + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10) + text_slice("0123456789", 0, 10)
+        set n = n + 1
+    assert(len(long_value) == 6500)
+    assert(is_ok(session_set(store, policy, request, "k", long_value)))
+    var huge = long_value
+    set n = 0
+    while n < 10:
+        set huge = huge + huge
+        set n = n + 1
+    assert(error(session_set(store, policy, request, "k", huge)).code == "E_SESSION_VALUE")
+    assert(is_ok(session_set(store, policy, request, "k", "v")))
+    clean_db()
+
+fn test_destroy_deletes_the_session_and_expires_the_cookie() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let id = unwrap(session_open(store, policy, request_new("GET", "/")))
+    let request = with_cookie(request_new("POST", "/logout"), cookie_name(), id)
+    unwrap(session_set(store, policy, request, "user", "alice"))
+    let answered = unwrap(session_destroy(store, policy, request, response_text(200, "bye")))
+    let line = response_header_values(answered, "set-cookie")[0]
+    assert(starts(line, cookie_name() + "=;"))
+    assert(text_find(line, "Max-Age=0", 0) >= 0)
+    assert(val(session_get(store, policy, request, "user")) == "<none>")
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions", []) == 0)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_session_data", []) == 0)
+    clean_db()
+
+fn test_the_session_cookie_is_safe_by_default() -> Unit:
+    let policy = session_policy_default()
+    assert(policy.idle_seconds == 1800)
+    assert(policy.absolute_seconds == 43200)
+    assert(policy.secure)
+    assert(policy.same_site == "Lax")
+    let id = unwrap(session_id_new())
+    let line = unwrap(cookie_serialize(unwrap(session_cookie(policy, id))))
+    assert(starts(line, "__Host-session=" + id))
+    assert(text_find(line, "; HttpOnly", 0) >= 0)
+    assert(text_find(line, "; Secure", 0) >= 0)
+    assert(text_find(line, "; SameSite=Lax", 0) >= 0)
+    assert(text_find(line, "; Path=/", 0) >= 0)
+    assert(text_find(line, "Domain", 0) < 0)
+    clean_db()
+
+fn test_samesite_none_needs_secure_and_a_host_prefix_needs_secure() -> Unit:
+    let id = unwrap(session_id_new())
+    let none_open = SessionPolicy(1800, 43200, "sid", false, "None")
+    assert(error(session_cookie(none_open, id)).code == "E_COOKIE_SAMESITE_NONE_NEEDS_SECURE")
+    assert(error(session_policy_check(none_open)).code == "E_COOKIE_SAMESITE_NONE_NEEDS_SECURE")
+    let none_ok = SessionPolicy(1800, 43200, "sid", true, "None")
+    assert(is_ok(session_policy_check(none_ok)))
+    assert(text_find(unwrap(cookie_serialize(unwrap(session_cookie(none_ok, id)))), "SameSite=None", 0) >= 0)
+    let host_insecure = SessionPolicy(1800, 43200, "__Host-sid", false, "Lax")
+    assert(error(session_policy_check(host_insecure)).code == "E_SESSION_POLICY")
+    # Local HTTP development: Secure off, no prefix.
+    let local = SessionPolicy(1800, 43200, "sid", false, "Lax")
+    assert(is_ok(session_policy_check(local)))
+    let line = unwrap(cookie_serialize(unwrap(session_cookie(local, id))))
+    assert(text_find(line, "Secure", 0) < 0)
+    assert(text_find(line, "HttpOnly", 0) >= 0)
+    # Nonsense limits and names are refused at construction.
+    assert(error(session_policy_check(SessionPolicy(0, 43200, "sid", true, "Lax"))).code == "E_SESSION_POLICY")
+    assert(error(session_policy_check(SessionPolicy(1800, 0, "sid", true, "Lax"))).code == "E_SESSION_POLICY")
+    assert(error(session_policy_check(SessionPolicy(1800, 43200, "bad name", true, "Lax"))).code == "E_COOKIE_NAME_INVALID")
+    assert(error(session_policy_check(SessionPolicy(1800, 43200, "sid", true, "Sideways"))).code == "E_COOKIE_SAMESITE_INVALID")
+    let store = fresh_store()
+    assert(is_ok(session_middleware(store, none_open)) == false)
+    assert(error(session_middleware(store, none_open)).code == "E_COOKIE_SAMESITE_NONE_NEEDS_SECURE")
+    assert(is_ok(csrf_middleware(store, none_open)) == false)
+    clean_db()
+
+# --- the application the middleware tests drive ---
+
+fn form_page(request: Request) -> Result[Response, HttpFailure]:
+    let token = csrf_token(open_store(), session_policy_default(), request)?
+    return Ok(response_text(200, token))
+
+fn item_ok(request: Request) -> Result[Response, HttpFailure]:
+    return Ok(response_text(200, "done"))
+
+fn login_page(request: Request) -> Result[Response, HttpFailure]:
+    let store = open_store()
+    let policy = session_policy_default()
+    let set = session_set(store, policy, request, "user", "alice")?
+    return session_rotate(store, policy, request, response_text(200, "welcome"))
+
+fn whoami(request: Request) -> Result[Response, HttpFailure]:
+    match session_get(open_store(), session_policy_default(), request, "user")?:
+        Some(user):
+            return Ok(response_text(200, user))
+        None:
+            return Ok(response_text(200, "anonymous"))
+
+fn logout_page(request: Request) -> Result[Response, HttpFailure]:
+    return session_destroy(open_store(), session_policy_default(), request, response_text(200, "bye"))
+
+fn broken_page(request: Request) -> Result[Response, HttpFailure]:
+    let set = session_set(open_store(), session_policy_default(), request, "secret", "TOPSECRETVALUE")?
+    return Err(HttpFailure(500, "E_HANDLER", "something broke"))
+
+fn form_router() -> Router:
+    return unwrap(router([route("GET", "/form", form_page), route("GET", "/item", item_ok), route("HEAD", "/item", item_ok), route("OPTIONS", "/item", item_ok), route("POST", "/item", item_ok), route("PUT", "/item", item_ok), route("PATCH", "/item", item_ok), route("DELETE", "/item", item_ok), route("POST", "/login", login_page), route("GET", "/me", whoami), route("POST", "/logout", logout_page), route("GET", "/broken", broken_page)]))
+
+fn full_app(store: SessionStore) -> App:
+    let policy = session_policy_default()
+    return app_with(form_router(), [unwrap(session_middleware(store, policy)), unwrap(csrf_middleware(store, policy))])
+
+record Visit:
+    cookie: Text
+    token: Text
+
+# A first visit: the session cookie and the CSRF token the page hands out.
+fn visit(application: App) -> Visit:
+    let response = app_respond(application, req("GET", "/form", "", ""))
+    assert(response.status == 200)
+    return Visit(cookie_pair(response), text_from_bytes_lossy(response.body.data))
+
+fn status_of(application: App, request: Request) -> Int:
+    return app_respond(application, request).status
+
+fn test_the_session_layer_issues_a_cookie_once_and_reuses_the_session() -> Unit:
+    let application = full_app(fresh_store())
+    let first = visit(application)
+    assert(starts(first.cookie, "__Host-session="))
+    assert(len(id_in(first.cookie)) == 64)
+    let again = app_respond(application, req("GET", "/form", first.cookie, ""))
+    assert(cookie_pair(again) == first.cookie)
+    assert(text_from_bytes_lossy(again.body.data) == first.token)
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions", []) == 1)
+    let line = response_header_values(again, "set-cookie")[0]
+    assert(text_find(line, "HttpOnly", 0) >= 0)
+    assert(text_find(line, "Secure", 0) >= 0)
+    assert(text_find(line, "SameSite=Lax", 0) >= 0)
+    clean_db()
+
+fn test_a_state_changing_request_without_a_token_is_refused_with_403() -> Unit:
+    let application = full_app(fresh_store())
+    let first = visit(application)
+    for method in ["POST", "PUT", "PATCH", "DELETE"]:
+        let refused = app_respond(application, req(method, "/item", first.cookie, ""))
+        assert(refused.status == 403)
+        assert(text_from_bytes_lossy(refused.body.data) == "Forbidden")
+        assert(status_of(application, req(method, "/item", first.cookie, first.token)) == 200)
+    # No cookie at all: a session is made for the request and the missing token is still a 403.
+    assert(status_of(application, req("POST", "/item", "", "")) == 403)
+    clean_db()
+
+fn test_get_head_and_options_do_not_need_a_token_but_other_methods_do() -> Unit:
+    let application = full_app(fresh_store())
+    let first = visit(application)
+    for method in ["GET", "HEAD", "OPTIONS"]:
+        assert(status_of(application, req(method, "/item", first.cookie, "")) == 200)
+        assert(status_of(application, req(method, "/item", "", "")) == 200)
+    assert(csrf_exempt_method("GET"))
+    assert(csrf_exempt_method("HEAD"))
+    assert(csrf_exempt_method("OPTIONS"))
+    for method in ["POST", "PUT", "PATCH", "DELETE", "TRACE", "CONNECT", "PURGE", "get", "post", "Get", ""]:
+        assert(csrf_exempt_method(method) == false)
+    # A method the router does not know is refused by CSRF (403) before the router's 405.
+    assert(status_of(application, req("TRACE", "/item", first.cookie, "")) == 403)
+    clean_db()
+
+fn test_a_token_from_session_a_fails_in_session_b() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    let b = visit(application)
+    assert(a.cookie != b.cookie)
+    assert(a.token != b.token)
+    assert(status_of(application, req("POST", "/item", a.cookie, a.token)) == 200)
+    assert(status_of(application, req("POST", "/item", b.cookie, b.token)) == 200)
+    assert(status_of(application, req("POST", "/item", a.cookie, b.token)) == 403)
+    assert(status_of(application, req("POST", "/item", b.cookie, a.token)) == 403)
+    clean_db()
+
+fn test_a_malformed_or_altered_token_is_refused() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    assert(len(a.token) == 44)
+    let last = text_slice(a.token, 42, 43)
+    var other = "A"
+    if last == "A":
+        set other = "B"
+    let altered = text_slice(a.token, 0, 42) + other + "="
+    for bad in ["x", "AAAA", a.token + "A", text_slice(a.token, 0, 43), altered, a.token + "=", "", "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"]:
+        assert(status_of(application, req("POST", "/item", a.cookie, bad)) == 403)
+    assert(status_of(application, req("POST", "/item", a.cookie, a.token)) == 200)
+    clean_db()
+
+fn test_the_token_can_ride_in_a_form_field_and_the_header_wins() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    let encoded = url_encode_component(a.token)
+    let form = with_body(req("POST", "/item", a.cookie, ""), "application/x-www-form-urlencoded", "name=x&_csrf=" + encoded)
+    assert(status_of(application, form) == 200)
+    let wrong = with_body(req("POST", "/item", a.cookie, ""), "application/x-www-form-urlencoded", "name=x&_csrf=nope")
+    assert(status_of(application, wrong) == 403)
+    let absent = with_body(req("POST", "/item", a.cookie, ""), "application/x-www-form-urlencoded", "name=x")
+    assert(status_of(application, absent) == 403)
+    # A field in a body that is not a form is not read.
+    let json = with_body(req("POST", "/item", a.cookie, ""), "application/json", "_csrf=" + encoded)
+    assert(status_of(application, json) == 403)
+    # A bad header is not rescued by a good field.
+    let both = with_body(req("POST", "/item", a.cookie, "bad"), "application/x-www-form-urlencoded", "_csrf=" + encoded)
+    assert(status_of(application, both) == 403)
+    clean_db()
+
+fn test_login_rotates_the_session_and_the_old_token_dies() -> Unit:
+    let application = full_app(fresh_store())
+    let before = visit(application)
+    let answered = app_respond(application, req("POST", "/login", before.cookie, before.token))
+    assert(answered.status == 200)
+    let after_pair = cookie_pair(answered)
+    assert(starts(after_pair, "__Host-session="))
+    assert(after_pair != before.cookie)
+    # One Set-Cookie for the session cookie: the layer does not add a second over the rotation.
+    assert(len(response_header_values(answered, "set-cookie")) == 1)
+    # The pre-login cookie and its token are dead.
+    assert(app_respond(application, req("GET", "/me", before.cookie, "")).status == 200)
+    assert(text_from_bytes_lossy(app_respond(application, req("GET", "/me", before.cookie, "")).body.data) == "anonymous")
+    assert(status_of(application, req("POST", "/item", before.cookie, before.token)) == 403)
+    # The new session is logged in; its token is new.
+    assert(text_from_bytes_lossy(app_respond(application, req("GET", "/me", after_pair, "")).body.data) == "alice")
+    let page = app_respond(application, req("GET", "/form", after_pair, ""))
+    assert(text_from_bytes_lossy(page.body.data) != before.token)
+    assert(status_of(application, req("POST", "/item", after_pair, text_from_bytes_lossy(page.body.data))) == 200)
+    clean_db()
+
+fn test_logout_destroys_the_session_and_its_token() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    let answered = app_respond(application, req("POST", "/logout", a.cookie, a.token))
+    assert(answered.status == 200)
+    assert(len(response_header_values(answered, "set-cookie")) == 1)
+    assert(text_find(response_header_values(answered, "set-cookie")[0], "Max-Age=0", 0) >= 0)
+    assert(status_of(application, req("POST", "/item", a.cookie, a.token)) == 403)
+    clean_db()
+
+fn test_an_attacker_supplied_cookie_gets_a_fresh_session_through_the_middleware() -> Unit:
+    let application = full_app(fresh_store())
+    let planted = "__Host-session=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    let response = app_respond(application, req("GET", "/form", planted, ""))
+    assert(response.status == 200)
+    let issued = cookie_pair(response)
+    assert(issued != planted)
+    assert(id_in(issued) != id_in(planted))
+    assert(count_rows("SELECT COUNT(*) AS n FROM web_sessions WHERE id_hash = ?", [sql_text(sha_hex(id_in(planted)))]) == 0)
+    # Two cookies of the same name in one request: the first one is read and replaced as a whole.
+    let doubled = req("GET", "/form", planted + "; __Host-session=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc; other=1", "")
+    let second = app_respond(application, doubled)
+    assert(id_in(cookie_pair(second)) != id_in(planted))
+    assert(len(id_in(cookie_pair(second))) == 64)
+    clean_db()
+
+fn test_the_session_layer_keeps_other_cookies_and_puts_its_own_first() -> Unit:
+    let policy = session_policy_default()
+    let layer = unwrap(session_middleware(fresh_store(), policy))
+    let before = layer.before
+    let request = req("GET", "/", "theme=dark; __Host-session=zzz; lang=en", "")
+    let passed = unwrap(before(layer.config, request))
+    let id = unwrap(session_id_of(policy, passed))
+    assert(session_id_valid(id))
+    var joined = ""
+    for header in passed.headers:
+        set joined = joined + header.value + "|"
+    assert(text_find(joined, "theme=dark", 0) >= 0)
+    assert(text_find(joined, "lang=en", 0) >= 0)
+    assert(text_find(joined, "zzz", 0) < 0)
+    clean_db()
+
+fn test_a_stored_session_past_its_limit_is_replaced_by_the_middleware_on_the_real_clock() -> Unit:
+    let store = fresh_store()
+    let application = full_app(store)
+    let a = visit(application)
+    let db = unwrap(sqlite_open(db_path()))
+    let tx = unwrap(sqlite_begin(db))
+    unwrap(sqlite_execute(tx, "UPDATE web_sessions SET last_seen_ms = 1, created_ms = 1", []))
+    unwrap(sqlite_commit(tx))
+    unwrap(sqlite_close(db))
+    let response = app_respond(application, req("GET", "/form", a.cookie, ""))
+    assert(response.status == 200)
+    assert(cookie_pair(response) != a.cookie)
+    assert(status_of(application, req("POST", "/item", a.cookie, a.token)) == 403)
+    clean_db()
+
+fn test_a_session_read_completes_while_another_connection_holds_a_write_transaction() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let id = unwrap(session_open(store, policy, request_new("GET", "/")))
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), id)
+    unwrap(session_set(store, policy, request, "user", "alice"))
+    let writer = unwrap(sqlite_open(db_path()))
+    let held = unwrap(sqlite_begin(writer))
+    unwrap(sqlite_execute(held, "INSERT INTO web_session_data (id_hash, key, value) VALUES ('held', 'k', 'v')", []))
+    # The read path uses a read transaction, so the held write does not block it.
+    assert(val(session_get(store, policy, request, "user")) == "alice")
+    assert(unwrap(session_exists(store, policy, request)))
+    let rolled = sqlite_rollback(held)
+    let closed = sqlite_close(writer)
+    clean_db()
+
+fn test_nothing_about_a_session_reaches_the_log() -> Unit:
+    let store = fresh_store()
+    let opened = unwrap(log_open("web-test-sessions.log", "debug"))
+    let application = app_log(full_app(store), opened)
+    let a = visit(application)
+    let response = app_respond(application, req("GET", "/broken", a.cookie, ""))
+    assert(response.status == 500)
+    assert(text_from_bytes_lossy(response.body.data) == "Internal Server Error")
+    let refused = app_respond(application, req("POST", "/item", a.cookie, "tampered"))
+    assert(refused.status == 403)
+    let lines = unwrap(read_text("web-test-sessions.log"))
+    assert(text_find(lines, "\"code\":\"E_HANDLER\"", 0) >= 0)
+    assert(text_find(lines, id_in(a.cookie), 0) < 0)
+    assert(text_find(lines, a.token, 0) < 0)
+    assert(text_find(lines, "TOPSECRETVALUE", 0) < 0)
+    assert(text_find(lines, "tampered", 0) < 0)
+    assert(text_find(lines, "__Host-session", 0) < 0)
+    clean_db()
+
+fn test_csrf_without_a_session_layer_in_front_fails_closed() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let lonely = app_with(form_router(), [unwrap(csrf_middleware(store, policy))])
+    # A cookie nobody issued has no session behind it, so no token for it can verify.
+    let ghost = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    let forged_token = base64url_encode(crypto_hmac_sha256(store.secret, bytes_from_text(ghost + "csrf")))
+    assert(status_of(lonely, req("POST", "/item", "__Host-session=" + ghost, forged_token)) == 403)
+    assert(status_of(lonely, req("POST", "/item", "", "")) == 403)
+    clean_db()
+
+fn test_csrf_tokens_are_a_keyed_mac_of_the_session_id() -> Unit:
+    let store = fresh_store()
+    let policy = session_policy_default()
+    let id = unwrap(session_open(store, policy, request_new("GET", "/")))
+    let request = with_cookie(request_new("GET", "/"), cookie_name(), id)
+    let token = unwrap(csrf_token(store, policy, request))
+    assert(token == base64url_encode(crypto_hmac_sha256(store.secret, bytes_from_text(id + "csrf"))))
+    # Another server secret gives another token for the same ID.
+    assert(token != base64url_encode(crypto_hmac_sha256(bytes_from_text("another secret"), bytes_from_text(id + "csrf"))))
+    assert(is_ok(csrf_token(store, policy, request_new("GET", "/"))) == false)
+    assert(error(csrf_token(store, policy, request_new("GET", "/"))).code == "E_CSRF_NO_SESSION")
+    clean_db()

@@ -1,0 +1,561 @@
+# Server-side sessions for the web package.
+#
+# A session is a row in a SQLite database that every worker opens, so a request can land on any
+# worker. The browser holds only an ID: 32 bytes from the operating system's generator
+# (crypto_random_hex(32)), written as 64 lowercase hex digits, in a cookie that is HttpOnly, Secure
+# and SameSite=Lax by default. The database stores sha256(ID), never the ID, so a copy of the
+# database file does not hand out sessions. A server secret (32 bytes from crypto_random_bytes) is
+# made once and kept in the same database for the CSRF tokens of csrf.gu; protect the file like any
+# other secret.
+#
+# Fixation. An ID the server did not issue is never adopted: a cookie that is missing, of the wrong
+# length or alphabet, unknown to the store or expired is answered with a new ID. An ID of the wrong
+# shape is rejected before the store is touched. `session_rotate` (call it on login or any other
+# privilege change) moves the data to a new ID and deletes the old one in one transaction, so an ID
+# an attacker planted or learned is dead from then on.
+#
+# Expiry. A session ends after `idle_seconds` without a request and `absolute_seconds` after it was
+# made (or rotated), whichever comes first. The visit time is renewed at most once per tenth of the
+# idle window, so most reads write nothing. Expired rows are deleted when their ID is next presented
+# and by `session_purge_expired`.
+#
+# Concurrency. Reads use `sqlite_begin_read` and writes `sqlite_begin`, so a held write
+# transaction does not stall a read.
+#
+# Function values capture nothing, so `session_middleware(store, policy)` builds a Middleware whose
+# `config` holds the store path and the policy as text. Its `before` finds or creates the session and
+# replaces any session cookie in the request with the valid one (so everything inward reads one
+# cookie, `session_id_of(policy, request)`); its `after` adds the Set-Cookie header unless the
+# handler already set that cookie (rotate and destroy do). A handler that needs the session opens the
+# store itself with `session_store_open(path)`: the path is the application's own constant.
+#
+# Nothing here writes an ID, a token or a value to a log or into a failure message. Every failure is
+# an HttpFailure with a fixed message.
+
+import "std:types"
+import "std:text"
+import "std:crypto"
+import "std:encoding"
+import "std:sqlite"
+import "std:time"
+import "std:cookie"
+import "std:http_response"
+import "middleware.gu"
+
+pub record SessionStore:
+    path: Text
+    secret: Bytes
+
+pub record SessionPolicy:
+    idle_seconds: Int
+    absolute_seconds: Int
+    cookie_name: Text
+    secure: Bool
+    same_site: Text
+
+record SsStatement:
+    sql: Text
+    values: List[SqlValue]
+
+fn ss_fail(code: Text, message: Text) -> HttpFailure:
+    return HttpFailure(500, code, message)
+
+fn ss_store_failure() -> HttpFailure:
+    return ss_fail("E_SESSION_STORE", "the session store could not be read or written")
+
+fn ss_absent() -> Option[Text]:
+    return None
+
+fn ss_present(value: Text) -> Option[Text]:
+    return Some(value)
+
+fn ss_nothing() -> Unit:
+    let finished = 0
+
+# ---- IDs ----
+
+# 64 characters, each one of 0-9 a-f.
+pub fn session_id_valid(id: Text) -> Bool:
+    if len(id) != 64:
+        return false
+    let allowed = "0123456789abcdef"
+    let chars = text_chars(id)
+    var index = 0
+    while index < len(chars):
+        if text_find(allowed, chars[index], 0) < 0:
+            return false
+        set index = index + 1
+    return true
+
+# A new ID from the operating system's generator.
+pub fn session_id_new() -> Result[Text, HttpFailure]:
+    match crypto_random_hex(32):
+        Ok(id):
+            return Ok(id)
+        Err(problem):
+            return Err(ss_fail("E_SESSION_ENTROPY", "the operating system did not provide random bytes"))
+
+fn ss_hash(id: Text) -> Text:
+    return hex_encode(crypto_sha256_text(id))
+
+# ---- policy and cookie ----
+
+# Idle 30 minutes, absolute 12 hours, cookie `__Host-session` with HttpOnly, Secure, SameSite=Lax and
+# Path=/. For local development over plain HTTP set `secure` to false and use a name without the
+# `__Host-` prefix, which browsers refuse without Secure.
+pub fn session_policy_default() -> SessionPolicy:
+    return SessionPolicy(1800, 43200, "__Host-session", true, "Lax")
+
+fn ss_prefix_host(name: Text) -> Bool:
+    return len(name) >= 7 and text_slice(name, 0, 7) == "__Host-"
+
+# The cookie for an ID: HttpOnly always, Path=/, no Domain, no Max-Age (it ends with the browser
+# session; the server enforces the real limits). SameSite=None needs Secure
+# (E_COOKIE_SAMESITE_NONE_NEEDS_SECURE).
+pub fn session_cookie(policy: SessionPolicy, id: Text) -> Result[Cookie, HttpFailure]:
+    let made = cookie_new(policy.cookie_name, id)?
+    let secured = cookie_secure(cookie_http_only(made, true), policy.secure)
+    let sited = cookie_same_site(secured, policy.same_site)?
+    return cookie_path(sited, "/")
+
+# The policy if it can be used, else why not. Checked when a middleware is built.
+pub fn session_policy_check(policy: SessionPolicy) -> Result[SessionPolicy, HttpFailure]:
+    if policy.idle_seconds < 1 or policy.absolute_seconds < 1:
+        return Err(ss_fail("E_SESSION_POLICY", "idle_seconds and absolute_seconds must be at least 1"))
+    if ss_prefix_host(policy.cookie_name) and not policy.secure:
+        return Err(ss_fail("E_SESSION_POLICY", "a cookie named __Host-... must be Secure"))
+    let sample = session_cookie(policy, "0")?
+    return Ok(policy)
+
+# ---- the request's session cookie ----
+
+# The ID in the first Cookie header that carries the policy's cookie name, if it has the right shape.
+pub fn session_id_of(policy: SessionPolicy, request: Request) -> Option[Text]:
+    var index = 0
+    while index < len(request.headers):
+        let header = request.headers[index]
+        if text_casefold(header.name) == "cookie":
+            let pairs = cookie_parse(header.value)
+            match map_get(pairs, policy.cookie_name):
+                Some(value):
+                    if session_id_valid(value):
+                        return ss_present(value)
+                    return ss_absent()
+                None:
+                    let skipped = 0
+        set index = index + 1
+    return ss_absent()
+
+fn ss_strip(value: Text, name: Text) -> Text:
+    let parts = text_split(value, ";")
+    var kept: List[Text] = []
+    var index = 0
+    while index < len(parts):
+        let piece = text_trim(parts[index])
+        if len(piece) > 0:
+            let at = text_find(piece, "=", 0)
+            var label = piece
+            if at >= 0:
+                set label = text_trim(text_slice(piece, 0, at))
+            if label != name:
+                set kept = list_push(kept, piece)
+        set index = index + 1
+    return text_join(kept, "; ")
+
+# The request with every pair named like the session cookie removed from its Cookie headers and the
+# given ID put first, so the cookie the handlers read is the one the server chose.
+fn ss_with_id(request: Request, name: Text, id: Text) -> Request:
+    var headers: List[Header] = [Header("Cookie", name + "=" + id)]
+    var index = 0
+    while index < len(request.headers):
+        let header = request.headers[index]
+        if text_casefold(header.name) == "cookie":
+            let rest = ss_strip(header.value, name)
+            if len(rest) > 0:
+                set headers = list_push(headers, Header(header.name, rest))
+        else:
+            set headers = list_push(headers, header)
+        set index = index + 1
+    return Request(request.method, request.path, request.query, headers, request.body, request.params)
+
+# ---- the store ----
+
+fn ss_open_db(path: Text) -> Result[Db, HttpFailure]:
+    if len(path) == 0:
+        return Err(ss_store_failure())
+    match sqlite_open(path):
+        Ok(db):
+            return Ok(db)
+        Err(problem):
+            return Err(ss_store_failure())
+
+fn ss_close(db: Db) -> Unit:
+    let closed = sqlite_close(db)
+    return ss_nothing()
+
+fn ss_read(db: Db, sql: Text, values: List[SqlValue]) -> Result[List[SqlRow], HttpFailure]:
+    match sqlite_begin_read(db):
+        Err(problem):
+            return Err(ss_store_failure())
+        Ok(tx):
+            match sqlite_query(tx, sql, values):
+                Err(problem):
+                    let rolled = sqlite_rollback(tx)
+                    return Err(ss_store_failure())
+                Ok(rows):
+                    match sqlite_commit(tx):
+                        Ok(done):
+                            return Ok(rows)
+                        Err(problem):
+                            return Err(ss_store_failure())
+
+# Runs the statements in one write transaction; the count is the rows changed by the last one.
+fn ss_write(db: Db, statements: List[SsStatement]) -> Result[Int, HttpFailure]:
+    match sqlite_begin(db):
+        Err(problem):
+            return Err(ss_store_failure())
+        Ok(tx):
+            var changed = 0
+            var index = 0
+            while index < len(statements):
+                match sqlite_execute(tx, statements[index].sql, statements[index].values):
+                    Err(problem):
+                        let rolled = sqlite_rollback(tx)
+                        return Err(ss_store_failure())
+                    Ok(count):
+                        set changed = count
+                set index = index + 1
+            match sqlite_commit(tx):
+                Ok(done):
+                    return Ok(changed)
+                Err(problem):
+                    return Err(ss_store_failure())
+
+fn ss_schema() -> List[SsStatement]:
+    return [SsStatement("CREATE TABLE IF NOT EXISTS web_sessions (id_hash TEXT PRIMARY KEY, created_ms INTEGER NOT NULL, last_seen_ms INTEGER NOT NULL)", []), SsStatement("CREATE TABLE IF NOT EXISTS web_session_data (id_hash TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (id_hash, key))", []), SsStatement("CREATE TABLE IF NOT EXISTS web_secret (slot INTEGER PRIMARY KEY CHECK (slot = 1), secret BLOB NOT NULL)", [])]
+
+fn ss_read_secret(db: Db) -> Result[Bytes, HttpFailure]:
+    let rows = ss_read(db, "SELECT secret FROM web_secret WHERE slot = 1", [])?
+    if len(rows) != 1 or len(rows[0].values[0].blob) != 32:
+        return Err(ss_store_failure())
+    return Ok(rows[0].values[0].blob)
+
+fn ss_init(db: Db) -> Result[Bytes, HttpFailure]:
+    let fresh = ss_random_32()?
+    var statements = ss_schema()
+    set statements = list_push(statements, SsStatement("INSERT OR IGNORE INTO web_secret (slot, secret) VALUES (1, ?)", [sql_blob(fresh)]))
+    let written = ss_write(db, statements)?
+    return ss_read_secret(db)
+
+fn ss_random_32() -> Result[Bytes, HttpFailure]:
+    match crypto_random_bytes(32):
+        Ok(bytes):
+            return Ok(bytes)
+        Err(problem):
+            return Err(ss_fail("E_SESSION_ENTROPY", "the operating system did not provide random bytes"))
+
+# Opens (and on first use creates) the session database at `db_path`, and returns the store holding
+# the server secret. Safe to call from every worker and on every request: the secret is made once.
+pub fn session_store_open(db_path: Text) -> Result[SessionStore, HttpFailure]:
+    let db = ss_open_db(db_path)?
+    var secret = ss_read_secret(db)
+    if not is_ok(secret):
+        set secret = ss_init(db)
+    let closed = ss_close(db)
+    match secret:
+        Ok(bytes):
+            return Ok(SessionStore(db_path, bytes))
+        Err(failure):
+            return Err(failure)
+
+fn ss_live(policy: SessionPolicy, created: Int, seen: Int, now_ms: Int) -> Bool:
+    return now_ms - seen <= policy.idle_seconds * 1000 and now_ms - created <= policy.absolute_seconds * 1000
+
+fn ss_delete(db: Db, hash: Text) -> Result[Int, HttpFailure]:
+    return ss_write(db, [SsStatement("DELETE FROM web_session_data WHERE id_hash = ?", [sql_text(hash)]), SsStatement("DELETE FROM web_sessions WHERE id_hash = ?", [sql_text(hash)])])
+
+fn ss_create(db: Db, now_ms: Int) -> Result[Text, HttpFailure]:
+    let id = session_id_new()?
+    let written = ss_write(db, [SsStatement("INSERT INTO web_sessions (id_hash, created_ms, last_seen_ms) VALUES (?, ?, ?)", [sql_text(ss_hash(id)), sql_integer(now_ms), sql_integer(now_ms)])])?
+    return Ok(id)
+
+# Is this ID a live session? False when it is absent or expired (an expired row is deleted). With
+# `renew`, a live session's visit time is renewed when a tenth of the idle window has passed.
+fn ss_check(db: Db, policy: SessionPolicy, id: Text, now_ms: Int, renew: Bool) -> Result[Bool, HttpFailure]:
+    let hash = ss_hash(id)
+    let rows = ss_read(db, "SELECT created_ms, last_seen_ms FROM web_sessions WHERE id_hash = ?", [sql_text(hash)])?
+    if len(rows) != 1:
+        return Ok(false)
+    let created = rows[0].values[0].integer
+    let seen = rows[0].values[1].integer
+    if not ss_live(policy, created, seen, now_ms):
+        let removed = ss_delete(db, hash)?
+        return Ok(false)
+    if renew and now_ms - seen >= policy.idle_seconds * 100:
+        let touched = ss_write(db, [SsStatement("UPDATE web_sessions SET last_seen_ms = ? WHERE id_hash = ? AND last_seen_ms < ?", [sql_integer(now_ms), sql_text(hash), sql_integer(now_ms)])])?
+    return Ok(true)
+
+fn ss_open_in(db: Db, policy: SessionPolicy, presented: Option[Text], now_ms: Int) -> Result[Text, HttpFailure]:
+    match presented:
+        Some(id):
+            if ss_check(db, policy, id, now_ms, true)?:
+                return Ok(id)
+        None:
+            let skipped = 0
+    return ss_create(db, now_ms)
+
+# The ID of the request's session at `now_ms` (milliseconds since the epoch): the presented ID if it
+# is a live session, otherwise a newly made one. Never adopts an ID the store does not hold.
+pub fn session_open_at(store: SessionStore, policy: SessionPolicy, request: Request, now_ms: Int) -> Result[Text, HttpFailure]:
+    let db = ss_open_db(store.path)?
+    let result = ss_open_in(db, policy, session_id_of(policy, request), now_ms)
+    let closed = ss_close(db)
+    return result
+
+pub fn session_open(store: SessionStore, policy: SessionPolicy, request: Request) -> Result[Text, HttpFailure]:
+    return session_open_at(store, policy, request, unix_time_ms())
+
+# Is the request's cookie a live session? False for a missing or malformed cookie without touching the store.
+pub fn session_exists(store: SessionStore, policy: SessionPolicy, request: Request) -> Result[Bool, HttpFailure]:
+    match session_id_of(policy, request):
+        None:
+            return Ok(false)
+        Some(id):
+            let db = ss_open_db(store.path)?
+            let result = ss_check(db, policy, id, unix_time_ms(), false)
+            let closed = ss_close(db)
+            return result
+
+fn ss_get_in(db: Db, policy: SessionPolicy, id: Text, key: Text, now_ms: Int) -> Result[Option[Text], HttpFailure]:
+    let rows = ss_read(db, "SELECT s.created_ms, s.last_seen_ms, d.value FROM web_sessions s LEFT JOIN web_session_data d ON d.id_hash = s.id_hash AND d.key = ? WHERE s.id_hash = ?", [sql_text(key), sql_text(ss_hash(id))])?
+    if len(rows) != 1:
+        return Ok(ss_absent())
+    if not ss_live(policy, rows[0].values[0].integer, rows[0].values[1].integer, now_ms):
+        return Ok(ss_absent())
+    if rows[0].values[2].kind == "null":
+        return Ok(ss_absent())
+    return Ok(ss_present(rows[0].values[2].text))
+
+# The value stored under `key` in the request's session, or None (no session, an expired one, a
+# malformed cookie, or no such key).
+pub fn session_get_at(store: SessionStore, policy: SessionPolicy, request: Request, key: Text, now_ms: Int) -> Result[Option[Text], HttpFailure]:
+    match session_id_of(policy, request):
+        None:
+            return Ok(ss_absent())
+        Some(id):
+            let db = ss_open_db(store.path)?
+            let result = ss_get_in(db, policy, id, key, now_ms)
+            let closed = ss_close(db)
+            return result
+
+pub fn session_get(store: SessionStore, policy: SessionPolicy, request: Request, key: Text) -> Result[Option[Text], HttpFailure]:
+    return session_get_at(store, policy, request, key, unix_time_ms())
+
+fn ss_key_ok(key: Text) -> Bool:
+    return len(key) >= 1 and len(key) <= 128
+
+# Stores `value` under `key` (keys are 1 to 128 characters, values up to 65,536). The request must
+# carry a live session (E_SESSION_NONE otherwise).
+pub fn session_set(store: SessionStore, policy: SessionPolicy, request: Request, key: Text, value: Text) -> Result[Unit, HttpFailure]:
+    if not ss_key_ok(key):
+        return Err(ss_fail("E_SESSION_KEY", "a session key is 1 to 128 characters"))
+    if len(value) > 65536:
+        return Err(ss_fail("E_SESSION_VALUE", "a session value is at most 65,536 characters"))
+    match session_id_of(policy, request):
+        None:
+            return Err(ss_fail("E_SESSION_NONE", "the request has no live session"))
+        Some(id):
+            let db = ss_open_db(store.path)?
+            let live = ss_check(db, policy, id, unix_time_ms(), true)
+            var result: Result[Unit, HttpFailure] = Err(ss_fail("E_SESSION_NONE", "the request has no live session"))
+            match live:
+                Err(failure):
+                    set result = Err(failure)
+                Ok(found):
+                    if found:
+                        match ss_write(db, [SsStatement("INSERT INTO web_session_data (id_hash, key, value) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM web_sessions WHERE id_hash = ?) ON CONFLICT (id_hash, key) DO UPDATE SET value = excluded.value", [sql_text(ss_hash(id)), sql_text(key), sql_text(value), sql_text(ss_hash(id))])]):
+                            Ok(count):
+                                set result = Ok(ss_nothing())
+                            Err(failure):
+                                set result = Err(failure)
+            let closed = ss_close(db)
+            return result
+
+# Removes one key; not an error when it is absent.
+pub fn session_remove(store: SessionStore, policy: SessionPolicy, request: Request, key: Text) -> Result[Unit, HttpFailure]:
+    match session_id_of(policy, request):
+        None:
+            return Ok(ss_nothing())
+        Some(id):
+            let db = ss_open_db(store.path)?
+            let result = ss_write(db, [SsStatement("DELETE FROM web_session_data WHERE id_hash = ? AND key = ?", [sql_text(ss_hash(id)), sql_text(key)])])
+            let closed = ss_close(db)
+            match result:
+                Ok(count):
+                    return Ok(ss_nothing())
+                Err(failure):
+                    return Err(failure)
+
+# ---- response side ----
+
+fn ss_sets_cookie(response: Response, name: Text) -> Bool:
+    let lines = response_header_values(response, "set-cookie")
+    var index = 0
+    while index < len(lines):
+        if len(lines[index]) > len(name) and text_slice(lines[index], 0, len(name) + 1) == name + "=":
+            return true
+        set index = index + 1
+    return false
+
+# The response without any Set-Cookie header for the session cookie.
+fn ss_without_cookie(response: Response, name: Text) -> Response:
+    var headers: List[Header] = []
+    var index = 0
+    while index < len(response.headers):
+        let header = response.headers[index]
+        var drop = false
+        if text_casefold(header.name) == "set-cookie":
+            if len(header.value) > len(name) and text_slice(header.value, 0, len(name) + 1) == name + "=":
+                set drop = true
+        if not drop:
+            set headers = list_push(headers, header)
+        set index = index + 1
+    return Response(response.status, headers, response.body)
+
+# Moves the request's session to a new ID and kills the old one: call it when the user's privileges
+# change (login, a role change, a password change). The data is copied to the new ID and the old
+# rows are deleted in one transaction, and the response carries the new cookie. If the request has no
+# live session the new one starts empty. Use the returned response: the request's old ID is dead, so
+# do not read or write the session through the same request afterwards.
+pub fn session_rotate(store: SessionStore, policy: SessionPolicy, request: Request, response: Response) -> Result[Response, HttpFailure]:
+    let fresh = session_id_new()?
+    let now_ms = unix_time_ms()
+    let db = ss_open_db(store.path)?
+    var statements: List[SsStatement] = [SsStatement("INSERT INTO web_sessions (id_hash, created_ms, last_seen_ms) VALUES (?, ?, ?)", [sql_text(ss_hash(fresh)), sql_integer(now_ms), sql_integer(now_ms)])]
+    match session_id_of(policy, request):
+        Some(old):
+            let live = ss_check(db, policy, old, now_ms, false)
+            if is_ok(live) and unwrap(live):
+                set statements = list_push(statements, SsStatement("INSERT INTO web_session_data (id_hash, key, value) SELECT ?, key, value FROM web_session_data WHERE id_hash = ?", [sql_text(ss_hash(fresh)), sql_text(ss_hash(old))]))
+            set statements = list_push(statements, SsStatement("DELETE FROM web_session_data WHERE id_hash = ?", [sql_text(ss_hash(old))]))
+            set statements = list_push(statements, SsStatement("DELETE FROM web_sessions WHERE id_hash = ?", [sql_text(ss_hash(old))]))
+        None:
+            let skipped = 0
+    let written = ss_write(db, statements)
+    let closed = ss_close(db)
+    match written:
+        Err(failure):
+            return Err(failure)
+        Ok(count):
+            let cookie = session_cookie(policy, fresh)?
+            return response_add_cookie(ss_without_cookie(response, policy.cookie_name), cookie)
+
+# Deletes the request's session and the cookie (a Set-Cookie with Max-Age=0).
+pub fn session_destroy(store: SessionStore, policy: SessionPolicy, request: Request, response: Response) -> Result[Response, HttpFailure]:
+    match session_id_of(policy, request):
+        Some(id):
+            let db = ss_open_db(store.path)?
+            let removed = ss_delete(db, ss_hash(id))
+            let closed = ss_close(db)
+            match removed:
+                Err(failure):
+                    return Err(failure)
+                Ok(count):
+                    let skipped = 0
+        None:
+            let skipped = 0
+    let blank = session_cookie(policy, "")?
+    let gone = cookie_max_age(blank, 0)?
+    return response_add_cookie(ss_without_cookie(response, policy.cookie_name), gone)
+
+# Deletes every session past either limit at `now_ms` and any data without a session; returns how
+# many sessions were removed. Run it now and then (once an hour, at start-up) to keep the file small.
+pub fn session_purge_expired_at(store: SessionStore, policy: SessionPolicy, now_ms: Int) -> Result[Int, HttpFailure]:
+    let db = ss_open_db(store.path)?
+    let idle_ms = policy.idle_seconds * 1000
+    let absolute_ms = policy.absolute_seconds * 1000
+    let condition = "(? - last_seen_ms > ? OR ? - created_ms > ?)"
+    let values = [sql_integer(now_ms), sql_integer(idle_ms), sql_integer(now_ms), sql_integer(absolute_ms)]
+    var result: Result[Int, HttpFailure] = Ok(0)
+    match ss_write(db, [SsStatement("DELETE FROM web_session_data WHERE id_hash IN (SELECT id_hash FROM web_sessions WHERE " + condition + ")", values)]):
+        Err(failure):
+            set result = Err(failure)
+        Ok(skip):
+            match ss_write(db, [SsStatement("DELETE FROM web_sessions WHERE " + condition, values)]):
+                Err(failure):
+                    set result = Err(failure)
+                Ok(count):
+                    match ss_write(db, [SsStatement("DELETE FROM web_session_data WHERE id_hash NOT IN (SELECT id_hash FROM web_sessions)", [])]):
+                        Err(failure):
+                            set result = Err(failure)
+                        Ok(orphans):
+                            set result = Ok(count)
+    let closed = ss_close(db)
+    return result
+
+pub fn session_purge_expired(store: SessionStore, policy: SessionPolicy) -> Result[Int, HttpFailure]:
+    return session_purge_expired_at(store, policy, unix_time_ms())
+
+# ---- the middleware ----
+
+# The settings of a session layer as text, for Middleware.config. csrf.gu reads the same map.
+pub fn session_config(store: SessionStore, policy: SessionPolicy) -> Map[Text, Text]:
+    var secure = "false"
+    if policy.secure:
+        set secure = "true"
+    return {"store": store.path, "idle": int_to_text(policy.idle_seconds), "absolute": int_to_text(policy.absolute_seconds), "cookie": policy.cookie_name, "secure": secure, "same_site": policy.same_site}
+
+fn ss_int_of(config: Map[Text, Text], key: Text) -> Int:
+    match map_get(config, key):
+        Some(text):
+            match text_parse_integer(text):
+                Ok(value):
+                    return value
+                Err(problem):
+                    return 0
+        None:
+            return 0
+
+fn ss_text_of(config: Map[Text, Text], key: Text) -> Text:
+    match map_get(config, key):
+        Some(text):
+            return text
+        None:
+            return ""
+
+pub fn session_policy_from_config(config: Map[Text, Text]) -> Result[SessionPolicy, HttpFailure]:
+    return session_policy_check(SessionPolicy(ss_int_of(config, "idle"), ss_int_of(config, "absolute"), ss_text_of(config, "cookie"), ss_text_of(config, "secure") == "true", ss_text_of(config, "same_site")))
+
+fn ss_unavailable() -> Response:
+    return response_text(500, internal_error_body())
+
+fn ss_before(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
+    match session_policy_from_config(config):
+        Err(failure):
+            return Err(ss_unavailable())
+        Ok(policy):
+            # The layer needs no secret, so it does not read it.
+            let store = SessionStore(ss_text_of(config, "store"), bytes_from_text(""))
+            match session_open(store, policy, request):
+                Err(failure):
+                    return Err(ss_unavailable())
+                Ok(id):
+                    return Ok(ss_with_id(request, policy.cookie_name, id))
+
+fn ss_after(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
+    let policy = session_policy_from_config(config)?
+    if ss_sets_cookie(response, policy.cookie_name):
+        return Ok(response)
+    match session_id_of(policy, request):
+        None:
+            return Ok(response)
+        Some(id):
+            let cookie = session_cookie(policy, id)?
+            return response_add_cookie(response, cookie)
+
+# The session layer. Put it outside csrf_middleware and outside any layer that reads the session.
+# The policy is checked here, so SameSite=None without Secure
+# (E_COOKIE_SAMESITE_NONE_NEEDS_SECURE) and a bad name or limit fail when the app is built.
+pub fn session_middleware(store: SessionStore, policy: SessionPolicy) -> Result[Middleware, HttpFailure]:
+    let checked = session_policy_check(policy)?
+    return Ok(middleware_configured(ss_before, ss_after, session_config(store, checked)))

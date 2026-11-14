@@ -43,29 +43,74 @@ A handler is `fn(Request) -> Result[Response, HttpFailure]`. Guion has no type a
 
 ## Middleware and applications
 
-Function values capture nothing, so a middleware cannot wrap a handler in a closure. A middleware is a record of two named functions, and an `App` holds the router and the layers:
+Function values capture nothing, so a middleware cannot wrap a handler in a closure. A middleware is a record of two named functions and the settings they read (`config`, a `Map[Text, Text]` passed to both on every request), and an `App` holds the router and the layers:
 
 ```
-fn require_key(request: Request) -> Result[Request, Response]:
+fn require_key(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     match request_header(request, "x-key"):
         Some(key):
             return Ok(request)
         None:
             return Err(response_text(401, "key required"))
 
-fn stamp(request: Request, response: Response) -> Result[Response, HttpFailure]:
+fn stamp(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
     return response_set_header(response, "X-App", "demo")
 
 fn build(table: Router) -> App:
     return wrap(wrap(app(table), middleware_after(stamp)), middleware_before(require_key))
 ```
 
-- `before(request) -> Result[Request, Response]`: `Ok(request)` passes the request inward, `Err(response)` answers now.
-- `after(request, response) -> Result[Response, HttpFailure]`: sees the response on the way out.
-- `middleware(before, after)`, `middleware_before(before)` and `middleware_after(after)` build a layer; `wrap(app, layer)` makes it the outermost; `app_with(router, layers)` lists layers outermost first.
+- `before(config, request) -> Result[Request, Response]`: `Ok(request)` passes the request inward, `Err(response)` answers now.
+- `after(config, request, response) -> Result[Response, HttpFailure]`: sees the response on the way out.
+- `middleware(before, after)`, `middleware_before(before)` and `middleware_after(after)` build a layer with an empty `config`; `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one with settings (the session layer's store and policy travel this way); `wrap(app, layer)` makes it the outermost; `app_with(router, layers)` lists layers outermost first.
 - Order is deterministic: the outermost layer's `before` runs first and its `after` last. When a `before` answers with `Err(response)`, that layer's `after` does not run, and the `after` of every outer layer does, innermost first. An `Err(HttpFailure)` skips the remaining `after` functions.
 - Middleware wraps the router's own 404, 405 and 400 responses too.
 - Effects attach where a function value is formed, so the function that writes `middleware_before(audit)` reports the effects of `audit`.
+
+## Sessions
+
+`session.gu` keeps sessions in a SQLite database that every worker opens, so a request can land on any worker. The browser holds only an ID: 32 bytes from the operating system's generator, written as 64 lowercase hex digits. The database stores `sha256(ID)`, never the ID, so a copy of the file does not hand out sessions. It also holds a server secret (32 random bytes, made once) for the CSRF tokens; protect the file like any other secret.
+
+```
+fn db() -> Text:
+    return "sessions.db"
+
+fn login(request: Request) -> Result[Response, HttpFailure]:
+    let store = session_store_open(db())?
+    let policy = session_policy_default()
+    let saved = session_set(store, policy, request, "user", "alice")?
+    return session_rotate(store, policy, request, response_text(200, "welcome"))
+
+fn build(table: Router) -> App:
+    let store = unwrap(session_store_open(db()))
+    let policy = session_policy_default()
+    let layers = [unwrap(session_middleware(store, policy)), unwrap(csrf_middleware(store, policy))]
+    return app_with(table, layers)
+```
+
+Handlers cannot hold a store, so a handler opens it with `session_store_open(path)` (the path is the application's own constant; opening is a read once the file exists) and passes the same policy. Run the app with `--file-root` for the database directory and `--allow-clock`: expiry reads the clock.
+
+- `SessionPolicy(idle_seconds, absolute_seconds, cookie_name, secure, same_site)`. `session_policy_default()` is idle 30 minutes, absolute 12 hours, cookie `__Host-session`, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`. For local development over plain HTTP use a name without the `__Host-` prefix and `secure` false. `SameSite=None` without `Secure` is `E_COOKIE_SAMESITE_NONE_NEEDS_SECURE`; a `__Host-` name without `Secure`, or a limit below 1, is `E_SESSION_POLICY`. `session_middleware` and `csrf_middleware` check the policy when the app is built and return `Err`.
+- `session_middleware(store, policy) -> Result[Middleware, HttpFailure]` finds or creates the session before the handler runs and puts the valid ID first in the request's `Cookie` header (any pair of that name the client sent is removed), and adds the `Set-Cookie` header after, unless the handler already set that cookie. Put it outside `csrf_middleware` and outside any layer that reads the session.
+- `session_get(store, policy, request, key) -> Result[Option[Text], HttpFailure]`, `session_set(store, policy, request, key, value)` (keys 1 to 128 characters, values up to 65,536; `E_SESSION_NONE` without a live session, `E_SESSION_KEY`, `E_SESSION_VALUE`), `session_remove`, `session_exists`, `session_id_of(policy, request) -> Option[Text]`.
+- **Rotation.** `session_rotate(store, policy, request, response)` moves the data to a new ID, deletes the old one in the same transaction and puts the new cookie on the response. Call it on every privilege change (login, role change, password change). The new session gets a new absolute lifetime. The request's old ID is dead afterwards, so do not use the session through that request again.
+- **Logout.** `session_destroy(store, policy, request, response)` deletes the session and sends the cookie with `Max-Age=0`.
+- **Fixation.** An ID the server did not issue is never adopted. A cookie that is missing, of the wrong length or alphabet, unknown to the store or expired is answered with a new ID. An ID of the wrong shape is rejected before the store is touched.
+- **Expiry.** A session ends after `idle_seconds` without a request and `absolute_seconds` after it was made, whichever comes first. The visit time is renewed at most once per tenth of the idle window, so most reads write nothing. Expired rows are deleted when their ID is next presented and by `session_purge_expired(store, policy) -> Result[Int, HttpFailure]`, which returns how many sessions it removed; run it at start-up or hourly. `session_open_at`, `session_get_at` and `session_purge_expired_at` take the time in milliseconds for tests.
+- Reads use `sqlite_begin_read` and writes `sqlite_begin`, so a held write transaction does not stall a read.
+- Effects: the functions that read the time report `clock.read`. The effect analysis does not model SQLite, so opening the session database reports no file effect in `guion doc --json`; the package declares `files` in its capabilities, and a project that uses sessions must allow the database's directory.
+- Failures are `HttpFailure` values with fixed messages (`E_SESSION_STORE`, `E_SESSION_ENTROPY`): no ID, token or value ever appears in a failure, and the package writes nothing to a log. When the session layer's `before` cannot reach the store it answers 500 with the fixed `Internal Server Error` body and nothing is logged, because a `before` can only return a `Response`; run the store on a path the process can write.
+- Looking a session up compares `sha256(ID)` inside SQLite; an attacker who can submit IDs cannot choose a hash, so the lookup does not leak the ID through timing.
+
+## CSRF
+
+`csrf_middleware(store, policy) -> Result[Middleware, HttpFailure]` refuses with 403 and the fixed body `Forbidden` every request whose method is not exactly `GET`, `HEAD` or `OPTIONS` (so `POST`, `PUT`, `PATCH`, `DELETE`, `TRACE`, `CONNECT`, any other method and a lower-case method all need the token) unless it presents the token of its own session. Put it inside `session_middleware`: without a live session behind the cookie no token verifies.
+
+- `csrf_token(store, policy, request) -> Result[Text, HttpFailure]` is `base64url(HMAC-SHA256(server secret, session ID + "csrf"))`, 44 characters. A handler that renders a form calls it and puts the value in a hidden `_csrf` field or a header. `E_CSRF_NO_SESSION` when the request has no live session.
+- The token is read from the `x-csrf-token` header or, when that header is absent and the body is `application/x-www-form-urlencoded`, from the `_csrf` field. A header that is present is the only thing read. A token of the wrong length or alphabet is refused before any comparison; a right-length token is checked with `crypto_verify_hmac_sha256`, which compares in constant time.
+- A token belongs to one session: a token from session A fails in session B, and the token dies with its session (after `session_rotate`, `session_destroy` or expiry), so a page rendered before login must be rendered again after it.
+- `csrf_exempt_method(method)` and `csrf_verify(store, policy, request) -> Result[Bool, HttpFailure]` are the two halves, for a handler that wants to check itself.
+- This is the token check only. It does not read `Origin` or `Referer`, and it does not defend against a script running in your own page.
 
 ## Failures
 

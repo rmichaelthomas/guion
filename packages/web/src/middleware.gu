@@ -1,15 +1,20 @@
 # Middleware and applications for the web package.
 #
 # Function values capture nothing, so Guion has no `wrap(mw, handler) -> handler` closure. A
-# middleware here is a record of two named functions around the router, and an `App` is a value that
-# holds the router and the middleware in order:
+# middleware here is a record of two named functions and the settings they read, and an `App` is a
+# value that holds the router and the middleware in order:
 #
-#     before(request) -> Result[Request, Response]
+#     before(config, request) -> Result[Request, Response]
 #         Ok(request) passes the (possibly changed) request inward. Err(response) answers now: nothing
 #         further in runs, and the Response goes back out through the layers already entered.
-#     after(request, response) -> Result[Response, HttpFailure]
+#     after(config, request, response) -> Result[Response, HttpFailure]
 #         sees the response on the way out, with the request this layer passed inward. Err(failure)
 #         becomes the result of the whole call.
+#
+# `config` is the layer's own `Map[Text, Text]`, set when the layer is built (`middleware_configured`)
+# and passed to both functions on every request. A function value cannot carry settings, so this is
+# how a layer such as the session layer knows its store and policy. It is empty for a layer built with
+# `middleware`, `middleware_before` or `middleware_after`.
 #
 # Order is deterministic: the outermost middleware runs its `before` first and its `after` last.
 # `wrap(app, mw)` makes `mw` the new outermost layer, so after `wrap(wrap(app(r), a), b)` a request
@@ -27,19 +32,24 @@ import "std:http_response"
 import "router.gu"
 
 pub record Middleware:
-    before: fn(Request) -> Result[Request, Response]
-    after: fn(Request, Response) -> Result[Response, HttpFailure]
+    before: fn(Map[Text, Text], Request) -> Result[Request, Response]
+    after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]
+    config: Map[Text, Text]
 
 pub record App:
     router: Router
     middleware: List[Middleware]
     logger: Option[Logger]
 
-fn mw_keep_request(request: Request) -> Result[Request, Response]:
+fn mw_keep_request(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     return Ok(request)
 
-fn mw_keep_response(request: Request, response: Response) -> Result[Response, HttpFailure]:
+fn mw_keep_response(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
     return Ok(response)
+
+fn mw_no_config() -> Map[Text, Text]:
+    let none: Map[Text, Text] = {}
+    return none
 
 fn mw_no_logger() -> Option[Logger]:
     return None
@@ -50,14 +60,22 @@ fn mw_some_logger(logger: Logger) -> Option[Logger]:
 fn mw_nothing() -> Unit:
     let finished = 0
 
-pub fn middleware(before: fn(Request) -> Result[Request, Response], after: fn(Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
-    return Middleware(before, after)
+pub fn middleware(before: fn(Map[Text, Text], Request) -> Result[Request, Response], after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
+    return Middleware(before, after, mw_no_config())
 
-pub fn middleware_before(before: fn(Request) -> Result[Request, Response]) -> Middleware:
-    return Middleware(before, mw_keep_response)
+# A layer whose two functions read `config`.
+pub fn middleware_configured(before: fn(Map[Text, Text], Request) -> Result[Request, Response], after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure], config: Map[Text, Text]) -> Middleware:
+    return Middleware(before, after, config)
 
-pub fn middleware_after(after: fn(Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
-    return Middleware(mw_keep_request, after)
+# A layer with only a `before`, reading `config`.
+pub fn middleware_before_configured(before: fn(Map[Text, Text], Request) -> Result[Request, Response], config: Map[Text, Text]) -> Middleware:
+    return Middleware(before, mw_keep_response, config)
+
+pub fn middleware_before(before: fn(Map[Text, Text], Request) -> Result[Request, Response]) -> Middleware:
+    return Middleware(before, mw_keep_response, mw_no_config())
+
+pub fn middleware_after(after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
+    return Middleware(mw_keep_request, after, mw_no_config())
 
 pub fn app(router: Router) -> App:
     let none: List[Middleware] = []
@@ -90,7 +108,7 @@ fn mw_unwind(layers: List[Middleware], seen: List[Request], entered: Int, respon
     var index = entered - 1
     while index >= 0:
         let after = layers[index].after
-        set current = after(seen[index], current)?
+        set current = after(layers[index].config, seen[index], current)?
         set index = index - 1
     return Ok(current)
 
@@ -102,7 +120,7 @@ pub fn app_handle(app: App, request: Request) -> Result[Response, HttpFailure]:
     var index = 0
     while index < len(app.middleware):
         let before = app.middleware[index].before
-        match before(current):
+        match before(app.middleware[index].config, current):
             Ok(next):
                 set current = next
                 set seen = list_push(seen, next)
