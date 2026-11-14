@@ -3949,7 +3949,7 @@ impl<'a> FnCompiler<'a> {
                 }
                 if matches!(
                     name.as_str(),
-                    "map_list" | "filter_list" | "fold_list" | "any_list" | "all_list"
+                    "map_list" | "filter_list" | "fold_list" | "any_list" | "all_list" | "try_map_list"
                 ) {
                     let fold = name == "fold_list";
                     let expected_arguments = if fold { 3 } else { 2 };
@@ -3987,7 +3987,7 @@ impl<'a> FnCompiler<'a> {
                     let function_span = function.span();
                     let (parameters, result) = function.signature();
                     let (expected_parameters, expected_result) = match name.as_str() {
-                        "map_list" => (vec![item_type.clone()], None),
+                        "map_list" | "try_map_list" => (vec![item_type.clone()], None),
                         "filter_list" | "any_list" | "all_list" => {
                             (vec![item_type.clone()], Some(Type::Bool))
                         }
@@ -4019,6 +4019,13 @@ impl<'a> FnCompiler<'a> {
                     }
                     let (kind, result_type) = match name.as_str() {
                         "map_list" => (HigherOrderKind::MapList, Type::List(Box::new(result))),
+                        "try_map_list" => (
+                            HigherOrderKind::TryMapList,
+                            Type::List(Box::new(Type::Result(
+                                Box::new(result),
+                                Box::new(Type::TaskError),
+                            ))),
+                        ),
                         "filter_list" => {
                             (HigherOrderKind::FilterList, Type::List(Box::new(item_type)))
                         }

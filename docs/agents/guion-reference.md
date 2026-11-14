@@ -449,6 +449,7 @@ time_parse_timestamp(Text) -> Result[Record[Instant], FileError]
 time_resolve_local(Record[LocalDateTime], Text) -> Result[Record[TemporalResolution], Record[TimeError]]
 time_today_local() -> Record[Date]
 time_zone_data_version_native() -> Text
+try_map_list(List[$T], fn($T) -> $U) -> List[Result[$U, TaskError]]
 unix_time_ms() -> Int
 unwrap(Result[$T, $E]|Option[$T]) -> $T
 write_bytes(Text, Bytes) -> Result[Unit, FileError]
@@ -456,7 +457,7 @@ write_text(Text, Text) -> Result[Unit, FileError]
 write_text_atomic(Text, Text) -> Result[Unit, FileError]
 ```
 
-`sort(List[T])` orders a list of `Text` (Unicode scalar order, the order of sorted map keys), `Int` or `Float64` (`-0.0` before `0.0`, NaN last), and `sort_by(List[T], key)` orders any list by a named pure `(T) -> K` key function with `K` in `Text`, `Int` or `Float64`; both are stable, `sort_by` runs the key once per item, and a key returning another type is `E_SORT_KEY`. A named `(T, T) -> Int` function passed to `sort_by` is still a comparator. `sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget. Function values (`fn(Int) -> Int`) are named functions or closures (`fn(x: Int) -> Int: x + n`), cannot be compared (`E_FN_COMPARE`) and cannot reach JSON, CSV, TOML, SQLite, process, HTTP, file or print boundaries (`E_FN_NOT_SERIALIZABLE`); list builtins take either; sorts and `parallel_map` need named ones. Also `enum` with exhaustive `match`, and `fn first[T](xs: List[T]) -> T`.
+`sort(List[T])` orders a list of `Text` (Unicode scalar order, the order of sorted map keys), `Int` or `Float64` (`-0.0` before `0.0`, NaN last), and `sort_by(List[T], key)` orders any list by a named pure `(T) -> K` key function with `K` in `Text`, `Int` or `Float64`; both are stable, `sort_by` runs the key once per item, and a key returning another type is `E_SORT_KEY`. A named `(T, T) -> Int` function passed to `sort_by` is still a comparator. `sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget. Function values (`fn(Int) -> Int`) are named functions or closures (`fn(x: Int) -> Int: x + n`), cannot be compared (`E_FN_COMPARE`) and cannot reach JSON, CSV, TOML, SQLite, process, HTTP, file or print boundaries (`E_FN_NOT_SERIALIZABLE`); list builtins take either; sorts, `parallel_map` need named ones. Also `enum`, `match`, generics `fn f[T]`.
 
 ## Standard-library public signatures
 
@@ -1331,6 +1332,7 @@ R_HTTP_REQUEST
 R_HTTP_STATUS
 R_HTTP_TIMEOUT
 R_HTTP_URL
+R_INDEX
 R_INDEX_BOUNDS
 R_INDEX_INVALID
 R_INSTANCE_CLOSED
@@ -1627,4 +1629,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:e97c4ac96fe4d2bef16fea28547e4605c13b4819fb167b777bd2e95e6dbc04bb. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:2334cad772d1cdeea0b4b283cc33f6c3f6409993e62315b76d6afa408b188fc5. Validated by `cargo xtask agent-reference --check`. -->

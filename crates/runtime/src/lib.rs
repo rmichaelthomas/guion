@@ -1513,6 +1513,31 @@ impl Instance {
                         }
                         Value::from_list_items(mapped)
                     }
+                    HigherOrderKind::TryMapList => {
+                        // Each call is its own boundary: a fault in one item becomes that
+                        // item's `Err(TaskError)` and the rest still run. Cancellation is not a
+                        // fault and still stops the whole call.
+                        let mut outcomes = Vec::with_capacity(items.len());
+                        for (index, item) in items.into_iter().enumerate() {
+                            match call(self, vec![item]) {
+                                Ok(value) => outcomes.push(Value::ResultOk(Box::new(value))),
+                                Err(error) if error.code == "R_CANCELLED" => return Err(error),
+                                Err(error) => {
+                                    let mut trace = error.trace;
+                                    trace.push(instruction.span);
+                                    outcomes.push(Value::ResultErr(Box::new(Value::TaskError(
+                                        Box::new(TaskErrorValue {
+                                            index: BigInt::from_usize(index),
+                                            code: error.code,
+                                            message: error.message,
+                                            trace,
+                                        }),
+                                    ))));
+                                }
+                            }
+                        }
+                        Value::List(Shared::new(outcomes))
+                    }
                     HigherOrderKind::FilterList => {
                         let mut kept = Vec::new();
                         for item in items {

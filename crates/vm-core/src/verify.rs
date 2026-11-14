@@ -1625,6 +1625,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                         }
                         Type::List(Box::new(result))
                     }
+                    Kind::TryMapList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1 || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(Box::new(Type::Result(
+                            Box::new(result),
+                            Box::new(Type::TaskError),
+                        )))
+                    }
                     Kind::FilterList | Kind::AnyList | Kind::AllList => {
                         let Type::List(item) = input else {
                             return Err(format!("{name} input must be a List at instruction {pc}"));

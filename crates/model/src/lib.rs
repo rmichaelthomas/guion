@@ -3489,10 +3489,11 @@ pub enum HigherOrderKind {
     FoldList,
     AnyList,
     AllList,
+    TryMapList,
 }
 
 impl HigherOrderKind {
-    pub const ALL: [HigherOrderKind; 10] = [
+    pub const ALL: [HigherOrderKind; 11] = [
         HigherOrderKind::SortBy,
         HigherOrderKind::SortByKey,
         HigherOrderKind::SortByIntKey,
@@ -3503,6 +3504,7 @@ impl HigherOrderKind {
         HigherOrderKind::FoldList,
         HigherOrderKind::AnyList,
         HigherOrderKind::AllList,
+        HigherOrderKind::TryMapList,
     ];
 
     pub fn code(self) -> u8 {
@@ -3528,6 +3530,7 @@ impl HigherOrderKind {
             HigherOrderKind::FoldList => "FoldList",
             HigherOrderKind::AnyList => "AnyList",
             HigherOrderKind::AllList => "AllList",
+            HigherOrderKind::TryMapList => "TryMapList",
         }
     }
 

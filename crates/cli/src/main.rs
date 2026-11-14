@@ -3235,7 +3235,8 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
         .map(|(identity, text)| (identity.clone(), function_deprecations(text)))
         .collect::<BTreeMap<_, _>>();
     let inspected = inspection_report(source, artifact, project_root, false);
-    let functions = artifact.functions.iter().map(|function| {
+    // Hidden functions the compiler lifts closures into are not part of a program's API.
+    let functions = artifact.functions.iter().filter(|function| !function.name.contains("lambda@")).map(|function| {
         let (module_id, base_name) = if let Some(rest) = function.name.strip_prefix("@module/") {
             let (module_id, name) = rest.split_once('/').unwrap_or(("", rest));
             (module_id.parse::<usize>().ok(), name)
