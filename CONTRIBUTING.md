@@ -27,6 +27,8 @@ These keep a MINOR release additive (see [VERSIONING.md](VERSIONING.md)).
 
 - **Standard-library surface.** `language/surface-0.3.0.json` is the output of `guion doc --all --json` for 0.3.0, kept as the snapshot later releases are compared against. To check a build: `guion doc --all --json > /tmp/now.json`, then `cargo xtask surface-diff --from language/surface-0.3.0.json --to /tmp/now.json`. The command lists additions and exits 0; it exits 1 and names each module, function, record or record field that was removed or re-signed. A function is re-signed when its parameter names, parameter types, result type or effects differ. The `deprecated` note, `source` and summaries are not compared.
 
+- **Docs name the release.** `shipped_getting_started_names_this_release` (`crates/cli/tests/release_hygiene.rs`) requires every version `docs/getting-started.md` names to be the `X.Y.Z` core of `[workspace.package].version` in `Cargo.toml`, so `0.3.0-rc.1` is documented as `0.3.0`. While the changelog's top section is marked `(unreleased)`, the page may also name that section's version, so it can be updated before the version bump. Anything else fails.
+
 ## Change expectations
 
 - Keep the source of truth in the implementation and `language/spec.md`; do not duplicate API signatures by hand when a generated report can provide them.
