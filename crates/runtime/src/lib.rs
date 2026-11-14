@@ -1102,6 +1102,121 @@ impl NativeListArena {
         i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
     }
 
+    /// Stores a list read from a record field as the list descriptor native code expects.
+    /// Item types without a descriptor encoding return `None`, and the VM replays the read.
+    /// The caller has already charged for the list.
+    fn store_native_list_field(&mut self, list: &Value, item: &Type) -> Option<i64> {
+        let items: Vec<Value> = match list {
+            Value::List(items) => items.as_ref().clone(),
+            Value::Float64List(items) => items.iter().copied().map(Value::Float64).collect(),
+            _ => return None,
+        };
+        if items.len() > self.max_collection_items {
+            return None;
+        }
+        match item {
+            Type::Float64 => {
+                let values = items
+                    .iter()
+                    .map(|value| match value {
+                        Value::Float64(value) => Some(*value),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.float_storage.try_reserve(1).ok()?;
+                self.float_lists.try_reserve(1).ok()?;
+                let storage_id = self.float_storage.len();
+                self.float_storage.push(values);
+                let storage = self.float_storage.last_mut()?;
+                let descriptor = Box::new(NativeFloatList {
+                    data: storage.as_mut_ptr().cast::<u64>(),
+                    len: storage.len(),
+                    storage_id,
+                    owned: false,
+                    inline_storage: false,
+                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                });
+                let address = (&*descriptor as *const NativeFloatList) as usize;
+                self.float_lists.push(descriptor);
+                i64::try_from(address).ok()
+            }
+            Type::Int | Type::Bool => {
+                let values = items
+                    .iter()
+                    .map(|value| match (value, item) {
+                        (Value::Int(value), Type::Int) => value.to_i64(),
+                        (Value::Bool(value), Type::Bool) => Some(i64::from(*value)),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.int_storage.try_reserve(1).ok()?;
+                self.int_lists.try_reserve(1).ok()?;
+                let storage_id = self.int_storage.len();
+                self.int_storage.push(values);
+                let storage = self.int_storage.last_mut()?;
+                let descriptor = Box::new(NativeIntList {
+                    data: storage.as_mut_ptr(),
+                    len: storage.len(),
+                    storage_id,
+                    owned: false,
+                    inline_storage: false,
+                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                });
+                let address = (&*descriptor as *const NativeIntList) as usize;
+                self.int_lists.push(descriptor);
+                i64::try_from(address).ok()
+            }
+            Type::Text => {
+                let texts = items
+                    .iter()
+                    .map(|value| match value {
+                        Value::Text(text) => Some(SharedText::clone(text)),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.store_native_text_list_charged(texts, false)
+            }
+            Type::Record(_) => {
+                let mut encoded = Vec::new();
+                encoded.try_reserve_exact(items.len()).ok()?;
+                for value in items {
+                    if !matches!(value, Value::Record(_, _)) {
+                        return None;
+                    }
+                    encoded.push(self.encode_native_value(value)?);
+                }
+                self.handle_lists.try_reserve(1).ok()?;
+                let inline_storage = encoded.len() <= NATIVE_INLINE_LIST_ITEMS;
+                if !inline_storage {
+                    self.handle_storage.try_reserve(1).ok()?;
+                }
+                let mut descriptor = Box::new(NativeHandleList {
+                    data: std::ptr::null_mut(),
+                    len: encoded.len(),
+                    storage_id: if inline_storage {
+                        usize::MAX
+                    } else {
+                        self.handle_storage.len()
+                    },
+                    owned: true,
+                    inline_storage,
+                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                });
+                if inline_storage {
+                    descriptor.inline[..encoded.len()].copy_from_slice(&encoded);
+                    descriptor.data = descriptor.inline.as_mut_ptr();
+                } else {
+                    descriptor.data = encoded.as_mut_ptr();
+                    self.handle_storage.push(encoded);
+                }
+                self.handle_lists.push(descriptor);
+                let descriptor = self.handle_lists.last_mut()?;
+                i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
+            }
+            _ => None,
+        }
+    }
+
     fn store_native_text_list(&mut self, items: Vec<SharedText>) -> Option<i64> {
         self.store_native_text_list_charged(items, true)
     }
@@ -2301,6 +2416,14 @@ impl NativeListArena {
                 let field = fields.get(*field_index)?.clone();
                 if !self.charge_or_error(cloned_value_allocation(&field), instruction.span) {
                     return None;
+                }
+                // Machine code dereferences a list as a descriptor, so a list field must come
+                // back as one, not as an arena handle.
+                if let Type::List(item) = &definition.fields.get(*field_index)?.ty {
+                    if result_tag != 4 {
+                        return None;
+                    }
+                    return self.store_native_list_field(&field, item);
                 }
                 field
             }

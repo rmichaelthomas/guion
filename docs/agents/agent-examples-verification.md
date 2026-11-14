@@ -1,28 +1,28 @@
 # Agent examples verification
 
-Generated 2026-10-28 18:29 UTC by `scripts/verify-agent-examples.sh`.
+Generated 2026-11-14 00:10 UTC by `scripts/verify-agent-examples.sh`.
 
 The HTTP example was checked, linted, and formatted; it was not run and no network request was made.
 Runtime stdout and exit status are compared with `verification_cases` in `docs/agents/index.json`.
 
 | Check | Result | Details |
 | --- | --- | --- |
-| `native_temporal_resolution check` | PASS | exit 0; checked docs/agents/examples/native_temporal_resolution.gu (8 functions) |
+| `native_temporal_resolution check` | PASS | exit 0; checked docs/agents/examples/native_temporal_resolution.gu (9 functions) |
 | `native_temporal_resolution lint` | PASS | exit 0; linted docs/agents/examples/native_temporal_resolution.gu (no warnings) |
 | `native_temporal_resolution fmt` | PASS | exit 0; formatted docs/agents/examples/native_temporal_resolution.gu |
 | `file_data_cli check` | PASS | exit 0; checked docs/agents/examples/file_data_cli.gu (1 functions) |
 | `file_data_cli lint` | PASS | exit 0; linted docs/agents/examples/file_data_cli.gu (no warnings) |
 | `file_data_cli fmt` | PASS | exit 0; formatted docs/agents/examples/file_data_cli.gu |
-| `http_request check` | PASS | exit 0; checked docs/agents/examples/http_request.gu (23 functions) |
+| `http_request check` | PASS | exit 0; checked docs/agents/examples/http_request.gu (4 functions) |
 | `http_request lint` | PASS | exit 0; linted docs/agents/examples/http_request.gu (no warnings) |
 | `http_request fmt` | PASS | exit 0; formatted docs/agents/examples/http_request.gu |
-| `sqlite_toml check` | PASS | exit 0; checked docs/agents/examples/sqlite_toml.gu (34 functions) |
+| `sqlite_toml check` | PASS | exit 0; checked docs/agents/examples/sqlite_toml.gu (48 functions) |
 | `sqlite_toml lint` | PASS | exit 0; linted docs/agents/examples/sqlite_toml.gu (no warnings) |
 | `sqlite_toml fmt` | PASS | exit 0; formatted docs/agents/examples/sqlite_toml.gu |
 | `concurrent_task check` | PASS | exit 0; checked docs/agents/examples/concurrent_task.gu (3 functions) |
 | `concurrent_task lint` | PASS | exit 0; linted docs/agents/examples/concurrent_task.gu (no warnings) |
 | `concurrent_task fmt` | PASS | exit 0; formatted docs/agents/examples/concurrent_task.gu |
-| `agent_failure_paths check` | PASS | exit 0; checked docs/agents/examples/failure_paths.gu (21 functions) |
+| `agent_failure_paths check` | PASS | exit 0; checked docs/agents/examples/failure_paths.gu (23 functions) |
 | `agent_failure_paths lint` | PASS | exit 0; linted docs/agents/examples/failure_paths.gu (no warnings) |
 | `agent_failure_paths fmt` | PASS | exit 0; formatted docs/agents/examples/failure_paths.gu |
 | `native_temporal_resolution_run` | PASS | exit 0 (expected 0); stdout 'timezone rules\n2026c\nexact\nexact\nAmerica/Los_Angeles\n2026\n3\n8\n1\n30\n0\n0\n1772962200000000\ngap\ngap\nAmerica/Los_Angeles\n2026\n3\n8\n2\n30\n0\n0\nno instant; caller policy required\nfold\nfold\nAmerica/Los_Angeles\n2026\n11\n1\n1\n30\n0\n0\n1793521800000000\n1793525400000000\ncaller policy: choose earlier occurrence\n1793521800000000\ninvalid date error\nE_DATE\n' (expected 'timezone rules\n2026c\nexact\nexact\nAmerica/Los_Angeles\n2026\n3\n8\n1\n30\n0\n0\n1772962200000000\ngap\ngap\nAmerica/Los_Angeles\n2026\n3\n8\n2\n30\n0\n0\nno instant; caller policy required\nfold\nfold\nAmerica/Los_Angeles\n2026\n11\n1\n1\n30\n0\n0\n1793521800000000\n1793525400000000\ncaller policy: choose earlier occurrence\n1793521800000000\ninvalid date error\nE_DATE\n') |

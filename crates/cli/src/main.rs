@@ -3504,24 +3504,7 @@ fn lint_source(source: &str, source_path: &Path, project_root: &Path) -> Vec<ser
             }
         }
         if let Some(import_path) = import_path(trimmed) {
-            if let Some(imported_source) =
-                lint_import_source(import_path, source_path, project_root)
-            {
-                let exports = imported_source
-                    .lines()
-                    .filter_map(|import_line| {
-                        let declaration = import_line
-                            .trim_start()
-                            .strip_prefix("pub fn ")
-                            .or_else(|| import_line.trim_start().strip_prefix("pub record "))?;
-                        let name = declaration
-                            .split(|character: char| {
-                                !character.is_ascii_alphanumeric() && character != '_'
-                            })
-                            .next()?;
-                        (!name.is_empty()).then_some(name.to_owned())
-                    })
-                    .collect::<Vec<_>>();
+            if let Some(exports) = lint_module_exports(import_path, source_path, project_root, 0) {
                 if !exports.is_empty()
                     && exports
                         .iter()
@@ -3631,7 +3614,53 @@ fn import_path(line: &str) -> Option<&str> {
     Some(&remainder[start..end])
 }
 
-fn lint_import_source(import: &str, source_path: &Path, project_root: &Path) -> Option<String> {
+/// The public names a module offers its importers: its own `pub fn` and `pub record`
+/// declarations plus whatever it re-exports with `pub import`.
+fn lint_module_exports(
+    import: &str,
+    source_path: &Path,
+    project_root: &Path,
+    depth: usize,
+) -> Option<Vec<String>> {
+    const MAX_REEXPORT_DEPTH: usize = 8;
+    let (module_path, module_source) = lint_import_source(import, source_path, project_root)?;
+    let mut exports = Vec::new();
+    for line in module_source.lines() {
+        let line = line.trim_start();
+        if let Some(reexported) = line
+            .strip_prefix("pub ")
+            .and_then(|rest| import_path(rest.trim_start()))
+        {
+            if depth < MAX_REEXPORT_DEPTH {
+                if let Some(nested) =
+                    lint_module_exports(reexported, &module_path, project_root, depth + 1)
+                {
+                    exports.extend(nested);
+                }
+            }
+            continue;
+        }
+        let Some(declaration) = line
+            .strip_prefix("pub fn ")
+            .or_else(|| line.strip_prefix("pub record "))
+        else {
+            continue;
+        };
+        let name = declaration
+            .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+            .next()?;
+        if !name.is_empty() {
+            exports.push(name.to_owned());
+        }
+    }
+    Some(exports)
+}
+
+fn lint_import_source(
+    import: &str,
+    source_path: &Path,
+    project_root: &Path,
+) -> Option<(std::path::PathBuf, String)> {
     let path = if let Some(relative) = import.strip_prefix("std:") {
         let root = compiler_driver::standard_library_root()?;
         root.join(relative)
@@ -3643,7 +3672,8 @@ fn lint_import_source(import: &str, source_path: &Path, project_root: &Path) -> 
         source_path.parent()?.join(import)
     };
     let path = source_module_path(&path);
-    fs::read_to_string(path).ok()
+    let source = fs::read_to_string(&path).ok()?;
+    Some((path, source))
 }
 
 fn source_module_path(path: &Path) -> std::path::PathBuf {

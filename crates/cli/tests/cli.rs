@@ -4737,3 +4737,36 @@ fn forming_a_function_value_attributes_its_effects_to_the_forming_function() {
     assert_eq!(find("fold2")["parameters"][2]["name"], "y");
     let _ = fs::remove_dir_all(dir);
 }
+
+// `std:types` re-exports `StdError` from `std:http_types` with `pub import`, so a module that
+// names only `StdError` uses the import.
+#[test]
+fn lint_counts_symbols_re_exported_through_pub_import_as_used() {
+    let dir = std::env::temp_dir().join(format!(
+        "guion-lint-reexport-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _cleanup = RemoveDirOnDrop(dir.clone());
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("reexport.gu"),
+        "import \"std:types\"\n\nfn describe(problem: StdError) -> Text:\n    return problem.code\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["lint", "reexport.gu"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.status.success(), "{report}");
+    assert!(!report.contains("W_UNUSED_IMPORT"), "{report}");
+}
