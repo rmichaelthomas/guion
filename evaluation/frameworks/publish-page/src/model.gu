@@ -1,0 +1,98 @@
+import "std:types"
+import "std:text"
+import "std:http_response"
+import "templates/blocks.gu"
+
+# One page: a slug, a title and a list of blocks. A block is a paragraph of text or an image
+# (a file name under /static). There is no block that carries markup, so nothing is sanitized: the
+# schema refuses what it does not know and the template escapes what it renders.
+pub record Page:
+    id: Int
+    slug: Text
+    title: Text
+    cover: Text
+    published: Bool
+    blocks: List[Block]
+
+pub fn refusal(code: Text, message: Text) -> HttpFailure:
+    return HttpFailure(422, code, message)
+
+fn only(text: Text, allowed: Text) -> Bool:
+    let chars = text_chars(text)
+    var index = 0
+    while index < len(chars):
+        if text_find(allowed, chars[index], 0) < 0:
+            return false
+        set index = index + 1
+    return true
+
+# 1 to 64 characters from a-z, 0-9 and "-".
+pub fn slug_ok(slug: Text) -> Bool:
+    return len(slug) >= 1 and len(slug) <= 64 and only(slug, "abcdefghijklmnopqrstuvwxyz0123456789-")
+
+# 1 to 100 characters from A-Z a-z 0-9 "." "_" "-", not starting with ".".
+pub fn asset_name_ok(name: Text) -> Bool:
+    return len(name) >= 1 and len(name) <= 100 and text_slice(name, 0, 1) != "." and only(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-")
+
+fn field(doc: Json, key: Text, most: Int) -> Result[Text, HttpFailure]:
+    match json_try_get_text(doc, key):
+        Ok(value):
+            if len(value) < 1 or len(value) > most:
+                return Err(refusal("E_PAGE_SCHEMA", key + " must be 1 to " + int_to_text(most) + " characters"))
+            return Ok(value)
+        Err(problem):
+            return Err(refusal("E_PAGE_SCHEMA", key + " must be text"))
+
+fn block_of(entry: Json) -> Result[Block, HttpFailure]:
+    let kind = field(entry, "type", 16)?
+    if kind == "paragraph":
+        let text = field(entry, "text", 10000)?
+        return Ok(Block(false, text, "", ""))
+    if kind == "image":
+        let name = field(entry, "name", 100)?
+        if not asset_name_ok(name):
+            return Err(refusal("E_PAGE_SCHEMA", "an image name is letters, digits, dot, underscore or hyphen"))
+        let alt = field(entry, "alt", 200)?
+        return Ok(Block(true, "", name, alt))
+    return Err(refusal("E_BLOCK_TYPE", "a block is a paragraph or an image"))
+
+fn blocks_of(doc: Json) -> Result[List[Block], HttpFailure]:
+    match json_try_get(doc, "blocks"):
+        Err(problem):
+            return Err(refusal("E_PAGE_SCHEMA", "blocks must be a list"))
+        Ok(list):
+            var blocks: List[Block] = []
+            var index = 0
+            while is_ok(json_try_index(list, index)):
+                if index >= 100:
+                    return Err(refusal("E_PAGE_SCHEMA", "a page has at most 100 blocks"))
+                let block = block_of(unwrap(json_try_index(list, index)))?
+                set blocks = list_push(blocks, block)
+                set index = index + 1
+            if len(blocks) == 0:
+                return Err(refusal("E_PAGE_SCHEMA", "a page has at least one block"))
+            return Ok(blocks)
+
+# The page a request body describes, or why not (every refusal is a 422).
+pub fn page_parse(source: Text) -> Result[Page, HttpFailure]:
+    match json_parse(source):
+        Err(problem):
+            return Err(refusal("E_PAGE_JSON", "the body is not JSON"))
+        Ok(doc):
+            let slug = field(doc, "slug", 64)?
+            if not slug_ok(slug):
+                return Err(refusal("E_PAGE_SCHEMA", "a slug is a-z, 0-9 and hyphen"))
+            let title = field(doc, "title", 200)?
+            let blocks = blocks_of(doc)?
+            return Ok(Page(0, slug, title, "", false, blocks))
+
+# The blocks to render: the cover, when there is one, comes first.
+pub fn render_blocks(page: Page) -> List[Block]:
+    if len(page.cover) == 0:
+        return page.blocks
+    var blocks = [Block(true, "", page.cover, "cover")]
+    var index = 0
+    while index < len(page.blocks):
+        set blocks = list_push(blocks, page.blocks[index])
+        set index = index + 1
+    return blocks

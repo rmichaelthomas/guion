@@ -1,0 +1,10 @@
+{
+  "slug": "river-walk",
+  "title": "A walk by the river",
+  "blocks": [
+    {"type": "paragraph", "text": "We left at nine, café open, rain over the water."},
+    {"type": "image", "name": "river-1.png", "alt": "The river at nine, 100% grey"},
+    {"type": "paragraph", "text": "Fish & chips for lunch (\"the usual\"), then home."},
+    {"type": "image", "name": "bridge_2.jpg", "alt": "Bridge"}
+  ]
+}

@@ -1,0 +1,7 @@
+{% import "blocks.gu" %}
+{% params title: Text, blocks: List[Block] %}
+<article>
+<h1>{{ title }}</h1>
+{% for b in blocks %}{% if b.is_image %}<figure><img src="/static/{{ url b.name }}" alt="{{ attr b.alt }}"></figure>
+{% else %}<p>{{ b.text }}</p>
+{% end %}{% end %}</article>

@@ -1,0 +1,12 @@
+{% import "blocks.gu" %}
+{% params title: Text, blocks: List[Block], slug: Text, token: Text, published: Bool %}
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{{ title }}</title></head>
+<body>
+{{ embed body(title, blocks) }}<form method="post" action="/p/{{ url slug }}/publish">
+<input type="hidden" name="_csrf" value="{{ attr token }}">
+<button type="submit">{% if published %}Publish again{% else %}Publish{% end %}</button>
+</form>
+</body>
+</html>

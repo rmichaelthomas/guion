@@ -1,0 +1,32 @@
+import "std:types"
+import "std:net"
+import "std:sqlite"
+
+# Holds a write transaction on pages.db until a client connects to PORT and closes the connection:
+# guion run --allow-bind 127.0.0.1:PORT probe_hold.gu PORT. The listener is opened after the
+# transaction begins, so a client that can connect knows the lock is held.
+fn hold(port: Int) -> Int:
+    let db = sqlite_open("pages.db")
+    if not is_ok(db):
+        return 2
+    let tx = sqlite_begin(unwrap(db))
+    if not is_ok(tx):
+        return 3
+    let touched = sqlite_execute(unwrap(tx), "UPDATE pages SET title = title", [])
+    let listening = tcp_listen("127.0.0.1", port)
+    if not is_ok(listening):
+        return 4
+    let conn = tcp_accept(unwrap(listening), 30000)
+    if not is_ok(conn):
+        return 5
+    var open = true
+    while open:
+        let chunk = tcp_recv(unwrap(conn), 16, 30000)
+        if not is_ok(chunk) or len(unwrap(chunk)) == 0:
+            set open = false
+    let rolled = sqlite_rollback(unwrap(tx))
+    return 0
+
+fn main() -> Int:
+    let given = args()
+    return hold(unwrap(text_parse_int(given[0])))

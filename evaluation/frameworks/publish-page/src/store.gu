@@ -1,0 +1,142 @@
+import "std:types"
+import "std:sqlite"
+import "std:http_response"
+import "model.gu"
+import "templates/blocks.gu"
+
+# Pages live in pages.db under the file root. A handler opens the database, uses one transaction and
+# closes it; a transaction left open when an error returns is rolled back when the database closes.
+# Readers use sqlite_begin_read, so they never wait behind a writer.
+
+fn db_path() -> Text:
+    return "pages.db"
+
+fn unavailable() -> HttpFailure:
+    return HttpFailure(500, "E_STORE", "the page store could not be read or written")
+
+fn open_db() -> Result[Db, HttpFailure]:
+    match sqlite_open(db_path()):
+        Ok(db):
+            return Ok(db)
+        Err(problem):
+            return Err(unavailable())
+
+fn run(tx: Transaction, sql: Text, values: List[SqlValue]) -> Result[Int, HttpFailure]:
+    match sqlite_execute(tx, sql, values):
+        Ok(count):
+            return Ok(count)
+        Err(problem):
+            return Err(unavailable())
+
+fn ask(tx: Transaction, sql: Text, values: List[SqlValue]) -> Result[List[SqlRow], HttpFailure]:
+    match sqlite_query(tx, sql, values):
+        Ok(rows):
+            return Ok(rows)
+        Err(problem):
+            return Err(unavailable())
+
+fn write_tx(db: Db) -> Result[Transaction, HttpFailure]:
+    match sqlite_begin(db):
+        Ok(tx):
+            return Ok(tx)
+        Err(problem):
+            return Err(unavailable())
+
+fn finish(tx: Transaction) -> Result[Unit, HttpFailure]:
+    match sqlite_commit(tx):
+        Ok(done):
+            return Ok(done)
+        Err(problem):
+            return Err(unavailable())
+
+fn schema_in(db: Db) -> Result[Unit, HttpFailure]:
+    let tx = write_tx(db)?
+    let pages = run(tx, "CREATE TABLE IF NOT EXISTS pages (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, cover TEXT NOT NULL, published INTEGER NOT NULL)", [])?
+    let blocks = run(tx, "CREATE TABLE IF NOT EXISTS blocks (page_id INTEGER NOT NULL, position INTEGER NOT NULL, is_image INTEGER NOT NULL, text TEXT NOT NULL, name TEXT NOT NULL, alt TEXT NOT NULL, PRIMARY KEY (page_id, position))", [])?
+    return finish(tx)
+
+# Makes the tables; run once before the server listens.
+pub fn store_init() -> Result[Unit, HttpFailure]:
+    let db = open_db()?
+    let result = schema_in(db)
+    let closed = sqlite_close(db)
+    return result
+
+fn create_in(db: Db, page: Page) -> Result[Int, HttpFailure]:
+    let tx = write_tx(db)?
+    let taken = ask(tx, "SELECT id FROM pages WHERE slug = ?", [sql_text(page.slug)])?
+    if len(taken) > 0:
+        return Err(HttpFailure(409, "E_SLUG_TAKEN", "a page with that slug exists"))
+    let made = run(tx, "INSERT INTO pages (slug, title, cover, published) VALUES (?, ?, '', 0)", [sql_text(page.slug), sql_text(page.title)])?
+    let rows = ask(tx, "SELECT id FROM pages WHERE slug = ?", [sql_text(page.slug)])?
+    let id = rows[0].values[0].integer
+    var index = 0
+    while index < len(page.blocks):
+        let block = page.blocks[index]
+        var image = 0
+        if block.is_image:
+            set image = 1
+        let added = run(tx, "INSERT INTO blocks (page_id, position, is_image, text, name, alt) VALUES (?, ?, ?, ?, ?, ?)", [sql_integer(id), sql_integer(index), sql_integer(image), sql_text(block.text), sql_text(block.name), sql_text(block.alt)])?
+        set index = index + 1
+    let done = finish(tx)?
+    return Ok(id)
+
+# Stores a new page and returns its id; 409 when the slug is taken.
+pub fn store_create(page: Page) -> Result[Int, HttpFailure]:
+    let db = open_db()?
+    let result = create_in(db, page)
+    let closed = sqlite_close(db)
+    return result
+
+fn absent() -> Option[Page]:
+    return None
+
+fn present(page: Page) -> Option[Page]:
+    return Some(page)
+
+fn find_in(db: Db, column: Text, value: SqlValue) -> Result[Option[Page], HttpFailure]:
+    match sqlite_begin_read(db):
+        Err(problem):
+            return Err(unavailable())
+        Ok(tx):
+            let rows = ask(tx, "SELECT id, slug, title, cover, published FROM pages WHERE " + column + " = ?", [value])?
+            if len(rows) == 0:
+                return Ok(absent())
+            let found = rows[0].values
+            let lines = ask(tx, "SELECT is_image, text, name, alt FROM blocks WHERE page_id = ? ORDER BY position", [sql_integer(found[0].integer)])?
+            var blocks: List[Block] = []
+            var index = 0
+            while index < len(lines):
+                let line = lines[index].values
+                set blocks = list_push(blocks, Block(line[0].integer == 1, line[1].text, line[2].text, line[3].text))
+                set index = index + 1
+            return Ok(present(Page(found[0].integer, found[1].text, found[2].text, found[3].text, found[4].integer == 1, blocks)))
+
+fn find(column: Text, value: SqlValue) -> Result[Option[Page], HttpFailure]:
+    let db = open_db()?
+    let result = find_in(db, column, value)
+    let closed = sqlite_close(db)
+    return result
+
+pub fn store_by_slug(slug: Text) -> Result[Option[Page], HttpFailure]:
+    return find("slug", sql_text(slug))
+
+pub fn store_by_id(id: Int) -> Result[Option[Page], HttpFailure]:
+    return find("id", sql_integer(id))
+
+fn update_in(db: Db, sql: Text, values: List[SqlValue]) -> Result[Unit, HttpFailure]:
+    let tx = write_tx(db)?
+    let changed = run(tx, sql, values)?
+    return finish(tx)
+
+fn update(sql: Text, values: List[SqlValue]) -> Result[Unit, HttpFailure]:
+    let db = open_db()?
+    let result = update_in(db, sql, values)
+    let closed = sqlite_close(db)
+    return result
+
+pub fn store_set_cover(id: Int, name: Text) -> Result[Unit, HttpFailure]:
+    return update("UPDATE pages SET cover = ? WHERE id = ?", [sql_text(name), sql_integer(id)])
+
+pub fn store_mark_published(id: Int) -> Result[Unit, HttpFailure]:
+    return update("UPDATE pages SET published = 1 WHERE id = ?", [sql_integer(id)])

@@ -1,0 +1,8 @@
+{
+  "slug": "field-notes",
+  "title": "Field notes",
+  "blocks": [
+    {"type": "paragraph", "text": "The first page has plain text only."},
+    {"type": "paragraph", "text": "Two paragraphs, nothing else."}
+  ]
+}

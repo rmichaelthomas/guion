@@ -1,0 +1,11 @@
+{
+  "slug": "hostile",
+  "title": "<script>alert('title')</script> & \"quotes\"",
+  "blocks": [
+    {"type": "paragraph", "text": "<script>alert(1)</script>"},
+    {"type": "paragraph", "text": "</p><img src=x onerror=alert(2)>"},
+    {"type": "image", "name": "x.png", "alt": "\" onmouseover=\"alert(3)\" x=\"`' <b>&amp;"},
+    {"type": "paragraph", "text": "emoji 🎉, snowman ☃, newline\nsecond line, tab\tend, &lt;already&gt;"},
+    {"type": "paragraph", "text": "javascript:alert(4)"}
+  ]
+}

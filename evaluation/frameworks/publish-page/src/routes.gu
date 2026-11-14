@@ -1,0 +1,135 @@
+import "pkg:web/src/lib.gu"
+import "std:types"
+import "std:text"
+import "std:fs"
+import "std:http_response"
+import "model.gu"
+import "store.gu"
+import "cover.gu"
+import "templates/blocks.gu"
+import "templates/page.gut.gu"
+import "templates/view.gut.gu"
+
+fn sessions_db() -> Text:
+    return "sessions.db"
+
+fn json_response(status: Int, body: Text) -> Result[Response, HttpFailure]:
+    return response_set_header(response_text(status, body), "Content-Type", "application/json")
+
+# A refusal below 500 (a bad request, a missing page, a taken slug) is the client's answer; only a
+# failure of the server itself becomes the fixed 500 of the framework.
+fn guard(result: Result[Response, HttpFailure]) -> Result[Response, HttpFailure]:
+    match result:
+        Ok(response):
+            return Ok(response)
+        Err(failure):
+            if failure.status >= 500:
+                return Err(failure)
+            return json_response(failure.status, "{\"error\": \"" + failure.code + "\"}")
+
+fn param(request: Request, name: Text) -> Text:
+    match path_param(request, name):
+        Some(value):
+            return value
+        None:
+            return ""
+
+fn missing() -> HttpFailure:
+    return HttpFailure(404, "E_NOT_FOUND", "no such page")
+
+fn page_by_slug(slug: Text) -> Result[Page, HttpFailure]:
+    if not slug_ok(slug):
+        return Err(missing())
+    match store_by_slug(slug)?:
+        Some(page):
+            return Ok(page)
+        None:
+            return Err(missing())
+
+fn json_content(request: Request) -> Bool:
+    match request_header(request, "content-type"):
+        Some(value):
+            return len(value) >= 16 and text_slice(value, 0, 16) == "application/json"
+        None:
+            return false
+
+# POST /api/pages: a block model as JSON.
+fn create_inner(request: Request) -> Result[Response, HttpFailure]:
+    if not json_content(request):
+        return Err(HttpFailure(415, "E_CONTENT_TYPE", "send application/json"))
+    match text_from_bytes(request.body):
+        None:
+            return Err(refusal("E_PAGE_JSON", "the body is not UTF-8"))
+        Some(source):
+            let page = page_parse(source)?
+            let id = store_create(page)?
+            let made = json_response(201, "{\"id\": " + int_to_text(id) + ", \"slug\": \"" + page.slug + "\"}")?
+            return response_set_header(made, "Location", "/p/" + page.slug)
+
+fn create_page(request: Request) -> Result[Response, HttpFailure]:
+    return guard(create_inner(request))
+
+# GET /p/{slug}: the page and a form to publish it, which carries the session's CSRF token.
+fn view_inner(request: Request) -> Result[Response, HttpFailure]:
+    let page = page_by_slug(param(request, "slug"))?
+    let token = csrf_token(session_store_open(sessions_db())?, session_policy_default(), request)?
+    let shown = html_response(200, render_view(page.title, render_blocks(page), page.slug, token, page.published))?
+    return response_set_header(shown, "Cache-Control", "no-store")
+
+fn view_page(request: Request) -> Result[Response, HttpFailure]:
+    return guard(view_inner(request))
+
+fn disk(result: Result[Unit, FileError]) -> Result[Unit, HttpFailure]:
+    match result:
+        Ok(done):
+            return Ok(done)
+        Err(problem):
+            return Err(HttpFailure(500, "E_BUNDLE", "the bundle could not be written: " + file_error_code(problem)))
+
+# POST /p/{slug}/publish: writes dist/SLUG/index.html, the page without the form.
+fn publish_inner(request: Request) -> Result[Response, HttpFailure]:
+    let page = page_by_slug(param(request, "slug"))?
+    let folder = "dist/" + page.slug
+    let made = disk(fs_make_dir(folder))?
+    let written = disk(write_text(folder + "/index.html", render_page(page.title, render_blocks(page)).html))?
+    let marked = store_mark_published(page.id)?
+    return json_response(200, "{\"published\": \"" + folder + "/index.html\"}")
+
+fn publish_page(request: Request) -> Result[Response, HttpFailure]:
+    return guard(publish_inner(request))
+
+# POST /api/pages/{id}/cover: one multipart file part named cover.
+fn cover_inner(request: Request) -> Result[Response, HttpFailure]:
+    match path_param_int(request, "id"):
+        None:
+            return Err(missing())
+        Some(id):
+            match store_by_id(id)?:
+                None:
+                    return Err(missing())
+                Some(page):
+                    let name = cover_receive(request, id)?
+                    let marked = store_set_cover(id, name)?
+                    return json_response(200, "{\"cover\": \"/static/" + name + "\"}")
+
+fn upload_cover(request: Request) -> Result[Response, HttpFailure]:
+    return guard(cover_inner(request))
+
+# Every GET answer carries the token API clients send back as x-csrf-token; a page form carries it as
+# the _csrf field instead.
+fn token_after(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
+    if request.method != "GET":
+        return Ok(response)
+    let token = csrf_token(session_store_open(sessions_db())?, session_policy_default(), request)?
+    return response_set_header(response, "X-CSRF-Token", token)
+
+# The layers, outermost first: files under /static (no session, so no cookie on an asset), the session
+# cookie on a first request, CSRF on every write, and the token header on every GET answer.
+pub fn layers() -> Result[List[Middleware], HttpFailure]:
+    let store = session_store_open(sessions_db())?
+    let policy = session_policy_default()
+    return Ok([static_files("/static", "public"), session_middleware(store, policy)?, csrf_middleware(store, policy)?, middleware_after(token_after)])
+
+pub fn build_app() -> Result[App, HttpFailure]:
+    let table = router([route("POST", "/api/pages", create_page), route("GET", "/p/{slug}", view_page), route("POST", "/p/{slug}/publish", publish_page), route("POST", "/api/pages/{id:int}/cover", upload_cover)])?
+    return Ok(app_with(table, layers()?))

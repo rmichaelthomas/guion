@@ -1,0 +1,10 @@
+# Made by running the application and its checks.
+guion.lock
+.guion/
+*.gut.gu
+pages.db*
+sessions.db*
+public/
+uploads/
+dist/
+out/

@@ -1,0 +1,34 @@
+import "pkg:web/src/lib.gu"
+import "std:types"
+import "std:fs"
+import "store.gu"
+import "routes.gu"
+
+fn port_of(text: Text, fallback: Int) -> Int:
+    let parsed = text_parse_int(text)
+    if is_ok(parsed):
+        return unwrap(parsed)
+    return fallback
+
+# Makes the directories and the tables, then serves: guion run src/main.gu PORT WORKERS
+fn start(port: Int, workers: Int) -> Result[Unit, HttpFailure]:
+    let made = fs_make_dir("public")
+    let uploads = fs_make_dir("uploads")
+    let prepared = store_init()?
+    let application = build_app()?
+    return serve("127.0.0.1", port, application, workers)
+
+fn main() -> Int:
+    let given = args()
+    var port = 8080
+    var workers = 4
+    if len(given) > 0:
+        set port = port_of(given[0], 8080)
+    if len(given) > 1:
+        set workers = port_of(given[1], 4)
+    match start(port, workers):
+        Ok(done):
+            return 0
+        Err(failure):
+            eprint("stopped: " + failure.code)
+            return 1

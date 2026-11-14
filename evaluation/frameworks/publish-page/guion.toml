@@ -1,0 +1,23 @@
+[project]
+name = "publish-page"
+version = "0.1.0"
+entry = "src/main.gu"
+
+[dependencies.web]
+path = "../../../packages/web"
+version = "0.1.0"
+
+# Capabilities the slice asks for: read the clock (session expiry), listen on one local port, run the
+# one image tool below. Files are the project directory.
+[clock]
+enabled = true
+
+[sockets]
+bind = ["127.0.0.1:8080"]
+
+[process]
+commands = ["sips"]
+
+# The cover resize tool: `sips` on macOS, `convert` on Debian (also list it under [process]).
+[resize]
+command = "sips"

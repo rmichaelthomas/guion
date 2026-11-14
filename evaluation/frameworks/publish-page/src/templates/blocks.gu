@@ -1,0 +1,5 @@
+pub record Block:
+    is_image: Bool
+    text: Text
+    name: Text
+    alt: Text
