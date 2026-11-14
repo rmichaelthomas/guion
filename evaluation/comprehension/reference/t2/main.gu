@@ -1,0 +1,30 @@
+import "std:types"
+
+record Post:
+    title: Text
+    tags: List[Text]
+
+fn posts() -> List[Post]:
+    let all: List[Post] = [Post("One", ["rust", "cli", "rust"]), Post("Two", ["web", "rust"]), Post("Three", ["cli", "web", "docs"])]
+    return all
+
+fn has(items: List[Text], wanted: Text) -> Bool:
+    for item in items:
+        if item == wanted:
+            return true
+    return false
+
+fn main() -> Int:
+    var names: List[Text] = []
+    for post in posts():
+        for tag in post.tags:
+            if not has(names, tag):
+                set names = list_push(names, tag)
+    for name in names:
+        var count = 0
+        for post in posts():
+            for tag in post.tags:
+                if tag == name:
+                    set count = count + 1
+        print(name + ": " + int_to_text(count))
+    return 0

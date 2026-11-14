@@ -1,0 +1,17 @@
+import "std:types"
+
+# Prints every tag of every post, one per line, repeats included.
+
+record Post:
+    title: Text
+    tags: List[Text]
+
+fn posts() -> List[Post]:
+    let all: List[Post] = [Post("One", ["rust", "cli", "rust"]), Post("Two", ["web", "rust"]), Post("Three", ["cli", "web", "docs"])]
+    return all
+
+fn main() -> Int:
+    for post in posts():
+        for tag in post.tags:
+            print(tag)
+    return 0

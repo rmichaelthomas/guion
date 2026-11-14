@@ -1,0 +1,16 @@
+# Fetches a page and writes the body to out.txt in the project.
+# As shipped, it is refused: no host is granted.
+
+fn main() -> Int:
+    let got = http_get("https://example.com/")
+    if not is_ok(got):
+        let problem: HttpError = error(got)
+        print("fetch refused: " + http_error_code(problem) + " " + http_error_message(problem))
+        return 1
+    let body = unwrap(got)
+    let wrote = write_text("out.txt", body)
+    if not is_ok(wrote):
+        print("write refused: " + file_error_code(error(wrote)) + " " + file_error_message(error(wrote)))
+        return 2
+    print("wrote " + int_to_text(len(body)) + " bytes to out.txt")
+    return 0

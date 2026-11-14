@@ -1,0 +1,21 @@
+import "std:types"
+import "std:csv"
+import "std:text"
+
+# Prints each row of data.csv as its fields joined with " | ".
+
+fn main() -> Int:
+    let opened = csv_open_reader("data.csv")
+    if not is_ok(opened):
+        print("cannot open data.csv")
+        return 1
+    let reader = unwrap(opened)
+    while true:
+        let next = csv_next_row(reader)
+        if not is_ok(next):
+            return 2
+        let row = unwrap(next)
+        if not is_some(row):
+            return 0
+        print(text_join(unwrap(row).fields, " | "))
+    return 0

@@ -1,0 +1,7 @@
+[project]
+name = "t1-server"
+version = "0.1.0"
+entry = "src/main.gu"
+
+[sockets]
+bind = ["127.0.0.1:8090"]
