@@ -1,10 +1,13 @@
 pub mod agent_reference;
 pub mod artifact_format;
+pub mod browser_docs;
 pub mod builders;
 pub mod builtin_catalog;
 pub mod completion;
 pub mod inventory;
+pub mod outside_check;
 pub mod performance;
 pub mod release;
 pub mod runner;
 pub mod snapshot;
+pub mod surface_diff;

@@ -1,0 +1,410 @@
+import "std:types"
+import "std:text"
+import "std:url"
+import "std:http_response"
+
+# std:http_static: serve files from a directory as Response values.
+#
+# static_serve(request, root) answers a GET or HEAD for the file the request path names under `root`
+# (a path inside the granted file root) and needs the file-read grant. Everything it returns is a
+# value: a file body is a stream (see std:http_response) that std:http_server reads in blocks of at
+# most 65536 bytes, so memory stays small however large the file is, and a ranged request reads
+# only the bytes asked for.
+#
+# Path policy. Each segment of the request path is percent-decoded once and then checked: a segment
+# that decodes to `..`, holds `/`, a backslash or a control character (NUL included), or starts with
+# `.` is refused; empty and `.` segments are skipped. A path that is not absolute is a 400, a bad
+# percent escape is a 400, and every other refusal is a 404 that looks like a missing file. The
+# joined path is then resolved through symbolic links and must stay inside `root`; a link that leaves
+# it is a 404. A directory is served as its index.html (with or without a trailing slash); a
+# directory without one is a 404, and a directory is never listed.
+#
+# Validators. ETag is weak, `W/"<size>-<mtime-ms>"`: cheap, not a content hash. Last-Modified is the
+# file's modification time to the second. If-None-Match (weak comparison, `*` and lists accepted)
+# wins over If-Modified-Since; either gives 304 with no body.
+#
+# Ranges. One `bytes=` range (`a-b`, `a-`, `-n`) is a 206 with Content-Range; one past the end of the
+# file is 416 with `Content-Range: bytes */<size>`. More than one range, another unit, or a range
+# that is not well formed is ignored and the whole file is sent with 200 (RFC 9110 allows this). An
+# If-Range that is not exactly the Last-Modified date also sends the whole file. HEAD gives the same
+# status and headers as GET and no body, with Range honoured.
+#
+# Other methods are 405 with `Allow: GET, HEAD`.
+
+# The content type for a file name, from its extension (compared without case). Text types carry
+# `charset=utf-8`; an unknown or missing extension is application/octet-stream.
+pub fn static_content_type(path: Text) -> Text:
+    let slash = hs_last_index(path, "/")
+    let name = text_slice(path, slash + 1, len(text_chars(path)))
+    let dot = hs_last_index(name, ".")
+    if dot < 0:
+        return "application/octet-stream"
+    let ext = text_casefold(text_slice(name, dot + 1, len(text_chars(name))))
+    if ext == "html" or ext == "htm":
+        return "text/html; charset=utf-8"
+    if ext == "css":
+        return "text/css; charset=utf-8"
+    if ext == "js" or ext == "mjs":
+        return "text/javascript; charset=utf-8"
+    if ext == "json" or ext == "map":
+        return "application/json"
+    if ext == "txt":
+        return "text/plain; charset=utf-8"
+    if ext == "csv":
+        return "text/csv; charset=utf-8"
+    if ext == "md":
+        return "text/markdown; charset=utf-8"
+    if ext == "xml":
+        return "application/xml"
+    if ext == "svg":
+        return "image/svg+xml"
+    if ext == "png":
+        return "image/png"
+    if ext == "jpg" or ext == "jpeg":
+        return "image/jpeg"
+    if ext == "gif":
+        return "image/gif"
+    if ext == "webp":
+        return "image/webp"
+    if ext == "avif":
+        return "image/avif"
+    if ext == "ico":
+        return "image/x-icon"
+    if ext == "woff":
+        return "font/woff"
+    if ext == "woff2":
+        return "font/woff2"
+    if ext == "ttf":
+        return "font/ttf"
+    if ext == "otf":
+        return "font/otf"
+    if ext == "pdf":
+        return "application/pdf"
+    if ext == "wasm":
+        return "application/wasm"
+    if ext == "mp4":
+        return "video/mp4"
+    if ext == "webm":
+        return "video/webm"
+    if ext == "mp3":
+        return "audio/mpeg"
+    if ext == "ogg":
+        return "audio/ogg"
+    if ext == "wav":
+        return "audio/wav"
+    if ext == "zip":
+        return "application/zip"
+    if ext == "gz":
+        return "application/gzip"
+    return "application/octet-stream"
+
+fn hs_last_index(value: Text, needle: Text) -> Int:
+    let chars = text_chars(value)
+    var index = len(chars) - 1
+    while index >= 0:
+        if chars[index] == needle:
+            return index
+        set index = index - 1
+    return -1
+
+fn hs_digits(value: Text) -> Bool:
+    let chars = text_chars(value)
+    if len(chars) == 0 or len(chars) > 18:
+        return false
+    var index = 0
+    while index < len(chars):
+        if text_find("0123456789", chars[index], 0) < 0:
+            return false
+        set index = index + 1
+    return true
+
+# A non-negative decimal integer, or -1.
+fn hs_int(value: Text) -> Int:
+    if not hs_digits(value):
+        return -1
+    match text_parse_int(value):
+        Ok(number):
+            return number
+        Err(problem):
+            return -1
+
+fn hs_pad2(value: Int) -> Text:
+    if value < 10:
+        return "0" + int_to_text(value)
+    return int_to_text(value)
+
+fn hs_day_name(index: Int) -> Text:
+    let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    return names[index]
+
+fn hs_month(number: Int) -> Text:
+    let names = hs_month_names()
+    return names[number - 1]
+
+fn hs_month_names() -> List[Text]:
+    return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+# The HTTP date (IMF-fixdate, `Tue, 15 Nov 1994 08:12:31 GMT`) of a Unix time in milliseconds. A
+# time before 1970 is formatted as 1970-01-01.
+pub fn static_http_date(unix_ms: Int) -> Text:
+    var seconds = unix_ms // 1000
+    if seconds < 0:
+        set seconds = 0
+    let days = seconds // 86400
+    let rest = seconds - days * 86400
+    let hour = rest // 3600
+    let minute = (rest - hour * 3600) // 60
+    let second = rest - hour * 3600 - minute * 60
+    let weekday = (days + 4) % 7
+    let z = days + 719468
+    let era = z // 146097
+    let doe = z - era * 146097
+    let yoe = (doe - doe // 1460 + doe // 36524 - doe // 146096) // 365
+    let doy = doe - (365 * yoe + yoe // 4 - yoe // 100)
+    let mp = (5 * doy + 2) // 153
+    let day = doy - (153 * mp + 2) // 5 + 1
+    var month = mp + 3
+    if mp >= 10:
+        set month = mp - 9
+    var year = yoe + era * 400
+    if month <= 2:
+        set year = year + 1
+    return hs_day_name(weekday) + ", " + hs_pad2(day) + " " + hs_month(month) + " " + int_to_text(year) + " " + hs_pad2(hour) + ":" + hs_pad2(minute) + ":" + hs_pad2(second) + " GMT"
+
+# Seconds since 1970 for an IMF-fixdate, or -1 when the text is not one.
+fn hs_parse_date(value: Text) -> Int:
+    let parts = text_split(text_trim(value), " ")
+    if len(parts) != 6 or parts[5] != "GMT":
+        return -1
+    let day = hs_int(parts[1])
+    let year = hs_int(parts[3])
+    let clock = text_split(parts[4], ":")
+    if day < 1 or day > 31 or year < 1970 or len(clock) != 3:
+        return -1
+    let hour = hs_int(clock[0])
+    let minute = hs_int(clock[1])
+    let second = hs_int(clock[2])
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59 or second < 0 or second > 60:
+        return -1
+    let names = hs_month_names()
+    var month = 0
+    var index = 0
+    while index < 12:
+        if names[index] == parts[2]:
+            set month = index + 1
+        set index = index + 1
+    if month == 0:
+        return -1
+    var y = year
+    if month <= 2:
+        set y = y - 1
+    let era = y // 400
+    let yoe = y - era * 400
+    var shifted = month - 3
+    if month <= 2:
+        set shifted = month + 9
+    let doy = (153 * shifted + 2) // 5 + day - 1
+    let doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+    let days = era * 146097 + doe - 719468
+    return days * 86400 + hour * 3600 + minute * 60 + second
+
+fn hs_status(status: Int, text: Text) -> Response:
+    return Response(status, [Header("Content-Type", "text/plain; charset=utf-8"), Header("X-Content-Type-Options", "nosniff")], body_text(text))
+
+fn hs_empty() -> Body:
+    return Body("stream", bytes_from_ints([]), Stream("headers_only", "", []))
+
+fn hs_weak(tag: Text) -> Text:
+    let trimmed = text_trim(tag)
+    if len(trimmed) >= 2 and text_slice(trimmed, 0, 2) == "W/":
+        return text_slice(trimmed, 2, len(text_chars(trimmed)))
+    return trimmed
+
+fn hs_etag_matches(header: Text, etag: Text) -> Bool:
+    let wanted = hs_weak(etag)
+    let candidates = text_split(header, ",")
+    var index = 0
+    while index < len(candidates):
+        let candidate = text_trim(candidates[index])
+        if candidate == "*":
+            return true
+        if hs_weak(candidate) == wanted:
+            return true
+        set index = index + 1
+    return false
+
+# [] when the header is to be ignored, [-1] when unsatisfiable, otherwise [first, last].
+fn hs_range(header: Text, size: Int) -> List[Int]:
+    let spec = text_trim(header)
+    if len(text_chars(spec)) < 7 or text_slice(spec, 0, 6) != "bytes=":
+        return []
+    let rest = text_slice(spec, 6, len(text_chars(spec)))
+    if text_find(rest, ",", 0) >= 0:
+        return []
+    let dash = text_find(rest, "-", 0)
+    if dash < 0:
+        return []
+    let first_text = text_slice(rest, 0, dash)
+    let last_text = text_slice(rest, dash + 1, len(text_chars(rest)))
+    if first_text == "":
+        let wanted = hs_int(last_text)
+        if wanted < 0:
+            return []
+        if wanted == 0 or size == 0:
+            return [-1]
+        var begin = size - wanted
+        if begin < 0:
+            set begin = 0
+        return [begin, size - 1]
+    let first = hs_int(first_text)
+    if first < 0:
+        return []
+    var last = size - 1
+    if last_text != "":
+        set last = hs_int(last_text)
+        if last < 0:
+            return []
+        if last < first:
+            return []
+    if first >= size:
+        return [-1]
+    if last >= size:
+        set last = size - 1
+    return [first, last]
+
+# The decoded segments of a request path, or a status: Ok(segments), or Err(400 or 404 as an Int).
+fn hs_segments(path: Text) -> Result[List[Text], Int]:
+    if len(text_chars(path)) == 0 or text_slice(path, 0, 1) != "/":
+        return Err(400)
+    var clean: List[Text] = []
+    let raw = text_split(path, "/")
+    var index = 0
+    while index < len(raw):
+        let part = raw[index]
+        set index = index + 1
+        if part == "":
+            continue
+        match url_decode_component(part):
+            Ok(decoded):
+                if decoded == "" or decoded == ".":
+                    continue
+                if not hs_segment_ok(decoded):
+                    return Err(404)
+                set clean = list_push(clean, decoded)
+            Err(problem):
+                return Err(400)
+    return Ok(clean)
+
+fn hs_segment_ok(segment: Text) -> Bool:
+    if text_slice(segment, 0, 1) == ".":
+        return false
+    let codes = bytes_to_ints(bytes_from_text(segment))
+    var index = 0
+    while index < len(codes):
+        let code = codes[index]
+        if code < 32 or code == 127 or code == 47 or code == 92:
+            return false
+        set index = index + 1
+    return true
+
+# Which file the request names under `root`: the path to read, or a refusal status.
+fn hs_locate(root: Text, segments: List[Text]) -> Result[Text, Int]:
+    let relative = text_join(segments, "/")
+    match native_fs_confined_path(root, relative):
+        Ok(joined):
+            match native_fs_kind(joined):
+                Ok(kind):
+                    if kind == "file":
+                        return Ok(joined)
+                    if kind != "directory":
+                        return Err(404)
+                Err(problem):
+                    return Err(404)
+        Err(problem):
+            return Err(404)
+    var indexed = "index.html"
+    if relative != "":
+        set indexed = relative + "/index.html"
+    match native_fs_confined_path(root, indexed):
+        Ok(found):
+            match native_fs_kind(found):
+                Ok(kind):
+                    if kind == "file":
+                        return Ok(found)
+                Err(problem):
+                    return Err(404)
+        Err(problem):
+            return Err(404)
+    return Err(404)
+
+fn hs_file_body(head_only: Bool, path: Text, start: Int, length: Int) -> Body:
+    if head_only:
+        return Body("stream", bytes_from_ints([]), Stream("sized", "", [bytes_from_text(int_to_text(length))]))
+    if length == 0:
+        return body_bytes(bytes_from_ints([]))
+    return Body("stream", bytes_from_ints([]), Stream("file_range", path, [bytes_from_text(int_to_text(start)), bytes_from_text(int_to_text(length))]))
+
+pub fn static_serve(request: Request, root: Text) -> Result[Response, HttpFailure]:
+    if request.method != "GET" and request.method != "HEAD":
+        return Ok(Response(405, [Header("Allow", "GET, HEAD"), Header("Content-Type", "text/plain; charset=utf-8")], body_text("Method Not Allowed")))
+    let head_only = request.method == "HEAD"
+    match hs_segments(request.path):
+        Err(status):
+            if status == 400:
+                return Ok(hs_status(400, "Bad Request"))
+            return Ok(hs_status(404, "Not Found"))
+        Ok(segments):
+            match hs_locate(root, segments):
+                Err(status):
+                    return Ok(hs_status(404, "Not Found"))
+                Ok(path):
+                    return hs_respond(request, path, head_only)
+
+fn hs_respond(request: Request, path: Text, head_only: Bool) -> Result[Response, HttpFailure]:
+    var size = 0
+    var modified_ms = 0
+    match native_fs_size(path):
+        Ok(found):
+            set size = found
+        Err(problem):
+            return Ok(hs_status(404, "Not Found"))
+    match native_fs_modified_ms(path):
+        Ok(found):
+            set modified_ms = found
+        Err(problem):
+            return Ok(hs_status(404, "Not Found"))
+    let etag = "W/\"" + int_to_text(size) + "-" + int_to_text(modified_ms) + "\""
+    let modified = static_http_date(modified_ms)
+    # Conditional requests: If-None-Match decides alone when present.
+    match request_header(request, "if-none-match"):
+        Some(tags):
+            if hs_etag_matches(tags, etag):
+                return Ok(Response(304, [Header("ETag", etag), Header("Last-Modified", modified)], hs_empty()))
+        None:
+            match request_header(request, "if-modified-since"):
+                Some(date):
+                    let since = hs_parse_date(date)
+                    if since >= 0 and modified_ms // 1000 <= since:
+                        return Ok(Response(304, [Header("ETag", etag), Header("Last-Modified", modified)], hs_empty()))
+                None:
+                    let ignored = 0
+    var window: List[Int] = []
+    match request_header(request, "range"):
+        Some(spec):
+            set window = hs_range(spec, size)
+        None:
+            let ignored = 0
+    match request_header(request, "if-range"):
+        Some(validator):
+            if text_trim(validator) != modified:
+                set window = []
+        None:
+            let ignored = 0
+    var headers = [Header("Content-Type", static_content_type(path)), Header("ETag", etag), Header("Last-Modified", modified), Header("Accept-Ranges", "bytes"), Header("X-Content-Type-Options", "nosniff")]
+    if len(window) == 1:
+        return Ok(Response(416, [Header("Content-Range", "bytes */" + int_to_text(size)), Header("Content-Type", "text/plain; charset=utf-8")], hs_empty()))
+    if len(window) == 2:
+        let length = window[1] - window[0] + 1
+        set headers = list_push(headers, Header("Content-Range", "bytes " + int_to_text(window[0]) + "-" + int_to_text(window[1]) + "/" + int_to_text(size)))
+        return Ok(Response(206, headers, hs_file_body(head_only, path, window[0], length)))
+    return Ok(Response(200, headers, hs_file_body(head_only, path, 0, size)))

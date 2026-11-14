@@ -1,0 +1,30 @@
+import "main.gu"
+
+fn main() -> Int:
+    return 0
+
+fn sample() -> Map[Text, Int]:
+    return {"/b": 5, "/a": 5, "/z": 9, "/c": 1}
+
+fn test_report_by_path_orders_by_path_name() -> Unit:
+    let report = report_by_path(sample())
+    assert(len(report) == 4)
+    assert(report[0].path == "/a")
+    assert(report[1].path == "/b")
+    assert(report[2].path == "/c")
+    assert(report[3].path == "/z")
+    assert(report[3].count == 9)
+
+fn test_report_by_count_orders_by_count_descending_then_path() -> Unit:
+    let report = report_by_count(sample())
+    assert(report[0].path == "/z")
+    assert(report[0].count == 9)
+    assert(report[1].path == "/a")
+    assert(report[2].path == "/b")
+    assert(report[3].path == "/c")
+    assert(report[3].count == 1)
+
+fn test_empty_report_is_empty() -> Unit:
+    let none: Map[Text, Int] = {}
+    assert(len(report_by_count(none)) == 0)
+    assert(len(report_by_path(none)) == 0)

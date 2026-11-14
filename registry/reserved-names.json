@@ -3,6 +3,7 @@
     "calendar",
     "cli",
     "collections",
+    "compress",
     "core",
     "crypto",
     "csv",
@@ -14,6 +15,7 @@
     "http-types",
     "json",
     "jsonl",
+    "log",
     "math",
     "net",
     "path",
@@ -24,6 +26,7 @@
     "semver",
     "sqlite",
     "std",
+    "tar",
     "text",
     "time",
     "tls",
@@ -31,7 +34,8 @@
     "types",
     "unicode",
     "url",
-    "websocket"
+    "websocket",
+    "yaml"
   ],
   "prefixes": [
     "guion-"

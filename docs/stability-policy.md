@@ -10,13 +10,15 @@ A minor release (0.3, 0.4, and so on) may change source. When it does, the chang
 
 ## Compiled artifacts
 
-The runtime reads every artifact format from 14 up to the current format, which is 64 in this release. Newer runtimes keep reading older formats. An artifact cannot use an operation introduced after its own format version, and a runtime rejects one that does. Building with a newer compiler writes the newer format, so an older runtime cannot read it.
+The runtime reads every artifact format from 14 up to the current format, which is 72 in this release. Newer runtimes keep reading older formats. An artifact cannot use an operation introduced after its own format version, and a runtime rejects one that does. Building with a newer compiler writes the newer format, so an older runtime cannot read it.
 
 Hashes in artifacts and locks detect accidental change; they do not authenticate who made them.
 
 ## Deprecation
 
 Anything that is removed is first deprecated for at least one full minor release. The deprecation is recorded in [CHANGELOG.md](../CHANGELOG.md), and a migration note goes in [compatibility and migrations](compatibility-and-migrations.md). For example, something deprecated in 0.3 can be removed no earlier than 0.5.
+
+The rules in [VERSIONING.md](../VERSIONING.md) govern bump decisions from 0.3.0. A deprecated function is marked with a `# deprecated(since X): use NAME` comment, which `guion doc` reports and `guion lint` warns about ([reference](reference.md)).
 
 The one standing exception is the read compatibility for old Veritas project names. It is a migration aid and may be removed before 1.0 without a further deprecation period; see [compatibility and migrations](compatibility-and-migrations.md).
 

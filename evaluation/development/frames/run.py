@@ -43,7 +43,7 @@ def setup():
         raise SystemExit("run `python3 generate.py` first")
     if not os.path.exists(os.path.join(PROGRAMS, "guion.lock")):
         package = os.path.join(ROOT, "packages", "frames")
-        subprocess.run([GUION, "add", "frames", "--path", package], cwd=PROGRAMS, check=True)
+        subprocess.run([GUION, "add", "frames", "--path", package, "--approve-capabilities"], cwd=PROGRAMS, check=True)
     else:
         # The programs import `pkg:frames`, a snapshot of the package taken when it was added;
         # refresh it so the run measures the package as it is now.

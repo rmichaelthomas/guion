@@ -1,0 +1,21 @@
+import "std:types"
+import "std:sqlite"
+
+# What a page read costs if it opens its transaction with sqlite_begin instead of sqlite_begin_read:
+# guion run --allow-clock probe_begin.gu SLUG. Prints `begin ok MS` or `begin CODE MS`.
+fn main() -> Int:
+    let given = args()
+    let db = sqlite_open("pages.db")
+    if not is_ok(db):
+        print("open failed")
+        return 2
+    let started = unix_time_ms()
+    let tx = sqlite_begin(unwrap(db))
+    let took = unix_time_ms() - started
+    if is_ok(tx):
+        let rows = sqlite_query(unwrap(tx), "SELECT id FROM pages WHERE slug = ?", [sql_text(given[0])])
+        let done = sqlite_commit(unwrap(tx))
+        print("begin ok " + int_to_text(took))
+        return 0
+    print("begin " + error(tx).code + " " + int_to_text(took))
+    return 1

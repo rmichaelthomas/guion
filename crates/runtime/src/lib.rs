@@ -1,7 +1,7 @@
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HttpErrorValue, JsonErrorValue, NativeResourceValue,
-    Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
-    TextMap, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, HigherOrderKind, HttpErrorValue, JsonErrorValue,
+    NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText,
+    Span, TaskErrorValue, TextMap, Type, Value,
 };
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
@@ -14,6 +14,7 @@ use guion_vm_core::{
 pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use std::{
     borrow::Cow,
+    cmp::Ordering as CmpOrdering,
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     io::Write as IoWrite,
@@ -26,6 +27,7 @@ use std::{
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+mod compress;
 mod fs_ops;
 mod json_projection;
 mod native_backend;
@@ -35,6 +37,10 @@ mod process_ops;
 pub mod python_bridge;
 pub mod stdlib_data;
 pub mod stdlib_services;
+mod yaml;
+
+mod entropy;
+pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
     native_record_has_native_layout, native_record_words, NativeBackend, NativeCode,
@@ -1096,6 +1102,121 @@ impl NativeListArena {
         self.handle_lists.push(descriptor);
         let descriptor = self.handle_lists.last_mut()?;
         i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
+    }
+
+    /// Stores a list read from a record field as the list descriptor native code expects.
+    /// Item types without a descriptor encoding return `None`, and the VM replays the read.
+    /// The caller has already charged for the list.
+    fn store_native_list_field(&mut self, list: &Value, item: &Type) -> Option<i64> {
+        let items: Vec<Value> = match list {
+            Value::List(items) => items.as_ref().clone(),
+            Value::Float64List(items) => items.iter().copied().map(Value::Float64).collect(),
+            _ => return None,
+        };
+        if items.len() > self.max_collection_items {
+            return None;
+        }
+        match item {
+            Type::Float64 => {
+                let values = items
+                    .iter()
+                    .map(|value| match value {
+                        Value::Float64(value) => Some(*value),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.float_storage.try_reserve(1).ok()?;
+                self.float_lists.try_reserve(1).ok()?;
+                let storage_id = self.float_storage.len();
+                self.float_storage.push(values);
+                let storage = self.float_storage.last_mut()?;
+                let descriptor = Box::new(NativeFloatList {
+                    data: storage.as_mut_ptr().cast::<u64>(),
+                    len: storage.len(),
+                    storage_id,
+                    owned: false,
+                    inline_storage: false,
+                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                });
+                let address = (&*descriptor as *const NativeFloatList) as usize;
+                self.float_lists.push(descriptor);
+                i64::try_from(address).ok()
+            }
+            Type::Int | Type::Bool => {
+                let values = items
+                    .iter()
+                    .map(|value| match (value, item) {
+                        (Value::Int(value), Type::Int) => value.to_i64(),
+                        (Value::Bool(value), Type::Bool) => Some(i64::from(*value)),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.int_storage.try_reserve(1).ok()?;
+                self.int_lists.try_reserve(1).ok()?;
+                let storage_id = self.int_storage.len();
+                self.int_storage.push(values);
+                let storage = self.int_storage.last_mut()?;
+                let descriptor = Box::new(NativeIntList {
+                    data: storage.as_mut_ptr(),
+                    len: storage.len(),
+                    storage_id,
+                    owned: false,
+                    inline_storage: false,
+                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                });
+                let address = (&*descriptor as *const NativeIntList) as usize;
+                self.int_lists.push(descriptor);
+                i64::try_from(address).ok()
+            }
+            Type::Text => {
+                let texts = items
+                    .iter()
+                    .map(|value| match value {
+                        Value::Text(text) => Some(SharedText::clone(text)),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                self.store_native_text_list_charged(texts, false)
+            }
+            Type::Record(_) => {
+                let mut encoded = Vec::new();
+                encoded.try_reserve_exact(items.len()).ok()?;
+                for value in items {
+                    if !matches!(value, Value::Record(_, _)) {
+                        return None;
+                    }
+                    encoded.push(self.encode_native_value(value)?);
+                }
+                self.handle_lists.try_reserve(1).ok()?;
+                let inline_storage = encoded.len() <= NATIVE_INLINE_LIST_ITEMS;
+                if !inline_storage {
+                    self.handle_storage.try_reserve(1).ok()?;
+                }
+                let mut descriptor = Box::new(NativeHandleList {
+                    data: std::ptr::null_mut(),
+                    len: encoded.len(),
+                    storage_id: if inline_storage {
+                        usize::MAX
+                    } else {
+                        self.handle_storage.len()
+                    },
+                    owned: true,
+                    inline_storage,
+                    inline: [0; NATIVE_INLINE_LIST_ITEMS],
+                });
+                if inline_storage {
+                    descriptor.inline[..encoded.len()].copy_from_slice(&encoded);
+                    descriptor.data = descriptor.inline.as_mut_ptr();
+                } else {
+                    descriptor.data = encoded.as_mut_ptr();
+                    self.handle_storage.push(encoded);
+                }
+                self.handle_lists.push(descriptor);
+                let descriptor = self.handle_lists.last_mut()?;
+                i64::try_from((&mut **descriptor as *mut NativeHandleList) as usize).ok()
+            }
+            _ => None,
+        }
     }
 
     fn store_native_text_list(&mut self, items: Vec<SharedText>) -> Option<i64> {
@@ -2298,6 +2419,14 @@ impl NativeListArena {
                 if !self.charge_or_error(cloned_value_allocation(&field), instruction.span) {
                     return None;
                 }
+                // Machine code dereferences a list as a descriptor, so a list field must come
+                // back as one, not as an arena handle.
+                if let Type::List(item) = &definition.fields.get(*field_index)?.ty {
+                    if result_tag != 4 {
+                        return None;
+                    }
+                    return self.store_native_list_field(&field, item);
+                }
                 field
             }
             Op::MakeRecord(record_index, count) => {
@@ -2820,12 +2949,22 @@ pub struct HostPolicy {
     pub allow_file_read: bool,
     pub allow_file_write: bool,
     pub max_file_bytes: usize,
+    /// Ceiling on the bytes any inflate path may produce: `gzip_decompress`, `zlib_decompress`,
+    /// the streamed file variants and `tar_read`. From `[runtime] decompress_limit_bytes`.
+    pub decompress_limit_bytes: usize,
     pub arguments: Vec<String>,
     pub allowed_environment_variables: HashSet<String>,
     /// Whether wall-clock reads are explicitly granted to the guest.
     pub allow_clock: bool,
     /// Optional fixed Unix-millisecond value for deterministic embedders and tests.
     pub clock_unix_time_ms_override: Option<i64>,
+    /// Replacement for the OS entropy source behind `crypto_random_bytes`, for embedders and
+    /// tests. Not reachable from guest code, `guion.toml` or the command line; `None` means the
+    /// operating system's generator.
+    pub entropy_source: Option<EntropySource>,
+    /// Default level for `log_open(root, "")`, from `[log] level` in `guion.toml`; `None` means
+    /// `info`.
+    pub log_level: Option<String>,
     #[cfg(feature = "python-interop")]
     pub python_interpreter: Option<PathBuf>,
     #[cfg(feature = "python-interop")]
@@ -2866,10 +3005,13 @@ impl Default for HostPolicy {
             allow_file_read: false,
             allow_file_write: false,
             max_file_bytes: 16 * 1024 * 1024,
+            decompress_limit_bytes: 1024 * 1024 * 1024,
             arguments: Vec::new(),
             allowed_environment_variables: HashSet::new(),
             allow_clock: false,
             clock_unix_time_ms_override: None,
+            entropy_source: None,
+            log_level: None,
             #[cfg(feature = "python-interop")]
             python_interpreter: None,
             #[cfg(feature = "python-interop")]
@@ -2925,6 +3067,11 @@ impl HostPolicy {
     pub fn with_clock_unix_time_ms(mut self, unix_time_ms: i64) -> Self {
         self.allow_clock = true;
         self.clock_unix_time_ms_override = Some(unix_time_ms);
+        self
+    }
+    /// Pin the entropy source, replacing the OS generator for this policy only.
+    pub fn with_entropy_source(mut self, source: EntropySource) -> Self {
+        self.entropy_source = Some(source);
         self
     }
     #[cfg(feature = "python-interop")]
@@ -3125,7 +3272,7 @@ impl Runtime {
                 database_roots,
                 policy.max_file_bytes,
                 policy.max_collection_items,
-                2_000,
+                stdlib_services::SQLITE_BUSY_DEADLINE_MS,
             ),
             http: None,
             toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
@@ -3306,13 +3453,146 @@ fn consume_sort_step(budget: &Budget, span: Span) -> Result<(), RuntimeError> {
         ));
     }
     if !budget.consume() {
-        return Err(RuntimeError::new(
-            "R_STEP_LIMIT",
-            "instruction budget exhausted",
-            span,
-        ));
+        return Err(guion_vm_core::step_limit_error(budget, span));
     }
     Ok(())
+}
+
+/// A sort key as the native sorts compare it: each list holds one kind.
+enum SortKey {
+    Int(BigInt),
+    Float(f64),
+    Text(guion_model::SharedText),
+}
+
+impl SortKey {
+    fn from_value(value: &Value) -> Option<Self> {
+        match value {
+            Value::Int(key) => Some(SortKey::Int(key.clone())),
+            Value::Float64(key) => Some(SortKey::Float(key.get())),
+            Value::Text(key) => Some(SortKey::Text(key.clone())),
+            _ => None,
+        }
+    }
+
+    /// Keys of different kinds never meet in a verified artifact; equal keeps the sort total.
+    fn compare(&self, other: &SortKey) -> CmpOrdering {
+        match (self, other) {
+            (SortKey::Int(left), SortKey::Int(right)) => left.cmp(right),
+            (SortKey::Float(left), SortKey::Float(right)) => {
+                guion_model::sort_order_f64(*left, *right)
+            }
+            // Unicode scalar order: the UTF-8 bytes of valid text sort exactly like the scalars,
+            // as sorted map keys do.
+            (SortKey::Text(left), SortKey::Text(right)) => left.as_bytes().cmp(right.as_bytes()),
+            _ => CmpOrdering::Equal,
+        }
+    }
+}
+
+/// Bytes charged to the allocation budget for sorting `values`: the cloned list plus the
+/// order and visited bookkeeping, plus `key_bytes` per item for the keys held beside it.
+fn sort_allocation(values: &[Value], key_bytes: usize) -> usize {
+    let length = values.len();
+    let value_allocation = size_of::<Vec<Value>>()
+        .saturating_add(length.saturating_mul(size_of::<Value>()))
+        .saturating_add(
+            values
+                .iter()
+                .map(cloned_value_allocation)
+                .fold(0usize, usize::saturating_add),
+        );
+    let sort_storage = size_of::<Vec<usize>>()
+        .saturating_mul(2)
+        .saturating_add(size_of::<Vec<bool>>())
+        .saturating_add(
+            length.saturating_mul(
+                key_bytes
+                    .saturating_add(size_of::<usize>().saturating_mul(2))
+                    .saturating_add(size_of::<bool>()),
+            ),
+        )
+        .saturating_add(size_of::<Vec<BigInt>>());
+    value_allocation.saturating_add(sort_storage)
+}
+
+/// The stable order of `0..length` under `compare(a, b)` on item indexes. Insertion sort up to
+/// 32 items, bottom-up merge sort beyond; every comparison costs one instruction of the guest
+/// budget, exactly as `sort_by_int_key` (format 41) charges. Equal items keep input order.
+fn stable_sort_order<F>(
+    length: usize,
+    mut compare: F,
+    budget: &Budget,
+    span: Span,
+) -> Result<Vec<usize>, RuntimeError>
+where
+    F: FnMut(usize, usize) -> CmpOrdering,
+{
+    let mut order: Vec<usize> = (0..length).collect();
+    if length <= 32 {
+        for index in 1..length {
+            let value = order[index];
+            let mut position = index;
+            while position > 0 {
+                consume_sort_step(budget, span)?;
+                if compare(value, order[position - 1]) == CmpOrdering::Less {
+                    order[position] = order[position - 1];
+                    position -= 1;
+                } else {
+                    break;
+                }
+            }
+            order[position] = value;
+        }
+    } else {
+        let mut merged = Vec::with_capacity(length);
+        let mut width = 1usize;
+        while width < length {
+            merged.clear();
+            let mut run_start = 0usize;
+            while run_start < length {
+                let middle = run_start.saturating_add(width).min(length);
+                let run_end = middle.saturating_add(width).min(length);
+                let (mut left, mut right) = (run_start, middle);
+                while left < middle && right < run_end {
+                    consume_sort_step(budget, span)?;
+                    if compare(order[left], order[right]) != CmpOrdering::Greater {
+                        merged.push(order[left]);
+                        left += 1;
+                    } else {
+                        merged.push(order[right]);
+                        right += 1;
+                    }
+                }
+                merged.extend_from_slice(&order[left..middle]);
+                merged.extend_from_slice(&order[right..run_end]);
+                run_start = run_end;
+            }
+            std::mem::swap(&mut order, &mut merged);
+            width = width.saturating_mul(2);
+        }
+    }
+    Ok(order)
+}
+
+/// Rearranges `values` in place so that position `i` holds what was at `order[i]`.
+fn apply_sort_order<T>(values: &mut [T], order: &[usize]) {
+    let mut visited = vec![false; values.len()];
+    for start in 0..values.len() {
+        if visited[start] {
+            continue;
+        }
+        let mut current = start;
+        loop {
+            visited[current] = true;
+            let next = order[current];
+            if next == start {
+                break;
+            }
+            values.swap(current, next);
+            current = next;
+        }
+    }
 }
 
 fn value_limit_error_at_boundary(
@@ -3618,7 +3898,14 @@ impl VmHost for Instance {
                 })?
             };
         }
-        match instruction.op {
+        // The sorts and `parallel_map` that take a function value on the stack run as the
+        // operations that carry a function index; the other higher-order builtins have their
+        // own arms below.
+        let static_form = match &instruction.op {
+            Op::HigherOrder(kind) => self.static_higher_order(*kind, stack, instruction.span)?,
+            _ => None,
+        };
+        match *static_form.as_ref().unwrap_or(&instruction.op) {
             Op::JsonPushLocal(slot) => {
                 let value = match pop!() {
                     Value::Json(value) => value,
@@ -3744,6 +4031,118 @@ impl VmHost for Instance {
                 if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
                     return Err(error);
                 }
+            }
+            Op::HigherOrder(kind) => {
+                let target = match pop!() {
+                    Value::Function(index) => index,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let wanted = if kind == HigherOrderKind::FoldList {
+                    2
+                } else {
+                    1
+                };
+                if self
+                    .artifact
+                    .functions
+                    .get(target)
+                    .is_none_or(|callee| callee.parameters.len() != wanted)
+                {
+                    return Err(RuntimeError::new(
+                        "R_FN_INVALID",
+                        "function value does not name a function of this program",
+                        instruction.span,
+                    ));
+                }
+                let initial = if kind == HigherOrderKind::FoldList {
+                    Some(pop!())
+                } else {
+                    None
+                };
+                let items: Vec<Value> = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            format!("{} requires a List", kind.name()),
+                            instruction.span,
+                        ));
+                    }
+                };
+                charge_allocation(
+                    budget.as_ref(),
+                    size_of::<Vec<Value>>()
+                        .saturating_add(items.len().saturating_mul(size_of::<Value>())),
+                    instruction.span,
+                )?;
+                let call = |this: &mut Self, args: Vec<Value>| -> Result<Value, RuntimeError> {
+                    this.invoke_inner(target, args, depth + 1, budget.clone())
+                        .map_err(|mut error| {
+                            error.trace.push(instruction.span);
+                            error
+                        })
+                };
+                let wrong_type = |message: &str| {
+                    RuntimeError::new("R_TYPE_INVALID", message.to_owned(), instruction.span)
+                };
+                let result = match kind {
+                    HigherOrderKind::MapList => {
+                        let mut mapped = Vec::with_capacity(items.len());
+                        for item in items {
+                            mapped.push(call(self, vec![item])?);
+                        }
+                        Value::from_list_items(mapped)
+                    }
+                    HigherOrderKind::FilterList => {
+                        let mut kept = Vec::new();
+                        for item in items {
+                            match call(self, vec![item.clone()])? {
+                                Value::Bool(true) => kept.push(item),
+                                Value::Bool(false) => {}
+                                _ => {
+                                    return Err(wrong_type("filter_list function must return Bool"))
+                                }
+                            }
+                        }
+                        Value::from_list_items(kept)
+                    }
+                    HigherOrderKind::AnyList | HigherOrderKind::AllList => {
+                        let any = kind == HigherOrderKind::AnyList;
+                        let mut answer = !any;
+                        for item in items {
+                            match call(self, vec![item])? {
+                                Value::Bool(flag) => {
+                                    if flag == any {
+                                        answer = any;
+                                        break;
+                                    }
+                                }
+                                _ => return Err(wrong_type("the function must return Bool")),
+                            }
+                        }
+                        Value::Bool(answer)
+                    }
+                    _ => {
+                        let mut accumulator = initial.expect("fold_list has an initial value");
+                        for item in items {
+                            accumulator = call(self, vec![accumulator, item])?;
+                        }
+                        accumulator
+                    }
+                };
+                if let Some(error) = value_limit_error(&result, &self.policy, instruction.span) {
+                    return Err(error);
+                }
+                push_stack!(result);
             }
             Op::ParallelMap(target) => {
                 let limit = match pop!() {
@@ -3946,27 +4345,9 @@ impl VmHost for Instance {
                     }
                 };
                 let length = values.len();
-                let value_allocation = size_of::<Vec<Value>>()
-                    .saturating_add(length.saturating_mul(size_of::<Value>()))
-                    .saturating_add(
-                        values
-                            .iter()
-                            .map(cloned_value_allocation)
-                            .fold(0usize, usize::saturating_add),
-                    );
-                let sort_storage = size_of::<Vec<BigInt>>()
-                    .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
-                    .saturating_add(size_of::<Vec<bool>>())
-                    .saturating_add(
-                        length.saturating_mul(
-                            size_of::<BigInt>()
-                                .saturating_add(size_of::<usize>().saturating_mul(2))
-                                .saturating_add(size_of::<bool>()),
-                        ),
-                    );
                 charge_allocation(
                     budget.as_ref(),
-                    value_allocation.saturating_add(sort_storage),
+                    sort_allocation(&values, size_of::<BigInt>()),
                     instruction.span,
                 )?;
 
@@ -3989,68 +4370,160 @@ impl VmHost for Instance {
                     }
                 }
 
-                let mut order: Vec<usize> = (0..length).collect();
-                if length <= 32 {
-                    for index in 1..length {
-                        let value = order[index];
-                        let mut position = index;
-                        while position > 0 {
-                            consume_sort_step(budget.as_ref(), instruction.span)?;
-                            if keys[value] < keys[order[position - 1]] {
-                                order[position] = order[position - 1];
-                                position -= 1;
-                            } else {
-                                break;
-                            }
-                        }
-                        order[position] = value;
+                let order = stable_sort_order(
+                    length,
+                    |left, right| keys[left].cmp(&keys[right]),
+                    budget.as_ref(),
+                    instruction.span,
+                )?;
+                apply_sort_order(&mut values, &order);
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::SortByKey(target) => {
+                let mut values = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
                     }
-                } else {
-                    let mut merged = Vec::with_capacity(length);
-                    let mut width = 1usize;
-                    while width < length {
-                        merged.clear();
-                        let mut run_start = 0usize;
-                        while run_start < length {
-                            let middle = run_start.saturating_add(width).min(length);
-                            let run_end = middle.saturating_add(width).min(length);
-                            let (mut left, mut right) = (run_start, middle);
-                            while left < middle && right < run_end {
-                                consume_sort_step(budget.as_ref(), instruction.span)?;
-                                if keys[order[left]] <= keys[order[right]] {
-                                    merged.push(order[left]);
-                                    left += 1;
-                                } else {
-                                    merged.push(order[right]);
-                                    right += 1;
-                                }
-                            }
-                            merged.extend_from_slice(&order[left..middle]);
-                            merged.extend_from_slice(&order[right..run_end]);
-                            run_start = run_end;
-                        }
-                        std::mem::swap(&mut order, &mut merged);
-                        width = width.saturating_mul(2);
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by requires a List",
+                            instruction.span,
+                        ));
                     }
+                };
+                let length = values.len();
+                charge_allocation(
+                    budget.as_ref(),
+                    sort_allocation(&values, size_of::<SortKey>()),
+                    instruction.span,
+                )?;
+
+                // The key function runs once per item, in input order; the comparisons below
+                // read the saved keys and never call it again.
+                let mut keys: Vec<SortKey> = Vec::with_capacity(length);
+                for value in &values {
+                    let key = match self.invoke_inner(
+                        target,
+                        vec![value.clone()],
+                        depth + 1,
+                        budget.clone(),
+                    ) {
+                        Ok(key) => key,
+                        Err(mut error) => {
+                            error.trace.push(instruction.span);
+                            return Err(error);
+                        }
+                    };
+                    let Some(key) = SortKey::from_value(&key) else {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by key function must return Text, Int or Float64",
+                            instruction.span,
+                        ));
+                    };
+                    if keys.first().is_some_and(|first| {
+                        std::mem::discriminant(first) != std::mem::discriminant(&key)
+                    }) {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by key function must return one key type",
+                            instruction.span,
+                        ));
+                    }
+                    keys.push(key);
                 }
 
-                let mut visited = vec![false; length];
-                for start in 0..length {
-                    if visited[start] {
-                        continue;
+                let order = stable_sort_order(
+                    length,
+                    |left, right| keys[left].compare(&keys[right]),
+                    budget.as_ref(),
+                    instruction.span,
+                )?;
+                apply_sort_order(&mut values, &order);
+                push_stack!(Value::from_list_items(values));
+            }
+            Op::SortNatural => {
+                let list = pop!();
+                match list {
+                    Value::Float64List(floats) => {
+                        let length = floats.len();
+                        let mut sorted: Vec<guion_model::Float64> = floats.as_ref().clone();
+                        charge_allocation(
+                            budget.as_ref(),
+                            size_of::<Vec<guion_model::Float64>>()
+                                .saturating_add(
+                                    length.saturating_mul(
+                                        size_of::<guion_model::Float64>()
+                                            .saturating_add(size_of::<usize>().saturating_mul(2))
+                                            .saturating_add(size_of::<bool>()),
+                                    ),
+                                )
+                                .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
+                                .saturating_add(size_of::<Vec<bool>>()),
+                            instruction.span,
+                        )?;
+                        let order = stable_sort_order(
+                            length,
+                            |left, right| {
+                                guion_model::sort_order_f64(floats[left].get(), floats[right].get())
+                            },
+                            budget.as_ref(),
+                            instruction.span,
+                        )?;
+                        apply_sort_order(&mut sorted, &order);
+                        push_stack!(Value::Float64List(guion_model::Shared::new(sorted)));
                     }
-                    let mut current = start;
-                    loop {
-                        visited[current] = true;
-                        let next = order[current];
-                        if next == start {
-                            break;
+                    Value::List(items) => {
+                        let length = items.len();
+                        if length < 2 {
+                            push_stack!(Value::List(items));
+                        } else {
+                            let mut values = items.as_ref().clone();
+                            charge_allocation(
+                                budget.as_ref(),
+                                sort_allocation(&values, 0),
+                                instruction.span,
+                            )?;
+                            let first = std::mem::discriminant(&values[0]);
+                            if !values.iter().all(|value| {
+                                matches!(value, Value::Int(_) | Value::Float64(_) | Value::Text(_))
+                                    && std::mem::discriminant(value) == first
+                            }) {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "sort requires a List of Text, Int or Float64",
+                                    instruction.span,
+                                ));
+                            }
+                            let order = stable_sort_order(
+                                length,
+                                |left, right| match (&values[left], &values[right]) {
+                                    (Value::Int(a), Value::Int(b)) => a.cmp(b),
+                                    (Value::Float64(a), Value::Float64(b)) => {
+                                        guion_model::sort_order_f64(a.get(), b.get())
+                                    }
+                                    (Value::Text(a), Value::Text(b)) => {
+                                        a.as_bytes().cmp(b.as_bytes())
+                                    }
+                                    _ => CmpOrdering::Equal,
+                                },
+                                budget.as_ref(),
+                                instruction.span,
+                            )?;
+                            apply_sort_order(&mut values, &order);
+                            push_stack!(Value::from_list_items(values));
                         }
-                        values.swap(current, next);
-                        current = next;
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort requires a List",
+                            instruction.span,
+                        ));
                     }
                 }
-                push_stack!(Value::from_list_items(values));
             }
             Op::MergeSortedByIntKey(target) => {
                 let input_feeds = match pop!() {
@@ -5526,6 +5999,44 @@ impl VmHost for Instance {
                     push_stack!(Value::Text(text));
                 }
             }
+            Op::RandomBytes => {
+                let count = match pop!() {
+                    Value::Int(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "random byte count must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let outcome = match count.to_usize() {
+                    Some(wanted) if wanted <= ENTROPY_MAX_BYTES => {
+                        charge_allocation(budget.as_ref(), wanted, instruction.span)?;
+                        let mut bytes = vec![0u8; wanted];
+                        let filled = if wanted == 0 {
+                            Ok(())
+                        } else {
+                            match &self.policy.entropy_source {
+                                Some(source) => source.fill(&mut bytes),
+                                None => entropy::fill_from_os(&mut bytes),
+                            }
+                        };
+                        match filled {
+                            Ok(()) => Value::ResultOk(Box::new(Value::Bytes(Shared::new(bytes)))),
+                            Err(message) => Value::ResultErr(Box::new(entropy_error_value(
+                                "E_ENTROPY_UNAVAILABLE",
+                                message,
+                            ))),
+                        }
+                    }
+                    _ => Value::ResultErr(Box::new(entropy_error_value(
+                        "E_RANDOM_COUNT",
+                        format!("random byte count must be between 0 and {ENTROPY_MAX_BYTES}"),
+                    ))),
+                };
+                push_stack!(outcome);
+            }
             Op::TextNormalize => {
                 let form = match pop!() {
                     Value::Text(value) => value,
@@ -5657,21 +6168,188 @@ impl VmHost for Instance {
                 };
                 push_stack!(service_result_value(result));
             }
-            Op::SqliteBegin => {
+            Op::GzipCompress | Op::ZlibCompress => {
+                let data = match pop!() {
+                    Value::Bytes(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "compression input must be Bytes",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let packed = if matches!(instruction.op, Op::GzipCompress) {
+                    compress::gzip_compress(&data)
+                } else {
+                    compress::zlib_compress(&data)
+                };
+                charge_allocation(budget.as_ref(), packed.len(), instruction.span)?;
+                push_stack!(Value::Bytes(Shared::new(packed)));
+            }
+            Op::GzipDecompress | Op::ZlibDecompress => {
+                let max_output = match pop!() {
+                    Value::Int(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "max_output must be Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let data = match pop!() {
+                    Value::Bytes(value) => value,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "compressed input must be Bytes",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let outcome = compress::inflate_bytes(
+                    matches!(instruction.op, Op::GzipDecompress),
+                    &data,
+                    &max_output,
+                    &self.policy,
+                );
+                match outcome {
+                    Ok(unpacked) => {
+                        charge_allocation(budget.as_ref(), unpacked.len(), instruction.span)?;
+                        push_stack!(Value::ResultOk(Box::new(Value::Bytes(Shared::new(
+                            unpacked
+                        )))));
+                    }
+                    Err(found) => push_stack!(Value::ResultErr(Box::new(entropy_error_value(
+                        found.code,
+                        found.message,
+                    )))),
+                }
+            }
+            Op::YamlParse => {
+                let source = match pop!() {
+                    Value::Text(text) => text,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "yaml_parse requires Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if source.len() > self.policy.max_text_bytes {
+                    return Err(RuntimeError::new(
+                        "R_TEXT_LIMIT",
+                        "YAML input exceeds the configured byte limit",
+                        instruction.span,
+                    ));
+                }
+                match yaml::parse(&source) {
+                    Ok(parsed) => {
+                        let shared = SharedJson::from_serde(parsed);
+                        let value = finish_shared_json(
+                            shared.as_ref().clone(),
+                            &self.policy.vm_limits(),
+                            budget.as_ref(),
+                            instruction.span,
+                        )?;
+                        push_stack!(Value::ResultOk(Box::new(value)));
+                    }
+                    Err(found) => {
+                        push_stack!(Value::ResultErr(Box::new(service_error_value(
+                            stdlib_services::ServiceError {
+                                code: found.code.to_owned(),
+                                message: found.message,
+                                path: String::new(),
+                                line: found.line,
+                                column: found.column,
+                            }
+                        ))));
+                    }
+                }
+            }
+            Op::LogDefaultLevel => {
+                let level = self
+                    .policy
+                    .log_level
+                    .clone()
+                    .unwrap_or_else(|| "info".to_owned());
+                push_stack!(Value::Text(level.into()));
+            }
+            Op::LogAppend => {
+                use std::io::Write as _;
+                let line = match pop!() {
+                    Value::Text(line) => line,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "log line must be Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let path = match pop!() {
+                    Value::Text(path) => path,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "log path must be Text",
+                            instruction.span,
+                        ));
+                    }
+                };
+                if line.len() > self.policy.max_file_bytes {
+                    return Err(RuntimeError::new(
+                        "R_FILE_LIMIT",
+                        "log record exceeds the configured byte limit",
+                        instruction.span,
+                    ));
+                }
+                let resolved = match host_file_path(&self.policy, &path, true, instruction.span) {
+                    Ok(resolved) => resolved,
+                    Err(error) => {
+                        push_stack!(file_error_result(error));
+                        return Ok(());
+                    }
+                };
+                let effect = self.begin_effect(EffectKind::FileWrite, path.as_ref());
+                // One write call per record: with O_APPEND each record lands whole.
+                let written = fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&resolved)
+                    .and_then(|mut file| file.write_all(line.as_bytes()));
+                if let Err(error) = written {
+                    self.finish_effect(effect, EffectOutcome::ReturnedError);
+                    push_stack!(file_error_result(RuntimeError::new(
+                        "R_FILE_WRITE",
+                        format!("cannot append to `{path}`: {error}"),
+                        instruction.span,
+                    )));
+                    return Ok(());
+                }
+                self.finish_effect(effect, EffectOutcome::Returned);
+                push_stack!(Value::ResultOk(Box::new(Value::Unit)));
+            }
+            Op::SqliteBegin | Op::SqliteBeginRead => {
                 let (owner, id) = runtime_service_resource(&pop!(), "Db", instruction.span)?;
-                let result = self
-                    .databases
-                    .begin(stdlib_services::DbHandle::from_parts(owner, id))
-                    .and_then(|handle| {
-                        let cancellation = budget.cancellation.cancelled.clone();
-                        self.databases.set_cancelled(handle, cancellation)?;
-                        let (owner, id) = handle.parts();
-                        Ok(Value::NativeResource(Box::new(NativeResourceValue::new(
-                            "Transaction",
-                            owner,
-                            id,
-                        ))))
-                    });
+                let database = stdlib_services::DbHandle::from_parts(owner, id);
+                let result = if matches!(instruction.op, Op::SqliteBeginRead) {
+                    self.databases.begin_read(database)
+                } else {
+                    self.databases.begin(database)
+                }
+                .and_then(|handle| {
+                    let cancellation = budget.cancellation.cancelled.clone();
+                    self.databases.set_cancelled(handle, cancellation)?;
+                    let (owner, id) = handle.parts();
+                    Ok(Value::NativeResource(Box::new(NativeResourceValue::new(
+                        "Transaction",
+                        owner,
+                        id,
+                    ))))
+                });
                 push_stack!(service_result_value(result));
             }
             Op::SqliteExecute | Op::SqliteQuery => {
@@ -8042,6 +8720,53 @@ impl Instance {
         }
     }
 
+    /// Resolve a sort or `parallel_map` whose function is a value on the stack into the
+    /// operation that carries the function's index, popping the value. The other higher-order
+    /// builtins return `None` and keep their arm. A value that names no function of this
+    /// artifact, or one of the wrong arity, is `R_FN_INVALID`.
+    fn static_higher_order(
+        &self,
+        kind: HigherOrderKind,
+        stack: &mut Vec<Value>,
+        span: Span,
+    ) -> Result<Option<Op>, RuntimeError> {
+        let invalid = || {
+            RuntimeError::new(
+                "R_FN_INVALID",
+                "function value does not name a function of this program",
+                span,
+            )
+        };
+        let (build, arity): (fn(usize) -> Op, usize) = match kind {
+            HigherOrderKind::SortBy => (Op::SortBy, 2),
+            HigherOrderKind::SortByKey => (Op::SortByKey, 1),
+            HigherOrderKind::SortByIntKey => (Op::SortByIntKey, 1),
+            HigherOrderKind::MergeSortedByIntKey => (Op::MergeSortedByIntKey, 1),
+            HigherOrderKind::ParallelMap => (Op::ParallelMap, 1),
+            _ => return Ok(None),
+        };
+        let limit = if kind == HigherOrderKind::ParallelMap {
+            Some(stack.pop().ok_or_else(invalid)?)
+        } else {
+            None
+        };
+        let Some(Value::Function(index)) = stack.pop() else {
+            return Err(invalid());
+        };
+        if self
+            .artifact
+            .functions
+            .get(index)
+            .is_none_or(|callee| callee.parameters.len() != arity)
+        {
+            return Err(invalid());
+        }
+        if let Some(limit) = limit {
+            stack.push(limit);
+        }
+        Ok(Some(build(index)))
+    }
+
     fn invoke_inner(
         &mut self,
         index: usize,
@@ -8161,6 +8886,10 @@ impl Instance {
             .map(|(value, ty)| match (value, ty) {
                 (Value::Int(integer), Type::Int) => integer.to_i64(),
                 (Value::Float64(float), Type::Float64) => Some(float.get().to_bits() as i64),
+                // Native code reads a Bool parameter as a raw 0 or 1. Without this arm the
+                // value fell through to the handle table below, and a handle is never 0, so a
+                // `false` entering from a VM caller arrived as true.
+                (Value::Bool(flag), Type::Bool) => Some(i64::from(*flag)),
                 (Value::Float64List(items), Type::List(item)) if **item == Type::Float64 => {
                     let storage_id = native_arena.float_storage.len();
                     native_arena.float_storage.push(items.as_ref().clone());
@@ -8792,13 +9521,16 @@ impl Instance {
                             .get(outcome.fault_ip)
                             .map(|i| i.span)
                             .unwrap_or_default();
-                        return Err(native_runtime_error(
+                        let step_error = guion_vm_core::step_limit_error(&budget, span);
+                        let mut error = native_runtime_error(
                             &self.artifact,
                             &outcome.trace,
-                            "R_STEP_LIMIT",
-                            "instruction budget exhausted",
+                            step_error.code,
+                            step_error.message,
                             span,
-                        ));
+                        );
+                        error.step_usage = step_error.step_usage;
+                        return Err(error);
                     }
                     4 => {
                         let span = fault_frame
@@ -9120,6 +9852,7 @@ impl Instance {
         // The workers share one bounded child budget, so the total remains bounded.
         let worker_budget = Arc::new(Budget {
             remaining: AtomicU64::new(budget.reserve_parallel()),
+            instruction_limit: budget.instruction_limit,
             allocation: budget.allocation.clone(),
             allocation_floor: budget.parallel_allocation_floor(),
             cancellation: budget.cancellation.clone(),
@@ -9197,7 +9930,7 @@ impl Instance {
                             database_roots,
                             policy.max_file_bytes,
                             policy.max_collection_items,
-                            2_000,
+                            stdlib_services::SQLITE_BUSY_DEADLINE_MS,
                         ),
                         toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
                         output: String::new(),
@@ -10385,7 +11118,11 @@ fn input_value_allocation(value: &Value) -> usize {
                 + error.trace.len().saturating_mul(size_of::<Span>())
         }
         Value::NativeResource(resource) => size_of::<Value>() + resource.kind().len(),
-        Value::Float64(_) | Value::Bool(_) | Value::OptionNone | Value::Unit => size_of::<Value>(),
+        Value::Float64(_)
+        | Value::Bool(_)
+        | Value::OptionNone
+        | Value::Function(_)
+        | Value::Unit => size_of::<Value>(),
     }
 }
 
@@ -10535,6 +11272,16 @@ fn runtime_sql_values(
             Ok(decoded)
         })
         .collect()
+}
+
+fn entropy_error_value(code: &str, message: String) -> Value {
+    service_error_value(stdlib_services::ServiceError {
+        code: code.to_owned(),
+        message,
+        path: String::new(),
+        line: 0,
+        column: 0,
+    })
 }
 
 fn service_error_value(error: stdlib_services::ServiceError) -> Value {

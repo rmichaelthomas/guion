@@ -1,0 +1,66 @@
+import "std:types"
+
+# std:compress: gzip (RFC 1952) and zlib (RFC 1950) over Bytes, and streamed gzip over files.
+#
+# gzip_compress and zlib_compress deflate a value held in memory at the default level and
+# return the compressed bytes. They need no grant. The output is valid for any gzip or zlib
+# reader (Python's gzip and zlib modules, gzip -d); it is not promised to be byte-identical
+# between releases of Guion, so compare decompressed content, not compressed bytes.
+#
+# gzip_decompress and zlib_decompress inflate a value held in memory. EVERY inflate takes an
+# output ceiling, because a few kilobytes of input can expand to gigabytes (a zip bomb).
+# `max_output` is the most bytes the call may produce: the call fails with the typed error
+# E_COMPRESS_LIMIT as soon as the output would pass it, having produced at most `max_output`
+# bytes, and a result exactly `max_output` long is allowed. A negative `max_output` is
+# E_COMPRESS_ARGUMENT. The ceiling can only be lowered by the caller: it is also capped by
+# `[runtime] decompress_limit_bytes` in guion.toml (default 1 GiB), which no argument raises.
+#
+# Other typed errors: E_COMPRESS_TRUNCATED (the data ends early, including empty input) and
+# E_COMPRESS_CORRUPT (a bad header, a bad checksum, or invalid deflate data). Neither panics.
+#
+# Multi-member gzip. A gzip file may be several members written one after another (`cat a.gz
+# b.gz > c.gz` is valid). gzip_decompress returns the members' output concatenated, in order,
+# and the ceiling counts all members together. Trailing garbage. Bytes after the last gzip
+# member that do not begin another member (including zero padding), and any bytes after a zlib
+# stream, are the typed error E_COMPRESS_TRAILING_DATA: they are never silently ignored.
+#
+# gzip_compress_file(source, destination) and gzip_decompress_file(source, destination) stream
+# one file into another through fixed 64 KiB buffers, so memory stays constant for any file
+# size (a 200 MB round trip stays well under 64 MB resident). Both paths follow the std:fs
+# rules: relative to a granted file root, no `..`, confined after symlink resolution. They need
+# the file-read and file-write grants (effects filesystem.read and filesystem.write). The
+# destination is written to a sibling temporary file and renamed into place on success, so a
+# failed or refused run leaves no partial destination. gzip_compress_file returns the compressed
+# size in bytes; gzip_decompress_file returns the decompressed size and applies
+# `[runtime] decompress_limit_bytes` as its ceiling, with the same multi-member and
+# trailing-data rules as gzip_decompress. Failures are StdError values: the code is one of the
+# above or an R_FILE_* code, and `path` names the source.
+
+fn compress_problem(problem: FileError, path: Text) -> StdError:
+    return StdError(file_error_code(problem), file_error_message(problem), path, 0, 0)
+
+pub fn gzip_compress(data: Bytes) -> Bytes:
+    return native_gzip_compress(data)
+
+pub fn gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]:
+    return native_gzip_decompress(data, max_output)
+
+pub fn zlib_compress(data: Bytes) -> Bytes:
+    return native_zlib_compress(data)
+
+pub fn zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]:
+    return native_zlib_decompress(data, max_output)
+
+pub fn gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]:
+    match native_fs_gzip_compress_file(source, destination):
+        Ok(size):
+            return Ok(size)
+        Err(problem):
+            return Err(compress_problem(problem, source))
+
+pub fn gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]:
+    match native_fs_gzip_decompress_file(source, destination):
+        Ok(size):
+            return Ok(size)
+        Err(problem):
+            return Err(compress_problem(problem, source))

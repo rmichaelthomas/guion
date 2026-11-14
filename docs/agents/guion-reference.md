@@ -13,7 +13,7 @@ Generated from the current Guion language contract, builtin signature catalog, s
 
 ## Statements and expressions
 
-Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in list`, exhaustive `match` statements for `Option` and `Result`, and a call expression as a statement. `if` and `while` conditions must be `Bool`. A function body is indented under its declaration. `else` aligns with `if`.
+Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in list`, exhaustive `match` statements for `Option` and `Result`, and a call expression as a statement. `if` and `while` conditions must be `Bool`. `break` leaves the innermost enclosing `while` or `for` loop, and `continue` skips the rest of the loop body (in a `for`, it advances to the next item; in a `while`, it re-tests the condition). Each is a statement on its own line, valid only inside a loop body, including inside `if` and `match` arms nested in that loop; in a function with its own loops (such as a `parallel_map` worker) it binds to that function's loop. Outside any loop, `break` and `continue` are rejected with `E_NO_LOOP` ("`break` outside a loop" / "`continue` outside a loop"). Both lower to the existing jump instructions, so the artifact format is unchanged. `break` and `continue` are reserved words at the start of a statement. Resource handles such as a `FileReader` are not tied to a loop: leaving a loop early does not close one, and the runtime closes any handle still open at the end of the invocation. A function body is indented under its declaration. `else` aligns with `if`.
 
 - Expressions: arbitrary-precision decimal integer literals, finite `Float64` literals with a decimal point or exponent, booleans (`true`, `false`), double-quoted UTF-8 text with `\u{H...}` Unicode scalar escapes (one to six hexadecimal digits; surrogate values and values above U+10FFFF are invalid), local/function names, calls, record construction/access, list literals, map literals with unique text keys, list/map/text indexing, parentheses, unary `-` and `not`, and binary `*`, `/`, `//`, `%`, `+`, `-`, comparisons `== != < <= > >=`, and short-circuit `and` / `or`. `Float64` is IEEE 754 binary64; its arithmetic and comparisons require two `Float64` values, reject non-finite literals/results, and never convert `Int` implicitly. `sqrt(Float64)` returns the non-negative square root; a negative input raises `R_MATH_DOMAIN`. Float division by zero raises `R_DIV_ZERO`. Integer `/` truncates toward zero; `//` rounds down; `%` follows the divisor's sign, so `a == (a // b) * b + (a % b)`. All three integer division operators raise `R_DIV_ZERO` on a zero divisor. Map literals infer one homogeneous value type; an empty map needs a `Map[Text, T]` annotation or other expected type, and keys must be text literals. Empty list literals likewise need an expected `List[T]` type. `list_push(List[T], T)` appends and `list_set(List[T], Int, T)` replaces an existing zero-based index; both return immutable copies, and the compiler may use copy-on-write for updates assigned back to the same mutable local while preserving aliases; out-of-range replacement raises `R_LIST_INDEX`. `Map[Text, T]` is immutable, `map_set` returns an updated copy, `map_has` tests membership, keys iterate and display in Unicode scalar lexicographic order, lookup of an absent key raises `R_MAP_KEY_MISSING`, and `len` supports lists, maps, Bytes (byte count), and Text (Unicode scalar count). Text indexing is zero-based by Unicode scalar and out-of-range access is a runtime error. `text_slice(text, start, end)` returns a copied half-open range by Unicode scalar index, with a non-negative start, an exclusive end, and `0 <= start <= end <= len(text)`; an invalid range raises `R_INDEX_BOUNDS`. Types include `List[T]`, `Map[Text, T]`, `Option[T]`, and `Result[T, E]`; `Some(value)` and `None` are Option constructors in Option-returning functions. Precedence from low to high: `or`, `and`, comparisons, `+ -`, `* / // %`, unary, calls/indexing/field access/atoms. `+` accepts two Ints, two Float64 values, or two Text values.
 
@@ -40,6 +40,18 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 - TLS (artifact format 58): `std:net` adds `tls_connect(host, port, timeout_ms, extra_ca_pem)` and `tls_accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`, which return a `TcpConn` that `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close` and the port functions accept. TLS 1.2 and 1.3 only, through rustls with the ring provider. The client always verifies the server certificate and name against the bundled Mozilla roots plus any PEM certificates passed as `extra_ca_pem`; there is no option to skip verification. A rejected certificate returns `E_TLS_CERTIFICATE`, other handshake failures `E_TLS_HANDSHAKE`, bad PEM or a key that does not match `E_TLS_ARGUMENT`; timeouts and grants behave as for TCP (`E_NET_TIMEOUT`, `E_NET_DENIED`). A peer that closes without a TLS close notification surfaces as `E_NET_IO` on receive. Session resumption control and ALPN are not offered. Certificates and keys are PEM text, normally read with `read_text` under the file grant. Mutual TLS (artifact format 61): `tls_connect_with_identity(host, port, timeout_ms, extra_ca_pem, certificate_chain_pem, private_key_pem)` presents a client certificate, and `tls_accept_verified(listener, timeout_ms, certificate_chain_pem, private_key_pem, client_ca_pem)` requires one and verifies it against the PEM certificates in `client_ca_pem` only; a missing or untrusted client certificate fails the handshake on the server.
 - HTTP server and WebSockets (artifact format 59): `std:crypto` adds `crypto_sha1` (SHA-1, kept for the WebSocket handshake and legacy interchange, not for new security uses) and `bytes_xor_key(data, key)`. `std:http_server` is written in Guion over `std:net`: `http_server_listen`, `http_server_accept`, `http_server_read_request(conn, timeout_ms, max_body_bytes)` returning an `HttpServerRequest` (`conn`, `method`, `target`, `path`, `query`, lowercase-named `headers`, `body`), `http_server_header`, `http_server_respond`, `http_server_respond_text` and `http_server_send`. `http_server_read_request` reads the first request on a connection and `http_server_respond` answers it and closes (`Connection: close`). For keep-alive, answer with `http_server_reply` or `http_server_reply_text`, which keep the connection open when the client asked for that (HTTP/1.1 does by default; `Connection: close` or HTTP/1.0 without `keep-alive` closes), and read the next request with `http_server_read_next(previous, timeout_ms, max_body_bytes)` or `http_server_read_request_from(conn, pending, ...)`; bytes that arrived after a request (pipelined requests) are carried in its `pending` field. `Transfer-Encoding: chunked` request bodies are decoded (chunk extensions accepted, trailers read and ignored, the size limit applied to the decoded body); a request that names both `Content-Length` and chunked framing, or any other transfer encoding, is refused (`400`, `501`). A client that closes between requests returns `E_HTTP_CLOSED`. The request head is limited to 16,384 bytes and 100 headers, and the body to the caller's limit; a protocol fault sends 400, 413, 431 or 501 and returns `E_HTTP_REQUEST_INVALID`, `E_HTTP_BODY_TOO_LARGE`, `E_HTTP_HEADER_TOO_LARGE` or `E_HTTP_UNSUPPORTED`. A connection from `tls_accept` works the same way, which gives HTTPS. `std:websocket` implements RFC 6455: `ws_server_accept(request)`, `ws_client_handshake(conn, host, path, timeout_ms, seed)`, `ws_receive(ws, timeout_ms, max_message_bytes)` (reassembles fragments, answers pings, echoes close, validates UTF-8 text, enforces masking by role), `ws_send_text`, `ws_send_binary`, `ws_send_ping`, `ws_send_close` and `ws_close`, with errors `E_WS_HANDSHAKE`, `E_WS_PROTOCOL`, `E_WS_TOO_LARGE` and `E_WS_CLOSED`. Client masks are derived from the connection seed and the payload, so pass an unpredictable seed. Socket handles are shared between `parallel_map` workers, so several workers can accept on one listener and serve connections at the same time; the HTTP server has no HTTP/2 and no `Expect: 100-continue` handling.
 - Native arrays (artifact format 62): `Array[e]` is an n-dimensional, row-major array whose element type `e` is one of `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32`, `f64` or `bool`. These element types exist only inside `Array[...]`; elsewhere they are `E_TYPE_UNKNOWN` (``unknown type `f64`; element types are only valid inside Array[...]``). Inside `Array[...]`, a name that is not a type at all (`Array[i128]`) is `E_TYPE_UNKNOWN` (``unknown type `i128` ``), and a type that is not an element type (`Array[Int]`, `Array[Array[f64]]`) is `E_TYPE_ANNOTATION`. Both compilers report the same code and message for each of these errors. When one program has several type errors, each compiler reports the first one it finds and the two may find them in a different order (for `fn f(x: Array[i128]) -> Array[Int]`, the Rust compiler reports `E_TYPE_ANNOTATION` for the result first and the self-hosted compiler reports `E_TYPE_UNKNOWN` for `i128` first), so the first error reported can differ; once the errors are fixed one at a time the two agree. Every array has a runtime shape (a `List[Int]` of up to 32 extents); rank is not part of the type. Reading an element gives its scalar type (`Int` for integer elements, `Float64` for `f32`/`f64`, `Bool` for `bool`); writing takes that scalar type and checks that it fits. Conversion is explicit and checked: building from a list, storing, `array_to_<e>` and decoding bytes raise `R_ARRAY_CONVERSION` for a value outside the element type (float to integer truncates toward zero; `f64` to `f32` rounds to nearest; number to `bool` requires 0 or 1), and integer arithmetic outside the element range raises `R_ARRAY_OVERFLOW`, never wrapping. Float arrays never hold NaN or infinity; a kernel that would produce one raises `R_FLOAT_NONFINITE`. Arrays are values: `array_set` returns an updated array and `set a = array_set(a, i, v)` updates an unshared local in place. Arrays are limited by the allocation budget, not by `max_collection_items`. Builders, for each element type `<e>`: `array_<e>(List[S])` (rank 1), `array_<e>_full(shape, value)`, `array_<e>_zeros(shape)`, `array_to_<e>(array)` and `array_<e>_from_bytes(Bytes)` (little endian); plus `array_i64_range(start, stop, step)`, `array_f64_linspace(start, stop, count)` (both ends included), and `array_f64_random(seed, shape)` / `array_f64_normal(seed, shape)`, which continue the `std:random` SplitMix64 stream (`array_f64_random(s, [n])` gives the same values as `n` successive `random_next_float` calls from `random_new(s)`; normal values use Box–Muller over that stream). Inspection and access: `array_shape`, `array_ndim`, `array_size`, `array_equal`, `array_get(a, flat_index)`, `array_get_at(a, [i, j, ...])`, `array_set`, `array_set_at` (`R_ARRAY_INDEX` out of range). Shape: `array_reshape` (one extent may be -1), `array_flatten`, `array_transpose` (reverses the axes), `array_slice(a, start, end)` (axis 0), `array_concat` and `array_stack` over a `List[Array[e]]`, `array_to_list` (flat), `array_to_bytes`; a shape that does not fit raises `R_ARRAY_SHAPE`. A value the function does not accept (`array_clip` with `low` above `high`, `array_i64_range` with step 0) raises `R_ARRAY_ARGUMENT`; runtime messages name the guest function, such as `array_add overflows u8`. Arithmetic on numeric arrays of the same element type broadcasts by NumPy rules: `array_add`, `array_sub`, `array_mul`, `array_div` (integer floor division, as `//`; a zero divisor raises `R_DIV_ZERO`), `array_minimum`, `array_maximum`, the `_scalar` forms of the first four, `array_neg`, `array_abs` and `array_clip(a, low, high)`. Float arrays add `array_sqrt`, `array_exp`, `array_log`, `array_log10`, `array_log2`, `array_sin`, `array_cos`, `array_tan`, `array_asin`, `array_acos`, `array_atan`, `array_sinh`, `array_cosh`, `array_tanh`, `array_floor`, `array_ceil`, `array_round` and `array_pow(a, exponent)`, with the `std:math` domain errors; `f32` math is computed in `f64` and rounded. Comparisons `array_eq`, `array_ne`, `array_lt`, `array_le`, `array_gt`, `array_ge` and their `_scalar` forms return `Array[bool]`; `array_and`, `array_or`, `array_not`, `array_any`, `array_all` and `array_count` work on `Array[bool]`; `array_where(mask, a, b)` selects between arrays of one shape and `array_filter(a, mask)` keeps the masked elements as a rank-1 array. Reductions on numeric arrays: `array_sum` and `array_prod` (exact `Int` for integer elements, so they never overflow), `array_min`, `array_max`, `array_argmin`, `array_argmax` (first occurrence), `array_mean`, `array_var` and `array_std` (population; `Float64`, pairwise summation); `R_ARRAY_EMPTY` for an empty array except `sum` (0) and `prod` (1). By axis: `array_sum_axis`, `array_min_axis`, `array_max_axis` (same element type, checked) and `array_mean_axis` (`Array[f64]`). Ordering: `array_sort` and `array_argsort` (rank 1, stable; `argsort` gives `Array[i64]`) and `array_cumsum` (flat, checked). Linear algebra: `array_dot(a, b)` (rank 1, equal length; exact `Int` for integer elements) and `array_matmul(a, b)` (2-D by 2-D or 2-D by 1-D). Operands of a binary function must have the same element type; convert explicitly. `print` shows nested brackets by shape and summarises arrays of more than 1,000 elements; `==` compares element type, shape and contents. Arrays cross `parallel_map` workers but not the Python bridge. Grouping and joining (artifact format 63), all rank 1: `array_take(a, indices)` gathers by `Array[i64]` index (`R_ARRAY_INDEX` out of range); `array_factorize(a)` gives dense `Array[i64]` codes in first-seen order (floats compare by value, so `-0.0` and `0.0` share a code); for codes in `0..groups`, `array_first_index(codes, groups)` gives each group's first row (-1 for none), `array_count_by(codes, groups)` its row count, `array_sum_by`, `array_min_by` and `array_max_by(values, codes, groups)` its checked sum (0 for an empty group), minimum and maximum, and `array_mean_by` its `Array[f64]` mean; min, max and mean of an empty group raise `R_ARRAY_EMPTY`, a code outside `0..groups` raises `R_ARRAY_INDEX`, and a group count outside `0..2^32-1` or a length mismatch raises `R_ARRAY_SHAPE`. `array_join_index(left, right, keep_unmatched)` pairs rows with equal codes and returns one `Array[i64]` of length `2n`: the first `n` are left rows in left order, the last `n` the matching right rows in right order; negative codes never match, and with `keep_unmatched` a left row without a match pairs with -1. Strided views, fancy indexing, complex numbers, operator syntax on arrays and BLAS are not provided.
+- General sorting (artifact format 65): `sort(values: List[T]) -> List[T]` for `T` in `Text`, `Int` or `Float64` and `sort_by(values: List[T], key: fn(T) -> K) -> List[T]` for `K` in `Text`, `Int` or `Float64` return a new list in ascending order and leave the input unchanged. Both are stable. `Text` compares by Unicode scalar value, the order in which `Map` keys iterate, so lists and maps agree for every scalar including those above U+FFFF. `Int` compares numerically. `Float64` uses a total order: `-0.0` sorts before `0.0` and a NaN, which the language never produces, would sort last. `sort_by` evaluates the key once per item, in input order, and orders by the saved keys. The key is a function value (see below). When it is the name of a function declared in the program it must be pure (`E_SORT_EFFECT`). Either way it takes one parameter of the list's item type and returns `Text`, `Int` or `Float64`; any other key type, such as `Bool` or `Unit`, and a `sort` of a list of any other item type, is `E_SORT_KEY`. A named function with two parameters passed to `sort_by` is the format-36 comparator `(T, T) -> Int`, unchanged. Each native comparison costs one instruction of the guest budget, as in `sort_by_int_key`. `sort_by_int_key` and `merge_sorted_by_int_key` keep their format-41 operations.
+- Function values (artifact format 66): a function type is written `fn(Int) -> Int`, `fn(Text, Int) -> Result[Text, StdError]` or `fn() -> Unit`, and is valid anywhere a type is: a parameter, a `let` annotation, a record field, the item of a list or map, an `Option` or `Result` payload, a result type. A bare name in value position that is not a local denotes the function of that name (own module or imported), so `let f = double` has type `fn(Int) -> Int`; a local or parameter of the same name wins. A function value is called by name, `f(x)`; the arity and the argument types are checked against the type at check time (`E_CALL_ARITY`, `E_TYPE_ARGUMENT`). A function value captures nothing: only named top-level functions can be values, and a lambda or a nested `fn` is `E_FN_NO_CLOSURES`. `==` and `!=` on a function value, or on a list, record, map, option or result that holds one, is `E_FN_COMPARE`. A function value is an index into its artifact's function table, so a call through one uses the ordinary call frame and the call-depth and instruction limits apply (recursion through a value stops at the call-depth limit); an index that names no function of the running artifact is the runtime error `R_FN_INVALID`.
+- Effects of function values: effects attach where a function value is formed. Writing `let f = writer_fn`, or passing `writer_fn` by name, adds the effects of `writer_fn` to the function that contains that expression, so `guion doc --json` and `guion inspect` report them for that function and for everything that calls it, and the effects stay visible across packages. Calling through a value adds nothing further, so a function that only receives a function-typed parameter and calls it reports no effects of its own. For example, `fn former() -> Int` containing `let f = writer_fn` reports `output.write` when `writer_fn` prints, although `former` never calls `f`; `fn caller(f: fn(Int) -> Int) -> Int` containing `return f(1)` reports none, and the function that passes `writer_fn` to `caller` reports `output.write`. A sort key that is a named function is still checked to be pure at the call site (`E_SORT_EFFECT`); a function-typed variable passed as a key is accepted and its effects belong to the place the value was formed.
+- Serialization boundaries: a type holds a function if it is a function type or a record, list, map, option or result that holds one. Such a type is rejected at check time with `E_FN_NOT_SERIALIZABLE`, naming the boundary, when it reaches a builtin or standard-library function that converts or transports typed values: JSON, CSV and TOML conversion, SQLite parameters and results, process arguments and the environment, HTTP requests and responses, file reads and writes, and `print` and `eprint`. A function value never becomes an artifact constant. `parallel_map` is deliberately not a boundary: workers run the same artifact and function table, so an index means the same function in every worker, and the VM checks the index in the worker (`R_FN_INVALID`). An index cannot be written in source, so a program cannot forge one.
+- Higher-order builtins (artifact format 66): `map_list(values: List[T], f: fn(T) -> U) -> List[U]`, `filter_list(values: List[T], f: fn(T) -> Bool) -> List[T]`, `fold_list(values: List[T], initial: A, f: fn(A, T) -> A) -> A`, `any_list(values: List[T], f: fn(T) -> Bool) -> Bool` and `all_list(values: List[T], f: fn(T) -> Bool) -> Bool` call the function once per item in order (`any_list` and `all_list` stop at the first deciding answer). A `Result` returned from the function is an ordinary value, so `map_list(xs, parse)` with `parse: fn(Int) -> Result[Int, Text]` gives a `List[Result[Int, Text]]`; a runtime error inside the function carries the callee's span first, then the builtin's call site. Each call is charged as a normal call. `sort_by`, `sort_by_int_key`, `merge_sorted_by_int_key` and `parallel_map` also take function values. A function of the wrong shape is `E_TYPE_ARGUMENT`.
+- Logging (artifact format 70): `std:log` writes one JSON object per line to a file. `log_open(root: Text, level: Text) -> Result[Logger, StdError]` returns a `Logger` value holding the log file path (`root`, inside a granted file root, created if missing, appended to) and the minimum level; there is no global logger. Levels are `debug` < `info` < `warn` < `error`; an unknown level is `E_LOG_LEVEL`, a path outside the file grant is the file error `R_HOST_DENIED`, and an empty level takes `[log] level` from `guion.toml` (`info` when absent; any other value or key under `[log]` is a manifest error). `log_debug`, `log_info`, `log_warn` and `log_error(logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]` write `{"level":..,"msg":..,<fields in sorted key order>}`; a field named `ts`, `level` or `msg` is written as `field.ts`, `field.level` or `field.msg`. These never read the clock, so the record has no `ts` and its schema does not depend on grants. `log_info_at(logger, instant, msg, fields)` puts `"ts"` first from a caller-supplied `Instant`; `log_info_now(logger, msg, fields)` reads the clock and so carries the effect `clock.read`. Effects are enforced when an operation runs, not before the program starts: without the clock grant `log_info_now` fails with `R_CLOCK_DENIED` at the call and writes nothing, and `guion inspect --json` reports `clock_grant.required_for_entry`. A record below the logger's level returns `Ok` without reading or formatting its fields. Field values are `Json`, so newline, quote, NUL and other control characters are escaped and a record is always one line; a lone surrogate cannot reach a field because `json_parse` rejects it. Two instructions, `LogAppend` and `LogDefaultLevel`, are new; artifacts below format 70 that use them are rejected with `E_ARTIFACT_VERSION`.
+- Compression and archives (artifact format 71): `std:compress` has `gzip_compress(data: Bytes) -> Bytes` and `zlib_compress(data: Bytes) -> Bytes`, `gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]` and `zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]`, and the streamed file forms `gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the compressed size) and `gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the decompressed size); the file forms need the file-read and file-write grants (effects `filesystem.read` and `filesystem.write`), follow the `std:fs` path rules, stream through 64 KiB buffers and write the destination through a sibling temporary file renamed on success. Every inflate has an output ceiling: `max_output` for the in-memory forms, capped by `[runtime] decompress_limit_bytes` (default 1 GiB, a positive integer in `guion.toml`), which is the only ceiling of the file and tar forms. Output past the ceiling is `E_COMPRESS_LIMIT` after at most the ceiling has been produced, never a crash or an unbounded allocation; a negative `max_output` is `E_COMPRESS_ARGUMENT`; short or empty input is `E_COMPRESS_TRUNCATED`; a bad header, checksum or deflate data is `E_COMPRESS_CORRUPT`. A gzip input may hold several members and the output is their concatenation (the ceiling counts them together); bytes after the last gzip member that do not begin another member (zero padding included), or after a zlib stream, are `E_COMPRESS_TRAILING_DATA`, never ignored. `std:tar` has `tar_write(directory: Text, archive: Text) -> Result[Int, StdError]`, `tar_read(archive: Text, destination: Text) -> Result[Int, StdError]` and `tar_list(archive: Text) -> Result[List[Text], StdError]`. `tar_write` archives the directory's contents with names relative to it, sorted, with fixed metadata (so the same tree gives the same archive), gzip-compressed when the archive name ends in `.gz` or `.tgz` (what `tar -tzf` reads) and plain otherwise; a symbolic link in the tree, or an archive path inside the directory, is `E_TAR_UNSAFE_PATH`. `tar_read` and `tar_list` detect gzip by its magic number. `tar_read` applies the `std:fs` confinement rules to every entry: an absolute name, a `..` component, or a link whose target is absolute or contains `..` is `E_TAR_UNSAFE_PATH`, device and FIFO entries are `E_TAR_UNSUPPORTED_ENTRY`, and a damaged archive is `E_TAR_CORRUPT`; entries before a refused one stay extracted. The bytes extracted and inflated are capped by the same ceiling. The crates behind it are `flate2` (its pure-Rust `miniz_oxide` backend) and `tar`, in the runtime only; the browser VM gains nothing. New instructions `GzipCompress`, `GzipDecompress`, `ZlibCompress` and `ZlibDecompress` and `Fs` function codes 13 to 17; artifacts below format 71 that use them are rejected with `E_ARTIFACT_VERSION`. zstd is not part of this release.
+- Request and response values: `std:http_response` (no format change) holds `Header`, `Request`, `Response`, `Body` and `Stream` values with the constructors and accessors listed in the signatures below; a header name that is not an HTTP token or a value with a control character other than tab is refused with `E_HTTP_HEADER_INVALID`. `std:http_server` adds `http_request_value(request) -> Result[Request, HttpFailure]` and `http_server_send_response(request, response) -> Result[Unit, HttpFailure]`, so a handler `fn(Request) -> Result[Response, HttpFailure]` names no socket. Details are in `docs/reference.md`. No new function names a handle type.
+- Cookies: `std:cookie` (no format change): `cookie_parse(header) -> Map[Text, Text]` never fails (malformed pairs dropped, values percent-decoded, first repeat wins). `Cookie(name, value, http_only, secure, same_site, path, domain, max_age: Option[Int], expires: Option[Instant])` comes from `cookie_new` (HttpOnly, `SameSite=Lax`, Secure off) and the setters `cookie_http_only`, `cookie_secure`, `cookie_same_site`, `cookie_path`, `cookie_domain`, `cookie_max_age`, `cookie_expires`; `cookie_serialize`, `cookie_parse_set` and `response_add_cookie(response, c)` finish the round trip. Bad names, attributes or a negative `Max-Age` are `E_COOKIE_*` `HttpFailure` values; `SameSite=None` without `Secure` is `E_COOKIE_SAMESITE_NONE_NEEDS_SECURE` at run time.
+- Request bodies: `std:http_body` (no format change): `form_parse` and `multipart_parse` with exact `BodyLimits` (over is a 413 naming the limit); uploads get random names under a caller root, never the client name.
+- YAML (artifact format 72): `std:yaml` has `yaml_parse(text: Text) -> Result[Json, StdError]`, a read-only reader for a small subset of YAML, written for configuration files such as CI workflows, Docker Compose files and Kubernetes manifests; there is no writer, and `std:toml` and `std:json` cover output. It reads one document: block mappings and block sequences, plain, single-quoted and double-quoted scalars, literal `|` and folded `>` block scalars (with the `+`/`-` chomping and indentation-digit indicators), flow sequences and mappings, comments, and nesting up to 64 levels, with an optional leading `---` and trailing `...`. Mapping keys are always text. A plain scalar is text except the lowercase `true` and `false` (booleans), `null` and `~` (null), and an integer or decimal that reads back unchanged (`42`, `-7`, `2.75`); `NO`, `yes`, `on`, `Null` and `1.10` (which would lose a digit as a number) stay text, as do `007`, `1e3`, `0x1F` and integers beyond 64 bits, and every quoted scalar is text. Anchors, aliases, tags, the merge key `<<`, complex `?` keys, directives and multi-document streams are rejected with `YAML_UNSUPPORTED`, the message naming the feature, and no partial value is returned. Other errors are `YAML_SYNTAX` (bad indentation, a tab used for indentation, an unterminated quote or flow collection, an invalid escape), `YAML_DUPLICATE_KEY` and `YAML_LIMIT`; every error carries the 1-based `line` and `column` in its `StdError`. The reader needs no grant and is a single new instruction, `YamlParse`; artifacts below format 72 that use it are rejected with `E_ARTIFACT_VERSION`, and formats 14 through 71 still load.
+- INI is declined. `std:toml` reads and writes the same kind of configuration better, INI is a declining format whose dialects (comment characters, quoting, repeated keys, sections without values) cost more to pin down than they repay, and no measured task class needs it. The decision is recorded here so it is not reopened without new evidence of such a task.
 - CSV into columns (artifact format 64): `csv_read_columns(path: Text, kinds: Map[Text, Text]) -> Result[List[Record[CsvColumn]], FileError]` reads a whole CSV file into typed columns and needs the `files` read capability, as `csv_open` does. `std:csv` declares `record CsvColumn` with `name: Text`, `kind: Text` (`"i64"`, `"f64"`, `"bool"` or `"text"`), `ints: Array[i64]`, `floats: Array[f64]`, `flags: Array[bool]`, `codes: Array[i64]`, `dictionary: List[Text]` and `valid: Array[bool]`. Only the storage for the column's kind has the column's length (for text, `codes` and `dictionary`); the other arrays are empty. `valid` is true where a value is present; a missing row holds 0, 0.0, false or code 0. The first record is the header; a leading UTF-8 byte-order mark is dropped and blank lines are skipped, except that in a file whose header has one column a blank line is a missing value; fields are split and quoted exactly as `csv_next` does, and a record with the wrong number of fields fails with `R_CSV_MALFORMED` and its line. A column not named in `kinds` takes the first of `i64`, `f64`, `bool`, `text` that holds every present value: `i64` is an integer within the i64 range (a larger one makes the column `f64`), `f64` is what `text_parse_float` accepts, `bool` is exactly `true` or `false`, and a column with no present value is `text`. An unquoted empty field is missing; a quoted empty field (`""`) is missing in a numeric or `bool` column and is the empty text in a `text` column, and does not force a column to `text`. `kinds` fixes a column's kind by name; a value that does not fit fails with `E_CSV_VALUE`, its line and 1-based column, and the message ``column `NAME`: `VALUE` is not KIND``; a name in `kinds` that is not in the header, or an unknown kind, fails with `E_CSV_VALUE` on line 1. Text codes are dense, in first-seen order. The file is streamed and is not checked against `max_file_bytes`; each record is held to that limit, and every array, list and text produced, including transient buffers, is charged to the allocation budget. `csv_open`, `csv_next` and `file_open_lines` stream the same way and no longer check the whole file against `max_file_bytes`; `read_text`, `read_bytes` and other whole-file reads still do. An `R_ALLOCATION_LIMIT` message ends with the setting that raises it, `allocation_limit_bytes` under `[runtime]` in `guion.toml`.
 - Runtime and compile errors preserve source spans. Format-17 artifacts add Bytes values and byte file operations; format-18 artifacts add source-level Python keyword calls; format-19 artifacts add HTTP GET and `HttpError`; format-38 artifacts add byte HTTP; format-39 artifacts add explicitly granted clock access; format-16 metadata carries source and dependency-lock provenance; format-15 metadata and format-14 artifacts remain readable. Runtime combines recorded ceilings with host policy by taking the stricter value. The bytecode is an implementation detail apart from the versioned artifact boundary.
 
@@ -49,6 +61,8 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 Err($E) -> Result[$T, $E]
 Ok($T) -> Result[$T, $E]
 Some($T) -> Option[$T]
+all_list(List[$T], fn($T) -> Bool) -> Bool
+any_list(List[$T], fn($T) -> Bool) -> Bool
 args() -> List[Text]
 args_from(Int) -> List[Text]
 array_abs(Array[$N]) -> Array[$N]
@@ -225,9 +239,11 @@ file_error_line(FileError) -> Int
 file_error_message(FileError) -> Text
 file_next_line(FileReader) -> Result[Option[Record[SourceLine]], FileError]
 file_open_lines(Text) -> Result[FileReader, FileError]
+filter_list(List[$T], fn($T) -> Bool) -> List[$T]
 float64_bits(Float64) -> Int
 float_to_int(Float64) -> Int
 float_to_text(Float64) -> Text
+fold_list(List[$T], $S, fn($S, $T) -> $S) -> $S
 fs_walk(Text) -> Result[List[Record[DirectoryEntry]], FileError]
 http_error_code(HttpError) -> Text
 http_error_message(HttpError) -> Text
@@ -285,6 +301,7 @@ list_push(List[$T], $T) -> List[$T]
 list_set(List[$T], Int, $T) -> List[$T]
 map_get(Map[Text, $T], Text) -> Option[$T]
 map_has(Map[$T], Text) -> Bool
+map_list(List[$T], fn($T) -> $U) -> List[$U]
 map_set(Map[$T], Text, $T) -> Map[$T]
 merge_sorted_by_int_key(List[List[$T]], NamedIntKey[$T]) -> List[$T]
 native_base64_decode(Text) -> Option[Bytes]
@@ -294,21 +311,35 @@ native_base64url_encode(Bytes) -> Text
 native_bytes_xor(Bytes, Bytes) -> Bytes
 native_calendar_parse(Text) -> Result[List[Record[CalendarEvent]], Record[StdError]]
 native_crypto_hmac_sha256(Bytes, Bytes) -> Bytes
+native_crypto_random_bytes(Int) -> Result[Bytes, Record[StdError]]
+native_crypto_sha256(Bytes) -> Bytes
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
+native_fs_confined_path(Text, Text) -> Result[Text, FileError]
 native_fs_copy(Text, Text) -> Result[Int, FileError]
 native_fs_exists(Text) -> Result[Bool, FileError]
+native_fs_gzip_compress_file(Text, Text) -> Result[Int, FileError]
+native_fs_gzip_decompress_file(Text, Text) -> Result[Int, FileError]
 native_fs_kind(Text) -> Result[Text, FileError]
 native_fs_list_dir(Text) -> Result[List[Text], FileError]
 native_fs_make_dir(Text) -> Result[Unit, FileError]
 native_fs_modified_ms(Text) -> Result[Int, FileError]
+native_fs_read_range(Text, Text, Text) -> Result[Bytes, FileError]
 native_fs_remove(Text) -> Result[Unit, FileError]
 native_fs_remove_all(Text) -> Result[Unit, FileError]
 native_fs_rename(Text, Text) -> Result[Unit, FileError]
+native_fs_sha256(Text) -> Result[Bytes, FileError]
 native_fs_size(Text) -> Result[Int, FileError]
+native_fs_tar_list(Text) -> Result[List[Text], FileError]
+native_fs_tar_read(Text, Text) -> Result[Int, FileError]
+native_fs_tar_write(Text, Text) -> Result[Int, FileError]
 native_fs_temp_dir(Text) -> Result[Text, FileError]
 native_fs_temp_file(Text) -> Result[Text, FileError]
+native_gzip_compress(Bytes) -> Bytes
+native_gzip_decompress(Bytes, Int) -> Result[Bytes, Record[StdError]]
 native_hex_decode(Text) -> Option[Bytes]
 native_hex_encode(Bytes) -> Text
+native_log_append(Text, Text) -> Result[Unit, FileError]
+native_log_default_level() -> Text
 native_math_abs(Float64) -> Float64
 native_math_acos(Float64) -> Float64
 native_math_asin(Float64) -> Float64
@@ -359,6 +390,7 @@ native_regex_replace_first(Text, Text, Text) -> Result[Text, Text]
 native_regex_split(Text, Text) -> Result[List[Text], Text]
 native_sha1(Bytes) -> Bytes
 native_sqlite_begin(Db) -> Result[Transaction, Record[StdError]]
+native_sqlite_begin_read(Db) -> Result[Transaction, Record[StdError]]
 native_sqlite_close(Db) -> Result[Unit, Record[StdError]]
 native_sqlite_commit(Transaction) -> Result[Unit, Record[StdError]]
 native_sqlite_execute(Transaction, Text, List[Record[SqlValue]]) -> Result[Int, Record[StdError]]
@@ -381,13 +413,17 @@ native_toml_put_bool(TomlDocument, List[Text], Bool) -> Result[Unit, Record[StdE
 native_toml_put_int(TomlDocument, List[Text], Int) -> Result[Unit, Record[StdError]]
 native_toml_put_text(TomlDocument, List[Text], Text) -> Result[Unit, Record[StdError]]
 native_toml_render(TomlDocument) -> Text
+native_yaml_parse(Text) -> Result[Json, Record[StdError]]
+native_zlib_compress(Bytes) -> Bytes
+native_zlib_decompress(Bytes, Int) -> Result[Bytes, Record[StdError]]
 parallel_map(List[$T], NamedWorker[$T, $R], Int) -> Result[List[$R], TaskError]
 print(Any) -> Unit
 read_bytes(Text) -> Result[Bytes, FileError]
 read_text(Text) -> Result[Text, FileError]
 semver_compare(Record[SemVer], Record[SemVer]) -> Int
 semver_parse(Text) -> Result[Record[SemVer], FileError]
-sort_by(List[$T], NamedComparator[$T]) -> List[$T]
+sort(List[$T]) -> List[$T]
+sort_by(List[$T], fn($T) -> $K | fn($T, $T) -> Int) -> List[$T]
 sort_by_int_key(List[$T], NamedIntKey[$T]) -> List[$T]
 sqrt(Float64) -> Float64
 task_code(TaskError) -> Text
@@ -418,7 +454,7 @@ write_text(Text, Text) -> Result[Unit, FileError]
 write_text_atomic(Text, Text) -> Result[Unit, FileError]
 ```
 
-`sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget.
+`sort(List[T])` orders a list of `Text` (Unicode scalar order, the order of sorted map keys), `Int` or `Float64` (`-0.0` before `0.0`, NaN last), and `sort_by(List[T], key)` orders any list by a named pure `(T) -> K` key function with `K` in `Text`, `Int` or `Float64`; both are stable, `sort_by` runs the key once per item, and a key returning another type is `E_SORT_KEY`. A named `(T, T) -> Int` function passed to `sort_by` is still a comparator. `sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget. Function values (`fn(Int) -> Int`) name existing top-level functions, capture nothing (`E_FN_NO_CLOSURES`), cannot be compared (`E_FN_COMPARE`) and cannot reach JSON, CSV, TOML, SQLite, process, HTTP, file or print boundaries (`E_FN_NOT_SERIALIZABLE`); `map_list`, `filter_list`, `fold_list`, `any_list` and `all_list` take them, and so do `sort_by`, `sort_by_int_key`, `merge_sorted_by_int_key` and `parallel_map`.
 
 ## Standard-library public signatures
 
@@ -429,8 +465,33 @@ std:collections — pub fn list_get_text(values: List[Text], index: Int) -> Opti
 std:collections — pub fn list_get_int(values: List[Int], index: Int) -> Option[Int]
 std:collections — pub fn map_get_text(values: Map[Text, Text], key: Text) -> Option[Text]
 std:collections — pub fn map_get_int(values: Map[Text, Int], key: Text) -> Option[Int]
+std:compress — pub fn gzip_compress(data: Bytes) -> Bytes
+std:compress — pub fn gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]
+std:compress — pub fn zlib_compress(data: Bytes) -> Bytes
+std:compress — pub fn zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]
+std:compress — pub fn gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]
+std:compress — pub fn gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]
+std:cookie — pub fn cookie_new(name: Text, value: Text) -> Result[Cookie, HttpFailure]
+std:cookie — pub fn cookie_http_only(c: Cookie, enabled: Bool) -> Cookie
+std:cookie — pub fn cookie_secure(c: Cookie, enabled: Bool) -> Cookie
+std:cookie — pub fn cookie_same_site(c: Cookie, mode: Text) -> Result[Cookie, HttpFailure]
+std:cookie — pub fn cookie_path(c: Cookie, path: Text) -> Result[Cookie, HttpFailure]
+std:cookie — pub fn cookie_domain(c: Cookie, domain: Text) -> Result[Cookie, HttpFailure]
+std:cookie — pub fn cookie_max_age(c: Cookie, seconds: Int) -> Result[Cookie, HttpFailure]
+std:cookie — pub fn cookie_expires(c: Cookie, instant: Instant) -> Result[Cookie, HttpFailure]
+std:cookie — pub fn cookie_serialize(c: Cookie) -> Result[Text, HttpFailure]
+std:cookie — pub fn response_add_cookie(response: Response, c: Cookie) -> Result[Response, HttpFailure]
+std:cookie — pub fn cookie_parse(header: Text) -> Map[Text, Text]
+std:cookie — pub fn cookie_parse_set(line: Text) -> Result[Cookie, HttpFailure]
 std:crypto — pub fn crypto_hmac_sha256(key: Bytes, body: Bytes) -> Bytes
 std:crypto — pub fn crypto_verify_hmac_sha256(key: Bytes, body: Bytes, expected: Bytes) -> Bool
+std:crypto — pub fn crypto_sha256(data: Bytes) -> Bytes
+std:crypto — pub fn crypto_sha256_text(text: Text) -> Bytes
+std:crypto — pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]
+std:crypto — pub fn crypto_random_max_bytes() -> Int
+std:crypto — pub fn crypto_random_bytes(count: Int) -> Result[Bytes, StdError]
+std:crypto — pub fn crypto_random_hex(count: Int) -> Result[Text, StdError]
+std:crypto — pub fn crypto_random_base64url(count: Int) -> Result[Text, StdError]
 std:crypto — pub fn crypto_sha1(data: Bytes) -> Bytes
 std:crypto — pub fn bytes_xor_key(data: Bytes, key: Bytes) -> Bytes
 std:csv — pub fn csv_open_reader(path: Text) -> Result[FileReader, FileError]
@@ -462,6 +523,36 @@ std:fs — pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]
 std:fs — pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]
 std:fs — pub fn fs_temp_file(prefix: Text) -> Result[Text, FileError]
 std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
+std:http_body — pub fn body_limits_default() -> BodyLimits
+std:http_body — pub fn body_read_limit(limits: BodyLimits) -> Int
+std:http_body — pub fn body_read_failure(problem: StdError, limits: BodyLimits) -> HttpFailure
+std:http_body — pub fn form_parse(body: Bytes, limits: BodyLimits) -> Result[Map[Text, List[Text]], HttpFailure]
+std:http_body — pub fn multipart_parse(request: Request, files_root: Text, limits: BodyLimits) -> Result[Multipart, HttpFailure]
+std:http_response — pub fn header_new(name: Text, value: Text) -> Result[Header, HttpFailure]
+std:http_response — pub fn body_bytes(data: Bytes) -> Body
+std:http_response — pub fn body_text(text: Text) -> Body
+std:http_response — pub fn body_stream(stream: Stream) -> Body
+std:http_response — pub fn stream_from_file(path: Text) -> Stream
+std:http_response — pub fn stream_from_list(chunks: List[Bytes]) -> Stream
+std:http_response — pub fn response_new(status: Int, body: Body) -> Response
+std:http_response — pub fn response_text(status: Int, text: Text) -> Response
+std:http_response — pub fn response_bytes(status: Int, data: Bytes) -> Response
+std:http_response — pub fn response_add_header(response: Response, name: Text, value: Text) -> Result[Response, HttpFailure]
+std:http_response — pub fn response_set_header(response: Response, name: Text, value: Text) -> Result[Response, HttpFailure]
+std:http_response — pub fn response_header_values(response: Response, name: Text) -> List[Text]
+std:http_response — pub fn response_header(response: Response, name: Text) -> Option[Text]
+std:http_response — pub fn response_redirect(status: Int, location: Text) -> Result[Response, HttpFailure]
+std:http_response — pub fn request_new(method: Text, path: Text) -> Request
+std:http_response — pub fn request_header(request: Request, name: Text) -> Option[Text]
+std:http_response — pub fn response_wire_memory(response: Response, keep_alive: Bool) -> Result[List[Bytes], HttpFailure]
+std:http_response — pub fn response_wire(response: Response, keep_alive: Bool) -> Result[List[Bytes], HttpFailure]
+std:http_response — pub fn response_file_plan(response: Response) -> Result[Option[FilePlan], HttpFailure]
+std:http_response — pub fn response_file_head(response: Response, keep_alive: Bool) -> Result[Bytes, HttpFailure]
+std:http_response — pub fn response_file_block_size(plan: FilePlan) -> Int
+std:http_response — pub fn response_file_block(plan: FilePlan, offset: Int) -> Result[Bytes, HttpFailure]
+std:http_response — pub fn response_file_end(plan: FilePlan) -> Bytes
+std:http_response — pub fn response_serialize_for(response: Response, keep_alive: Bool) -> Result[Bytes, HttpFailure]
+std:http_response — pub fn response_serialize(response: Response) -> Result[Bytes, HttpFailure]
 std:http_server — pub fn http_server_listen(host: Text, port: Int) -> Result[TcpListener, StdError]
 std:http_server — pub fn http_server_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]
 std:http_server — pub fn http_server_header(request: HttpServerRequest, name: Text) -> Option[Text]
@@ -473,6 +564,11 @@ std:http_server — pub fn http_server_reply_text(request: HttpServerRequest, st
 std:http_server — pub fn http_server_read_request_from(conn: TcpConn, pending: Bytes, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]
 std:http_server — pub fn http_server_read_request(conn: TcpConn, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]
 std:http_server — pub fn http_server_read_next(previous: HttpServerRequest, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]
+std:http_server — pub fn http_request_value(request: HttpServerRequest) -> Result[Request, HttpFailure]
+std:http_server — pub fn http_server_send_response(request: HttpServerRequest, response: Response) -> Result[Unit, HttpFailure]
+std:http_static — pub fn static_content_type(path: Text) -> Text
+std:http_static — pub fn static_http_date(unix_ms: Int) -> Text
+std:http_static — pub fn static_serve(request: Request, root: Text) -> Result[Response, HttpFailure]
 std:json — pub fn json_get_safe(value: Json, key: Text) -> Result[Json, JsonError]
 std:json — pub fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]
 std:json — pub fn json_get_int_safe(value: Json, key: Text) -> Result[Int, JsonError]
@@ -485,6 +581,13 @@ std:json — pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]
 std:jsonl — pub fn jsonl_open(path: Text) -> Result[FileReader, FileError]
 std:jsonl — pub fn jsonl_next(reader: FileReader) -> Result[Option[JsonlLine], FileError]
 std:jsonl — pub fn jsonl_close(reader: FileReader) -> Result[Unit, FileError]
+std:log — pub fn log_open(root: Text, level: Text) -> Result[Logger, StdError]
+std:log — pub fn log_debug(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]
+std:log — pub fn log_info(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]
+std:log — pub fn log_warn(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]
+std:log — pub fn log_error(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]
+std:log — pub fn log_info_at(logger: Logger, instant: Instant, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]
+std:log — pub fn log_info_now(logger: Logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]
 std:math — pub fn math_pi() -> Float64
 std:math — pub fn math_tau() -> Float64
 std:math — pub fn math_e() -> Float64
@@ -560,11 +663,15 @@ std:semver — pub fn parse_version(value: Text) -> Result[SemVer, FileError]
 std:semver — pub fn compare_versions(left: SemVer, right: SemVer) -> Int
 std:sqlite — pub fn sqlite_open(path: Text) -> Result[Db, StdError]
 std:sqlite — pub fn sqlite_begin(database: Db) -> Result[Transaction, StdError]
+std:sqlite — pub fn sqlite_begin_read(database: Db) -> Result[Transaction, StdError]
 std:sqlite — pub fn sqlite_execute(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[Int, StdError]
 std:sqlite — pub fn sqlite_query(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[List[SqlRow], StdError]
 std:sqlite — pub fn sqlite_commit(transaction: Transaction) -> Result[Unit, StdError]
 std:sqlite — pub fn sqlite_rollback(transaction: Transaction) -> Result[Unit, StdError]
 std:sqlite — pub fn sqlite_close(database: Db) -> Result[Unit, StdError]
+std:tar — pub fn tar_write(directory: Text, archive: Text) -> Result[Int, StdError]
+std:tar — pub fn tar_read(archive: Text, destination: Text) -> Result[Int, StdError]
+std:tar — pub fn tar_list(archive: Text) -> Result[List[Text], StdError]
 std:text — pub fn text_compare_scalar(left: Text, right: Text) -> Int
 std:text — pub fn text_compare_bytes(left: Text, right: Text) -> Int
 std:text — pub fn text_trim(value: Text) -> Text
@@ -616,6 +723,7 @@ std:websocket — pub fn ws_send_ping(ws: WsConn, data: Bytes) -> Result[Int, St
 std:websocket — pub fn ws_send_close(ws: WsConn, code: Int) -> Result[Int, StdError]
 std:websocket — pub fn ws_close(ws: WsConn) -> Result[Unit, StdError]
 std:websocket — pub fn ws_receive(ws: WsConn, timeout_ms: Int, max_message_bytes: Int) -> Result[WsMessage, StdError]
+std:yaml — pub fn yaml_parse(text: Text) -> Result[Json, StdError]
 ```
 
 ## Effects and grants
@@ -695,6 +803,7 @@ crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 sqlite_open(Text) -> Result[Db, StdError]
 sqlite_begin(Db) -> Result[Transaction, StdError]
+sqlite_begin_read(Db) -> Result[Transaction, StdError]
 sqlite_execute(Transaction, Text, List[SqlValue]) -> Result[Int, StdError]
 sqlite_query(Transaction, Text, List[SqlValue]) -> Result[List[SqlRow], StdError]
 sqlite_commit(Transaction) -> Result[Unit, StdError]
@@ -708,7 +817,16 @@ toml_render(TomlDocument) -> Text
 calendar_parse(Text) -> Result[List[CalendarEvent], StdError]
 ```
 
-SQLite paths must be relative to an explicitly granted file root; absolute paths and parent-directory traversal are rejected. For an installed app, `GUION_FILE_ROOT` selects an additional caller-owned data directory, and the SQLite path can be a filename such as `field.sqlite3`. SQLite opens only read-write databases, loads no extensions, and rejects `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, and extension-loading SQL. `sqlite_begin` opens one `BEGIN IMMEDIATE` transaction per database; nested transactions are rejected. Query parameters are bound values, result rows and bytes are bounded, and each operation uses a finite busy deadline and cancellation/progress checks. Dropping or closing a database with an open transaction rolls it back. The standard module provides `sqlite_open`, `sqlite_begin`, `sqlite_execute`, `sqlite_query`, `sqlite_commit`, `sqlite_rollback`, and `sqlite_close`.
+SQLite paths must be relative to an explicitly granted file root; absolute paths and parent-directory traversal are rejected. For an installed app, `GUION_FILE_ROOT` selects an additional caller-owned data directory, and the SQLite path can be a filename such as `field.sqlite3`. SQLite opens only read-write databases, loads no extensions, and rejects `ATTACH`, `DETACH`, `VACUUM`, `PRAGMA`, and extension-loading SQL. `sqlite_begin` opens one `BEGIN IMMEDIATE` transaction per database and `sqlite_begin_read` opens one `BEGIN DEFERRED` read transaction; nested transactions of either kind are rejected with `E_SQLITE_NESTED_TRANSACTION`. Query parameters are bound values, result rows and bytes are bounded, and each operation uses a finite busy deadline and cancellation/progress checks. Dropping or closing a database with an open transaction rolls it back. The standard module provides `sqlite_open`, `sqlite_begin`, `sqlite_begin_read`, `sqlite_execute`, `sqlite_query`, `sqlite_commit`, `sqlite_rollback`, and `sqlite_close`.
+
+### SQLite locking and the busy deadline
+
+The runtime waits for a SQLite lock for a busy deadline of 2000 ms (`SQLITE_BUSY_DEADLINE_MS` in `crates/runtime`). The deadline applies per attempt: each `sqlite_begin`, `sqlite_execute`, `sqlite_query`, `sqlite_commit` waits up to that long on its own, and when a single attempt has waited that long it fails (`sqlite_begin` with `E_SQLITE_BEGIN`). A program cannot lengthen or shorten it: `PRAGMA` is rejected with `E_SQLITE_POLICY`, so `PRAGMA busy_timeout` and `PRAGMA journal_mode` are not available.
+
+Writes serialize. `sqlite_begin` takes the database's write lock at once (`BEGIN IMMEDIATE`), so only one write transaction per database file is open at a time, across every worker and process. Another `sqlite_begin` waits for it and fails with `E_SQLITE_BEGIN` after 2000 ms if the holder has not committed or rolled back by then. Measured with the probe `std:sqlite` programs on one machine: a reader that used `sqlite_begin` while a writer held its transaction for about 2.1 s waited 1.7 s for the commit, and with a holder that kept the lock for longer than the deadline every attempt failed after about 2.1 s.
+
+Readers should use `sqlite_begin_read`. It opens `BEGIN DEFERRED`, which takes no write lock, so a reader does not queue behind writers and does not fail with `E_SQLITE_BEGIN` while a writer holds its transaction. A write statement (`INSERT`, `UPDATE`, `DELETE`, DDL) or a transaction-control statement (`BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`, `RELEASE`) inside a read transaction returns `E_SQLITE_READ_ONLY`; nothing is changed and the transaction stays usable until `sqlite_commit` or `sqlite_rollback`. A read transaction sees the data committed when its first statement ran. While a read transaction holds its shared lock, a writer's commit waits for it, up to the same deadline, so end read transactions promptly. Leaving one open at worker exit or at the end of the program rolls it back and releases the lock.
+
 
 HMAC operations consume exact `Bytes` without text conversion. `crypto_hmac_sha256(key, body)` returns a 32-byte digest; `crypto_verify_hmac_sha256(key, body, expected)` returns false for any digest whose length is not 32 and uses the crypto library's verification routine for a candidate digest. Secret material is not included in service errors. Unicode operations use ICU4X full locale-independent case folding and its Unicode `White_Space` property; whitespace collapse trims the ends and replaces each internal run with one ASCII space. Neither operation normalizes text. `text_normalize(text, form)` accepts only `NFC`, `NFD`, `NFKC`, and `NFKD`. The shipped Unicode data version is 18.0.0. Python comparisons record `unicodedata.unidata_version`; differences caused by Unicode data releases are reported separately from case-folding algorithm mismatches.
 
@@ -741,6 +859,7 @@ E_ARTIFACT_MAP
 E_ARTIFACT_METADATA
 E_ARTIFACT_METADATA_SCHEMA
 E_ARTIFACT_NESTING
+E_ARTIFACT_OP
 E_ARTIFACT_OPCODE
 E_ARTIFACT_RESOURCE
 E_ARTIFACT_SIGNATURE
@@ -756,6 +875,11 @@ E_AUTH_INVALID
 E_BASE64_INVALID
 E_BLOCK_EMPTY
 E_BLOCK_UNCLOSED
+E_BODY_LIMIT
+E_BODY_LIMITS_INVALID
+E_BODY_MALFORMED
+E_BODY_NOT_MULTIPART
+E_BODY_STORE_FAILED
 E_BRIDGE_ARGS
 E_BRIDGE_FILE_CLOSE
 E_BRIDGE_FILE_NEXT_LINE
@@ -801,6 +925,7 @@ E_BRIDGE_TIME_FORMAT_UTC
 E_BRIDGE_TIME_PARSE_TIMESTAMP
 E_BUILD_TYPE
 E_BUILTIN_TZDATA
+E_BUSY_DEADLINE_CEILING_MS
 E_BUSY_DEADLINE_MS
 E_BYTES
 E_CACHE
@@ -815,7 +940,19 @@ E_CLI_UNKNOWN
 E_CLI_VALUE
 E_COLLECTION_ITEMS
 E_COMPILE_ARGUMENTS
+E_COMPRESS_ARGUMENT
+E_COMPRESS_CORRUPT
+E_COMPRESS_LIMIT
+E_COMPRESS_TRAILING_DATA
+E_COMPRESS_TRUNCATED
 E_CONSTANT_HANDLE_BASE
+E_COOKIE_
+E_COOKIE_ATTRIBUTE_INVALID
+E_COOKIE_EXPIRES_INVALID
+E_COOKIE_MAX_AGE_INVALID
+E_COOKIE_NAME_INVALID
+E_COOKIE_SAMESITE_INVALID
+E_COOKIE_SAMESITE_NONE_NEEDS_SECURE
 E_COUNT
 E_CSV_VALUE
 E_DATA_VERSION
@@ -830,6 +967,7 @@ E_DIRECTORY
 E_DIRECT_OPERATION_NAMES
 E_DISABLE_FIND_PACKAGE_ICU
 E_ENTRIES
+E_ENTROPY_UNAVAILABLE
 E_ENTRY_MISSING
 E_ENTRY_SIGNATURE
 E_EXCL
@@ -842,6 +980,9 @@ E_FIELD_UNKNOWN
 E_FILE
 E_FLOAT_LITERAL
 E_FLOAT_PARSE
+E_FN_COMPARE
+E_FN_NOT_SERIALIZABLE
+E_FN_NO_CLOSURES
 E_FRAME_COLUMN
 E_FRAME_KIND
 E_FRAME_PARSE
@@ -850,12 +991,19 @@ E_FS_WALK
 E_FS_WALK_LIMIT
 E_FS_WALK_ROOT
 E_FS_WALK_UTF8
+E_FUNCTION_VALUES
+E_GENERAL_SORT
 E_HEX_INVALID
 E_HISTORY
 E_HTTP_BODY_TOO_LARGE
 E_HTTP_CLOSED
+E_HTTP_HEADER_INVALID
 E_HTTP_HEADER_TOO_LARGE
 E_HTTP_REQUEST_INVALID
+E_HTTP_STATUS_INVALID
+E_HTTP_STREAM_FILE
+E_HTTP_STREAM_RANGE
+E_HTTP_STREAM_READ
 E_HTTP_UNSUPPORTED
 E_ICAL_DATE
 E_ICAL_EVENT
@@ -889,11 +1037,13 @@ E_JSON_INDEX
 E_JSON_MISSING
 E_JSON_SHAPE
 E_JSON_TYPE
+E_KEY
 E_LIMIT
 E_LIST_BOOL_KIND
 E_LIST_FLOAT_KIND
 E_LIST_HANDLE_KIND
 E_LIST_INT_KIND
+E_LOG_LEVEL
 E_MAGIC
 E_MAIN_EXIT_CODE
 E_MAIN_RETURN
@@ -931,6 +1081,7 @@ E_NODES
 E_NOREPLACE
 E_NORMALIZATION_FORM
 E_NOT_OWNER
+E_NO_LOOP
 E_NUMBER_KEY
 E_OBJECT_KEYS
 E_OPEN_CREATE
@@ -938,16 +1089,22 @@ E_OPEN_READ_WRITE
 E_OPTION_CONSTRUCTOR_CONTEXT
 E_OPTION_CONSTRUCTOR_TYPE
 E_OWNER
+E_PACKAGE_ARCHIVE
 E_PACKAGE_ARGUMENT
+E_PACKAGE_CHECKSUM
 E_PACKAGE_FAILED
 E_PACKAGE_LOCK
+E_PACKAGE_LOG
+E_PACKAGE_MANIFEST
+E_PACKAGE_NOT_FOUND
 E_PACKAGE_NOT_LOCKED
 E_PACKAGE_OUTPUT_EXISTS
 E_PACKAGE_PROJECT
+E_PACKAGE_REGISTRY
 E_PACKAGE_SCOPE_RESERVED
+E_PACKAGE_SIGNATURE
 E_PACKAGE_VERIFY_FAILED
 E_PARALLEL_RESOURCE
-E_PARALLEL_WORKER
 E_PRINT_VALUE
 E_PROCESS_ARGUMENT
 E_PROCESS_DENIED
@@ -973,6 +1130,8 @@ E_PYTHON_KEYWORD
 E_PYTHON_KEYWORD_DUPLICATE
 E_PYTHON_RANGE
 E_PYTHON_TRY
+E_RANDOM_BYTES
+E_RANDOM_COUNT
 E_RECORD_EMPTY
 E_RECORD_FIELD_DUPLICATE
 E_RECORD_NAME
@@ -992,8 +1151,10 @@ E_RESULT_TRY_TYPE
 E_RETURN_MISSING
 E_ROOT
 E_SAFEPOINT_TEXT_LIST_TAG
+E_SAMESITE_NONE_NEEDS_SECURE
 E_SAMPLE_RATE_FRAMES
 E_SCHEMA_VERSION
+E_SECONDS
 E_SELF
 E_SEMVER_BUILD
 E_SEMVER_CORE
@@ -1003,6 +1164,7 @@ E_SEMVER_PRERELEASE
 E_SORT_COMPARATOR
 E_SORT_EFFECT
 E_SORT_KEY
+E_SOURCE
 E_SOURCE_BYTES
 E_SOURCE_IDENTITY
 E_SOURCE_READ
@@ -1016,6 +1178,7 @@ E_SQLITE_OPEN
 E_SQLITE_PATH
 E_SQLITE_POLICY
 E_SQLITE_QUERY
+E_SQLITE_READ_ONLY
 E_SQLITE_RESULT_LIMIT
 E_SQLITE_ROLLBACK
 E_SQLITE_STALE
@@ -1036,7 +1199,12 @@ E_TAGGED_OPTION_NONE
 E_TAGGED_OPTION_SOME
 E_TAGGED_RESULT_ERR
 E_TAGGED_RESULT_OK
+E_TAR_CORRUPT
+E_TAR_LIMIT
+E_TAR_UNSAFE_PATH
+E_TAR_UNSUPPORTED_ENTRY
 E_TEMP_PREFIX
+E_TEST
 E_TEST_SIGNATURE
 E_TEXT_DELIMITER
 E_TIME
@@ -1060,6 +1228,7 @@ E_TOML_KEY
 E_TOML_LIMIT
 E_TOML_PARSE
 E_TOML_TYPE
+E_TYPES
 E_TYPE_ANNOTATION
 E_TYPE_ARGUMENT
 E_TYPE_ASSIGN
@@ -1116,6 +1285,7 @@ R_DIV_ZERO
 R_ENV_DENIED
 R_ENV_ENCODING
 R_EXPORT_UNKNOWN
+R_FILE_
 R_FILE_LIMIT
 R_FILE_NOT_FOUND
 R_FILE_PERMISSION
@@ -1123,6 +1293,7 @@ R_FILE_READ
 R_FILE_UTF8
 R_FILE_WRITE
 R_FLOAT_NONFINITE
+R_FN_INVALID
 R_HOST_DENIED
 R_HOST_UNSUPPORTED
 R_HTTP_CANCELLED
@@ -1429,4 +1600,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:3072441a5874c2ebf2fb899a47df0d61b831e9cae6992dd9a5be1a1f842c20e2. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:8a71a4ec01685cddb9e3e83d19ac2df68f9204a32936245ba3ffdf032ab9f38e. Validated by `cargo xtask agent-reference --check`. -->

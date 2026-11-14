@@ -742,8 +742,10 @@ fn functions_reachable_from(artifact: &Artifact, root: usize) -> Vec<bool> {
         reachable[index] = true;
         for instruction in &artifact.functions[index].code {
             if let Op::Call(target, _)
+            | Op::MakeFn(target)
             | Op::ParallelMap(target)
             | Op::SortBy(target)
+            | Op::SortByKey(target)
             | Op::SortByIntKey(target)
             | Op::MergeSortedByIntKey(target) = &instruction.op
             {

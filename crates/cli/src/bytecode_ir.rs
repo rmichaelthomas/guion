@@ -293,6 +293,32 @@ fn parse_instruction(
                 .ok_or_else(|| format!("SortBy.function references unknown function `{name}`"))?;
             Op::SortBy(index)
         }
+        "MakeFn" => {
+            let name = required_str(object.get("function"), "MakeFn.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| format!("MakeFn.function references unknown function `{name}`"))?;
+            Op::MakeFn(index)
+        }
+        "CallFn" => Op::CallFn(required_usize(object.get("argc"), "CallFn.argc")?),
+        "HigherOrder" => {
+            let kind = required_str(object.get("kind"), "HigherOrder.kind")?;
+            Op::HigherOrder(
+                guion_model::HigherOrderKind::from_name(kind)
+                    .ok_or_else(|| format!("unknown HigherOrder.kind `{kind}`"))?,
+            )
+        }
+        "SortByKey" => {
+            let name = required_str(object.get("function"), "SortByKey.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("SortByKey.function references unknown function `{name}`")
+                })?;
+            Op::SortByKey(index)
+        }
         "SortByIntKey" => {
             let name = required_str(object.get("function"), "SortByIntKey.function")?;
             let index = functions
@@ -380,6 +406,7 @@ fn parse_instruction(
         "CsvNext" => Op::CsvNext,
         "CsvEncode" => Op::CsvEncode,
         "CsvReadColumns" => Op::CsvReadColumns,
+        "SortNatural" => Op::SortNatural,
         "JsonTryGet" => Op::JsonTryGet,
         "JsonTryGetInt" => Op::JsonTryGetInt,
         "JsonTryGetText" => Op::JsonTryGetText,
@@ -407,10 +434,19 @@ fn parse_instruction(
         "TextCaseFold" => Op::TextCaseFold,
         "TextCollapseWhitespace" => Op::TextCollapseWhitespace,
         "TextNormalize" => Op::TextNormalize,
+        "RandomBytes" => Op::RandomBytes,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,
         "CryptoVerifyHmacSha256" => Op::CryptoVerifyHmacSha256,
         "SqliteOpen" => Op::SqliteOpen,
         "SqliteBegin" => Op::SqliteBegin,
+        "SqliteBeginRead" => Op::SqliteBeginRead,
+        "LogAppend" => Op::LogAppend,
+        "LogDefaultLevel" => Op::LogDefaultLevel,
+        "GzipCompress" => Op::GzipCompress,
+        "GzipDecompress" => Op::GzipDecompress,
+        "ZlibCompress" => Op::ZlibCompress,
+        "ZlibDecompress" => Op::ZlibDecompress,
+        "YamlParse" => Op::YamlParse,
         "SqliteExecute" => Op::SqliteExecute,
         "SqliteQuery" => Op::SqliteQuery,
         "SqliteCommit" => Op::SqliteCommit,
@@ -544,6 +580,37 @@ fn parse_type(input: &str) -> Result<Type, String> {
         }
         "TaskError" => Ok(Type::TaskError),
         "Unit" => Ok(Type::Unit),
+        other if other.starts_with("fn(") => {
+            // `fn(A, B) -> R`: the parameter list closes at the matching parenthesis.
+            let mut depth = 0usize;
+            let mut close = None;
+            for (index, byte) in other.bytes().enumerate().skip(2) {
+                match byte {
+                    b'(' => depth += 1,
+                    b')' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            close = Some(index);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let close = close.ok_or_else(|| format!("unterminated function type `{other}`"))?;
+            let result = other[close + 1..]
+                .trim_start()
+                .strip_prefix("->")
+                .ok_or_else(|| format!("function type needs `->`: `{other}`"))?;
+            let mut parameters = Vec::new();
+            let mut rest = other[3..close].trim();
+            while !rest.is_empty() {
+                let split = top_level_type_comma(rest).unwrap_or(rest.len());
+                parameters.push(parse_type(&rest[..split])?);
+                rest = rest.get(split + 1..).unwrap_or("").trim();
+            }
+            Ok(Type::Fn(parameters, Box::new(parse_type(result)?)))
+        }
         other if other.starts_with("Array[") && other.ends_with(']') => {
             ElementType::from_name(&other[6..other.len() - 1])
                 .map(Type::Array)
@@ -588,8 +655,8 @@ fn top_level_type_comma(input: &str) -> Option<usize> {
     let mut depth = 0usize;
     for (index, byte) in input.bytes().enumerate() {
         match byte {
-            b'[' => depth += 1,
-            b']' => depth = depth.saturating_sub(1),
+            b'[' | b'(' => depth += 1,
+            b']' | b')' => depth = depth.saturating_sub(1),
             b',' if depth == 0 => return Some(index),
             _ => {}
         }

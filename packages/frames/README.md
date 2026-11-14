@@ -2,7 +2,7 @@
 
 Data frames for Guion: named columns of equal length, read from CSV or JSONL, filtered, sorted, grouped, joined and written back out. The heavy work runs in Guion's built-in array kernels.
 
-Use it from a project with `guion add frames --path PATH/TO/frames` and `import "pkg:frames/src/lib.gu"`. Check the library with `guion check tests.gu` and test it with `guion test tests.gu`.
+Use it from a project with `guion add frames --path PATH/TO/frames --approve-capabilities` and `import "pkg:frames/src/lib.gu"`. Check the library with `guion check tests.gu` and test it with `guion test tests.gu`.
 
 ```
 import "pkg:frames/src/lib.gu"

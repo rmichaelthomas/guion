@@ -59,10 +59,10 @@ fn ab_type_comma(value: Text) -> Int:
     var depth = 0
     var cursor = 0
     while cursor < len(characters):
-        if characters[cursor] == "[":
+        if characters[cursor] == "[" or characters[cursor] == "(":
             set depth = depth + 1
         else:
-            if characters[cursor] == "]":
+            if characters[cursor] == "]" or characters[cursor] == ")":
                 set depth = depth - 1
             else:
                 if characters[cursor] == "," and depth == 0:
@@ -83,17 +83,67 @@ fn ab_type_argument(value: Text, wanted: Int) -> Text:
             set result = ""
             set part = part + 1
         else:
-            if characters[cursor] == "[":
+            if characters[cursor] == "[" or characters[cursor] == "(":
                 set depth = depth + 1
             else:
-                if characters[cursor] == "]":
+                if characters[cursor] == "]" or characters[cursor] == ")":
                     set depth = depth - 1
             if result != "" or characters[cursor] != " ":
                 set result = result + characters[cursor]
         set cursor = cursor + 1
     return result
 
+# The parameter types and the result type of `fn(A, B) -> R`, as the artifact lists them: the
+# parameters in order, then the result.
+fn ab_fn_type(value: Text) -> Bytes:
+    let characters = text_chars(value)
+    var depth = 0
+    var close = 2
+    var scanning = true
+    while scanning and close < len(characters):
+        if characters[close] == "(":
+            set depth = depth + 1
+        if characters[close] == ")":
+            set depth = depth - 1
+            if depth == 0:
+                set scanning = false
+        if scanning:
+            set close = close + 1
+    var parameters: List[Text] = []
+    var current = ""
+    var nesting = 0
+    var cursor = 3
+    while cursor < close:
+        let character = characters[cursor]
+        if character == "[" or character == "(":
+            set nesting = nesting + 1
+        if character == "]" or character == ")":
+            set nesting = nesting - 1
+        if character == "," and nesting == 0:
+            set parameters = list_push(parameters, current)
+            set current = ""
+        else:
+            if not (character == " " and current == ""):
+                set current = current + character
+        set cursor = cursor + 1
+    if current != "":
+        set parameters = list_push(parameters, current)
+    var result = ""
+    set cursor = close + 5
+    while cursor < len(characters):
+        set result = result + characters[cursor]
+        set cursor = cursor + 1
+    var parts: List[Bytes] = [ab_u8(19), ab_count(len(parameters))]
+    var parameter_cursor = 0
+    while parameter_cursor < len(parameters):
+        set parts = list_push(parts, ab_type(parameters[parameter_cursor]))
+        set parameter_cursor = parameter_cursor + 1
+    set parts = list_push(parts, ab_type(result))
+    return ab_join(parts)
+
 fn ab_type(value: Text) -> Bytes:
+    if ab_starts(value, "fn("):
+        return ab_fn_type(value)
     if value == "Int":
         return ab_u8(0)
     if value == "Bool":
@@ -546,6 +596,28 @@ fn ab_plain_opcode(name: Text) -> Int:
         return 114
     if name == "CsvReadColumns":
         return 195
+    if name == "SortNatural":
+        return 196
+    if name == "SortByKey":
+        return 197
+    if name == "RandomBytes":
+        return 201
+    if name == "LogAppend":
+        return 203
+    if name == "LogDefaultLevel":
+        return 204
+    if name == "GzipCompress":
+        return 205
+    if name == "GzipDecompress":
+        return 206
+    if name == "ZlibCompress":
+        return 207
+    if name == "ZlibDecompress":
+        return 208
+    if name == "YamlParse":
+        return 209
+    if name == "SqliteBeginRead":
+        return 202
     if name == "JsonTryGet":
         return 115
     if name == "JsonTryIndex":
@@ -750,6 +822,8 @@ fn ab_codec_code(name: Text) -> Int:
         return 12
     if name == "CodecBytesXor":
         return 13
+    if name == "CodecSha256":
+        return 14
     return -1
 
 fn ab_fs_code(name: Text) -> Int:
@@ -777,6 +851,22 @@ fn ab_fs_code(name: Text) -> Int:
         return 10
     if name == "FsOpTempFile":
         return 11
+    if name == "FsOpSha256":
+        return 12
+    if name == "FsOpGzipCompressFile":
+        return 13
+    if name == "FsOpGzipDecompressFile":
+        return 14
+    if name == "FsOpTarWrite":
+        return 15
+    if name == "FsOpTarRead":
+        return 16
+    if name == "FsOpTarList":
+        return 17
+    if name == "FsOpReadRange":
+        return 18
+    if name == "FsOpConfinedPath":
+        return 19
     return -1
 
 fn ab_regex_code(name: Text) -> Int:
@@ -839,6 +929,30 @@ fn ab_tls_code(name: Text) -> Int:
         return 3
     return -1
 
+# The codes of `HigherOrderKind`, in the order the artifact format lists them.
+fn ab_higher_order_code(kind: Text) -> Int:
+    if kind == "SortBy":
+        return 0
+    if kind == "SortByKey":
+        return 1
+    if kind == "SortByIntKey":
+        return 2
+    if kind == "MergeSortedByIntKey":
+        return 3
+    if kind == "ParallelMap":
+        return 4
+    if kind == "MapList":
+        return 5
+    if kind == "FilterList":
+        return 6
+    if kind == "FoldList":
+        return 7
+    if kind == "AnyList":
+        return 8
+    if kind == "AllList":
+        return 9
+    return 255
+
 fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, externals: Json, labels: Json, source_id: Int) -> Bytes:
     let name = json_as_text(json_get(instruction, "op"))
     if name == "ConstInt" or name == "ConstBool" or name == "ConstText" or name == "ConstFloat64" or name == "ConstUnit" or name == "ConstValue":
@@ -871,6 +985,12 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
             let element_code = builtin_array_element_code(text_slice(name, dot + 1, len(name)))
             if function_code >= 0 and element_code >= 0:
                 return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(193), ab_u8(function_code), ab_u8(element_code)])
+    if name == "MakeFn":
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(198), ab_count(ab_function_index(functions, json_as_text(json_get(instruction, "function"))))])
+    if name == "CallFn":
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(199), ab_count(json_as_int(json_get(instruction, "argc")))])
+    if name == "HigherOrder":
+        return ab_join([ab_instruction_span(instruction, pc, source_id), ab_u8(200), ab_u8(ab_higher_order_code(json_as_text(json_get(instruction, "kind"))))])
     let tag = ab_plain_opcode(name)
     if tag < 0:
         return ab_u8(255)
@@ -884,7 +1004,7 @@ fn ab_instruction(instruction: Json, pc: Int, functions: Json, records: Json, ex
         if name == "Jump" or name == "JumpIfFalse":
             set parts = list_push(parts, ab_count(ab_target(instruction, labels)))
         else:
-            if name == "Call" or name == "ParallelMap" or name == "SortBy" or name == "SortByIntKey" or name == "MergeSortedByIntKey":
+            if name == "Call" or name == "ParallelMap" or name == "SortBy" or name == "SortByKey" or name == "SortByIntKey" or name == "MergeSortedByIntKey":
                 let target = ab_function_index(functions, json_as_text(json_get(instruction, "function")))
                 set parts = list_push(parts, ab_count(target))
                 if name == "Call":
@@ -998,7 +1118,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(64), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(73), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

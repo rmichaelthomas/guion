@@ -28,10 +28,10 @@ pub const MAX_WIRE_NODES: usize = 4_096;
 pub const MAX_WIRE_COLLECTION_ITEMS: usize = 4_096;
 pub const MAX_WIRE_VALUE_BYTES: usize = 64 * 1024;
 pub const MAX_WIRE_INTEGER_DIGITS: usize = 4_096;
-const MAX_LIVE_INPUTS: usize = 16;
-const MAX_LIVE_INPUT_BYTES: usize = MAX_ARTIFACT_BYTES * 2;
+pub const MAX_LIVE_INPUTS: usize = 16;
+pub const MAX_LIVE_INPUT_BYTES: usize = MAX_ARTIFACT_BYTES * 2;
 /// Cumulative guest allocation allowed in the browser, well below the native default.
-const MAX_BROWSER_ALLOCATION_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_BROWSER_ALLOCATION_BYTES: usize = 16 * 1024 * 1024;
 
 /// ABI version, packed as `(major << 16) | minor`. Version 1 adds typed request/response
 /// exports while preserving the legacy pointer/i64 exports.
@@ -875,6 +875,7 @@ fn encode_wire_value(
         | Value::FileError(_)
         | Value::HttpError(_)
         | Value::NativeResource(_)
+        | Value::Function(_)
         | Value::Array(_) => Err(AbiFailure::new(
             "E_ABI_VALUE_UNSUPPORTED",
             "this runtime value cannot cross the browser ABI",

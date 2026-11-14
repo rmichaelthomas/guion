@@ -1,0 +1,62 @@
+import "std:http_server"
+import "std:net"
+
+# A request/response server where several workers share one listener.
+# Each worker accepts a connection, reads the request and answers it, so a
+# client that connects and then stalls holds only the worker that accepted it.
+# The worker count is a ceiling for waiting (sockets, files), not a multiplier
+# for computing; see docs/concurrency.md.
+#
+# Run: guion run --allow-bind 127.0.0.1:PORT concurrent_server.gu PORT WORKERS READ_MS
+# READ_MS is how long a worker waits for the rest of a half-sent request.
+
+record Worker:
+    listener: TcpListener
+    read_ms: Int
+
+fn serve(worker: Worker) -> Int:
+    let listener = worker.listener
+    let read_ms = worker.read_ms
+    var served = 0
+    while true:
+        let accepted = http_server_accept(listener, 30000)
+        if not is_ok(accepted):
+            return served
+        let request = http_server_read_request(unwrap(accepted), read_ms, 1048576)
+        if is_ok(request):
+            let sent = http_server_respond_text(unwrap(request), 200, "ok")
+            if is_ok(sent):
+                set served = served + 1
+    return served
+
+fn parse_or(text: Text, fallback: Int) -> Int:
+    let parsed = text_parse_int(text)
+    if is_ok(parsed):
+        return unwrap(parsed)
+    return fallback
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) != 3:
+        print("usage: concurrent_server.gu PORT WORKERS READ_MS")
+        return 2
+    let port = parse_or(arguments[0], 8099)
+    let workers = parse_or(arguments[1], 1)
+    let read_ms = parse_or(arguments[2], 10000)
+    let listening = http_server_listen("127.0.0.1", port)
+    if not is_ok(listening):
+        print("listen failed")
+        return 1
+    let listener = unwrap(listening)
+    var slots: List[Worker] =[]
+    var index = 0
+    while index < workers:
+        set slots = list_push(slots, Worker(listener, read_ms))
+        set index = index + 1
+    print("listening with " + int_to_text(workers) + " workers")
+    let outcome = parallel_map(slots, serve, workers)
+    if not is_ok(outcome):
+        print(task_code(error(outcome)))
+        return 1
+    print("workers finished")
+    return 0

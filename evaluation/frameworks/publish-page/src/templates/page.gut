@@ -1,0 +1,8 @@
+{% import "blocks.gu" %}
+{% params title: Text, blocks: List[Block] %}
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{{ title }}</title></head>
+<body>
+{{ embed body(title, blocks) }}</body>
+</html>

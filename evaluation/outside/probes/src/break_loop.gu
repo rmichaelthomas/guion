@@ -1,0 +1,21 @@
+# Evaluator probe: a loop that leaves with `break` (the outside program's `probe/c.gu`).
+
+pub fn count_past(limit: Int) -> Int:
+    var i = 0
+    while true:
+        set i = i + 1
+        if i > limit:
+            break
+    return i
+
+pub fn first_negative(values: List[Int]) -> Int:
+    var found = 0
+    for value in values:
+        if value < 0:
+            set found = value
+            break
+    return found
+
+fn main() -> Int:
+    print(count_past(2))
+    return 0

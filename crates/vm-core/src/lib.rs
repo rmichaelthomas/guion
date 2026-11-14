@@ -774,11 +774,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
             ));
         }
         if !instruction_fuel.consume() {
-            return Err(RuntimeError::new(
-                "R_STEP_LIMIT",
-                "instruction budget exhausted",
-                f.code[ip].span,
-            ));
+            return Err(step_limit_error(budget, f.code[ip].span));
         }
         if PROFILED {
             if let Some(profile) = &budget.runtime_profile {
@@ -937,22 +933,14 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                         instruction_ref.span,
                     )?;
                     if !instruction_fuel.consume() {
-                        return Err(RuntimeError::new(
-                            "R_STEP_LIMIT",
-                            "instruction budget exhausted",
-                            next.span,
-                        ));
+                        return Err(step_limit_error(budget, next.span));
                     }
                     record_skipped_instruction!(ip, next);
                     if let LoadFastPath::ListIndex(field) = fast_path {
                         let index_ip = ip + 1;
                         let index_instruction = &f.code[index_ip];
                         if !instruction_fuel.consume() {
-                            return Err(RuntimeError::new(
-                                "R_STEP_LIMIT",
-                                "instruction budget exhausted",
-                                index_instruction.span,
-                            ));
+                            return Err(step_limit_error(budget, index_instruction.span));
                         }
                         record_skipped_instruction!(index_ip, index_instruction);
                         charge_allocation(
@@ -2291,11 +2279,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                             }
                             let skipped_instruction = &f.code[skipped_ip];
                             if !instruction_fuel.consume() {
-                                return Err(RuntimeError::new(
-                                    "R_STEP_LIMIT",
-                                    "instruction budget exhausted",
-                                    skipped_instruction.span,
-                                ));
+                                return Err(step_limit_error(budget, skipped_instruction.span));
                             }
                             record_skipped_instruction!(skipped_ip, skipped_instruction);
                             match &skipped_instruction.op {
@@ -3797,6 +3781,49 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     span: instruction.span,
                 });
             }
+            Op::MakeFn(target) => {
+                push_stack!(Value::Function(*target));
+            }
+            Op::CallFn(argc) => {
+                // The index is only meaningful in the artifact that made it, and a worker or a
+                // host can hand a function a value built elsewhere, so it is checked here.
+                let target = match pop!() {
+                    Value::Function(index)
+                        if artifact
+                            .functions
+                            .get(index)
+                            .is_some_and(|callee| callee.parameters.len() == *argc) =>
+                    {
+                        index
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let local_count = artifact.functions[target].local_count;
+                let mut call_args = pool.take(local_count.max(*argc));
+                for _ in 0..*argc {
+                    call_args.push(pop!());
+                }
+                call_args.reverse();
+                return Ok(VmStep::Call {
+                    frame: VmFrame {
+                        function_index,
+                        depth,
+                        call_site,
+                        locals,
+                        stack,
+                        ip,
+                    },
+                    target,
+                    args: call_args,
+                    span: instruction.span,
+                });
+            }
             Op::Assert => match pop!() {
                 Value::Bool(true) => push_stack!(Value::Unit),
                 Value::Bool(false) => {
@@ -4151,11 +4178,7 @@ fn execute_fast_host_forwarder<const PROFILED: bool, H: VmHost>(
             ));
         }
         if !instruction_fuel.consume() {
-            return Err(RuntimeError::new(
-                "R_STEP_LIMIT",
-                "instruction budget exhausted",
-                instruction.span,
-            ));
+            return Err(step_limit_error(budget, instruction.span));
         }
         if PROFILED {
             if let Some(profile) = &budget.runtime_profile {
@@ -5085,6 +5108,12 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CsvNext => "CsvNext",
         Op::CsvEncode => "CsvEncode",
         Op::CsvReadColumns => "CsvReadColumns",
+        Op::SortNatural => "SortNatural",
+        Op::SortByKey(_) => "SortByKey",
+        Op::MakeFn(_) => "MakeFn",
+        Op::CallFn(_) => "CallFn",
+        Op::RandomBytes => "RandomBytes",
+        Op::HigherOrder(_) => "HigherOrder",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -5119,6 +5148,14 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CryptoVerifyHmacSha256 => "CryptoVerifyHmacSha256",
         Op::SqliteOpen => "SqliteOpen",
         Op::SqliteBegin => "SqliteBegin",
+        Op::SqliteBeginRead => "SqliteBeginRead",
+        Op::LogAppend => "LogAppend",
+        Op::LogDefaultLevel => "LogDefaultLevel",
+        Op::GzipCompress => "GzipCompress",
+        Op::GzipDecompress => "GzipDecompress",
+        Op::ZlibCompress => "ZlibCompress",
+        Op::ZlibDecompress => "ZlibDecompress",
+        Op::YamlParse => "YamlParse",
         Op::SqliteExecute => "SqliteExecute",
         Op::SqliteQuery => "SqliteQuery",
         Op::SqliteCommit => "SqliteCommit",
@@ -5305,6 +5342,8 @@ impl AllocationPool {
 
 pub struct Budget {
     pub remaining: AtomicU64,
+    /// The configured instruction ceiling, kept only to name it in `R_STEP_LIMIT`.
+    pub instruction_limit: u64,
     pub allocation: Arc<AllocationPool>,
     pub allocation_floor: usize,
     pub cancellation: CancellationToken,
@@ -5412,6 +5451,7 @@ impl Budget {
     ) -> Self {
         Self {
             remaining: AtomicU64::new(instruction_limit),
+            instruction_limit,
             allocation: Arc::new(AllocationPool::new(allocation_limit)),
             allocation_floor: 0,
             cancellation,
@@ -5548,10 +5588,34 @@ pub fn charge_allocation(budget: &Budget, bytes: usize, span: Span) -> Result<()
     }
 }
 
+/// Types `sort` orders naturally and `sort_by` accepts as keys.
+pub fn is_sort_key_type(ty: &Type) -> bool {
+    matches!(ty, Type::Text | Type::Int | Type::Float64)
+}
+
 /// Said at the end of every allocation-limit message, so the person who hits the limit
 /// learns which setting raises it.
 pub const ALLOCATION_LIMIT_HINT: &str =
     "; raise `allocation_limit_bytes` under `[runtime]` in guion.toml";
+
+/// Said at the end of every step-limit message, so the person who hits the limit
+/// learns which setting raises it.
+pub const STEP_LIMIT_HINT: &str = "; raise `instruction_limit` under `[runtime]` in guion.toml";
+
+/// The `R_STEP_LIMIT` error. Raised only once the budget has run dry, so everything the
+/// ceiling allowed has been used; `used` is the ceiling less what the budget still holds.
+#[cold]
+pub fn step_limit_error(budget: &Budget, span: Span) -> RuntimeError {
+    let limit = budget.instruction_limit;
+    let used = limit.saturating_sub(budget.remaining.load(Ordering::Relaxed));
+    let mut error = RuntimeError::new(
+        "R_STEP_LIMIT",
+        format!("instruction budget exhausted: {used} instructions used of {limit} allowed{STEP_LIMIT_HINT}"),
+        span,
+    );
+    error.step_usage = Some((used, limit));
+    error
+}
 
 #[cold]
 pub fn allocation_limit_error(budget: &Budget, bytes: usize, span: Span) -> RuntimeError {
@@ -6099,6 +6163,7 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
         (Value::NativeResource(resource), Type::NativeResource(expected)) => {
             resource.kind() == expected
         }
+        (Value::Function(_), Type::Fn(_, _)) => true,
         _ => false,
     }
 }
@@ -6465,6 +6530,12 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                         f.name
                     )));
                 }
+                Op::MakeFn(target) if target >= artifact.functions.len() => {
+                    return Err(fail(format!(
+                        "function `{}` forms a value of a missing function",
+                        f.name
+                    )));
+                }
                 Op::ParallelMap(target)
                     if target >= artifact.functions.len()
                         || artifact.functions[target].parameters.len() != 1 =>
@@ -6483,6 +6554,16 @@ pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
                 {
                     return Err(fail(format!(
                         "function `{}` contains an invalid sort comparator",
+                        f.name
+                    )));
+                }
+                Op::SortByKey(target)
+                    if target >= artifact.functions.len()
+                        || artifact.functions[target].parameters.len() != 1
+                        || !is_sort_key_type(&artifact.functions[target].result) =>
+                {
+                    return Err(fail(format!(
+                        "function `{}` contains an invalid sort key function",
                         f.name
                     )));
                 }
@@ -6568,6 +6649,12 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::HttpError
         | Type::Array(_)
         | Type::Unit => true,
+        Type::Fn(parameters, result) => {
+            parameters
+                .iter()
+                .all(|parameter| artifact_type_known(parameter, record_names))
+                && artifact_type_known(result, record_names)
+        }
     }
 }
 
@@ -6642,6 +6729,9 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::JsonError(_) => Type::JsonError,
         Value::FileError(_) => Type::FileError,
         Value::HttpError(_) => Type::HttpError,
+        // A function value is never a constant; the verifier only learns its type from the
+        // function table (`MakeFn`).
+        Value::Function(_) => return None,
     })
 }
 
@@ -7748,6 +7838,148 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(external.result.clone());
             }
+            Op::MakeFn(target) => {
+                let callee = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("function value references missing function at instruction {pc}")
+                })?;
+                state.stack.push(Type::Fn(
+                    callee.parameters.clone(),
+                    Box::new(callee.result.clone()),
+                ));
+            }
+            Op::CallFn(argc) => {
+                let Type::Fn(parameters, result) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("call through a non-function at instruction {pc}"));
+                };
+                if parameters.len() != *argc {
+                    return Err(format!(
+                        "function value call argument count mismatch at instruction {pc}"
+                    ));
+                }
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "function value call argument type mismatch at instruction {pc}"
+                        ));
+                    }
+                }
+                state.stack.push(*result);
+            }
+            Op::HigherOrder(kind) => {
+                use guion_model::HigherOrderKind as Kind;
+                let name = kind.name();
+                let mut worker_limit = false;
+                if *kind == Kind::ParallelMap {
+                    if pop_type(&mut state.stack, pc)? != Type::Int {
+                        return Err(format!(
+                            "parallel worker limit must be Int at instruction {pc}"
+                        ));
+                    }
+                    worker_limit = true;
+                }
+                let Type::Fn(parameters, result) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("{name} needs a function value at instruction {pc}"));
+                };
+                let result = *result;
+                let initial = if *kind == Kind::FoldList {
+                    Some(pop_type(&mut state.stack, pc)?)
+                } else {
+                    None
+                };
+                let input = pop_type(&mut state.stack, pc)?;
+                let bad_shape =
+                    || format!("{name} function has the wrong type at instruction {pc}");
+                let output = match kind {
+                    Kind::SortBy | Kind::SortByKey | Kind::SortByIntKey => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        let fits = match kind {
+                            Kind::SortBy => {
+                                parameters.len() == 2
+                                    && parameters[0] == parameters[1]
+                                    && result == Type::Int
+                            }
+                            Kind::SortByKey => parameters.len() == 1 && is_sort_key_type(&result),
+                            _ => parameters.len() == 1 && result == Type::Int,
+                        };
+                        if !fits || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(item)
+                    }
+                    Kind::MergeSortedByIntKey => {
+                        let Type::List(feed) = input else {
+                            return Err(format!(
+                                "{name} input must be a List of Lists at instruction {pc}"
+                            ));
+                        };
+                        let Type::List(item) = *feed else {
+                            return Err(format!(
+                                "{name} input must be a List of Lists at instruction {pc}"
+                            ));
+                        };
+                        if parameters.len() != 1 || result != Type::Int || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(item)
+                    }
+                    Kind::ParallelMap => {
+                        let Type::List(item) = input else {
+                            return Err(format!("parallel input must be List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1
+                            || *item != parameters[0]
+                            || !worker_limit
+                            || type_contains_native_resource(&parameters[0])
+                            || type_contains_native_resource(&result)
+                        {
+                            return Err(bad_shape());
+                        }
+                        Type::Result(
+                            Box::new(Type::List(Box::new(result))),
+                            Box::new(Type::TaskError),
+                        )
+                    }
+                    Kind::MapList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1 || *item != parameters[0] {
+                            return Err(bad_shape());
+                        }
+                        Type::List(Box::new(result))
+                    }
+                    Kind::FilterList | Kind::AnyList | Kind::AllList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1 || *item != parameters[0] || result != Type::Bool {
+                            return Err(bad_shape());
+                        }
+                        if *kind == Kind::FilterList {
+                            Type::List(item)
+                        } else {
+                            Type::Bool
+                        }
+                    }
+                    Kind::FoldList => {
+                        let Type::List(item) = input else {
+                            return Err(format!("{name} input must be a List at instruction {pc}"));
+                        };
+                        let initial = initial.expect("fold pops its initial value");
+                        if parameters.len() != 2
+                            || parameters[0] != initial
+                            || parameters[1] != *item
+                            || result != initial
+                        {
+                            return Err(bad_shape());
+                        }
+                        result
+                    }
+                };
+                state.stack.push(output);
+            }
             Op::ParallelMap(target) => {
                 let callee = artifact.functions.get(*target).ok_or_else(|| {
                     format!("parallel_map references missing function at instruction {pc}")
@@ -7805,6 +8037,36 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 if *item != comparator.parameters[0] {
                     return Err(format!(
                         "sort comparator parameter type differs from list item at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::SortNatural => {
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("sort input must be a List at instruction {pc}"));
+                };
+                if !is_sort_key_type(&item) {
+                    return Err(format!(
+                        "sort requires a List of Text, Int or Float64 at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::List(item));
+            }
+            Op::SortByKey(target) => {
+                let key_function = artifact.functions.get(*target).ok_or_else(|| {
+                    format!("sort_by references missing key function at instruction {pc}")
+                })?;
+                if key_function.parameters.len() != 1 || !is_sort_key_type(&key_function.result) {
+                    return Err(format!(
+                        "sort_by key function must have type (T) -> K with K in Text, Int, Float64 at instruction {pc}"
+                    ));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("sort_by input must be a List at instruction {pc}"));
+                };
+                if *item != key_function.parameters[0] {
+                    return Err(format!(
+                        "sort_by key function parameter type differs from list item at instruction {pc}"
                     ));
                 }
                 state.stack.push(Type::List(item));
@@ -7877,6 +8139,17 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
+            Op::RandomBytes => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!(
+                        "crypto_random_bytes requires an Int count at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Bytes),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
             Op::CryptoHmacSha256 => {
                 if pop_type(&mut state.stack, pc)? != Type::Bytes
                     || pop_type(&mut state.stack, pc)? != Type::Bytes
@@ -7909,12 +8182,56 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
-            Op::SqliteBegin => {
+            Op::SqliteBegin | Op::SqliteBeginRead => {
                 if pop_type(&mut state.stack, pc)? != Type::NativeResource("Db".into()) {
                     return Err(format!("sqlite_begin requires Db at instruction {pc}"));
                 }
                 state.stack.push(Type::Result(
                     Box::new(Type::NativeResource("Transaction".into())),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::LogAppend => {
+                if pop_type(&mut state.stack, pc)? != Type::Text
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "log append requires Text path and line at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::FileError),
+                ));
+            }
+            Op::LogDefaultLevel => state.stack.push(Type::Text),
+            Op::GzipCompress | Op::ZlibCompress => {
+                if pop_type(&mut state.stack, pc)? != Type::Bytes {
+                    return Err(format!(
+                        "compression requires Bytes input at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Bytes);
+            }
+            Op::GzipDecompress | Op::ZlibDecompress => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Bytes
+                {
+                    return Err(format!(
+                        "decompression requires Bytes input and an Int output ceiling at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Bytes),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::YamlParse => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!("yaml_parse requires Text at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Json),
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
@@ -8707,6 +9024,13 @@ fn fs_result_type(function: FsFunction) -> Type {
         FsFunction::Exists => Type::Bool,
         FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
         FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
+        FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
+        FsFunction::ConfinedPath => Type::Text,
+        FsFunction::GzipCompressFile
+        | FsFunction::GzipDecompressFile
+        | FsFunction::TarWrite
+        | FsFunction::TarRead => Type::Int,
+        FsFunction::TarList => Type::List(Box::new(Type::Text)),
         FsFunction::ListDir => Type::List(Box::new(Type::Text)),
         FsFunction::MakeDir | FsFunction::Remove | FsFunction::RemoveAll | FsFunction::Rename => {
             Type::Unit
@@ -8855,7 +9179,7 @@ fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
         CodecFunction::TextFromBytes => (vec![Type::Bytes], option(Type::Text)),
         CodecFunction::PercentEncode => (vec![Type::Text], Type::Text),
         CodecFunction::PercentDecode => (vec![Type::Text], option(Type::Text)),
-        CodecFunction::Sha1 => (vec![Type::Bytes], Type::Bytes),
+        CodecFunction::Sha1 | CodecFunction::Sha256 => (vec![Type::Bytes], Type::Bytes),
         CodecFunction::BytesXor => (vec![Type::Bytes, Type::Bytes], Type::Bytes),
     }
 }
@@ -8958,6 +9282,78 @@ fn percent_encode(text: &str) -> String {
 }
 
 /// SHA-1 (RFC 3174). Offered for the WebSocket handshake and legacy interchange only.
+const SHA256_ROUND_CONSTANTS: [u32; 64] = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+];
+
+/// SHA-256 (FIPS 180-4) of a whole message held in memory.
+fn sha256(data: &[u8]) -> [u8; 32] {
+    let mut state: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
+    ];
+    let mut message = data.to_vec();
+    message.push(0x80);
+    while message.len() % 64 != 56 {
+        message.push(0);
+    }
+    message.extend_from_slice(&((data.len() as u64) * 8).to_be_bytes());
+    for block in message.chunks(64) {
+        let mut words = [0u32; 64];
+        for (index, chunk) in block.chunks(4).enumerate() {
+            words[index] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        }
+        for index in 16..64 {
+            let s0 = words[index - 15].rotate_right(7)
+                ^ words[index - 15].rotate_right(18)
+                ^ (words[index - 15] >> 3);
+            let s1 = words[index - 2].rotate_right(17)
+                ^ words[index - 2].rotate_right(19)
+                ^ (words[index - 2] >> 10);
+            words[index] = words[index - 16]
+                .wrapping_add(s0)
+                .wrapping_add(words[index - 7])
+                .wrapping_add(s1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
+        for index in 0..64 {
+            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let choice = (e & f) ^ (!e & g);
+            let first = h
+                .wrapping_add(s1)
+                .wrapping_add(choice)
+                .wrapping_add(SHA256_ROUND_CONSTANTS[index])
+                .wrapping_add(words[index]);
+            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let majority = (a & b) ^ (a & c) ^ (b & c);
+            let second = s0.wrapping_add(majority);
+            h = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(first);
+            d = c;
+            c = b;
+            b = a;
+            a = first.wrapping_add(second);
+        }
+        for (slot, value) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
+            *slot = slot.wrapping_add(value);
+        }
+    }
+    let mut digest = [0u8; 32];
+    for (index, word) in state.iter().enumerate() {
+        digest[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
+    }
+    digest
+}
+
 fn sha1(data: &[u8]) -> [u8; 20] {
     let mut state: [u32; 5] = [
         0x6745_2301,
@@ -9123,6 +9519,9 @@ fn apply_codec(
         (CodecFunction::Sha1, Value::Bytes(bytes)) => {
             Ok(Value::Bytes(Shared::new(sha1(&bytes).to_vec())))
         }
+        (CodecFunction::Sha256, Value::Bytes(bytes)) => {
+            Ok(Value::Bytes(Shared::new(sha256(&bytes).to_vec())))
+        }
         (CodecFunction::PercentEncode, Value::Text(text)) => Ok(text_value(&percent_encode(&text))),
         (CodecFunction::PercentDecode, Value::Text(text)) => Ok(option_of(
             percent_decode(&text).map(|decoded| text_value(&decoded)),
@@ -9226,6 +9625,7 @@ mod tests {
         let parent = Budget::new(10, usize::MAX, CancellationToken::new(), None);
         let worker = Budget {
             remaining: AtomicU64::new(3),
+            instruction_limit: parent.instruction_limit,
             allocation: parent.allocation.clone(),
             allocation_floor: 0,
             cancellation: parent.cancellation.clone(),

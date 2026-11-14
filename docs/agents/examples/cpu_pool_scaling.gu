@@ -1,0 +1,39 @@
+# Four CPU-bound jobs through parallel_map, with the worker limit as a parameter.
+# Compare `LIMIT=1` with `LIMIT=4`: the worker count is a ceiling for waiting,
+# not a multiplier for computing; see docs/concurrency.md.
+#
+# Run: guion run --allow-clock cpu_pool_scaling.gu LIMIT [ITERATIONS]
+
+fn spin(count: Int) -> Int:
+    var i = 0
+    while i < count:
+        set i = i + 1
+    return i
+
+fn job(count: Int) -> Int:
+    return spin(count)
+
+fn parse_or(text: Text, fallback: Int) -> Int:
+    let parsed = text_parse_int(text)
+    if is_ok(parsed):
+        return unwrap(parsed)
+    return fallback
+
+fn main() -> Int:
+    let arguments = args()
+    if len(arguments) < 1 or len(arguments) > 2:
+        print("usage: cpu_pool_scaling.gu LIMIT [ITERATIONS]")
+        return 2
+    let limit = parse_or(arguments[0], 1)
+    var iterations = 100000000
+    if len(arguments) == 2:
+        set iterations = parse_or(arguments[1], iterations)
+    let jobs =[iterations, iterations, iterations, iterations]
+    let started = unix_time_ms()
+    let mapped = parallel_map(jobs, job, limit)
+    let elapsed = unix_time_ms() - started
+    if not is_ok(mapped):
+        print(task_code(error(mapped)))
+        return 1
+    print("jobs=4 each=" + int_to_text(iterations) + " limit=" + int_to_text(limit) + " wall_ms=" + int_to_text(elapsed))
+    return 0

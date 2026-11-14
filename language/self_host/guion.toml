@@ -12,3 +12,5 @@ allocation_limit_bytes = 8589934592
 # Import resolution permits up to 128 levels and retains one compiler frame per level.
 call_depth_limit = 160
 max_collection_items = 1000000
+# The compiler prints its own IR as JSON; that is larger than the default output limit.
+output_limit_bytes = 16777216

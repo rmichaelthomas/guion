@@ -1,0 +1,152 @@
+# Middleware and applications for the web package.
+#
+# Function values capture nothing, so Guion has no `wrap(mw, handler) -> handler` closure. A
+# middleware here is a record of two named functions and the settings they read, and an `App` is a
+# value that holds the router and the middleware in order:
+#
+#     before(config, request) -> Result[Request, Response]
+#         Ok(request) passes the (possibly changed) request inward. Err(response) answers now: nothing
+#         further in runs, and the Response goes back out through the layers already entered.
+#     after(config, request, response) -> Result[Response, HttpFailure]
+#         sees the response on the way out, with the request this layer passed inward. Err(failure)
+#         becomes the result of the whole call.
+#
+# `config` is the layer's own `Map[Text, Text]`, set when the layer is built (`middleware_configured`)
+# and passed to both functions on every request. A function value cannot carry settings, so this is
+# how a layer such as the session layer knows its store and policy. It is empty for a layer built with
+# `middleware`, `middleware_before` or `middleware_after`.
+#
+# Order is deterministic: the outermost middleware runs its `before` first and its `after` last.
+# `wrap(app, mw)` makes `mw` the new outermost layer, so after `wrap(wrap(app(r), a), b)` a request
+# meets b, then a, then the router, and the response meets a's after, then b's. `app_with(router,
+# [x, y, z])` lists the layers outermost first. When a `before` answers with Err(response) the
+# `after` of that layer does not run, and the `after` of every outer layer does, innermost first. An
+# Err(HttpFailure) from the router, a handler or an `after` skips the remaining `after` functions and
+# comes out of `app_handle`; `app_respond` turns it into a 500 (see below).
+#
+# Effects attach where a function value is formed, so the function that writes
+# `middleware_before(audit_log)` reports the effects of `audit_log`.
+
+import "std:log"
+import "std:http_response"
+import "router.gu"
+
+pub record Middleware:
+    before: fn(Map[Text, Text], Request) -> Result[Request, Response]
+    after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]
+    config: Map[Text, Text]
+
+pub record App:
+    router: Router
+    middleware: List[Middleware]
+    logger: Option[Logger]
+
+fn mw_keep_request(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
+    return Ok(request)
+
+fn mw_keep_response(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]:
+    return Ok(response)
+
+fn mw_no_config() -> Map[Text, Text]:
+    let none: Map[Text, Text] = {}
+    return none
+
+fn mw_no_logger() -> Option[Logger]:
+    return None
+
+fn mw_some_logger(logger: Logger) -> Option[Logger]:
+    return Some(logger)
+
+fn mw_nothing() -> Unit:
+    let finished = 0
+
+pub fn middleware(before: fn(Map[Text, Text], Request) -> Result[Request, Response], after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
+    return Middleware(before, after, mw_no_config())
+
+# A layer whose two functions read `config`.
+pub fn middleware_configured(before: fn(Map[Text, Text], Request) -> Result[Request, Response], after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure], config: Map[Text, Text]) -> Middleware:
+    return Middleware(before, after, config)
+
+# A layer with only a `before`, reading `config`.
+pub fn middleware_before_configured(before: fn(Map[Text, Text], Request) -> Result[Request, Response], config: Map[Text, Text]) -> Middleware:
+    return Middleware(before, mw_keep_response, config)
+
+pub fn middleware_before(before: fn(Map[Text, Text], Request) -> Result[Request, Response]) -> Middleware:
+    return Middleware(before, mw_keep_response, mw_no_config())
+
+pub fn middleware_after(after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
+    return Middleware(mw_keep_request, after, mw_no_config())
+
+pub fn app(router: Router) -> App:
+    let none: List[Middleware] = []
+    return App(router, none, mw_no_logger())
+
+# The layers outermost first.
+pub fn app_with(router: Router, layers: List[Middleware]) -> App:
+    return App(router, layers, mw_no_logger())
+
+# Makes `layer` the outermost middleware.
+pub fn wrap(app: App, layer: Middleware) -> App:
+    let layers: List[Middleware] = [layer]
+    var index = 0
+    var all = layers
+    while index < len(app.middleware):
+        set all = list_push(all, app.middleware[index])
+        set index = index + 1
+    return App(app.router, all, app.logger)
+
+# Where `app_respond` writes the failures it turns into a 500.
+pub fn app_log(app: App, logger: Logger) -> App:
+    return App(app.router, app.middleware, mw_some_logger(logger))
+
+# The body of every 500 `app_respond` sends. It never carries a failure's code or message.
+pub fn internal_error_body() -> Text:
+    return "Internal Server Error"
+
+fn mw_unwind(layers: List[Middleware], seen: List[Request], entered: Int, response: Response) -> Result[Response, HttpFailure]:
+    var current = response
+    var index = entered - 1
+    while index >= 0:
+        let after = layers[index].after
+        set current = after(layers[index].config, seen[index], current)?
+        set index = index - 1
+    return Ok(current)
+
+# Runs the middleware and the router on a request. Ok for any response a handler or middleware
+# produced (404 and 405 from the router included); Err only for an HttpFailure.
+pub fn app_handle(app: App, request: Request) -> Result[Response, HttpFailure]:
+    var current = request
+    var seen: List[Request] = []
+    var index = 0
+    while index < len(app.middleware):
+        let before = app.middleware[index].before
+        match before(app.middleware[index].config, current):
+            Ok(next):
+                set current = next
+                set seen = list_push(seen, next)
+            Err(early):
+                return mw_unwind(app.middleware, seen, index, early)
+        set index = index + 1
+    let response = router_handle(app.router, current)?
+    return mw_unwind(app.middleware, seen, len(app.middleware), response)
+
+fn mw_log_failure(app: App, request: Request, failure: HttpFailure) -> Unit:
+    match app.logger:
+        Some(logger):
+            let fields: Map[Text, Json] = {"code": json_text(failure.code), "message": json_text(failure.message), "method": json_text(request.method), "path": json_text(request.path)}
+            let written = log_error(logger, "handler failed", fields)
+        None:
+            eprint("handler failed: " + failure.code + ": " + failure.message + " (" + request.method + " " + request.path + ")")
+    return mw_nothing()
+
+# Like app_handle but always a Response. An Err becomes a 500 whose body is the fixed
+# `internal_error_body()` whatever the failure's status, code or message, and the failure is logged
+# (std:log when `app_log` set a logger, standard error otherwise). A handler that wants another
+# status returns Ok(response) with that status.
+pub fn app_respond(app: App, request: Request) -> Response:
+    match app_handle(app, request):
+        Ok(response):
+            return response
+        Err(failure):
+            let logged = mw_log_failure(app, request, failure)
+            return response_text(500, internal_error_body())

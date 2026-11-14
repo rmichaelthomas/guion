@@ -28,11 +28,6 @@ fn artifact_with(code: Vec<Op>) -> Artifact {
 }
 
 #[test]
-fn the_current_format_is_64() {
-    assert_eq!(Artifact::CURRENT_VERSION, 64);
-}
-
-#[test]
 fn format_63_rejects_csv_read_columns() {
     let mut artifact = artifact_with(vec![Op::CsvReadColumns]);
     let bytes = artifact.to_bytes().unwrap();

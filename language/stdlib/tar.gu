@@ -1,0 +1,64 @@
+import "std:types"
+
+# std:tar: write, read and list tar archives, optionally gzip-compressed.
+#
+# tar_write(directory, archive) archives the contents of `directory` (recursively) into
+# `archive` and returns the number of entries written. Entry names are relative to `directory`
+# (the directory's own name is not part of them), directories carry a trailing slash, and
+# entries are in sorted order. Entries are written with fixed metadata (modification time 0,
+# owner 0, mode 0644, or 0755 for directories and files with an executable bit), so the same
+# tree always gives the same archive. If `archive` ends in `.gz` or `.tgz` the archive is
+# gzip-compressed (what `tar -tzf` reads); any other name is a plain tar. The archive may not
+# lie inside `directory` (E_TAR_UNSAFE_PATH), and a symbolic link in the tree is refused with
+# the same code rather than archived or followed. Files are streamed; memory stays constant.
+#
+# tar_list(archive) returns the entry names as stored, in archive order, with a trailing slash
+# on directories. It extracts nothing and reports names even when tar_read would refuse them.
+# tar_read(archive, destination) extracts into `destination` (created if missing) and returns
+# the number of entries extracted. Both detect gzip by its magic number whatever the file is
+# called, so a .tar, a .tar.gz and a .tgz are all read.
+#
+# tar_read applies the std:fs confinement rules to every entry. An entry whose name is absolute
+# or contains `..` is refused with E_TAR_UNSAFE_PATH, and so is a symbolic or hard link whose
+# target is absolute or contains `..` anywhere (so no chain of links can leave the
+# destination). Relative links that stay below the destination are created (symbolic links on
+# Unix hosts only). Device, FIFO and other special entries are E_TAR_UNSUPPORTED_ENTRY. The
+# archive path and `destination` are also confined to the granted file roots. Entries are
+# extracted in archive order, so entries before a refused one stay on disk.
+#
+# Memory and ceilings: entries stream through fixed buffers. The total bytes extracted, and the
+# bytes inflated from a gzip-compressed archive, are capped by `[runtime]
+# decompress_limit_bytes` (default 1 GiB); passing it is the typed error E_COMPRESS_LIMIT, and
+# a recorded entry size over the remaining ceiling is refused before any of it is written. The
+# entry count is capped by `[runtime] max_collection_items`. A damaged archive is
+# E_TAR_CORRUPT, or E_COMPRESS_CORRUPT / E_COMPRESS_TRUNCATED for a damaged gzip layer.
+# tar_read does not read past the end-of-archive marker, so bytes after it (and the gzip
+# trailer of a compressed archive) are not examined.
+#
+# These functions need the file-read grant (tar_write and tar_read also the file-write grant;
+# effects filesystem.read and filesystem.write). Failures are StdError values whose `path`
+# names the archive.
+
+fn tar_problem(problem: FileError, path: Text) -> StdError:
+    return StdError(file_error_code(problem), file_error_message(problem), path, 0, 0)
+
+pub fn tar_write(directory: Text, archive: Text) -> Result[Int, StdError]:
+    match native_fs_tar_write(directory, archive):
+        Ok(count):
+            return Ok(count)
+        Err(problem):
+            return Err(tar_problem(problem, archive))
+
+pub fn tar_read(archive: Text, destination: Text) -> Result[Int, StdError]:
+    match native_fs_tar_read(archive, destination):
+        Ok(count):
+            return Ok(count)
+        Err(problem):
+            return Err(tar_problem(problem, archive))
+
+pub fn tar_list(archive: Text) -> Result[List[Text], StdError]:
+    match native_fs_tar_list(archive):
+        Ok(names):
+            return Ok(names)
+        Err(problem):
+            return Err(tar_problem(problem, archive))

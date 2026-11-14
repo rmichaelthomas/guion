@@ -14,7 +14,9 @@
 //!
 //! `guion check` compares the declaration with what static inspection finds in the library's own
 //! modules: using something undeclared is an error, declaring something unused is a warning. The
-//! lock records the declaration, and an update that widens it stops until it is approved.
+//! lock records the declaration, and an update that widens it stops until it is approved. A project
+//! may also keep an `[approved-capabilities.NAME]` table per package (the same shape); once the
+//! table exists, installing or updating a package that asks for more than its entry is refused.
 
 use std::collections::BTreeSet;
 
@@ -40,6 +42,10 @@ const KEYS: [&str; 6] = [
 impl Capabilities {
     pub fn is_empty(&self) -> bool {
         *self == Capabilities::default()
+    }
+
+    pub fn to_toml_json(&self) -> serde_json::Value {
+        serde_json::to_value(self.to_toml()).unwrap_or(serde_json::Value::Null)
     }
 
     pub fn from_toml(value: Option<&toml::Value>) -> Result<Capabilities, String> {
@@ -126,29 +132,76 @@ impl Capabilities {
         toml::Value::Table(table)
     }
 
-    /// Plain-language description of what `self` grants that `earlier` did not.
-    pub fn widened_beyond(&self, earlier: &Capabilities) -> Vec<String> {
-        let mut added = Vec::new();
-        let mut extend = |label: &str, now: &BTreeSet<String>, before: &BTreeSet<String>| {
-            for item in now.difference(before) {
-                added.push(format!("{label} `{item}`"));
-            }
-        };
-        extend("network host", &self.network, &earlier.network);
-        extend("file access", &self.files, &earlier.files);
+    /// What `self` asks for beyond `approved`, one line per kind of access, in the form
+    /// `network: +hosts ["api.example.com"]`. Empty when nothing is beyond it.
+    pub fn delta_beyond(&self, approved: &Capabilities) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut extend =
+            |label: &str, noun: &str, now: &BTreeSet<String>, ok: &BTreeSet<String>| {
+                let extra: Vec<String> =
+                    now.difference(ok).map(|item| format!("{item:?}")).collect();
+                if !extra.is_empty() {
+                    lines.push(format!("{label}: +{noun} [{}]", extra.join(", ")));
+                }
+            };
+        extend("network", "hosts", &self.network, &approved.network);
+        extend("files", "modes", &self.files, &approved.files);
         extend(
-            "environment variable",
+            "environment",
+            "variables",
             &self.environment,
-            &earlier.environment,
+            &approved.environment,
         );
-        extend("command", &self.processes, &earlier.processes);
-        if self.clock && !earlier.clock {
-            added.push("the system clock".into());
+        extend(
+            "processes",
+            "commands",
+            &self.processes,
+            &approved.processes,
+        );
+        if self.clock && !approved.clock {
+            lines.push("clock: +true".into());
         }
-        if self.python && !earlier.python {
-            added.push("Python calls".into());
+        if self.python && !approved.python {
+            lines.push("python: +true".into());
         }
-        added
+        lines
+    }
+
+    /// The effects in `used` that this declaration does not cover, each with the entry that would
+    /// cover it, for example `filesystem.write (files = ["write"])`. Effects with no capability
+    /// (output, concurrency) are never listed.
+    pub fn uncovered_effects(&self, used: &BTreeSet<String>) -> Vec<String> {
+        let network = !self.network.is_empty();
+        let rows: [(&str, bool, &str); 8] = [
+            (
+                "filesystem.read",
+                self.files.contains("read"),
+                "files = [\"read\"]",
+            ),
+            (
+                "filesystem.write",
+                self.files.contains("write"),
+                "files = [\"write\"]",
+            ),
+            ("network.http", network, "network = [\"host\"]"),
+            ("network.socket", network, "network = [\"host\"]"),
+            (
+                "process.environment",
+                !self.environment.is_empty(),
+                "environment = [\"NAME\"]",
+            ),
+            (
+                "process.spawn",
+                !self.processes.is_empty(),
+                "processes = [\"command\"]",
+            ),
+            ("clock.read", self.clock, "clock = true"),
+            ("python.opaque", self.python, "python = true"),
+        ];
+        rows.iter()
+            .filter(|(effect, covered, _)| used.contains(*effect) && !covered)
+            .map(|(effect, _, entry)| format!("{effect} ({entry})"))
+            .collect()
     }
 
     /// Compares a declaration with the effects static inspection found in the library's own
@@ -286,13 +339,19 @@ mod tests {
     }
 
     #[test]
-    fn widening_is_reported_in_plain_words() {
+    fn widening_is_reported_as_a_delta() {
         let before = parse("[capabilities]\nnetwork = [\"a.example\"]\n");
         let after = parse(
             "[capabilities]\nnetwork = [\"a.example\", \"b.example\"]\nprocesses = [\"git\"]\n",
         );
-        let added = after.widened_beyond(&before);
-        assert_eq!(added, vec!["network host `b.example`", "command `git`"]);
-        assert!(before.widened_beyond(&after).is_empty());
+        let added = after.delta_beyond(&before);
+        assert_eq!(
+            added,
+            vec![
+                "network: +hosts [\"b.example\"]",
+                "processes: +commands [\"git\"]"
+            ]
+        );
+        assert!(before.delta_beyond(&after).is_empty());
     }
 }

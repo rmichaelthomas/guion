@@ -10394,6 +10394,426 @@
           "owner_task": 6
         }
       }
+    },
+    {
+      "id": "opcode-sort-natural",
+      "kind": "opcode",
+      "name": "SortNatural",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-sort-natural.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-sort-natural.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-sort-natural.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-sort-by-key",
+      "kind": "opcode",
+      "name": "SortByKey",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-sort-by-key.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-sort-by-key.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-sort-by-key.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-make-fn",
+      "kind": "opcode",
+      "name": "MakeFn",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-make-fn.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-make-fn.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-make-fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-call-fn",
+      "kind": "opcode",
+      "name": "CallFn",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-call-fn.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-call-fn.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-call-fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-higher-order",
+      "kind": "opcode",
+      "name": "HigherOrder",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-higher-order.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-higher-order.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-higher-order.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-random-bytes",
+      "kind": "opcode",
+      "name": "RandomBytes",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-random-bytes.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-random-bytes.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-random-bytes.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-sqlite-begin-read",
+      "kind": "opcode",
+      "name": "SqliteBeginRead",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-sqlite-begin-read.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-sqlite-begin-read.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-sqlite-begin-read.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-log-append",
+      "kind": "opcode",
+      "name": "LogAppend",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-log-append.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-log-append.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-log-append.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-log-default-level",
+      "kind": "opcode",
+      "name": "LogDefaultLevel",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-log-default-level.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-log-default-level.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-log-default-level.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-gzip-compress",
+      "kind": "opcode",
+      "name": "GzipCompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-gzip-compress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-gzip-compress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-gzip-compress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-gzip-decompress",
+      "kind": "opcode",
+      "name": "GzipDecompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-gzip-decompress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-gzip-decompress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-gzip-decompress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-zlib-compress",
+      "kind": "opcode",
+      "name": "ZlibCompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-zlib-compress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-zlib-compress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-zlib-compress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-zlib-decompress",
+      "kind": "opcode",
+      "name": "ZlibDecompress",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-zlib-decompress.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-zlib-decompress.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-zlib-decompress.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "opcode-yaml-parse",
+      "kind": "opcode",
+      "name": "YamlParse",
+      "owner_task": 8,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-yaml-parse.positive",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "negative": {
+          "case_id": "opcode-yaml-parse.negative",
+          "state": "implemented",
+          "owner_task": 8
+        },
+        "interaction": {
+          "case_id": "opcode-yaml-parse.interaction",
+          "state": "implemented",
+          "owner_task": 8
+        }
+      }
+    },
+    {
+      "id": "type-fn",
+      "kind": "type",
+      "name": "Fn",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Type",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "implemented_current_subset"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "type.fn.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "type.fn.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "type.fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
     }
   ],
   "regression_applications": [

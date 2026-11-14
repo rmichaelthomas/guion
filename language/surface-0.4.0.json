@@ -1,0 +1,5377 @@
+{
+ "kind": "guion_std_surface",
+ "modules": [
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "calendar_parse",
+     "parameters": [
+      {
+       "name": "source",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[CalendarEvent], StdError]",
+     "source": "std:calendar"
+    }
+   ],
+   "module": "calendar",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "parse_cli",
+     "parameters": [
+      {
+       "name": "arguments",
+       "type": "List[Text]"
+      },
+      {
+       "name": "options",
+       "type": "List[CliOption]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[CliArgs, FileError]",
+     "source": "std:cli"
+    }
+   ],
+   "module": "cli",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "values",
+       "type": "Map[Text, List[Text]]"
+      },
+      {
+       "name": "positionals",
+       "type": "List[Text]"
+      }
+     ],
+     "name": "CliArgs"
+    },
+    {
+     "fields": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "takes_value",
+       "type": "Bool"
+      },
+      {
+       "name": "repeatable",
+       "type": "Bool"
+      },
+      {
+       "name": "required",
+       "type": "Bool"
+      }
+     ],
+     "name": "CliOption"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "list_get_int",
+     "parameters": [
+      {
+       "name": "values",
+       "type": "List[Int]"
+      },
+      {
+       "name": "index",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Int]",
+     "source": "std:collections"
+    },
+    {
+     "effects": [],
+     "name": "list_get_text",
+     "parameters": [
+      {
+       "name": "values",
+       "type": "List[Text]"
+      },
+      {
+       "name": "index",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Text]",
+     "source": "std:collections"
+    },
+    {
+     "effects": [],
+     "name": "map_get_int",
+     "parameters": [
+      {
+       "name": "values",
+       "type": "Map[Text, Int]"
+      },
+      {
+       "name": "key",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Int]",
+     "source": "std:collections"
+    },
+    {
+     "effects": [],
+     "name": "map_get_text",
+     "parameters": [
+      {
+       "name": "values",
+       "type": "Map[Text, Text]"
+      },
+      {
+       "name": "key",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Text]",
+     "source": "std:collections"
+    }
+   ],
+   "module": "collections",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "gzip_compress",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:compress"
+    },
+    {
+     "effects": [
+      "filesystem.read",
+      "filesystem.write"
+     ],
+     "name": "gzip_compress_file",
+     "parameters": [
+      {
+       "name": "source",
+       "type": "Text"
+      },
+      {
+       "name": "destination",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:compress"
+    },
+    {
+     "effects": [],
+     "name": "gzip_decompress",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      },
+      {
+       "name": "max_output",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:compress"
+    },
+    {
+     "effects": [
+      "filesystem.read",
+      "filesystem.write"
+     ],
+     "name": "gzip_decompress_file",
+     "parameters": [
+      {
+       "name": "source",
+       "type": "Text"
+      },
+      {
+       "name": "destination",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:compress"
+    },
+    {
+     "effects": [],
+     "name": "zlib_compress",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:compress"
+    },
+    {
+     "effects": [],
+     "name": "zlib_decompress",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      },
+      {
+       "name": "max_output",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:compress"
+    }
+   ],
+   "module": "compress",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "cookie_domain",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "domain",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_expires",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "instant",
+       "type": "Instant"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_http_only",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "enabled",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Cookie",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_max_age",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "seconds",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_new",
+     "parameters": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_parse",
+     "parameters": [
+      {
+       "name": "header",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Map[Text, Text]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_parse_set",
+     "parameters": [
+      {
+       "name": "line",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_path",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_same_site",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "mode",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Cookie, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_secure",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      },
+      {
+       "name": "enabled",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Cookie",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "cookie_serialize",
+     "parameters": [
+      {
+       "name": "c",
+       "type": "Cookie"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, HttpFailure]",
+     "source": "std:cookie"
+    },
+    {
+     "effects": [],
+     "name": "response_add_cookie",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "c",
+       "type": "Cookie"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Response, HttpFailure]",
+     "source": "std:cookie"
+    }
+   ],
+   "module": "cookie",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      },
+      {
+       "name": "http_only",
+       "type": "Bool"
+      },
+      {
+       "name": "secure",
+       "type": "Bool"
+      },
+      {
+       "name": "same_site",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "domain",
+       "type": "Text"
+      },
+      {
+       "name": "max_age",
+       "type": "Option[Int]"
+      },
+      {
+       "name": "expires",
+       "type": "Option[Instant]"
+      }
+     ],
+     "name": "Cookie"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "bytes_xor_key",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      },
+      {
+       "name": "key",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_hmac_sha256",
+     "parameters": [
+      {
+       "name": "key",
+       "type": "Bytes"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_random_base64url",
+     "parameters": [
+      {
+       "name": "count",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_random_bytes",
+     "parameters": [
+      {
+       "name": "count",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_random_hex",
+     "parameters": [
+      {
+       "name": "count",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_random_max_bytes",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_sha1",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_sha256",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "crypto_sha256_file",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_sha256_text",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:crypto"
+    },
+    {
+     "effects": [],
+     "name": "crypto_verify_hmac_sha256",
+     "parameters": [
+      {
+       "name": "key",
+       "type": "Bytes"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      },
+      {
+       "name": "expected",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bool",
+     "source": "std:crypto"
+    }
+   ],
+   "module": "crypto",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "csv_encode_rows",
+     "parameters": [
+      {
+       "name": "rows",
+       "type": "List[List[Text]]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, FileError]",
+     "source": "std:csv"
+    },
+    {
+     "effects": [],
+     "name": "csv_next_row",
+     "parameters": [
+      {
+       "name": "reader",
+       "type": "FileReader"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Option[CsvRow], FileError]",
+     "source": "std:csv"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "csv_open_reader",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[FileReader, FileError]",
+     "source": "std:csv"
+    }
+   ],
+   "module": "csv",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "kind",
+       "type": "Text"
+      },
+      {
+       "name": "ints",
+       "type": "Array[i64]"
+      },
+      {
+       "name": "floats",
+       "type": "Array[f64]"
+      },
+      {
+       "name": "flags",
+       "type": "Array[bool]"
+      },
+      {
+       "name": "codes",
+       "type": "Array[i64]"
+      },
+      {
+       "name": "dictionary",
+       "type": "List[Text]"
+      },
+      {
+       "name": "valid",
+       "type": "Array[bool]"
+      }
+     ],
+     "name": "CsvColumn"
+    },
+    {
+     "fields": [
+      {
+       "name": "start_line",
+       "type": "Int"
+      },
+      {
+       "name": "fields",
+       "type": "List[Text]"
+      }
+     ],
+     "name": "CsvRow"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "base64_decode",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "base64_encode",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "base64url_decode",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "base64url_encode",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "encoding_utf8_decode",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "encoding_utf8_decode_lossy",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "encoding_utf8_encode",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "hex_decode",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:encoding"
+    },
+    {
+     "effects": [],
+     "name": "hex_encode",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:encoding"
+    }
+   ],
+   "module": "encoding",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "fs_close_reader",
+     "parameters": [
+      {
+       "name": "reader",
+       "type": "FileReader"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_copy",
+     "parameters": [
+      {
+       "name": "from",
+       "type": "Text"
+      },
+      {
+       "name": "to",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_exists",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bool, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_kind",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_list_dir",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[Text], FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_make_dir",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_modified_ms",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [],
+     "name": "fs_next_line",
+     "parameters": [
+      {
+       "name": "reader",
+       "type": "FileReader"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Option[SourceLine], FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_open_lines",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[FileReader, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_read_text",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_remove",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_remove_all",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_rename",
+     "parameters": [
+      {
+       "name": "from",
+       "type": "Text"
+      },
+      {
+       "name": "to",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "fs_size",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_temp_dir",
+     "parameters": [
+      {
+       "name": "prefix",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, FileError]",
+     "source": "std:fs"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "fs_temp_file",
+     "parameters": [
+      {
+       "name": "prefix",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, FileError]",
+     "source": "std:fs"
+    }
+   ],
+   "module": "fs",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "relative_path",
+       "type": "Text"
+      },
+      {
+       "name": "kind",
+       "type": "Text"
+      }
+     ],
+     "name": "DirectoryEntry"
+    },
+    {
+     "fields": [
+      {
+       "name": "number",
+       "type": "Int"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "name": "SourceLine"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "http_response_json",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "HttpResponse"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Json, StdError]",
+     "source": "std:http"
+    }
+   ],
+   "module": "http",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "body_limits_default",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "BodyLimits",
+     "source": "std:http_body"
+    },
+    {
+     "effects": [],
+     "name": "body_read_failure",
+     "parameters": [
+      {
+       "name": "problem",
+       "type": "StdError"
+      },
+      {
+       "name": "limits",
+       "type": "BodyLimits"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "HttpFailure",
+     "source": "std:http_body"
+    },
+    {
+     "effects": [],
+     "name": "body_read_limit",
+     "parameters": [
+      {
+       "name": "limits",
+       "type": "BodyLimits"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:http_body"
+    },
+    {
+     "effects": [],
+     "name": "form_parse",
+     "parameters": [
+      {
+       "name": "body",
+       "type": "Bytes"
+      },
+      {
+       "name": "limits",
+       "type": "BodyLimits"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Map[Text, List[Text]], HttpFailure]",
+     "source": "std:http_body"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "multipart_parse",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "Request"
+      },
+      {
+       "name": "files_root",
+       "type": "Text"
+      },
+      {
+       "name": "limits",
+       "type": "BodyLimits"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Multipart, HttpFailure]",
+     "source": "std:http_body"
+    }
+   ],
+   "module": "http_body",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "max_headers",
+       "type": "Int"
+      },
+      {
+       "name": "max_header_bytes",
+       "type": "Int"
+      },
+      {
+       "name": "max_parts",
+       "type": "Int"
+      },
+      {
+       "name": "max_part_bytes",
+       "type": "Int"
+      },
+      {
+       "name": "max_total_bytes",
+       "type": "Int"
+      }
+     ],
+     "name": "BodyLimits"
+    },
+    {
+     "fields": [
+      {
+       "name": "fields",
+       "type": "Map[Text, List[Text]]"
+      },
+      {
+       "name": "files",
+       "type": "List[UploadedFile]"
+      }
+     ],
+     "name": "Multipart"
+    },
+    {
+     "fields": [
+      {
+       "name": "field",
+       "type": "Text"
+      },
+      {
+       "name": "original_name",
+       "type": "Text"
+      },
+      {
+       "name": "stored_path",
+       "type": "Text"
+      },
+      {
+       "name": "bytes",
+       "type": "Int"
+      },
+      {
+       "name": "content_type",
+       "type": "Text"
+      }
+     ],
+     "name": "UploadedFile"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "body_bytes",
+     "parameters": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Body",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "body_stream",
+     "parameters": [
+      {
+       "name": "stream",
+       "type": "Stream"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Body",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "body_text",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Body",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "header_new",
+     "parameters": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Header, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "request_header",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "Request"
+      },
+      {
+       "name": "name",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Text]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "request_new",
+     "parameters": [
+      {
+       "name": "method",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Request",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_add_header",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Response, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_bytes",
+     "parameters": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Response",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "response_file_block",
+     "parameters": [
+      {
+       "name": "plan",
+       "type": "FilePlan"
+      },
+      {
+       "name": "offset",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_file_block_size",
+     "parameters": [
+      {
+       "name": "plan",
+       "type": "FilePlan"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_file_end",
+     "parameters": [
+      {
+       "name": "plan",
+       "type": "FilePlan"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bytes",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_file_head",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "keep_alive",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "response_file_plan",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Option[FilePlan], HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_header",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "name",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Text]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_header_values",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "name",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "List[Text]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_new",
+     "parameters": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "body",
+       "type": "Body"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Response",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_redirect",
+     "parameters": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "location",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Response, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "response_serialize",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "response_serialize_for",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "keep_alive",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_set_header",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Response, HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_text",
+     "parameters": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Response",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "response_wire",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "keep_alive",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[Bytes], HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "response_wire_memory",
+     "parameters": [
+      {
+       "name": "response",
+       "type": "Response"
+      },
+      {
+       "name": "keep_alive",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[Bytes], HttpFailure]",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "stream_from_file",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Stream",
+     "source": "std:http_response"
+    },
+    {
+     "effects": [],
+     "name": "stream_from_list",
+     "parameters": [
+      {
+       "name": "chunks",
+       "type": "List[Bytes]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Stream",
+     "source": "std:http_response"
+    }
+   ],
+   "module": "http_response",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "kind",
+       "type": "Text"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      },
+      {
+       "name": "stream",
+       "type": "Stream"
+      }
+     ],
+     "name": "Body"
+    },
+    {
+     "fields": [
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "start",
+       "type": "Int"
+      },
+      {
+       "name": "length",
+       "type": "Int"
+      },
+      {
+       "name": "chunked",
+       "type": "Bool"
+      }
+     ],
+     "name": "FilePlan"
+    },
+    {
+     "fields": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "name": "Header"
+    },
+    {
+     "fields": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "code",
+       "type": "Text"
+      },
+      {
+       "name": "message",
+       "type": "Text"
+      }
+     ],
+     "name": "HttpFailure"
+    },
+    {
+     "fields": [
+      {
+       "name": "method",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "query",
+       "type": "Map[Text, List[Text]]"
+      },
+      {
+       "name": "headers",
+       "type": "List[Header]"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      },
+      {
+       "name": "params",
+       "type": "Map[Text, Text]"
+      }
+     ],
+     "name": "Request"
+    },
+    {
+     "fields": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "headers",
+       "type": "List[Header]"
+      },
+      {
+       "name": "body",
+       "type": "Body"
+      }
+     ],
+     "name": "Response"
+    },
+    {
+     "fields": [
+      {
+       "name": "kind",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "chunks",
+       "type": "List[Bytes]"
+      }
+     ],
+     "name": "Stream"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "http_request_value",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Request, HttpFailure]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_accept",
+     "parameters": [
+      {
+       "name": "listener",
+       "type": "TcpListener"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [],
+     "name": "http_server_header",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "name",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Option[Text]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_listen",
+     "parameters": [
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpListener, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_read_next",
+     "parameters": [
+      {
+       "name": "previous",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "max_body_bytes",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[HttpServerRequest, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_read_request",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "max_body_bytes",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[HttpServerRequest, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_read_request_from",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "pending",
+       "type": "Bytes"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "max_body_bytes",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[HttpServerRequest, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_reply",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "content_type",
+       "type": "Text"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_reply_text",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_respond",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "content_type",
+       "type": "Text"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_respond_text",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "http_server_send",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "content_type",
+       "type": "Text"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:http_server"
+    },
+    {
+     "effects": [
+      "filesystem.read",
+      "network.socket"
+     ],
+     "name": "http_server_send_response",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      },
+      {
+       "name": "response",
+       "type": "Response"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, HttpFailure]",
+     "source": "std:http_server"
+    }
+   ],
+   "module": "http_server",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "body",
+       "type": "Bytes"
+      },
+      {
+       "name": "rest",
+       "type": "Bytes"
+      }
+     ],
+     "name": "HttpChunkedBody"
+    },
+    {
+     "fields": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "name": "HttpHeader"
+    },
+    {
+     "fields": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "method",
+       "type": "Text"
+      },
+      {
+       "name": "target",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "query",
+       "type": "Text"
+      },
+      {
+       "name": "headers",
+       "type": "List[HttpHeader]"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      },
+      {
+       "name": "pending",
+       "type": "Bytes"
+      },
+      {
+       "name": "keep_alive",
+       "type": "Bool"
+      }
+     ],
+     "name": "HttpServerRequest"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "static_content_type",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:http_static"
+    },
+    {
+     "effects": [],
+     "name": "static_http_date",
+     "parameters": [
+      {
+       "name": "unix_ms",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:http_static"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "static_serve",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "Request"
+      },
+      {
+       "name": "root",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Response, HttpFailure]",
+     "source": "std:http_static"
+    }
+   ],
+   "module": "http_static",
+   "records": []
+  },
+  {
+   "functions": [],
+   "module": "http_types",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "status",
+       "type": "Int"
+      },
+      {
+       "name": "headers",
+       "type": "Map[Text, Text]"
+      },
+      {
+       "name": "body",
+       "type": "Bytes"
+      }
+     ],
+     "name": "HttpResponse"
+    },
+    {
+     "fields": [
+      {
+       "name": "code",
+       "type": "Text"
+      },
+      {
+       "name": "message",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "line",
+       "type": "Int"
+      },
+      {
+       "name": "column",
+       "type": "Int"
+      }
+     ],
+     "name": "StdError"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "json_bool_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bool, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_float_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Float64, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_get_int_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      },
+      {
+       "name": "key",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_get_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      },
+      {
+       "name": "key",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Json, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_get_text_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      },
+      {
+       "name": "key",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_index_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      },
+      {
+       "name": "index",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Json, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_int_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, JsonError]",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_stringify_pairs",
+     "parameters": [
+      {
+       "name": "values",
+       "type": "Map[Text, List[Text]]"
+      },
+      {
+       "name": "key_field",
+       "type": "Text"
+      },
+      {
+       "name": "value_field",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:json"
+    },
+    {
+     "effects": [],
+     "name": "json_text_safe",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Json"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, JsonError]",
+     "source": "std:json"
+    }
+   ],
+   "module": "json",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "jsonl_close",
+     "parameters": [
+      {
+       "name": "reader",
+       "type": "FileReader"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, FileError]",
+     "source": "std:jsonl"
+    },
+    {
+     "effects": [],
+     "name": "jsonl_next",
+     "parameters": [
+      {
+       "name": "reader",
+       "type": "FileReader"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Option[JsonlLine], FileError]",
+     "source": "std:jsonl"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "jsonl_open",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[FileReader, FileError]",
+     "source": "std:jsonl"
+    }
+   ],
+   "module": "jsonl",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "number",
+       "type": "Int"
+      },
+      {
+       "name": "raw",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Option[Json]"
+      },
+      {
+       "name": "error",
+       "type": "Option[JsonError]"
+      }
+     ],
+     "name": "JsonlLine"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_debug",
+     "parameters": [
+      {
+       "name": "logger",
+       "type": "Logger"
+      },
+      {
+       "name": "msg",
+       "type": "Text"
+      },
+      {
+       "name": "fields",
+       "type": "Map[Text, Json]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:log"
+    },
+    {
+     "effects": [
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_error",
+     "parameters": [
+      {
+       "name": "logger",
+       "type": "Logger"
+      },
+      {
+       "name": "msg",
+       "type": "Text"
+      },
+      {
+       "name": "fields",
+       "type": "Map[Text, Json]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:log"
+    },
+    {
+     "effects": [
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_info",
+     "parameters": [
+      {
+       "name": "logger",
+       "type": "Logger"
+      },
+      {
+       "name": "msg",
+       "type": "Text"
+      },
+      {
+       "name": "fields",
+       "type": "Map[Text, Json]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:log"
+    },
+    {
+     "effects": [
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_info_at",
+     "parameters": [
+      {
+       "name": "logger",
+       "type": "Logger"
+      },
+      {
+       "name": "instant",
+       "type": "Instant"
+      },
+      {
+       "name": "msg",
+       "type": "Text"
+      },
+      {
+       "name": "fields",
+       "type": "Map[Text, Json]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:log"
+    },
+    {
+     "effects": [
+      "clock.read",
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_info_now",
+     "parameters": [
+      {
+       "name": "logger",
+       "type": "Logger"
+      },
+      {
+       "name": "msg",
+       "type": "Text"
+      },
+      {
+       "name": "fields",
+       "type": "Map[Text, Json]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:log"
+    },
+    {
+     "effects": [
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_open",
+     "parameters": [
+      {
+       "name": "root",
+       "type": "Text"
+      },
+      {
+       "name": "level",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Logger, StdError]",
+     "source": "std:log"
+    },
+    {
+     "effects": [
+      "filesystem.write",
+      "output.write"
+     ],
+     "name": "log_warn",
+     "parameters": [
+      {
+       "name": "logger",
+       "type": "Logger"
+      },
+      {
+       "name": "msg",
+       "type": "Text"
+      },
+      {
+       "name": "fields",
+       "type": "Map[Text, Json]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:log"
+    }
+   ],
+   "module": "log",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "root",
+       "type": "Text"
+      },
+      {
+       "name": "rank",
+       "type": "Int"
+      }
+     ],
+     "name": "Logger"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "math_abs",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_acos",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_asin",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_atan",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_atan2",
+     "parameters": [
+      {
+       "name": "y",
+       "type": "Float64"
+      },
+      {
+       "name": "x",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_ceil",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_ceil_int",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_cos",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_cosh",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_degrees",
+     "parameters": [
+      {
+       "name": "radians",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_e",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_exp",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_floor",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_floor_int",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_hypot",
+     "parameters": [
+      {
+       "name": "x",
+       "type": "Float64"
+      },
+      {
+       "name": "y",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_ln",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_log",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      },
+      {
+       "name": "base",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_log10",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_log2",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_pi",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_pow",
+     "parameters": [
+      {
+       "name": "base",
+       "type": "Float64"
+      },
+      {
+       "name": "exponent",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_radians",
+     "parameters": [
+      {
+       "name": "degrees",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_round",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_round_int",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_sin",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_sinh",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_tan",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_tanh",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    },
+    {
+     "effects": [],
+     "name": "math_tau",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Float64",
+     "source": "std:math"
+    }
+   ],
+   "module": "math",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_accept",
+     "parameters": [
+      {
+       "name": "listener",
+       "type": "TcpListener"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_close",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_connect",
+     "parameters": [
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_listen",
+     "parameters": [
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpListener, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_listener_close",
+     "parameters": [
+      {
+       "name": "listener",
+       "type": "TcpListener"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_listener_port",
+     "parameters": [
+      {
+       "name": "listener",
+       "type": "TcpListener"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_recv",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "max_bytes",
+       "type": "Int"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bytes, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_send",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tcp_send_text",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tls_accept",
+     "parameters": [
+      {
+       "name": "listener",
+       "type": "TcpListener"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "certificate_chain_pem",
+       "type": "Text"
+      },
+      {
+       "name": "private_key_pem",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tls_accept_verified",
+     "parameters": [
+      {
+       "name": "listener",
+       "type": "TcpListener"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "certificate_chain_pem",
+       "type": "Text"
+      },
+      {
+       "name": "private_key_pem",
+       "type": "Text"
+      },
+      {
+       "name": "client_ca_pem",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tls_connect",
+     "parameters": [
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "extra_ca_pem",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "tls_connect_with_identity",
+     "parameters": [
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "extra_ca_pem",
+       "type": "Text"
+      },
+      {
+       "name": "certificate_chain_pem",
+       "type": "Text"
+      },
+      {
+       "name": "private_key_pem",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TcpConn, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "udp_bind",
+     "parameters": [
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[UdpSock, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "udp_close",
+     "parameters": [
+      {
+       "name": "socket",
+       "type": "UdpSock"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "udp_port",
+     "parameters": [
+      {
+       "name": "socket",
+       "type": "UdpSock"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "udp_recv_from",
+     "parameters": [
+      {
+       "name": "socket",
+       "type": "UdpSock"
+      },
+      {
+       "name": "max_bytes",
+       "type": "Int"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Datagram, StdError]",
+     "source": "std:net"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "udp_send_to",
+     "parameters": [
+      {
+       "name": "socket",
+       "type": "UdpSock"
+      },
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:net"
+    }
+   ],
+   "module": "net",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "data",
+       "type": "Bytes"
+      },
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      }
+     ],
+     "name": "Datagram"
+    },
+    {
+     "fields": [
+      {
+       "name": "handle",
+       "type": "Int"
+      }
+     ],
+     "name": "TcpConn"
+    },
+    {
+     "fields": [
+      {
+       "name": "handle",
+       "type": "Int"
+      }
+     ],
+     "name": "TcpListener"
+    },
+    {
+     "fields": [
+      {
+       "name": "handle",
+       "type": "Int"
+      }
+     ],
+     "name": "UdpSock"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "path_basename",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_components",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "List[Text]",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_dirname",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_extension",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_is_absolute",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bool",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_join",
+     "parameters": [
+      {
+       "name": "base",
+       "type": "Text"
+      },
+      {
+       "name": "child",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_normalize",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_stem",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    },
+    {
+     "effects": [],
+     "name": "path_with_extension",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "extension",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:path"
+    }
+   ],
+   "module": "path",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "process_pid",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:process"
+    },
+    {
+     "effects": [
+      "process.spawn"
+     ],
+     "name": "process_run",
+     "parameters": [
+      {
+       "name": "command",
+       "type": "Text"
+      },
+      {
+       "name": "arguments",
+       "type": "List[Text]"
+      },
+      {
+       "name": "stdin",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[ProcessResult, StdError]",
+     "source": "std:process"
+    },
+    {
+     "effects": [
+      "process.signals"
+     ],
+     "name": "process_signal_poll",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:process"
+    }
+   ],
+   "module": "process",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "exit_code",
+       "type": "Int"
+      },
+      {
+       "name": "stdout",
+       "type": "Text"
+      },
+      {
+       "name": "stderr",
+       "type": "Text"
+      }
+     ],
+     "name": "ProcessResult"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "random_new",
+     "parameters": [
+      {
+       "name": "seed",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Rng",
+     "source": "std:random"
+    },
+    {
+     "effects": [],
+     "name": "random_next_float",
+     "parameters": [
+      {
+       "name": "rng",
+       "type": "Rng"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "RandomFloat",
+     "source": "std:random"
+    },
+    {
+     "effects": [],
+     "name": "random_next_i64",
+     "parameters": [
+      {
+       "name": "rng",
+       "type": "Rng"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "RandomInt",
+     "source": "std:random"
+    },
+    {
+     "effects": [],
+     "name": "random_next_range",
+     "parameters": [
+      {
+       "name": "rng",
+       "type": "Rng"
+      },
+      {
+       "name": "low",
+       "type": "Int"
+      },
+      {
+       "name": "high",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "RandomInt",
+     "source": "std:random"
+    },
+    {
+     "effects": [],
+     "name": "random_next_u64",
+     "parameters": [
+      {
+       "name": "rng",
+       "type": "Rng"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "RandomInt",
+     "source": "std:random"
+    }
+   ],
+   "module": "random",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "value",
+       "type": "Float64"
+      },
+      {
+       "name": "rng",
+       "type": "Rng"
+      }
+     ],
+     "name": "RandomFloat"
+    },
+    {
+     "fields": [
+      {
+       "name": "value",
+       "type": "Int"
+      },
+      {
+       "name": "rng",
+       "type": "Rng"
+      }
+     ],
+     "name": "RandomInt"
+    },
+    {
+     "fields": [
+      {
+       "name": "state",
+       "type": "Int"
+      }
+     ],
+     "name": "Rng"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "regex_escape",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:regex"
+    },
+    {
+     "effects": [],
+     "name": "regex_find",
+     "parameters": [
+      {
+       "name": "pattern",
+       "type": "Text"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Option[List[Text]], StdError]",
+     "source": "std:regex"
+    },
+    {
+     "effects": [],
+     "name": "regex_find_all",
+     "parameters": [
+      {
+       "name": "pattern",
+       "type": "Text"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[Text], StdError]",
+     "source": "std:regex"
+    },
+    {
+     "effects": [],
+     "name": "regex_is_match",
+     "parameters": [
+      {
+       "name": "pattern",
+       "type": "Text"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bool, StdError]",
+     "source": "std:regex"
+    },
+    {
+     "effects": [],
+     "name": "regex_replace",
+     "parameters": [
+      {
+       "name": "pattern",
+       "type": "Text"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      },
+      {
+       "name": "replacement",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:regex"
+    },
+    {
+     "effects": [],
+     "name": "regex_replace_first",
+     "parameters": [
+      {
+       "name": "pattern",
+       "type": "Text"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      },
+      {
+       "name": "replacement",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:regex"
+    },
+    {
+     "effects": [],
+     "name": "regex_split",
+     "parameters": [
+      {
+       "name": "pattern",
+       "type": "Text"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[Text], StdError]",
+     "source": "std:regex"
+    }
+   ],
+   "module": "regex",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "compare_versions",
+     "parameters": [
+      {
+       "name": "left",
+       "type": "SemVer"
+      },
+      {
+       "name": "right",
+       "type": "SemVer"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:semver"
+    },
+    {
+     "effects": [],
+     "name": "parse_version",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[SemVer, FileError]",
+     "source": "std:semver"
+    }
+   ],
+   "module": "semver",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "major",
+       "type": "Text"
+      },
+      {
+       "name": "minor",
+       "type": "Text"
+      },
+      {
+       "name": "patch",
+       "type": "Text"
+      },
+      {
+       "name": "prerelease",
+       "type": "List[Text]"
+      },
+      {
+       "name": "build",
+       "type": "List[Text]"
+      },
+      {
+       "name": "original",
+       "type": "Text"
+      }
+     ],
+     "name": "SemVer"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "sqlite_begin",
+     "parameters": [
+      {
+       "name": "database",
+       "type": "Db"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Transaction, StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "sqlite_begin_read",
+     "parameters": [
+      {
+       "name": "database",
+       "type": "Db"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Transaction, StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [],
+     "name": "sqlite_close",
+     "parameters": [
+      {
+       "name": "database",
+       "type": "Db"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "sqlite_commit",
+     "parameters": [
+      {
+       "name": "transaction",
+       "type": "Transaction"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "sqlite_execute",
+     "parameters": [
+      {
+       "name": "transaction",
+       "type": "Transaction"
+      },
+      {
+       "name": "sql",
+       "type": "Text"
+      },
+      {
+       "name": "values",
+       "type": "List[SqlValue]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [
+      "filesystem.read",
+      "filesystem.write"
+     ],
+     "name": "sqlite_open",
+     "parameters": [
+      {
+       "name": "path",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Db, StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "sqlite_query",
+     "parameters": [
+      {
+       "name": "transaction",
+       "type": "Transaction"
+      },
+      {
+       "name": "sql",
+       "type": "Text"
+      },
+      {
+       "name": "values",
+       "type": "List[SqlValue]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[SqlRow], StdError]",
+     "source": "std:sqlite"
+    },
+    {
+     "effects": [
+      "filesystem.write"
+     ],
+     "name": "sqlite_rollback",
+     "parameters": [
+      {
+       "name": "transaction",
+       "type": "Transaction"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:sqlite"
+    }
+   ],
+   "module": "sqlite",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [
+      "filesystem.read"
+     ],
+     "name": "tar_list",
+     "parameters": [
+      {
+       "name": "archive",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[Text], StdError]",
+     "source": "std:tar"
+    },
+    {
+     "effects": [
+      "filesystem.read",
+      "filesystem.write"
+     ],
+     "name": "tar_read",
+     "parameters": [
+      {
+       "name": "archive",
+       "type": "Text"
+      },
+      {
+       "name": "destination",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:tar"
+    },
+    {
+     "effects": [
+      "filesystem.read",
+      "filesystem.write"
+     ],
+     "name": "tar_write",
+     "parameters": [
+      {
+       "name": "directory",
+       "type": "Text"
+      },
+      {
+       "name": "archive",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:tar"
+    }
+   ],
+   "module": "tar",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "text_casefold",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_collapse_whitespace",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_compare_bytes",
+     "parameters": [
+      {
+       "name": "left",
+       "type": "Text"
+      },
+      {
+       "name": "right",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_compare_scalar",
+     "parameters": [
+      {
+       "name": "left",
+       "type": "Text"
+      },
+      {
+       "name": "right",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Int",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_join",
+     "parameters": [
+      {
+       "name": "values",
+       "type": "List[Text]"
+      },
+      {
+       "name": "delimiter",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_normalize",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      },
+      {
+       "name": "form",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_parse_decimal",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Float64, FileError]",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_parse_integer",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, FileError]",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_replace",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      },
+      {
+       "name": "needle",
+       "type": "Text"
+      },
+      {
+       "name": "replacement",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_split",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      },
+      {
+       "name": "delimiter",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "List[Text]",
+     "source": "std:text"
+    },
+    {
+     "effects": [],
+     "name": "text_trim",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:text"
+    }
+   ],
+   "module": "text",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "format_utc",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Instant"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:time"
+    },
+    {
+     "effects": [],
+     "name": "format_utc_date",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Instant"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:time"
+    },
+    {
+     "effects": [],
+     "name": "parse_date",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Date, FileError]",
+     "source": "std:time"
+    },
+    {
+     "effects": [],
+     "name": "parse_timestamp",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Instant, FileError]",
+     "source": "std:time"
+    },
+    {
+     "effects": [],
+     "name": "resolve_local",
+     "parameters": [
+      {
+       "name": "local",
+       "type": "LocalDateTime"
+      },
+      {
+       "name": "timezone",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TemporalResolution, TimeError]",
+     "source": "std:time"
+    },
+    {
+     "effects": [],
+     "name": "time_zone_data_version",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:time"
+    },
+    {
+     "effects": [
+      "clock.read"
+     ],
+     "name": "today_local",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "Date",
+     "source": "std:time"
+    }
+   ],
+   "module": "time",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "year",
+       "type": "Int"
+      },
+      {
+       "name": "month",
+       "type": "Int"
+      },
+      {
+       "name": "day",
+       "type": "Int"
+      }
+     ],
+     "name": "Date"
+    },
+    {
+     "fields": [
+      {
+       "name": "unix_microseconds",
+       "type": "Int"
+      }
+     ],
+     "name": "Instant"
+    },
+    {
+     "fields": [
+      {
+       "name": "year",
+       "type": "Int"
+      },
+      {
+       "name": "month",
+       "type": "Int"
+      },
+      {
+       "name": "day",
+       "type": "Int"
+      },
+      {
+       "name": "hour",
+       "type": "Int"
+      },
+      {
+       "name": "minute",
+       "type": "Int"
+      },
+      {
+       "name": "second",
+       "type": "Int"
+      },
+      {
+       "name": "microsecond",
+       "type": "Int"
+      }
+     ],
+     "name": "LocalDateTime"
+    },
+    {
+     "fields": [
+      {
+       "name": "kind",
+       "type": "Text"
+      },
+      {
+       "name": "local",
+       "type": "LocalDateTime"
+      },
+      {
+       "name": "timezone",
+       "type": "Text"
+      },
+      {
+       "name": "instants",
+       "type": "List[Instant]"
+      }
+     ],
+     "name": "TemporalResolution"
+    },
+    {
+     "fields": [
+      {
+       "name": "code",
+       "type": "Text"
+      },
+      {
+       "name": "message",
+       "type": "Text"
+      }
+     ],
+     "name": "TimeError"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "toml_get_bool",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Bool, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_get_int",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_get_text",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_has",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Bool",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_parse",
+     "parameters": [
+      {
+       "name": "source",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[TomlDocument, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_put_bool",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      },
+      {
+       "name": "value",
+       "type": "Bool"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_put_int",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      },
+      {
+       "name": "value",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_put_text",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      },
+      {
+       "name": "path",
+       "type": "List[Text]"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:toml"
+    },
+    {
+     "effects": [],
+     "name": "toml_render",
+     "parameters": [
+      {
+       "name": "document",
+       "type": "TomlDocument"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:toml"
+    }
+   ],
+   "module": "toml",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "sql_blob",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "SqlValue",
+     "source": "std:types"
+    },
+    {
+     "effects": [],
+     "name": "sql_integer",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "SqlValue",
+     "source": "std:types"
+    },
+    {
+     "effects": [],
+     "name": "sql_null",
+     "parameters": [],
+     "profile_requirements": [],
+     "result": "SqlValue",
+     "source": "std:types"
+    },
+    {
+     "effects": [],
+     "name": "sql_real",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Float64"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "SqlValue",
+     "source": "std:types"
+    },
+    {
+     "effects": [],
+     "name": "sql_text",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "SqlValue",
+     "source": "std:types"
+    },
+    {
+     "effects": [],
+     "name": "std_error",
+     "parameters": [
+      {
+       "name": "code",
+       "type": "Text"
+      },
+      {
+       "name": "message",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "StdError",
+     "source": "std:types"
+    }
+   ],
+   "module": "types",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "uid",
+       "type": "Text"
+      },
+      {
+       "name": "summary",
+       "type": "Text"
+      },
+      {
+       "name": "start_resolution",
+       "type": "Option[TemporalResolution]"
+      },
+      {
+       "name": "end_resolution",
+       "type": "Option[TemporalResolution]"
+      },
+      {
+       "name": "start_date",
+       "type": "Option[Date]"
+      },
+      {
+       "name": "end_date",
+       "type": "Option[Date]"
+      },
+      {
+       "name": "status",
+       "type": "Text"
+      },
+      {
+       "name": "all_day",
+       "type": "Bool"
+      },
+      {
+       "name": "recurrence_rule",
+       "type": "Option[Text]"
+      }
+     ],
+     "name": "CalendarEvent"
+    },
+    {
+     "fields": [
+      {
+       "name": "columns",
+       "type": "List[Text]"
+      },
+      {
+       "name": "values",
+       "type": "List[SqlValue]"
+      }
+     ],
+     "name": "SqlRow"
+    },
+    {
+     "fields": [
+      {
+       "name": "kind",
+       "type": "Text"
+      },
+      {
+       "name": "integer",
+       "type": "Int"
+      },
+      {
+       "name": "real",
+       "type": "Float64"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      },
+      {
+       "name": "blob",
+       "type": "Bytes"
+      }
+     ],
+     "name": "SqlValue"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "unicode_casefold",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:unicode"
+    },
+    {
+     "effects": [],
+     "name": "unicode_collapse_whitespace",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:unicode"
+    },
+    {
+     "effects": [],
+     "name": "unicode_normalize",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      },
+      {
+       "name": "form",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:unicode"
+    }
+   ],
+   "module": "unicode",
+   "records": []
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "url_decode_component",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Text, StdError]",
+     "source": "std:url"
+    },
+    {
+     "effects": [],
+     "name": "url_encode_component",
+     "parameters": [
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:url"
+    },
+    {
+     "effects": [],
+     "name": "url_parse",
+     "parameters": [
+      {
+       "name": "input",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Url, StdError]",
+     "source": "std:url"
+    },
+    {
+     "effects": [],
+     "name": "url_query_build",
+     "parameters": [
+      {
+       "name": "pairs",
+       "type": "List[QueryPair]"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:url"
+    },
+    {
+     "effects": [],
+     "name": "url_query_parse",
+     "parameters": [
+      {
+       "name": "query",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[List[QueryPair], StdError]",
+     "source": "std:url"
+    },
+    {
+     "effects": [],
+     "name": "url_to_text",
+     "parameters": [
+      {
+       "name": "url",
+       "type": "Url"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:url"
+    }
+   ],
+   "module": "url",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "name",
+       "type": "Text"
+      },
+      {
+       "name": "value",
+       "type": "Text"
+      }
+     ],
+     "name": "QueryPair"
+    },
+    {
+     "fields": [
+      {
+       "name": "scheme",
+       "type": "Text"
+      },
+      {
+       "name": "userinfo",
+       "type": "Text"
+      },
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "port",
+       "type": "Int"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "query",
+       "type": "Text"
+      },
+      {
+       "name": "fragment",
+       "type": "Text"
+      }
+     ],
+     "name": "Url"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "ws_accept_key",
+     "parameters": [
+      {
+       "name": "key",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Text",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_client_handshake",
+     "parameters": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "host",
+       "type": "Text"
+      },
+      {
+       "name": "path",
+       "type": "Text"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "seed",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[WsConn, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_close",
+     "parameters": [
+      {
+       "name": "ws",
+       "type": "WsConn"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Unit, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_receive",
+     "parameters": [
+      {
+       "name": "ws",
+       "type": "WsConn"
+      },
+      {
+       "name": "timeout_ms",
+       "type": "Int"
+      },
+      {
+       "name": "max_message_bytes",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[WsMessage, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_send_binary",
+     "parameters": [
+      {
+       "name": "ws",
+       "type": "WsConn"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_send_close",
+     "parameters": [
+      {
+       "name": "ws",
+       "type": "WsConn"
+      },
+      {
+       "name": "code",
+       "type": "Int"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_send_ping",
+     "parameters": [
+      {
+       "name": "ws",
+       "type": "WsConn"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_send_text",
+     "parameters": [
+      {
+       "name": "ws",
+       "type": "WsConn"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Int, StdError]",
+     "source": "std:websocket"
+    },
+    {
+     "effects": [
+      "network.socket"
+     ],
+     "name": "ws_server_accept",
+     "parameters": [
+      {
+       "name": "request",
+       "type": "HttpServerRequest"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[WsConn, StdError]",
+     "source": "std:websocket"
+    }
+   ],
+   "module": "websocket",
+   "records": [
+    {
+     "fields": [
+      {
+       "name": "conn",
+       "type": "TcpConn"
+      },
+      {
+       "name": "is_client",
+       "type": "Bool"
+      },
+      {
+       "name": "seed",
+       "type": "Int"
+      }
+     ],
+     "name": "WsConn"
+    },
+    {
+     "fields": [
+      {
+       "name": "kind",
+       "type": "Text"
+      },
+      {
+       "name": "data",
+       "type": "Bytes"
+      },
+      {
+       "name": "text",
+       "type": "Text"
+      },
+      {
+       "name": "code",
+       "type": "Int"
+      }
+     ],
+     "name": "WsMessage"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "effects": [],
+     "name": "yaml_parse",
+     "parameters": [
+      {
+       "name": "text",
+       "type": "Text"
+      }
+     ],
+     "profile_requirements": [],
+     "result": "Result[Json, StdError]",
+     "source": "std:yaml"
+    }
+   ],
+   "module": "yaml",
+   "records": []
+  }
+ ],
+ "schema_version": 1
+}

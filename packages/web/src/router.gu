@@ -1,0 +1,291 @@
+# Routing for the web package: a route table matched by method and path, with typed path parameters.
+#
+# A handler is the function type `fn(Request) -> Result[Response, HttpFailure]`. Guion has no type
+# aliases, so the type is written out wherever it is used. (The plan's `HttpError` is an opaque
+# built-in that Guion code cannot construct; `HttpFailure(status, code, message)` from
+# std:http_response is the server-side failure type.) A handler names no socket: it takes a Request
+# value and returns a Response value, so it runs in a test by calling it with a `request_new(...)`.
+#
+# Function values capture nothing, so a router is a value, not a closure: `router(routes)` returns a
+# `Router` record and `router_handle(router, request)` dispatches through it. See middleware.gu for
+# composition and serve.gu for the server.
+#
+# Patterns: `/` is the root. Segments are separated by `/`. A segment is a literal, `{name}` or
+# `{name:text}` (any non-empty text) or `{name:int}` (one or more decimal digits, no sign, no leading
+# zero except `0`, at most 18 digits). `{id:int}` given `abc` does not match: the request is a 404,
+# never a 500.
+#
+# Matching works on the raw request path split on `/` first and each segment percent-decoded after,
+# so an encoded slash (`%2F`) stays inside one parameter and never splits the path. A segment that is
+# not valid percent-encoding, not valid UTF-8, or that decodes to a NUL is a 400.
+#
+# Trailing slash policy: slashes are significant. `/a/` does not match a route registered as `/a`,
+# and a route pattern may not end in a slash (except the root `/`). There is no redirect, so the
+# Location of a redirect never has to be built from client input. Empty segments (`//`) never match.
+#
+# Conflicts: two routes with the same method whose patterns can match one path are an Err at
+# `router(...)`, the second one named. There is no precedence: `/users/{id}` and `/users/new` conflict
+# (use `{id:int}`, which `new` does not satisfy). A malformed pattern or method found by `route` is
+# reported by `router(...)` too, so `route` always returns a Route.
+#
+# A path that matches a pattern but not for the request method is 405 with an `Allow` header; any
+# other path is 404. HEAD is not answered by GET routes; register it explicitly.
+
+import "std:text"
+import "std:url"
+pub import "std:http_response"
+
+pub record Route:
+    method: Text
+    pattern: Text
+    handler: fn(Request) -> Result[Response, HttpFailure]
+    kinds: List[Text]
+    names: List[Text]
+    problem: Text
+
+pub record Router:
+    routes: List[Route]
+
+fn rt_digit(ch: Text) -> Bool:
+    return text_find("0123456789", ch, 0) >= 0
+
+fn rt_name_ok(name: Text) -> Bool:
+    if len(name) == 0:
+        return false
+    let first = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_"
+    let rest = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"
+    let chars = text_chars(name)
+    if text_find(first, chars[0], 0) < 0:
+        return false
+    var index = 1
+    while index < len(chars):
+        if text_find(rest, chars[index], 0) < 0:
+            return false
+        set index = index + 1
+    return true
+
+fn rt_int_text(value: Text) -> Bool:
+    let chars = text_chars(value)
+    if len(chars) == 0 or len(chars) > 18:
+        return false
+    var index = 0
+    while index < len(chars):
+        if not rt_digit(chars[index]):
+            return false
+        set index = index + 1
+    if len(chars) > 1 and chars[0] == "0":
+        return false
+    return true
+
+fn rt_method_ok(method: Text) -> Bool:
+    if len(method) == 0:
+        return false
+    let chars = text_chars(method)
+    var index = 0
+    while index < len(chars):
+        if text_find("ABCDEFGHIJKLMNOPQRSTUVWXYZ", chars[index], 0) < 0:
+            return false
+        set index = index + 1
+    return true
+
+fn rt_bad(method: Text, pattern: Text, handler: fn(Request) -> Result[Response, HttpFailure], problem: Text) -> Route:
+    return Route(method, pattern, handler, [], [], problem)
+
+# Registers a handler for a method and a path pattern. A malformed method or pattern does not stop
+# here; `router(...)` reports it as an Err that names the pattern.
+pub fn route(method: Text, pattern: Text, handler: fn(Request) -> Result[Response, HttpFailure]) -> Route:
+    if not rt_method_ok(method):
+        return rt_bad(method, pattern, handler, "method must be upper-case letters, such as GET")
+    if len(pattern) == 0 or text_slice(pattern, 0, 1) != "/":
+        return rt_bad(method, pattern, handler, "pattern must start with `/`")
+    var kinds: List[Text] = []
+    var names: List[Text] = []
+    if pattern == "/":
+        return Route(method, pattern, handler, kinds, names, "")
+    let parts = text_split(text_slice(pattern, 1, len(pattern)), "/")
+    var index = 0
+    while index < len(parts):
+        let part = parts[index]
+        if len(part) == 0:
+            return rt_bad(method, pattern, handler, "pattern has an empty segment (a doubled or trailing slash)")
+        if text_slice(part, 0, 1) == "{":
+            if text_slice(part, len(part) - 1, len(part)) != "}":
+                return rt_bad(method, pattern, handler, "unclosed `{` in `" + part + "`")
+            let inner = text_slice(part, 1, len(part) - 1)
+            let pieces = text_split(inner, ":")
+            var kind = "text"
+            if len(pieces) > 2:
+                return rt_bad(method, pattern, handler, "parameter `" + part + "` has more than one `:`")
+            if len(pieces) == 2:
+                if pieces[1] == "int":
+                    set kind = "int"
+                else:
+                    if pieces[1] != "text":
+                        return rt_bad(method, pattern, handler, "parameter type must be int or text in `" + part + "`")
+            if not rt_name_ok(pieces[0]):
+                return rt_bad(method, pattern, handler, "parameter name is not an identifier in `" + part + "`")
+            var seen = 0
+            while seen < len(names):
+                if kinds[seen] != "lit" and names[seen] == pieces[0]:
+                    return rt_bad(method, pattern, handler, "parameter `" + pieces[0] + "` appears twice")
+                set seen = seen + 1
+            set kinds = list_push(kinds, kind)
+            set names = list_push(names, pieces[0])
+        else:
+            if text_find(part, "{", 0) >= 0 or text_find(part, "}", 0) >= 0:
+                return rt_bad(method, pattern, handler, "a literal segment cannot contain a brace: `" + part + "`")
+            set kinds = list_push(kinds, "lit")
+            set names = list_push(names, part)
+        set index = index + 1
+    return Route(method, pattern, handler, kinds, names, "")
+
+# Can one path be matched by both routes' patterns?
+fn rt_overlap(a: Route, b: Route) -> Bool:
+    if len(a.kinds) != len(b.kinds):
+        return false
+    var index = 0
+    while index < len(a.kinds):
+        let ka = a.kinds[index]
+        let kb = b.kinds[index]
+        if ka == "lit" and kb == "lit":
+            if a.names[index] != b.names[index]:
+                return false
+        else:
+            if ka == "lit" and kb == "int":
+                if not rt_int_text(a.names[index]):
+                    return false
+            if ka == "int" and kb == "lit":
+                if not rt_int_text(b.names[index]):
+                    return false
+        set index = index + 1
+    return true
+
+pub fn router(routes: List[Route]) -> Result[Router, HttpFailure]:
+    var index = 0
+    while index < len(routes):
+        let current = routes[index]
+        if current.problem != "":
+            return Err(HttpFailure(500, "E_ROUTE_PATTERN", current.method + " " + current.pattern + ": " + current.problem))
+        var earlier = 0
+        while earlier < index:
+            if routes[earlier].method == current.method and rt_overlap(routes[earlier], current):
+                return Err(HttpFailure(500, "E_ROUTE_CONFLICT", current.method + " " + current.pattern + " can match the same path as " + routes[earlier].method + " " + routes[earlier].pattern))
+            set earlier = earlier + 1
+        set index = index + 1
+    return Ok(Router(routes))
+
+# The decoded segments of a raw path; an empty list is the root. Err("bad-request") is a path that is
+# not valid percent-encoding, Err("not-found") one that no pattern can match (an empty segment).
+fn rt_segments(path: Text) -> Result[List[Text], Text]:
+    var out: List[Text] = []
+    if path == "/":
+        return Ok(out)
+    if len(path) == 0 or text_slice(path, 0, 1) != "/":
+        return Err("not-found")
+    let parts = text_split(text_slice(path, 1, len(path)), "/")
+    var index = 0
+    while index < len(parts):
+        if len(parts[index]) == 0:
+            return Err("not-found")
+        match url_decode_component(parts[index]):
+            Ok(decoded):
+                if text_find(decoded, "\u{0}", 0) >= 0:
+                    return Err("bad-request")
+                set out = list_push(out, decoded)
+            Err(problem):
+                return Err("bad-request")
+        set index = index + 1
+    return Ok(out)
+
+fn rt_try(route: Route, segments: List[Text]) -> Option[Map[Text, Text]]:
+    var params: Map[Text, Text] = {}
+    if len(route.kinds) != len(segments):
+        return None
+    var index = 0
+    while index < len(segments):
+        let kind = route.kinds[index]
+        if kind == "lit":
+            if route.names[index] != segments[index]:
+                return None
+        else:
+            if kind == "int" and not rt_int_text(segments[index]):
+                return None
+            set params = map_set(params, route.names[index], segments[index])
+        set index = index + 1
+    return Some(params)
+
+fn rt_with_params(request: Request, params: Map[Text, Text]) -> Request:
+    return Request(request.method, request.path, request.query, request.headers, request.body, params)
+
+fn rt_reply(status: Int) -> Response:
+    return response_text(status, rt_status_text(status))
+
+fn rt_status_text(status: Int) -> Text:
+    if status == 400:
+        return "Bad Request"
+    if status == 404:
+        return "Not Found"
+    if status == 405:
+        return "Method Not Allowed"
+    return "Error"
+
+# Dispatches a request: the handler of the matching route runs with `params` filled in. No match is
+# Ok(404), a path match under other methods is Ok(405) with `Allow`, a bad path encoding is Ok(400);
+# only a handler's own Err is an Err.
+pub fn router_handle(router: Router, request: Request) -> Result[Response, HttpFailure]:
+    match rt_segments(request.path):
+        Err(kind):
+            if kind == "bad-request":
+                return Ok(rt_reply(400))
+            return Ok(rt_reply(404))
+        Ok(segments):
+            var allowed: List[Text] = []
+            var index = 0
+            while index < len(router.routes):
+                let candidate = router.routes[index]
+                match rt_try(candidate, segments):
+                    Some(params):
+                        if candidate.method == request.method:
+                            let handler = candidate.handler
+                            return handler(rt_with_params(request, params))
+                        set allowed = list_push(allowed, candidate.method)
+                    None:
+                        set allowed = allowed
+                set index = index + 1
+            if len(allowed) > 0:
+                let listed = text_join(sort(rt_unique(allowed)), ", ")
+                match response_add_header(rt_reply(405), "Allow", listed):
+                    Ok(response):
+                        return Ok(response)
+                    Err(failure):
+                        return Err(failure)
+            return Ok(rt_reply(404))
+
+fn rt_unique(values: List[Text]) -> List[Text]:
+    var out: List[Text] = []
+    var seen: Map[Text, Int] = {}
+    var index = 0
+    while index < len(values):
+        if not map_has(seen, values[index]):
+            set seen = map_set(seen, values[index], 1)
+            set out = list_push(out, values[index])
+        set index = index + 1
+    return out
+
+# The decoded text of path parameter `name`, or None when the route has no such parameter.
+pub fn path_param(request: Request, name: Text) -> Option[Text]:
+    return map_get(request.params, name)
+
+# An `{name:int}` parameter as an Int. None when absent or not an integer that fits.
+pub fn path_param_int(request: Request, name: Text) -> Option[Int]:
+    match map_get(request.params, name):
+        Some(text):
+            if not rt_int_text(text):
+                return None
+            match text_parse_int(text):
+                Ok(value):
+                    return Some(value)
+                Err(problem):
+                    return None
+        None:
+            return None

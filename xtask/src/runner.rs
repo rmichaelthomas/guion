@@ -1071,10 +1071,16 @@ fn print_json(value: &Value) -> Result<(), String> {
 
 pub fn run(root: &Path, args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|artifact-format-audit> [options]");
+        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|browser-docs|artifact-format-audit|surface-diff|outside-check> [options]");
         return 2;
     }
     let command = args[0].as_str();
+    if command == "surface-diff" {
+        return crate::surface_diff::run(&args[1..]);
+    }
+    if command == "outside-check" {
+        return crate::outside_check::run(root, &args[1..]);
+    }
     if command == "catalog" {
         let result = if args.iter().any(|arg| arg == "--write") {
             builtin_catalog::write(root)
@@ -1092,11 +1098,28 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
             }
         };
     }
+    if command == "browser-docs" {
+        let result = if args.iter().any(|arg| arg == "--write") {
+            crate::browser_docs::write(root)
+        } else {
+            crate::browser_docs::check(root)
+        };
+        return match result {
+            Ok(()) => {
+                println!("browser docs are current");
+                0
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                1
+            }
+        };
+    }
     if command == "agent-reference" {
         let result = if args.iter().any(|arg| arg == "--write") {
             crate::agent_reference::write(root)
         } else {
-            crate::agent_reference::check(root)
+            crate::agent_reference::check(root).and_then(|()| crate::browser_docs::check(root))
         };
         return match result {
             Ok(()) => {

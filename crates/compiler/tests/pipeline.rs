@@ -319,3 +319,122 @@ fn text_slice_is_typechecked_for_text_and_int_bounds() {
         .expect_err("text_slice rejects a non-Int bound");
     assert_eq!(error.code, "E_TYPE_ARGUMENT");
 }
+
+#[test]
+fn break_and_continue_compile_inside_while_and_for_loops() {
+    let sources = [
+        "fn main() -> Int:\n    var i = 0\n    while true:\n        if i == 5:\n            break\n        set i = i + 1\n    return i\n",
+        "fn main() -> Int:\n    var total = 0\n    for n in [1, 2, 3]:\n        if n == 2:\n            continue\n        set total = total + n\n    return total\n",
+        "fn main() -> Int:\n    var count = 0\n    for a in [1, 2]:\n        for b in [1, 2, 3]:\n            if b == 2:\n                break\n            set count = count + 1\n    return count\n",
+        "fn work(limit: Int) -> Int:\n    var i = 0\n    while true:\n        set i = i + 1\n        if i > limit:\n            break\n        if i == 2:\n            continue\n    return i\n\nfn run() -> Result[List[Int], TaskError]:\n    return parallel_map([4, 6], work, 2)\n\nfn main() -> Int:\n    return 0\n",
+    ];
+    for source in sources {
+        let artifact = compile("loops.gu", source).expect("break and continue are statements");
+        // They lower to the existing jump instructions: the format does not move.
+        assert_eq!(
+            artifact.format_version,
+            guion_model::Artifact::CURRENT_VERSION
+        );
+    }
+}
+
+#[test]
+fn break_and_continue_outside_a_loop_report_e_no_loop() {
+    for (keyword, message) in [
+        ("break", "`break` outside a loop"),
+        ("continue", "`continue` outside a loop"),
+    ] {
+        let source = format!("fn main() -> Int:\n    {keyword}\n    return 0\n");
+        let error = compile("no_loop.gu", &source).expect_err("no enclosing loop");
+        assert_eq!(error.code, "E_NO_LOOP", "{keyword}");
+        assert_eq!(error.message, message);
+        assert_eq!((error.span.line, error.span.column), (2, 5));
+    }
+    // A loop that has already ended does not count, and neither does an `if` around the jump.
+    let source = "fn main() -> Int:\n    var i = 0\n    while i < 3:\n        set i = i + 1\n    if i == 3:\n        break\n    return i\n";
+    let error = compile("after.gu", source).expect_err("the loop is over");
+    assert_eq!(error.code, "E_NO_LOOP");
+    assert_eq!((error.span.line, error.span.column), (6, 9));
+}
+
+fn unknown_call_error(source: &str) -> guion_model::Diagnostic {
+    compile("suggest.gu", source).expect_err("the call name is unknown")
+}
+
+#[test]
+fn unknown_call_suggests_the_nearest_builtin_and_keeps_the_code() {
+    let error = unknown_call_error("fn main() -> Int:\n    return sortt(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.message, "unknown function `sortt`");
+    // `sort` is one edit away and `sqrt` two; `sort_by_int_key` is far outside the threshold.
+    assert_eq!(
+        error.suggestions(),
+        vec!["sort".to_string(), "sqrt".to_string()]
+    );
+}
+
+#[test]
+fn unknown_call_suggests_functions_from_the_module() {
+    let source =
+        "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(3)\n";
+    let error = unknown_call_error(source);
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["iterate".to_string()]);
+}
+
+#[test]
+fn unknown_call_with_no_near_candidate_gets_none() {
+    let error = unknown_call_error("fn main() -> Int:\n    return qzxwv(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert!(error.suggestions().is_empty(), "{:?}", error.suggestions());
+}
+
+#[test]
+fn unknown_map_call_offers_main_and_the_list_builtin() {
+    // `main` is one edit from `map`... two, and `map_list` is the list-taking form of the name.
+    let error = unknown_call_error("fn main() -> Int:\n    return map(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(
+        error.suggestions(),
+        vec!["main".to_string(), "map_list".to_string()]
+    );
+}
+
+#[test]
+fn unknown_filter_call_suggests_filter_list() {
+    let error = unknown_call_error("fn main() -> Int:\n    return filter(3)\n");
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["filter_list".to_string()]);
+}
+
+#[test]
+fn the_list_form_suggestion_is_exact_and_needs_three_characters() {
+    // `fold` is within the threshold of nothing; its list form is `fold_list`.
+    let error = unknown_call_error("fn main() -> Int:\n    return fold(3)\n");
+    assert_eq!(error.suggestions(), vec!["fold_list".to_string()]);
+    // A two-character name has no list form, and `any_lis` is close to `any_list` anyway.
+    let error = unknown_call_error("fn main() -> Int:\n    return an(3)\n");
+    assert!(
+        !error.suggestions().contains(&"an_list".to_string()),
+        "{:?}",
+        error.suggestions()
+    );
+    let error = unknown_call_error("fn main() -> Int:\n    return any_lis(3)\n");
+    assert_eq!(error.suggestions(), vec!["any_list".to_string()]);
+}
+
+#[test]
+fn unknown_call_suggestions_are_capped_at_three_and_ordered() {
+    let source = "fn tab1() -> Int:\n    return 1\n\nfn tab2() -> Int:\n    return 1\n\nfn tab3() -> Int:\n    return 1\n\nfn tab() -> Int:\n    return 1\n\nfn tabs() -> Int:\n    return 1\n\nfn main() -> Int:\n    return tabb()\n";
+    let error = unknown_call_error(source);
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert_eq!(error.suggestions(), vec!["tab", "tab1", "tab2"]);
+}
+
+#[test]
+fn unknown_local_variable_gets_no_suggestion() {
+    let source = "fn main() -> Int:\n    let total = 1\n    return totl\n";
+    let error = unknown_call_error(source);
+    assert_eq!(error.code, "E_NAME_UNKNOWN");
+    assert!(error.suggestions().is_empty());
+}

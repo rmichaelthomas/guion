@@ -1,0 +1,199 @@
+# Tests for the publish-one-page slice. Run with `guion test tests.gu` from this directory. None opens a
+# socket: the application is called with Request values. The server tests (concurrency, SQLite
+# readers, byte comparison with the twin) are in crates/cli/tests/f10_publish_page.rs.
+
+import "std:types"
+import "std:text"
+import "std:fs"
+import "std:http_response"
+import "pkg:web/src/lib.gu"
+import "src/routes.gu"
+import "src/store.gu"
+import "src/model.gu"
+
+fn main() -> Int:
+    return 0
+
+record Client:
+    cookie: Text
+    token: Text
+
+fn wipe() -> Unit:
+    let first = fs_remove_all("pages.db")
+    let second = fs_remove_all("sessions.db")
+    let third = fs_remove_all("uploads")
+    let fourth = fs_remove_all("dist")
+    let fifth = fs_remove_all("public")
+    let made = fs_make_dir("uploads")
+    let shared = fs_make_dir("public")
+
+fn fresh() -> App:
+    wipe()
+    assert(is_ok(store_init()))
+    return unwrap(build_app())
+
+fn text_of(response: Response) -> Text:
+    return text_from_bytes_lossy(response.body.data)
+
+fn request(method: Text, path: Text, headers: List[Header], body: Text) -> Request:
+    return Request(method, path, {}, headers, bytes_from_text(body), {})
+
+# The first request of a visitor: the session cookie and the token it is answered with.
+fn visit(app: App) -> Client:
+    let answer = app_respond(app, request("GET", "/p/none", [], ""))
+    let pair = text_split(unwrap(response_header(answer, "set-cookie")), ";")[0]
+    return Client(pair, unwrap(response_header(answer, "x-csrf-token")))
+
+fn api(app: App, client: Client, path: Text, kind: Text, body: Text) -> Response:
+    let headers = [Header("Cookie", client.cookie), Header("x-csrf-token", client.token), Header("Content-Type", kind)]
+    return app_respond(app, request("POST", path, headers, body))
+
+fn page_json(slug: Text, title: Text, block: Text) -> Text:
+    return "{\"slug\": \"" + slug + "\", \"title\": \"" + title + "\", \"blocks\": [" + block + "]}"
+
+fn paragraph(text: Text) -> Text:
+    return "{\"type\": \"paragraph\", \"text\": \"" + text + "\"}"
+
+fn view(app: App, client: Client, slug: Text) -> Response:
+    return app_respond(app, request("GET", "/p/" + slug, [Header("Cookie", client.cookie)], ""))
+
+fn test_the_six_behaviours_run_without_a_socket() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    let created = api(app, client, "/api/pages", "application/json", page_json("one", "One", paragraph("hello")))
+    assert(created.status == 201)
+    assert(unwrap(response_header(created, "location")) == "/p/one")
+    let shown = view(app, client, "one")
+    assert(shown.status == 200)
+    assert(text_find(text_of(shown), "<p>hello</p>", 0) >= 0)
+    assert(text_find(text_of(shown), "name=\"_csrf\" value=\"" + client.token + "\"", 0) >= 0)
+    let published = app_respond(app, request("POST", "/p/one/publish", [Header("Cookie", client.cookie), Header("Content-Type", "application/x-www-form-urlencoded")], "_csrf=" + client.token))
+    assert(published.status == 200)
+    assert(is_ok(fs_exists("dist/one/index.html")))
+    assert(text_find(text_from_bytes_lossy(unwrap(read_bytes("dist/one/index.html"))), "<form", 0) < 0)
+    wipe()
+
+fn test_a_first_request_is_given_a_session_cookie() -> Unit:
+    let app = fresh()
+    let first = app_respond(app, request("GET", "/p/none", [], ""))
+    assert(first.status == 404)
+    let cookie = unwrap(response_header(first, "set-cookie"))
+    assert(text_find(cookie, "__Host-session=", 0) == 0)
+    assert(text_find(cookie, "HttpOnly", 0) > 0)
+    assert(text_find(cookie, "Secure", 0) > 0)
+    assert(text_find(cookie, "SameSite=Lax", 0) > 0)
+    wipe()
+
+fn test_a_write_without_the_token_is_403_and_with_the_token_is_200() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    assert(api(app, client, "/api/pages", "application/json", page_json("two", "Two", paragraph("x"))).status == 201)
+    let form = [Header("Cookie", client.cookie), Header("Content-Type", "application/x-www-form-urlencoded")]
+    let without = app_respond(app, request("POST", "/p/two/publish", form, "x=1"))
+    assert(without.status == 403)
+    assert(text_of(without) == "Forbidden")
+    assert(is_ok(fs_exists("dist/two/index.html")) == false or unwrap(fs_exists("dist/two/index.html")) == false)
+    let wrong = app_respond(app, request("POST", "/p/two/publish", form, "_csrf=" + text_slice(client.token, 0, 43) + "A"))
+    assert(wrong.status == 403)
+    let nothing = app_respond(app, request("POST", "/api/pages", [Header("Cookie", client.cookie), Header("Content-Type", "application/json")], page_json("three", "Three", paragraph("x"))))
+    assert(nothing.status == 403)
+    let with = app_respond(app, request("POST", "/p/two/publish", form, "_csrf=" + client.token))
+    assert(with.status == 200)
+    wipe()
+
+fn test_three_set_cookie_lines_survive_two_wrappers() -> Unit:
+    let app = fresh()
+    let table = unwrap(router([route("GET", "/cookies", two_cookies)]))
+    let stacked = app_with(table, unwrap(layers()))
+    let answer = app_respond(stacked, request("GET", "/cookies", [], ""))
+    assert(answer.status == 200)
+    assert(len(response_header_values(answer, "set-cookie")) == 3)
+    let wire = text_from_bytes(unwrap(response_serialize(answer)))
+    assert(len(text_split(unwrap(wire), "Set-Cookie: ")) == 4)
+    wipe()
+
+fn two_cookies(request: Request) -> Result[Response, HttpFailure]:
+    let first = response_add_header(response_text(200, "ok"), "Set-Cookie", "a=1")?
+    return response_add_header(first, "Set-Cookie", "b=2")
+
+fn test_script_is_inert_in_the_body_and_in_an_attribute() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    let blocks = paragraph("<script>alert(1)</script>") + ", {\"type\": \"image\", \"name\": \"x.png\", \"alt\": \"\\\" onmouseover=\\\"alert(2)\"}"
+    assert(api(app, client, "/api/pages", "application/json", page_json("xss", "<script>alert(0)</script>", blocks)).status == 201)
+    let html = text_of(view(app, client, "xss"))
+    assert(text_find(html, "<script", 0) < 0)
+    assert(text_find(html, "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>", 0) >= 0)
+    assert(text_find(html, "alt=\"&quot; onmouseover=&quot;alert(2)\"", 0) >= 0)
+    wipe()
+
+fn test_the_schema_refuses_blocks_that_carry_markup() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    for_each_refused(app, client)
+    assert(view(app, client, "bad").status == 404)
+    wipe()
+
+fn for_each_refused(app: App, client: Client) -> Unit:
+    let refused = [page_json("bad", "t", "{\"type\": \"html\", \"text\": \"<b>x</b>\"}"), page_json("bad", "t", "{\"type\": \"raw\", \"text\": \"x\"}"), page_json("bad", "t", "{\"text\": \"x\"}"), page_json("bad", "t", "{\"type\": \"image\", \"name\": \"../x.png\", \"alt\": \"a\"}"), page_json("bad", "t", "{\"type\": \"image\", \"name\": \".hidden\", \"alt\": \"a\"}"), page_json("Bad", "t", paragraph("x")), page_json("bad", "t", ""), "[]", "{", "{\"slug\": 1}"]
+    var index = 0
+    while index < len(refused):
+        let answer = api(app, client, "/api/pages", "application/json", refused[index])
+        assert(answer.status == 422)
+        set index = index + 1
+
+fn test_a_taken_slug_is_409_and_the_wrong_content_type_is_415() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    assert(api(app, client, "/api/pages", "application/json", page_json("dup", "A", paragraph("x"))).status == 201)
+    assert(api(app, client, "/api/pages", "application/json", page_json("dup", "B", paragraph("x"))).status == 409)
+    assert(api(app, client, "/api/pages", "text/plain", page_json("other", "B", paragraph("x"))).status == 415)
+    wipe()
+
+fn multipart(name: Text, filename: Text, kind: Text, data: Text) -> Text:
+    return "--XX\r\nContent-Disposition: form-data; name=\"" + name + "\"; filename=\"" + filename + "\"\r\nContent-Type: " + kind + "\r\n\r\n" + data + "\r\n--XX--\r\n"
+
+fn test_an_upload_named_like_a_traversal_is_refused_and_leaves_nothing() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    assert(api(app, client, "/api/pages", "application/json", page_json("up", "Up", paragraph("x"))).status == 201)
+    let before = unwrap(fs_list_dir("."))
+    let uploads = unwrap(fs_list_dir("uploads"))
+    let forged = api(app, client, "/api/pages/1/cover", "multipart/form-data; boundary=XX", multipart("cover", "../../etc/passwd", "image/png", "not an image"))
+    assert(forged.status == 415)
+    let windows = api(app, client, "/api/pages/1/cover", "multipart/form-data; boundary=XX", multipart("cover", "..\\..\\evil.png.exe", "image/png", "x"))
+    assert(windows.status == 415)
+    let wrong_field = api(app, client, "/api/pages/1/cover", "multipart/form-data; boundary=XX", multipart("other", "a.png", "image/png", "x"))
+    assert(wrong_field.status == 400)
+    assert(unwrap(fs_list_dir("uploads")) == uploads)
+    assert(unwrap(fs_list_dir(".")) == before)
+    assert(api(app, client, "/api/pages/99/cover", "multipart/form-data; boundary=XX", multipart("cover", "a.png", "image/png", "x")).status == 404)
+    assert(api(app, client, "/api/pages/1/cover", "application/json", "{}").status == 400)
+    wipe()
+
+fn test_an_upload_that_is_not_an_image_is_refused_by_the_resize_command() -> Unit:
+    let app = fresh()
+    let client = visit(app)
+    assert(api(app, client, "/api/pages", "application/json", page_json("img", "Img", paragraph("x"))).status == 201)
+    let uploads = unwrap(fs_list_dir("uploads"))
+    let answer = api(app, client, "/api/pages/1/cover", "multipart/form-data; boundary=XX", multipart("cover", "fake.png", "image/png", "this is text, not a png"))
+    assert(answer.status == 415 or answer.status == 500)
+    assert(unwrap(fs_list_dir("uploads")) == uploads)
+    wipe()
+
+fn test_files_under_static_have_validators_and_ranges() -> Unit:
+    let app = fresh()
+    assert(is_ok(write_text("public/note.txt", "0123456789")))
+    let plain = app_respond(app, request("GET", "/static/note.txt", [], ""))
+    assert(plain.status == 200)
+    assert(len(response_header_values(plain, "set-cookie")) == 0)
+    let tag = unwrap(response_header(plain, "etag"))
+    let cached = app_respond(app, request("GET", "/static/note.txt", [Header("If-None-Match", tag)], ""))
+    assert(cached.status == 304)
+    assert(len(cached.body.data) == 0)
+    let part = app_respond(app, request("GET", "/static/note.txt", [Header("Range", "bytes=0-3")], ""))
+    assert(part.status == 206)
+    assert(unwrap(response_header(part, "content-range")) == "bytes 0-3/10")
+    assert(app_respond(app, request("GET", "/static/%2e%2e%2fguion.toml", [], "")).status == 404)
+    assert(app_respond(app, request("GET", "/static/../guion.toml", [], "")).status == 404)
+    wipe()

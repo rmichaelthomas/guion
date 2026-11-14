@@ -1,0 +1,88 @@
+import "std:jsonl"
+
+fn main() -> Int:
+    return 0
+
+fn test_while_true_break_exits_with_the_right_value() -> Unit:
+    var i = 0
+    while true:
+        if i == 5:
+            break
+        set i = i + 1
+    assert(i == 5)
+
+fn test_for_continue_skips_matching_items() -> Unit:
+    var total = 0
+    for n in [1, 2, 3, 4, 5, 6]:
+        if n % 2 == 0:
+            continue
+        set total = total + n
+    assert(total == 9)
+
+fn test_for_break_leaves_the_loop() -> Unit:
+    var total = 0
+    for n in [1, 2, 3, 4, 5]:
+        if n == 4:
+            break
+        set total = total + n
+    assert(total == 6)
+
+fn test_inner_break_leaves_only_the_inner_loop() -> Unit:
+    var count = 0
+    for a in [1, 2, 3]:
+        for b in [1, 2, 3, 4]:
+            if b == 3:
+                break
+            set count = count + 1
+    assert(count == 6)
+
+fn worker(limit: Int) -> Int:
+    var i = 0
+    var total = 0
+    while true:
+        set i = i + 1
+        if i > limit:
+            break
+        if i % 2 == 1:
+            continue
+        set total = total + i
+    return total
+
+fn test_break_and_continue_inside_a_parallel_map_worker() -> Unit:
+    let results = unwrap(parallel_map([4, 6, 10], worker, 2))
+    assert(results[0] == 6)
+    assert(results[1] == 12)
+    assert(results[2] == 30)
+
+fn test_break_inside_if_inside_a_reader_loop_still_releases_the_handle() -> Unit:
+    let reader = unwrap(jsonl_open("lines.jsonl"))
+    var seen = 0
+    while true:
+        let step = jsonl_next(reader)
+        assert(is_ok(step))
+        if not is_some(unwrap(step)):
+            break
+        set seen = seen + 1
+        if seen == 3:
+            break
+    assert(seen == 3)
+    assert(is_ok(jsonl_close(reader)))
+    assert(not is_ok(jsonl_close(reader)))
+    assert(not is_ok(jsonl_next(reader)))
+
+fn test_continue_inside_a_reader_loop_reads_every_line() -> Unit:
+    let reader = unwrap(jsonl_open("lines.jsonl"))
+    var seen = 0
+    var kept = 0
+    while true:
+        let step = jsonl_next(reader)
+        assert(is_ok(step))
+        if not is_some(unwrap(step)):
+            break
+        set seen = seen + 1
+        if seen % 2 == 0:
+            continue
+        set kept = kept + 1
+    assert(seen == 5)
+    assert(kept == 3)
+    assert(is_ok(jsonl_close(reader)))

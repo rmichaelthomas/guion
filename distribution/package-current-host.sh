@@ -118,7 +118,7 @@ cp "$ROOT/distribution/package-current-host.sh" "$STAGING/distribution/package-c
 cp "$ROOT/distribution/licenses/uv-LICENSE-MIT.txt" "$ROOT/distribution/licenses/uv-LICENSE-APACHE.txt" "$ROOT/distribution/licenses/tcl-license.terms" "$ROOT/distribution/licenses/tk-license.terms" "$ROOT/distribution/licenses/UPSTREAM-NOTICES.md" "$STAGING/licenses/"
 cp "$ROOT/README.md" "$STAGING/README.md"
 cp "$ROOT/distribution/install.sh" "$STAGING/install.sh"
-cp "$ROOT/docs/reference.md" "$ROOT/docs/compatibility-and-migrations.md" "$ROOT/docs/architecture.md" "$STAGING/docs/"
+cp "$ROOT/docs/reference.md" "$ROOT/docs/browser.md" "$ROOT/docs/web.md" "$ROOT/docs/templates.md" "$ROOT/docs/compatibility-and-migrations.md" "$ROOT/docs/architecture.md" "$STAGING/docs/"
 cp "$ROOT/evaluation/protocol/README.md" "$STAGING/docs/evaluation-protocol.md"
 cp "$ROOT/evaluation/protocol/README.md" "$ROOT/evaluation/protocol/case-runner.md" "$STAGING/evaluation/protocol/"
 cp "$ROOT/evaluation/protocol/ledger.py" "$ROOT/evaluation/protocol/recommendations.py" "$ROOT/evaluation/protocol/case_runner.py" "$ROOT/evaluation/protocol/schedule.py" "$ROOT/evaluation/protocol/stage_delivery.py" "$ROOT/evaluation/protocol/record_prerun.py" "$ROOT/evaluation/protocol/render_choice_prompt.py" "$ROOT/evaluation/protocol/usage_evidence.py" "$ROOT/evaluation/protocol/campaign-config.json" "$STAGING/evaluation/protocol/"

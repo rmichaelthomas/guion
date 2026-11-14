@@ -1,6 +1,10 @@
 import "std:types"
 import "std:net"
 import "std:text"
+import "std:url"
+import "std:http_response"
+
+# std:http_server: HTTP/1.1 requests and responses over std:net. For concurrent requests, give several parallel_map workers the same listener (see docs/agents/examples/concurrent_server.gu and docs/concurrency.md).
 
 pub record HttpHeader:
     name: Text
@@ -83,12 +87,30 @@ pub fn http_server_header(request: HttpServerRequest, name: Text) -> Option[Text
         set index = index + 1
     return None
 
+fn hs_send_parts(conn: TcpConn, parts: List[Bytes]) -> Result[Int, StdError]:
+    var total = 0
+    var index = 0
+    while index < len(parts):
+        match tcp_send(conn, parts[index]):
+            Ok(count):
+                set total = total + count
+            Err(problem):
+                return Err(problem)
+        set index = index + 1
+    return Ok(total)
+
+# The response head and body are built by std:http_response, so every send path refuses a header value
+# that holds a line break.
 fn hs_send(conn: TcpConn, status: Int, content_type: Text, body: Bytes, keep_alive: Bool) -> Result[Int, StdError]:
-    var connection = "close"
-    if keep_alive:
-        set connection = "keep-alive"
-    let head = "HTTP/1.1 " + int_to_text(status) + " " + hs_reason(status) + "\r\nContent-Type: " + content_type + "\r\nContent-Length: " + int_to_text(len(body)) + "\r\nConnection: " + connection + "\r\n\r\n"
-    return tcp_send(conn, bytes_join([bytes_from_text(head), body]))
+    match response_add_header(response_bytes(status, body), "Content-Type", content_type):
+        Ok(response):
+            match response_wire_memory(response, keep_alive):
+                Ok(parts):
+                    return hs_send_parts(conn, parts)
+                Err(failure):
+                    return Err(std_error(failure.code, failure.message))
+        Err(failure):
+            return Err(std_error(failure.code, failure.message))
 
 pub fn http_server_send(conn: TcpConn, status: Int, content_type: Text, body: Bytes) -> Result[Int, StdError]:
     return hs_send(conn, status, content_type, body, false)
@@ -116,6 +138,11 @@ pub fn http_server_reply_text(request: HttpServerRequest, status: Int, text: Tex
 
 fn hs_reject(conn: TcpConn, status: Int) -> Unit:
     let sent = hs_send(conn, status, "text/plain; charset=utf-8", bytes_from_text(hs_reason(status) + "\n"), false)
+    let closed = tcp_close(conn)
+
+# A 413 names the limit that was exceeded; it is sent before any of the body is read.
+fn hs_reject_too_large(conn: TcpConn, max_body_bytes: Int) -> Unit:
+    let sent = hs_send(conn, 413, "text/plain; charset=utf-8", bytes_from_text("max_body_bytes (" + int_to_text(max_body_bytes) + ") exceeded: the request body is larger\n"), false)
     let closed = tcp_close(conn)
 
 fn hs_fill(conn: TcpConn, buffer: Bytes, timeout_ms: Int) -> Result[Bytes, StdError]:
@@ -196,7 +223,7 @@ fn hs_read_chunked(conn: TcpConn, rest: Bytes, timeout_ms: Int, max_body_bytes: 
                     set finished = true
                 else:
                     if len(body) + size > max_body_bytes:
-                        hs_reject(conn, 413)
+                        hs_reject_too_large(conn, max_body_bytes)
                         return Err(std_error("E_HTTP_BODY_TOO_LARGE", "request body is larger than the limit"))
                     while len(buffer) < size + 2:
                         match hs_fill(conn, buffer, timeout_ms):
@@ -318,7 +345,7 @@ pub fn http_server_read_request_from(conn: TcpConn, pending: Bytes, timeout_ms: 
                 return Err(problem)
     else:
         if content_length > max_body_bytes:
-            hs_reject(conn, 413)
+            hs_reject_too_large(conn, max_body_bytes)
             return Err(std_error("E_HTTP_BODY_TOO_LARGE", "request body is larger than the limit"))
         if content_length > 0:
             set body = after_head
@@ -354,3 +381,106 @@ pub fn http_server_read_request(conn: TcpConn, timeout_ms: Int, max_body_bytes: 
 # Reads the next request on a connection that was kept open by http_server_reply.
 pub fn http_server_read_next(previous: HttpServerRequest, timeout_ms: Int, max_body_bytes: Int) -> Result[HttpServerRequest, StdError]:
     return http_server_read_request_from(previous.conn, previous.pending, timeout_ms, max_body_bytes)
+
+# The request as a plain value, so everything after this call runs without a socket. The path is as
+# received (not percent-decoded); the query is decoded into name to values, in order, with repeated
+# names kept; header names are lowercase; `params` is empty until a router fills it. A malformed query
+# is a 400 failure.
+pub fn http_request_value(request: HttpServerRequest) -> Result[Request, HttpFailure]:
+    var query: Map[Text, List[Text]] = {}
+    match url_query_parse(request.query):
+        Ok(pairs):
+            var index = 0
+            while index < len(pairs):
+                var values: List[Text] = []
+                match map_get(query, pairs[index].name):
+                    Some(existing):
+                        set values = existing
+                    None:
+                        set values = values
+                set query = map_set(query, pairs[index].name, list_push(values, pairs[index].value))
+                set index = index + 1
+        Err(problem):
+            return Err(HttpFailure(400, problem.code, problem.message))
+    var headers: List[Header] = []
+    var next = 0
+    while next < len(request.headers):
+        set headers = list_push(headers, Header(request.headers[next].name, request.headers[next].value))
+        set next = next + 1
+    let params: Map[Text, Text] = {}
+    return Ok(Request(request.method, request.path, query, headers, request.body, params))
+
+# Sends a Response and, like http_server_reply, keeps the connection open only when the client asked
+# for that. A response that cannot be serialized (a bad header, a status outside 100 to 599, an
+# unreadable streamed file) is answered with 500 and the failure is returned. A failed send closes
+# the connection.
+pub fn http_server_send_response(request: HttpServerRequest, response: Response) -> Result[Unit, HttpFailure]:
+    match response_file_plan(response):
+        Ok(found):
+            match found:
+                Some(plan):
+                    return hs_send_file(request, response, plan)
+                None:
+                    return hs_send_value(request, response)
+        Err(failure):
+            hs_reject(request.conn, 500)
+            return Err(failure)
+
+fn hs_send_value(request: HttpServerRequest, response: Response) -> Result[Unit, HttpFailure]:
+    match response_wire(response, request.keep_alive):
+        Ok(parts):
+            match hs_send_parts(request.conn, parts):
+                Ok(count):
+                    if not request.keep_alive:
+                        let closed = tcp_close(request.conn)
+                    return Ok(hs_done())
+                Err(problem):
+                    let closed = tcp_close(request.conn)
+                    return Err(HttpFailure(500, problem.code, problem.message))
+        Err(failure):
+            hs_reject(request.conn, 500)
+            return Err(failure)
+
+# A file body goes out one block at a time, so a large file is never held in memory. A failure after
+# the head is sent can only close the connection.
+fn hs_send_file(request: HttpServerRequest, response: Response, plan: FilePlan) -> Result[Unit, HttpFailure]:
+    match response_file_head(response, request.keep_alive):
+        Ok(head):
+            match tcp_send(request.conn, head):
+                Ok(count):
+                    var offset = 0
+                    while offset < plan.length:
+                        match response_file_block(plan, offset):
+                            Ok(block):
+                                if len(block) == 0:
+                                    let closed = tcp_close(request.conn)
+                                    return Err(HttpFailure(500, "E_HTTP_STREAM_READ", "the file ended early"))
+                                match tcp_send(request.conn, block):
+                                    Ok(sent):
+                                        set offset = offset + response_file_block_size(plan)
+                                    Err(problem):
+                                        let closed = tcp_close(request.conn)
+                                        return Err(HttpFailure(500, problem.code, problem.message))
+                            Err(failure):
+                                let closed = tcp_close(request.conn)
+                                return Err(failure)
+                    let tail = response_file_end(plan)
+                    if len(tail) > 0:
+                        match tcp_send(request.conn, tail):
+                            Ok(sent):
+                                set offset = offset
+                            Err(problem):
+                                let closed = tcp_close(request.conn)
+                                return Err(HttpFailure(500, problem.code, problem.message))
+                    if not request.keep_alive:
+                        let closed = tcp_close(request.conn)
+                    return Ok(hs_done())
+                Err(problem):
+                    let closed = tcp_close(request.conn)
+                    return Err(HttpFailure(500, problem.code, problem.message))
+        Err(failure):
+            hs_reject(request.conn, 500)
+            return Err(failure)
+
+fn hs_done() -> Unit:
+    let finished = 0

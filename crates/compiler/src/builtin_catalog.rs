@@ -55,6 +55,11 @@ fn signatures() -> &'static HashMap<String, BuiltinSignature> {
     })
 }
 
+/// Every builtin name in the catalog (unordered).
+pub(crate) fn names() -> impl Iterator<Item = &'static str> {
+    signatures().keys().map(String::as_str)
+}
+
 pub(crate) fn get(name: &str) -> Option<&'static BuiltinSignature> {
     signatures().get(name)
 }
@@ -305,10 +310,19 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "TextCaseFold" => Op::TextCaseFold,
         "TextCollapseWhitespace" => Op::TextCollapseWhitespace,
         "TextNormalize" => Op::TextNormalize,
+        "RandomBytes" => Op::RandomBytes,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,
         "CryptoVerifyHmacSha256" => Op::CryptoVerifyHmacSha256,
         "SqliteOpen" => Op::SqliteOpen,
         "SqliteBegin" => Op::SqliteBegin,
+        "SqliteBeginRead" => Op::SqliteBeginRead,
+        "LogAppend" => Op::LogAppend,
+        "LogDefaultLevel" => Op::LogDefaultLevel,
+        "GzipCompress" => Op::GzipCompress,
+        "GzipDecompress" => Op::GzipDecompress,
+        "ZlibCompress" => Op::ZlibCompress,
+        "ZlibDecompress" => Op::ZlibDecompress,
+        "YamlParse" => Op::YamlParse,
         "SqliteExecute" => Op::SqliteExecute,
         "SqliteQuery" => Op::SqliteQuery,
         "SqliteCommit" => Op::SqliteCommit,
@@ -456,8 +470,10 @@ mod tests {
                     || super::array_operation(&signature.operation).is_some()
                     || signature.operation == "ParallelMap"
                     || signature.operation == "SortBy"
+                    || signature.operation == "SortNatural"
                     || signature.operation == "SortByIntKey"
-                    || signature.operation == "MergeSortedByIntKey",
+                    || signature.operation == "MergeSortedByIntKey"
+                    || guion_model::HigherOrderKind::from_name(&signature.operation).is_some(),
                 "{name}: {}",
                 signature.operation
             );

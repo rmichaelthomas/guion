@@ -2005,6 +2005,71 @@
       "operation": "CryptoHmacSha256"
     },
     {
+      "name": "native_crypto_random_bytes",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "RandomBytes"
+    },
+    {
+      "name": "native_log_append",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "LogAppend"
+    },
+    {
+      "name": "native_log_default_level",
+      "parameters": [],
+      "result": "Text",
+      "operation": "LogDefaultLevel"
+    },
+    {
+      "name": "native_gzip_compress",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "GzipCompress"
+    },
+    {
+      "name": "native_gzip_decompress",
+      "parameters": [
+        "Bytes",
+        "Int"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "GzipDecompress"
+    },
+    {
+      "name": "native_zlib_compress",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "ZlibCompress"
+    },
+    {
+      "name": "native_zlib_decompress",
+      "parameters": [
+        "Bytes",
+        "Int"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "ZlibDecompress"
+    },
+    {
+      "name": "native_yaml_parse",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Json, Record[StdError]]",
+      "operation": "YamlParse"
+    },
+    {
       "name": "native_crypto_verify_hmac_sha256",
       "parameters": [
         "Bytes",
@@ -2021,6 +2086,14 @@
       ],
       "result": "Result[Transaction, Record[StdError]]",
       "operation": "SqliteBegin"
+    },
+    {
+      "name": "native_sqlite_begin_read",
+      "parameters": [
+        "Db"
+      ],
+      "result": "Result[Transaction, Record[StdError]]",
+      "operation": "SqliteBeginRead"
     },
     {
       "name": "native_sqlite_close",
@@ -2233,10 +2306,64 @@
       "operation": "SemVerParse"
     },
     {
+      "name": "sort",
+      "parameters": [
+        "List[$T]"
+      ],
+      "result": "List[$T]",
+      "operation": "SortNatural"
+    },
+    {
+      "name": "map_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> $U"
+      ],
+      "result": "List[$U]",
+      "operation": "MapList"
+    },
+    {
+      "name": "filter_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> Bool"
+      ],
+      "result": "List[$T]",
+      "operation": "FilterList"
+    },
+    {
+      "name": "fold_list",
+      "parameters": [
+        "List[$T]",
+        "$S",
+        "fn($S, $T) -> $S"
+      ],
+      "result": "$S",
+      "operation": "FoldList"
+    },
+    {
+      "name": "any_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> Bool"
+      ],
+      "result": "Bool",
+      "operation": "AnyList"
+    },
+    {
+      "name": "all_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> Bool"
+      ],
+      "result": "Bool",
+      "operation": "AllList"
+    },
+    {
       "name": "sort_by",
       "parameters": [
         "List[$T]",
-        "NamedComparator[$T]"
+        "fn($T) -> $K | fn($T, $T) -> Int"
       ],
       "result": "List[$T]",
       "operation": "SortBy"
@@ -2807,6 +2934,14 @@
       "operation": "CodecSha1"
     },
     {
+      "name": "native_crypto_sha256",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CodecSha256"
+    },
+    {
       "name": "native_bytes_xor",
       "parameters": [
         "Bytes",
@@ -2838,6 +2973,77 @@
       ],
       "result": "Result[Int, FileError]",
       "operation": "FsOpSize"
+    },
+    {
+      "name": "native_fs_sha256",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bytes, FileError]",
+      "operation": "FsOpSha256"
+    },
+    {
+      "name": "native_fs_gzip_compress_file",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpGzipCompressFile"
+    },
+    {
+      "name": "native_fs_gzip_decompress_file",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpGzipDecompressFile"
+    },
+    {
+      "name": "native_fs_tar_write",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpTarWrite"
+    },
+    {
+      "name": "native_fs_tar_read",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpTarRead"
+    },
+    {
+      "name": "native_fs_tar_list",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[List[Text], FileError]",
+      "operation": "FsOpTarList"
+    },
+    {
+      "name": "native_fs_read_range",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Bytes, FileError]",
+      "operation": "FsOpReadRange"
+    },
+    {
+      "name": "native_fs_confined_path",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpConfinedPath"
     },
     {
       "name": "native_fs_modified_ms",

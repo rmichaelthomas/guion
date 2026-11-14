@@ -4320,3 +4320,453 @@ fn native_lowering_coalesces_straight_line_bytecode() {
 
     let _ = fs::remove_dir_all(dir);
 }
+
+#[test]
+fn run_json_step_limit_report_carries_used_and_limit() {
+    let dir = std::env::temp_dir().join(format!("guion-json-step-limit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("guion.toml"),
+        "[project]\nname = \"step-limit\"\nversion = \"0.1.0\"\nentry = \"main.gu\"\n\n[runtime]\ninstruction_limit = 500\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.join("main.gu"),
+        "fn main() -> Int:\n    var i = 0\n    while true:\n        set i = i + 1\n    return i\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--json", "main.gu"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_else(|e| {
+        panic!(
+            "{e}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    });
+    let diagnostic = &report["diagnostic"];
+    assert_eq!(diagnostic["code"], "R_STEP_LIMIT");
+    assert_eq!(diagnostic["limit"], 500);
+    assert_eq!(diagnostic["used"], 500);
+    assert!(diagnostic["message"]
+        .as_str()
+        .unwrap()
+        .contains("`instruction_limit` under `[runtime]`"));
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn loop_jump_fixture_passes_guion_test() {
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/loop_jumps/main.gu");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["test", fixture.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("7 tests passed"));
+}
+
+#[test]
+fn outside_jsonl_summary_report_helpers_pass_guion_test() {
+    // The outside summarizer ranks its report with `sort_by`: by path name, and separately by
+    // count descending with ties kept in path order.
+    let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../evaluation/outside/jsonl-summary/src/report_test.gu");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["test", program.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&output.stdout).contains("3 tests passed"));
+}
+
+#[test]
+fn break_outside_a_loop_is_rejected_by_check_with_e_no_loop() {
+    let dir = std::env::temp_dir().join(format!("guion-no-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("main.gu");
+    fs::write(&source, "fn main() -> Int:\n    break\n    return 0\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["check", source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("E_NO_LOOP"), "{stderr}");
+    assert!(stderr.contains("`break` outside a loop"), "{stderr}");
+    let _ = fs::remove_dir_all(dir);
+}
+
+fn guion_doc(args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("doc")
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+/// Shipped standard-library module names, read from the same directory the CLI resolves
+/// `std:` imports against.
+fn shipped_std_modules() -> Vec<String> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
+    let mut names = fs::read_dir(root)
+        .unwrap()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            (path.extension().is_some_and(|ext| ext == "gu"))
+                .then(|| path.file_stem().unwrap().to_string_lossy().into_owned())
+        })
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
+// http_types is a record-only module; every other module must expose a public function.
+const RECORD_ONLY_STD_MODULES: &[&str] = &["http_types"];
+
+#[test]
+fn doc_std_json_lists_json_get_text_safe() {
+    let output = guion_doc(&["std:json", "--json"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["kind"], "guion_api_report");
+    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["source"], "std:json");
+    let names = report["functions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|function| function["name"].as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert!(
+        names.contains(&"json_get_text_safe".to_owned()),
+        "{names:?}"
+    );
+    assert!(!names.contains(&"main".to_owned()));
+    // The flag position of the existing syntax also works.
+    let leading = guion_doc(&["--json", "std:json"]);
+    assert!(leading.status.success());
+    assert_eq!(leading.stdout, output.stdout);
+    let human = guion_doc(&["std:json"]);
+    assert!(human.status.success());
+    assert!(String::from_utf8_lossy(&human.stdout)
+        .contains("fn json_get_text_safe(value: Json, key: Text) -> Result[Text, JsonError]"));
+}
+
+#[test]
+fn doc_std_nope_lists_valid_modules() {
+    let output = guion_doc(&["std:nope"]);
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unknown standard-library module `std:nope`"),
+        "{stderr}"
+    );
+    for module in shipped_std_modules() {
+        assert!(
+            stderr.contains(&format!("std:{module}")),
+            "{module} in {stderr}"
+        );
+    }
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn doc_walks_every_shipped_std_module() {
+    let modules = shipped_std_modules();
+    assert!(modules.len() >= 27, "{modules:?}");
+    for module in modules {
+        let output = guion_doc(&[&format!("std:{module}")]);
+        assert!(
+            output.status.success(),
+            "std:{module}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            text.starts_with(&format!("API for std:{module}\n")),
+            "{text}"
+        );
+        if !RECORD_ONLY_STD_MODULES.contains(&module.as_str()) {
+            assert!(
+                text.lines().any(|line| line.starts_with("fn ")),
+                "std:{module}: {text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_std_module_documents() {
+    for module in shipped_std_modules() {
+        let output = guion_doc(&[&format!("std:{module}"), "--json"]);
+        assert!(
+            output.status.success(),
+            "std:{module}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let key = if RECORD_ONLY_STD_MODULES.contains(&module.as_str()) {
+            "records"
+        } else {
+            "functions"
+        };
+        assert!(
+            !report[key].as_array().unwrap().is_empty(),
+            "std:{module} has no {key}"
+        );
+    }
+}
+
+#[test]
+fn doc_all_json_is_sorted_and_covers_every_module() {
+    let output = guion_doc(&["--all", "--json"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["kind"], "guion_std_surface");
+    assert_eq!(report["schema_version"], 1);
+    let modules = report["modules"].as_array().unwrap();
+    let names = modules
+        .iter()
+        .map(|module| module["module"].as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(names, shipped_std_modules());
+    for module in modules {
+        let function_names = module["functions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|function| function["name"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let mut sorted = function_names.clone();
+        sorted.sort();
+        assert_eq!(function_names, sorted, "{}", module["module"]);
+    }
+    let again = guion_doc(&["--all", "--json"]);
+    assert_eq!(again.stdout, output.stdout);
+}
+
+fn check_unknown_call(name: &str, extra: &[&str], source: &str) -> std::process::Output {
+    let dir = std::env::temp_dir().join(format!("guion-suggest-{name}-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("main.gu");
+    fs::write(&path, source).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .arg("check")
+        .args(extra)
+        .arg(&path)
+        .output()
+        .unwrap();
+    let _ = fs::remove_dir_all(dir);
+    output
+}
+
+#[test]
+fn check_prints_a_help_line_for_a_near_miss_call_name() {
+    let output = check_unknown_call(
+        "text",
+        &[],
+        "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(1)\n",
+    );
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "error[E_NAME_UNKNOWN]: unknown function `iterat`\nhelp: did you mean `iterate`?"
+        ),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn check_json_reports_suggestions_only_when_there_are_candidates() {
+    let with = check_unknown_call(
+        "json",
+        &["--json"],
+        "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(1)\n",
+    );
+    let report: serde_json::Value = serde_json::from_slice(&with.stdout).unwrap();
+    assert_eq!(report["diagnostic"]["code"], "E_NAME_UNKNOWN");
+    assert_eq!(
+        report["diagnostic"]["suggestions"],
+        serde_json::json!(["iterate"])
+    );
+    let without = check_unknown_call(
+        "json-none",
+        &["--json"],
+        "fn main() -> Int:\n    return qzxwv(1)\n",
+    );
+    let report: serde_json::Value = serde_json::from_slice(&without.stdout).unwrap();
+    assert_eq!(report["diagnostic"]["code"], "E_NAME_UNKNOWN");
+    assert!(report["diagnostic"].get("suggestions").is_none());
+    let stderr = String::from_utf8_lossy(&without.stderr);
+    assert!(!stderr.contains("help:"), "{stderr}");
+}
+
+fn run_probe_tests(file: &str, passed: &str) {
+    let program = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../evaluation/outside/probes/src")
+        .join(file);
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["test", program.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains(passed),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn evaluator_probe_a_loop_that_exits_with_break_passes_guion_test() {
+    run_probe_tests("break_loop_test.gu", "2 tests passed");
+}
+
+#[test]
+fn evaluator_probe_a_report_sorted_by_a_text_key_passes_guion_test() {
+    run_probe_tests("sorted_by_text_test.gu", "2 tests passed");
+}
+
+#[test]
+fn evaluator_probe_a_user_defined_higher_order_function_passes_guion_test() {
+    run_probe_tests("higher_order_test.gu", "3 tests passed");
+}
+
+#[test]
+fn forming_a_function_value_attributes_its_effects_to_the_forming_function() {
+    let dir = std::env::temp_dir().join(format!("guion-fn-effects-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("main.gu");
+    fs::write(
+        &file,
+        "fn writer_fn(x: Int) -> Int:\n    print(x)\n    return x\n\nfn pure_fn(x: Int) -> Int:\n    return x + 1\n\nfn former() -> Int:\n    let f = writer_fn\n    return 0\n\nfn caller(f: fn(Int) -> Int) -> Int:\n    return f(1)\n\nfn fold2(f: fn(Int, Int) -> Int, x: Int, y: Int) -> Int:\n    return f(x, y)\n\nfn passes_by_name() -> Int:\n    return caller(writer_fn)\n\nfn passes_a_pure_name() -> Int:\n    return caller(pure_fn)\n\nfn main() -> Int:\n    let a = former()\n    return passes_a_pure_name()\n",
+    )
+    .unwrap();
+    let inspect = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", "--json", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        inspect.status.success(),
+        "{}",
+        String::from_utf8_lossy(&inspect.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&inspect.stdout).unwrap();
+    let writer = serde_json::json!(["output.write"]);
+    let none = serde_json::json!([]);
+    // Forming the value is enough; nothing calls it.
+    assert_eq!(report["functions"]["former"]["effects"], writer);
+    // Passing the name attributes the effect to the passer; the callee that only calls
+    // through its parameter reports none.
+    assert_eq!(report["functions"]["passes_by_name"]["effects"], writer);
+    assert_eq!(report["functions"]["caller"]["effects"], none);
+    assert_eq!(report["functions"]["passes_a_pure_name"]["effects"], none);
+    // `main` reaches `former`, so it reports the effect too.
+    assert_eq!(report["functions"]["main"]["effects"], writer);
+
+    let human = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["inspect", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(human.status.success());
+    assert!(String::from_utf8_lossy(&human.stdout).contains("output.write"));
+
+    let doc = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["doc", "--json", file.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        doc.status.success(),
+        "{}",
+        String::from_utf8_lossy(&doc.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&doc.stdout).unwrap();
+    let functions = report["functions"].as_array().unwrap();
+    let find = |name: &str| {
+        functions
+            .iter()
+            .find(|function| function["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is documented"))
+    };
+    assert_eq!(find("former")["effects"], writer);
+    assert_eq!(find("passes_by_name")["effects"], writer);
+    assert_eq!(find("caller")["effects"], none);
+    assert_eq!(find("caller")["parameters"][0]["name"], "f");
+    assert_eq!(find("caller")["parameters"][0]["type"], "fn(Int) -> Int");
+    // A parameter of function type does not hide the names of the parameters after it.
+    assert_eq!(find("fold2")["parameters"][0]["name"], "f");
+    assert_eq!(
+        find("fold2")["parameters"][0]["type"],
+        "fn(Int, Int) -> Int"
+    );
+    assert_eq!(find("fold2")["parameters"][1]["name"], "x");
+    assert_eq!(find("fold2")["parameters"][2]["name"], "y");
+    let _ = fs::remove_dir_all(dir);
+}
+
+// `std:types` re-exports `StdError` from `std:http_types` with `pub import`, so a module that
+// names only `StdError` uses the import.
+#[test]
+fn lint_counts_symbols_re_exported_through_pub_import_as_used() {
+    let dir = std::env::temp_dir().join(format!(
+        "guion-lint-reexport-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _cleanup = RemoveDirOnDrop(dir.clone());
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("reexport.gu"),
+        "import \"std:types\"\n\nfn describe(problem: StdError) -> Text:\n    return problem.code\n\nfn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["lint", "reexport.gu"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.status.success(), "{report}");
+    assert!(!report.contains("W_UNUSED_IMPORT"), "{report}");
+}

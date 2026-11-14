@@ -6,6 +6,9 @@ pub fn sqlite_open(path: Text) -> Result[Db, StdError]:
 pub fn sqlite_begin(database: Db) -> Result[Transaction, StdError]:
     return native_sqlite_begin(database)
 
+pub fn sqlite_begin_read(database: Db) -> Result[Transaction, StdError]:
+    return native_sqlite_begin_read(database)
+
 pub fn sqlite_execute(transaction: Transaction, sql: Text, values: List[SqlValue]) -> Result[Int, StdError]:
     return native_sqlite_execute(transaction, sql, values)
 

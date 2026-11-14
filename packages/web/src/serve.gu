@@ -1,0 +1,110 @@
+# Serving an App over HTTP/1.1 with the pattern of docs/concurrency.md: `workers` parallel_map
+# workers share one listener, and each accepts one connection, reads its request, runs the app and
+# answers, so a stalled client holds one worker only. The worker count is a ceiling for waiting
+# (sockets, files), not a multiplier for computing.
+#
+# Public functions take an address and an App, never a connection or a listener. Every response is
+# sent with `Connection: close`; there is no keep-alive, so an idle connection never pins a worker
+# beyond the 10 second read limit. Request bodies are limited to 1 MiB (an over-limit request is
+# answered with 413 by std:http_server before any handler runs).
+#
+# Faults: a handler that returns Err gets a 500 with a fixed body and the failure is logged
+# (app_respond). A runtime fault inside a handler (an index out of range, say) is NOT contained:
+# `parallel_map` stops every worker and `serve` returns Err with the fault's code. Handlers must
+# return Err, not fault. A client that disconnects before the response is written makes the send
+# fail; the worker logs that and takes the next connection.
+
+import "std:types"
+import "std:net"
+import "std:http_server"
+import "std:log"
+import "std:http_response"
+import "middleware.gu"
+
+record Worker:
+    listener: TcpListener
+    app: App
+    idle_ms: Int
+
+fn sv_nothing() -> Unit:
+    let finished = 0
+
+fn sv_close(conn: TcpConn) -> Unit:
+    let closed = tcp_close(conn)
+    return sv_nothing()
+
+fn sv_note(app: App, message: Text) -> Unit:
+    match app.logger:
+        Some(logger):
+            let written = log_warn(logger, message, {})
+        None:
+            eprint(message)
+    return sv_nothing()
+
+# The same request with the connection marked to close after the answer.
+fn sv_close_after(request: HttpServerRequest) -> HttpServerRequest:
+    return HttpServerRequest(request.conn, request.method, request.target, request.path, request.query, request.headers, request.body, request.pending, false)
+
+fn sv_answer(app: App, request: HttpServerRequest) -> Unit:
+    var response = response_text(400, "Bad Request")
+    match http_request_value(request):
+        Ok(value):
+            set response = app_respond(app, value)
+        Err(failure):
+            set response = response_text(400, "Bad Request")
+    match http_server_send_response(request, response):
+        Ok(sent):
+            return sv_nothing()
+        Err(failure):
+            return sv_note(app, "response not delivered: " + failure.code)
+
+fn sv_connection(app: App, conn: TcpConn) -> Unit:
+    match http_server_read_request(conn, 10000, 1048576):
+        Ok(request):
+            return sv_answer(app, sv_close_after(request))
+        Err(problem):
+            return sv_close(conn)
+
+fn sv_worker(worker: Worker) -> Int:
+    var served = 0
+    var wait = 30000
+    if worker.idle_ms > 0:
+        set wait = worker.idle_ms
+    while true:
+        match http_server_accept(worker.listener, wait):
+            Ok(conn):
+                let done = sv_connection(worker.app, conn)
+                set served = served + 1
+            Err(problem):
+                if problem.code != "E_NET_TIMEOUT" or worker.idle_ms > 0:
+                    return served
+    return served
+
+fn sv_run(host: Text, port: Int, app: App, workers: Int, idle_ms: Int) -> Result[Unit, HttpFailure]:
+    if workers < 1:
+        return Err(HttpFailure(500, "E_SERVE_WORKERS", "workers must be at least 1"))
+    match http_server_listen(host, port):
+        Err(problem):
+            return Err(HttpFailure(500, problem.code, problem.message))
+        Ok(listener):
+            var slots: List[Worker] = []
+            var index = 0
+            while index < workers:
+                set slots = list_push(slots, Worker(listener, app, idle_ms))
+                set index = index + 1
+            match parallel_map(slots, sv_worker, workers):
+                Ok(counts):
+                    return Ok(sv_nothing())
+                Err(problem):
+                    return Err(HttpFailure(500, task_code(problem), "a worker stopped on a runtime fault"))
+
+# Listens on host:port and serves until the listener fails. Needs `--allow-bind HOST:PORT`.
+pub fn serve(host: Text, port: Int, app: App, workers: Int) -> Result[Unit, HttpFailure]:
+    return sv_run(host, port, app, workers, 0)
+
+# Like serve, but each worker stops after `idle_ms` milliseconds with no connection, so the call
+# returns Ok. For tests and short-lived tools.
+pub fn serve_for(host: Text, port: Int, app: App, workers: Int, idle_ms: Int) -> Result[Unit, HttpFailure]:
+    if idle_ms < 1:
+        return Err(HttpFailure(500, "E_SERVE_IDLE", "idle_ms must be at least 1"))
+    return sv_run(host, port, app, workers, idle_ms)

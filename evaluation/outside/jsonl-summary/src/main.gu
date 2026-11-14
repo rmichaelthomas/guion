@@ -1,0 +1,90 @@
+import "std:jsonl"
+import "std:json"
+
+pub record PathCount:
+    path: Text
+    count: Int
+
+fn by_name(item: PathCount) -> Text:
+    return item.path
+
+fn by_count_descending(item: PathCount) -> Int:
+    return 0 - item.count
+
+fn path_counts(counts: Map[Text, Int]) -> List[PathCount]:
+    var items: List[PathCount] = []
+    for path in counts:
+        set items = list_push(items, PathCount(path, counts[path]))
+    return items
+
+pub fn report_by_path(counts: Map[Text, Int]) -> List[PathCount]:
+    return sort_by(path_counts(counts), by_name)
+
+pub fn report_by_count(counts: Map[Text, Int]) -> List[PathCount]:
+    return sort_by(path_counts(counts), by_count_descending)
+
+fn bump(counts: Map[Text, Int], key: Text) -> Map[Text, Int]:
+    if map_has(counts, key):
+        return map_set(counts, key, counts[key] + 1)
+    return map_set(counts, key, 1)
+
+fn field_text(value: Json, name: Text) -> Text:
+    let found = json_get_text_safe(value, name)
+    if is_ok(found):
+        return unwrap(found)
+    return "-"
+
+fn main() -> Int:
+    let opened = jsonl_open("access.jsonl")
+    if not is_ok(opened):
+        print("cannot open access.jsonl")
+        return 2
+    let reader = unwrap(opened)
+
+    var requests = 0
+    var bad_lines = 0
+    var failures = 0
+    var status = 0
+    var by_class: Map[Text, Int] = {}
+    var by_path: Map[Text, Int] = {}
+
+    while true:
+        let step = jsonl_next(reader)
+        if not is_ok(step):
+            break
+        let maybe_line = unwrap(step)
+        if not is_some(maybe_line):
+            break
+        let line = unwrap(maybe_line)
+        if not is_some(line.value):
+            set bad_lines = bad_lines + 1
+            continue
+        let record = unwrap(line.value)
+        set status = 0
+        let wanted = json_get_int_safe(record, "status")
+        if is_ok(wanted):
+            set status = unwrap(wanted)
+        set requests = requests + 1
+        set by_class = bump(by_class, int_to_text(status // 100) + "xx")
+        set by_path = bump(by_path, field_text(record, "path"))
+        if status >= 400:
+            set failures = failures + 1
+
+    let closing = jsonl_close(reader)
+
+    print("requests: " + int_to_text(requests))
+    print("bad lines: " + int_to_text(bad_lines))
+    for name in by_class:
+        print(name + ": " + int_to_text(by_class[name]))
+    var rate = 0
+    if requests > 0:
+        set rate = (failures * 100) / requests
+    print("error rate: " + int_to_text(rate) + "%")
+    var top = "-"
+    var top_count = 0
+    let ranked = report_by_count(by_path)
+    if len(ranked) > 0:
+        set top = ranked[0].path
+        set top_count = ranked[0].count
+    print("top path: " + top + " " + int_to_text(top_count))
+    return 0

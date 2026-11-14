@@ -1,0 +1,23 @@
+version: "3.8"
+services:
+  web:
+    image: "nginx:1.25"
+    ports:
+      - "8080:80"
+      - 443:443
+    environment:
+      - KEY=value
+      - OTHER=thing
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+  db:
+    image: postgres:16
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: 'it''s a secret'
+volumes:
+  dbdata: {}

@@ -23,7 +23,14 @@ use toml_edit::{Document, DocumentMut, Item, Table, Value};
 
 pub const UNICODE_DATA_VERSION: &str = "18.0.0";
 pub const IANA_TZDB_VERSION: &str = "2026c";
-const SQLITE_BUSY_DEADLINE_MS: u64 = 30_000;
+/// The busy deadline, in milliseconds, that every SQLite operation of a command-line or embedded
+/// program waits for a lock before failing: `sqlite_begin` fails with `E_SQLITE_BEGIN` once a
+/// single attempt has waited this long. It applies per attempt, and a program cannot change it
+/// (`PRAGMA` is rejected). `language/host-api.md` quotes this number and a test compares them.
+pub const SQLITE_BUSY_DEADLINE_MS: u64 = 2_000;
+
+/// The largest deadline an embedder may configure for a registry.
+const SQLITE_BUSY_DEADLINE_CEILING_MS: u64 = 30_000;
 const CLOSED_HANDLE_CACHE: usize = 4096;
 static NEXT_SERVICE_OWNER: AtomicU64 = AtomicU64::new(1);
 
@@ -379,6 +386,7 @@ struct DatabaseResource {
 struct TransactionResource {
     database_id: u64,
     cancellation: std::sync::Arc<AtomicBool>,
+    read_only: bool,
 }
 
 /// Owns SQLite connections and transactions for one runtime instance.
@@ -425,7 +433,7 @@ impl DatabaseRegistry {
             max_result_bytes,
             max_rows,
             busy_deadline: Duration::from_millis(
-                busy_deadline_ms.clamp(1, SQLITE_BUSY_DEADLINE_MS),
+                busy_deadline_ms.clamp(1, SQLITE_BUSY_DEADLINE_CEILING_MS),
             ),
             closed_databases: HashSet::new(),
             closed_transactions: HashSet::new(),
@@ -510,7 +518,23 @@ impl DatabaseRegistry {
         Ok(resolved)
     }
 
+    /// Opens a write transaction (`BEGIN IMMEDIATE`): it takes the write lock at once, so
+    /// writers serialize and a reader that uses it waits for them.
     pub fn begin(&mut self, database: DbHandle) -> Result<TransactionHandle, ServiceError> {
+        self.begin_with_mode(database, false)
+    }
+
+    /// Opens a read transaction (`BEGIN DEFERRED`): it takes no write lock, so it does not wait
+    /// for a writer to start; a statement that would write is `E_SQLITE_READ_ONLY`.
+    pub fn begin_read(&mut self, database: DbHandle) -> Result<TransactionHandle, ServiceError> {
+        self.begin_with_mode(database, true)
+    }
+
+    fn begin_with_mode(
+        &mut self,
+        database: DbHandle,
+        read_only: bool,
+    ) -> Result<TransactionHandle, ServiceError> {
         self.check_db_owner(database)?;
         if !self.databases.contains_key(&database.id) {
             return Err(self.database_closed_error(database.id));
@@ -537,7 +561,11 @@ impl DatabaseRegistry {
         };
         resource
             .connection
-            .execute_batch("BEGIN IMMEDIATE")
+            .execute_batch(if read_only {
+                "BEGIN DEFERRED"
+            } else {
+                "BEGIN IMMEDIATE"
+            })
             .map_err(|error| sqlite_error("E_SQLITE_BEGIN", error))?;
         resource.active_transaction = Some(id);
         self.transactions.insert(
@@ -545,6 +573,7 @@ impl DatabaseRegistry {
             TransactionResource {
                 database_id: database.id,
                 cancellation: Default::default(),
+                read_only,
             },
         );
         Ok(TransactionHandle {
@@ -571,11 +600,15 @@ impl DatabaseRegistry {
     ) -> Result<i64, ServiceError> {
         let (database_id, cancellation) = self.transaction_snapshot(transaction)?;
         validate_sql(sql)?;
+        let read_only = self.transaction_is_read_only(transaction);
         let deadline = Instant::now() + self.busy_deadline;
         let resource = self
             .databases
             .get_mut(&database_id)
             .ok_or_else(|| ServiceError::new("E_SQLITE_STALE", "database handle is stale"))?;
+        if read_only {
+            ensure_read_only_statement(&resource.connection, sql)?;
+        }
         install_progress_handler(&resource.connection, cancellation.clone(), deadline);
         let params = values.iter().map(sqlite_owned_value).collect::<Vec<_>>();
         let result = resource
@@ -604,6 +637,7 @@ impl DatabaseRegistry {
     ) -> Result<Vec<SqlRow>, ServiceError> {
         let (database_id, cancellation) = self.transaction_snapshot(transaction)?;
         validate_sql(sql)?;
+        let read_only = self.transaction_is_read_only(transaction);
         let deadline = Instant::now() + self.busy_deadline;
         let max_rows = self.max_rows;
         let max_bytes = self.max_result_bytes;
@@ -611,6 +645,9 @@ impl DatabaseRegistry {
             .databases
             .get_mut(&database_id)
             .ok_or_else(|| ServiceError::new("E_SQLITE_STALE", "database handle is stale"))?;
+        if read_only {
+            ensure_read_only_statement(&resource.connection, sql)?;
+        }
         install_progress_handler(&resource.connection, cancellation.clone(), deadline);
         let params = values.iter().map(sqlite_owned_value).collect::<Vec<_>>();
         let result = (|| {
@@ -810,6 +847,11 @@ impl DatabaseRegistry {
             .map(|tx| (tx.database_id, tx.cancellation.clone()))
             .ok_or_else(|| self.transaction_closed_error(handle.id))
     }
+    fn transaction_is_read_only(&self, handle: TransactionHandle) -> bool {
+        self.transactions
+            .get(&handle.id)
+            .is_some_and(|tx| tx.read_only)
+    }
     fn database_closed_error(&self, id: u64) -> ServiceError {
         ServiceError::new(
             if self.closed_databases.contains(&id) {
@@ -889,6 +931,33 @@ fn sql_value_size(value: &SqlValue) -> usize {
 
 fn sqlite_error(code: &str, error: impl std::fmt::Display) -> ServiceError {
     ServiceError::new(code, error.to_string())
+}
+
+/// A read transaction accepts only statements SQLite itself reports as read-only, and no
+/// statement that would end or nest the transaction behind the registry's back.
+fn ensure_read_only_statement(connection: &Connection, sql: &str) -> Result<(), ServiceError> {
+    let refused = || {
+        ServiceError::new(
+            "E_SQLITE_READ_ONLY",
+            "a read transaction cannot run a statement that writes or changes the transaction",
+        )
+    };
+    let tokens = sql_tokens(sql)?;
+    if tokens.first().is_some_and(|token| {
+        matches!(
+            token.as_str(),
+            "BEGIN" | "COMMIT" | "END" | "ROLLBACK" | "SAVEPOINT" | "RELEASE"
+        )
+    }) {
+        return Err(refused());
+    }
+    // A statement that does not compile is reported by the operation itself.
+    if let Ok(statement) = connection.prepare(sql) {
+        if !statement.readonly() {
+            return Err(refused());
+        }
+    }
+    Ok(())
 }
 
 fn validate_sql(sql: &str) -> Result<(), ServiceError> {

@@ -1,0 +1,27 @@
+import "std:types"
+import "std:fs"
+import "std:http_response"
+import "src/model.gu"
+import "src/templates/page.gut.gu"
+import "src/templates/body.gut.gu"
+
+# Renders one fixture through the application's own parser and templates and writes the page and its
+# article to out/NAME.html and out/NAME.body.html: guion run render.gu FIXTURE NAME
+fn main() -> Int:
+    let given = args()
+    let source = read_text(given[0])
+    if not is_ok(source):
+        eprint("cannot read the fixture")
+        return 1
+    match page_parse(unwrap(source)):
+        Err(failure):
+            eprint(failure.code)
+            return 1
+        Ok(page):
+            let made = fs_make_dir("out")
+            let blocks = render_blocks(page)
+            let whole = write_text("out/" + given[1] + ".html", render_page(page.title, blocks).html)
+            let part = write_text("out/" + given[1] + ".body.html", render_body(page.title, blocks).html)
+            if is_ok(whole) and is_ok(part):
+                return 0
+            return 1

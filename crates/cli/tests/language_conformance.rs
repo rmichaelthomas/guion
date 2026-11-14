@@ -591,6 +591,7 @@ struct DiagnosticLocation {
     source: String,
     line: usize,
     column: usize,
+    suggestions: Vec<String>,
 }
 
 fn bootstrap_location(error: &Diagnostic) -> DiagnosticLocation {
@@ -599,6 +600,7 @@ fn bootstrap_location(error: &Diagnostic) -> DiagnosticLocation {
         source: error.source_name.clone().unwrap_or_default(),
         line: error.span.line,
         column: error.span.column,
+        suggestions: error.suggestions().to_vec(),
     }
 }
 
@@ -608,6 +610,16 @@ fn self_host_location(diagnostic: &Value) -> Option<DiagnosticLocation> {
         source: diagnostic.get("source_name")?.as_str()?.to_string(),
         line: diagnostic.get("span")?.get("line")?.as_u64()? as usize,
         column: diagnostic.get("span")?.get("column")?.as_u64()? as usize,
+        suggestions: diagnostic
+            .get("suggestions")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
     })
 }
 
@@ -1125,4 +1137,692 @@ fn extra_modules(id: &str, class: &str) -> Vec<(&'static str, &'static str)> {
         ],
         _ => Vec::new(),
     }
+}
+
+// ---- `break` and `continue` (artifact format unchanged: they lower to jumps) ----
+
+struct LoopJumpCase {
+    name: &'static str,
+    source: &'static str,
+    // Ok(value returned by main) or Err((code, line, column)).
+    expected: Result<usize, (&'static str, usize, usize)>,
+}
+
+fn loop_jump_cases() -> Vec<LoopJumpCase> {
+    vec![
+        LoopJumpCase {
+            name: "while-true-break",
+            source: "fn main() -> Int:\n    var i = 0\n    while true:\n        if i == 5:\n            break\n        set i = i + 1\n    return i * 10 + 2\n",
+            expected: Ok(52),
+        },
+        LoopJumpCase {
+            name: "for-continue",
+            source: "fn main() -> Int:\n    var total = 0\n    for n in [1, 2, 3, 4, 5, 6]:\n        if n % 2 == 0:\n            continue\n        set total = total + n\n    return total\n",
+            expected: Ok(9),
+        },
+        LoopJumpCase {
+            name: "while-continue",
+            source: "fn main() -> Int:\n    var i = 0\n    var total = 0\n    while i < 6:\n        set i = i + 1\n        if i == 3:\n            continue\n        set total = total + i\n    return total\n",
+            expected: Ok(18),
+        },
+        LoopJumpCase {
+            name: "for-break",
+            source: "fn main() -> Int:\n    var total = 0\n    for n in [1, 2, 3, 4, 5]:\n        if n == 4:\n            break\n        set total = total + n\n    return total\n",
+            expected: Ok(6),
+        },
+        LoopJumpCase {
+            name: "break-at-function-top-level",
+            source: "fn main() -> Int:\n    break\n    return 0\n",
+            expected: Err(("E_NO_LOOP", 2, 5)),
+        },
+        LoopJumpCase {
+            name: "continue-at-function-top-level",
+            source: "fn main() -> Int:\n    continue\n    return 0\n",
+            expected: Err(("E_NO_LOOP", 2, 5)),
+        },
+        LoopJumpCase {
+            name: "break-after-the-loop-has-ended",
+            source: "fn main() -> Int:\n    var i = 0\n    while i < 3:\n        set i = i + 1\n    if i == 3:\n        break\n    return i\n",
+            expected: Err(("E_NO_LOOP", 6, 9)),
+        },
+        LoopJumpCase {
+            name: "parallel-map-worker-loops",
+            source: "fn work(limit: Int) -> Int:\n    var i = 0\n    var total = 0\n    while true:\n        set i = i + 1\n        if i > limit:\n            break\n        if i % 2 == 1:\n            continue\n        set total = total + i\n    return total\n\nfn run() -> Result[List[Int], TaskError]:\n    return parallel_map([4, 6, 10], work, 2)\n\nfn main() -> Int:\n    var sum = 0\n    for value in unwrap(run()):\n        set sum = sum + value\n    return sum\n",
+            expected: Ok(48),
+        },
+        LoopJumpCase {
+            name: "nested-inner-break-leaves-only-the-inner-loop",
+            source: "fn main() -> Int:\n    var count = 0\n    for a in [1, 2, 3]:\n        for b in [1, 2, 3, 4]:\n            if b == 3:\n                break\n            set count = count + 1\n    return count\n",
+            expected: Ok(6),
+        },
+        LoopJumpCase {
+            name: "nested-inner-continue-skips-only-the-inner-item",
+            source: "fn main() -> Int:\n    var count = 0\n    var i = 0\n    while i < 3:\n        set i = i + 1\n        for b in [1, 2, 3, 4]:\n            if b % 2 == 1:\n                continue\n            set count = count + 1\n    return count\n",
+            expected: Ok(6),
+        },
+        LoopJumpCase {
+            name: "break-and-continue-inside-match-arms",
+            source: "fn pick(n: Int) -> Option[Int]:\n    if n > 2:\n        return Some(n)\n    return None\n\nfn main() -> Int:\n    var found = 0\n    for n in [1, 2, 3, 4]:\n        match pick(n):\n            Some(value):\n                set found = value\n                break\n            None:\n                continue\n        set found = 99\n    return found\n",
+            expected: Ok(3),
+        },
+    ]
+}
+
+#[test]
+fn break_and_continue_cases_match_in_both_compilers() {
+    let compiler_artifact = prepare_self_host_compiler();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in loop_jump_cases() {
+        let project = TempProject::new(case.name);
+        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
+            &binary,
+            &compiler_artifact,
+            &project,
+            case.source,
+            case.name,
+        );
+        match case.expected {
+            Err((code, line, column)) => {
+                let expected = DiagnosticLocation {
+                    code: code.into(),
+                    source: "main.gu".into(),
+                    line,
+                    column,
+                    suggestions: Vec::new(),
+                };
+                assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
+                assert_eq!(
+                    bootstrap_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+                assert_eq!(
+                    self_host_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+            }
+            Ok(value) => {
+                let bootstrap = bootstrap.unwrap_or_else(|| {
+                    panic!(
+                        "{}: bootstrap rejected: {bootstrap_diagnostic:?}",
+                        case.name
+                    )
+                });
+                let self_host = self_host.unwrap_or_else(|| {
+                    panic!(
+                        "{}: self-host rejected: {self_host_diagnostic:?}",
+                        case.name
+                    )
+                });
+                // The two front ends differ in redundant jumps and spans (an `if` without
+                // `else` already did before this change); the observable behaviour must agree.
+                // Byte-identity is asserted between the self-hosted stages below.
+                for (compiler, artifact) in [("bootstrap", bootstrap), ("self-host", self_host)] {
+                    let observed = observe(artifact, &project.0).expect("artifact loads");
+                    assert_eq!(
+                        observed.result,
+                        Ok(RuntimeValue::Int(BigInt::from_usize(value))),
+                        "{}: {compiler}",
+                        case.name
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn break_and_continue_cases_match_between_stage_two_and_three() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stage_directory = repository.join("target/self-hosted-bootstrap");
+    let project = TempProject::new("break-continue-stages");
+    let load = |name: &str| {
+        Runtime::new()
+            .load(
+                Artifact::from_bytes(
+                    &fs::read(stage_directory.join(name))
+                        .expect("run three-stage bootstrap before stage conformance"),
+                )
+                .expect("native reader accepts the stage artifact"),
+                HostPolicy {
+                    instruction_limit: 500_000_000,
+                    allocation_limit_bytes: 8_589_934_592,
+                    call_depth_limit: 160,
+                    max_collection_items: 1_000_000,
+                    ..HostPolicy::default()
+                }
+                .with_file_access(&project.0, true, false),
+            )
+            .expect("load stage compiler")
+    };
+    let mut stage2 = load("stage2.gub");
+    let mut stage3 = load("stage3.gub");
+    for case in loop_jump_cases() {
+        let source_name = format!("cases/{}/main.gu", case.name);
+        project.write(&source_name, case.source);
+        let two = compile_with_stage(
+            &mut stage2,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let three = compile_with_stage(
+            &mut stage3,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        match (case.expected, two, three) {
+            (Ok(_), Ok(two), Ok(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 artifact mismatch", case.name)
+            }
+            (Err((code, line, column)), Err(two), Err(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
+                assert_eq!(two["diagnostic"]["code"], code, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["line"], line, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["column"], column, "{}", case.name);
+            }
+            (expected, two, three) => panic!(
+                "{}: acceptance mismatch: expected {expected:?}, C2={two:?}, C3={three:?}",
+                case.name
+            ),
+        }
+    }
+}
+
+// ---- Suggestions on unknown call names (B9) ----
+
+struct UnknownCallCase {
+    name: &'static str,
+    source: &'static str,
+    callee: &'static str,
+    line: usize,
+    column: usize,
+    suggestions: &'static [&'static str],
+}
+
+fn unknown_call_cases() -> Vec<UnknownCallCase> {
+    vec![
+        UnknownCallCase {
+            name: "sortt-suggests-sort-then-sqrt",
+            source: "fn main() -> Int:\n    return sortt(3)\n",
+            callee: "sortt",
+            line: 2,
+            column: 12,
+            suggestions: &["sort", "sqrt"],
+        },
+        UnknownCallCase {
+            name: "map-offers-main-and-the-list-builtin",
+            source: "fn main() -> Int:\n    return map(3)\n",
+            callee: "map",
+            line: 2,
+            column: 12,
+            suggestions: &["main", "map_list"],
+        },
+        UnknownCallCase {
+            name: "filter-suggests-filter-list",
+            source: "fn main() -> Int:\n    return filter(3)\n",
+            callee: "filter",
+            line: 2,
+            column: 12,
+            suggestions: &["filter_list"],
+        },
+        UnknownCallCase {
+            name: "fold-suggests-fold-list",
+            source: "fn main() -> Int:\n    return fold(3)\n",
+            callee: "fold",
+            line: 2,
+            column: 12,
+            suggestions: &["fold_list"],
+        },
+        UnknownCallCase {
+            name: "iterat-suggests-the-module-function",
+            source: "fn iterate(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    return iterat(3)\n",
+            callee: "iterat",
+            line: 5,
+            column: 12,
+            suggestions: &["iterate"],
+        },
+        UnknownCallCase {
+            name: "nonsense-name-gets-none",
+            source: "fn main() -> Int:\n    return qzxwv(3)\n",
+            callee: "qzxwv",
+            line: 2,
+            column: 12,
+            suggestions: &[],
+        },
+        UnknownCallCase {
+            name: "three-way-tie-is-capped-and-sorted-by-name",
+            source: "fn tab1() -> Int:\n    return 1\n\nfn tab2() -> Int:\n    return 1\n\nfn tab3() -> Int:\n    return 1\n\nfn tab() -> Int:\n    return 1\n\nfn main() -> Int:\n    return tabb()\n",
+            callee: "tabb",
+            line: 14,
+            column: 12,
+            suggestions: &["tab", "tab1", "tab2"],
+        },
+        UnknownCallCase {
+            name: "closer-candidate-sorts-first",
+            source: "fn length() -> Int:\n    return 1\n\nfn main() -> Int:\n    return lenth(3)\n",
+            callee: "lenth",
+            line: 5,
+            column: 12,
+            suggestions: &["length", "len"],
+        },
+    ]
+}
+
+#[test]
+fn unknown_call_suggestions_match_in_both_compilers() {
+    let compiler_artifact = prepare_self_host_compiler();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in unknown_call_cases() {
+        let project = TempProject::new(case.name);
+        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
+            &binary,
+            &compiler_artifact,
+            &project,
+            case.source,
+            case.name,
+        );
+        let expected = DiagnosticLocation {
+            code: "E_NAME_UNKNOWN".into(),
+            source: "main.gu".into(),
+            line: case.line,
+            column: case.column,
+            suggestions: case.suggestions.iter().map(|s| s.to_string()).collect(),
+        };
+        assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
+        assert_eq!(
+            bootstrap_diagnostic.as_ref(),
+            Some(&expected),
+            "{}",
+            case.name
+        );
+        assert_eq!(
+            self_host_diagnostic.as_ref(),
+            Some(&expected),
+            "{}",
+            case.name
+        );
+        let _ = case.callee;
+    }
+}
+
+#[test]
+fn unknown_call_suggestions_match_between_stage_two_and_three() {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stage_directory = repository.join("target/self-hosted-bootstrap");
+    let project = TempProject::new("unknown-call-stages");
+    let load = |name: &str| {
+        Runtime::new()
+            .load(
+                Artifact::from_bytes(
+                    &fs::read(stage_directory.join(name))
+                        .expect("run three-stage bootstrap before stage conformance"),
+                )
+                .expect("native reader accepts the stage artifact"),
+                HostPolicy {
+                    instruction_limit: 500_000_000,
+                    allocation_limit_bytes: 8_589_934_592,
+                    call_depth_limit: 160,
+                    max_collection_items: 1_000_000,
+                    ..HostPolicy::default()
+                }
+                .with_file_access(&project.0, true, false),
+            )
+            .expect("load stage compiler")
+    };
+    let mut stage2 = load("stage2.gub");
+    let mut stage3 = load("stage3.gub");
+    for case in unknown_call_cases() {
+        let source_name = format!("cases/{}/main.gu", case.name);
+        project.write(&source_name, case.source);
+        let two = compile_with_stage(
+            &mut stage2,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let three = compile_with_stage(
+            &mut stage3,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let (Err(two), Err(three)) = (two, three) else {
+            panic!("{}: expected a diagnostic from both stages", case.name);
+        };
+        assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
+        assert_eq!(two["diagnostic"]["code"], "E_NAME_UNKNOWN", "{}", case.name);
+        let suggestions: Vec<String> = two["diagnostic"]
+            .get("suggestions")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|i| i.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert_eq!(suggestions, case.suggestions, "{}", case.name);
+    }
+}
+
+// ---- General `sort` and `sort_by` (artifact format 65) ----
+
+struct SortCase {
+    name: &'static str,
+    source: &'static str,
+    // Ok(stdout) or Err((code, line, column)).
+    expected: Result<&'static str, (&'static str, usize, usize)>,
+}
+
+fn sort_cases() -> Vec<SortCase> {
+    vec![
+        SortCase {
+            name: "sort-text-int-float",
+            source: "fn main() -> Unit:\n    print(sort([\"bb\", \"ccc\", \"a\"]))\n    print(sort([3, -1, 2]))\n    print(sort([2.5, -0.0, 0.0, -1.5]))\n",
+            expected: Ok("[a, bb, ccc]\n[-1, 2, 3]\n[-1.5, -0, 0, 2.5]\n"),
+        },
+        SortCase {
+            name: "sort-by-text-and-len-keys",
+            source: "fn same(word: Text) -> Text:\n    return word\n\nfn length(word: Text) -> Int:\n    return len(word)\n\nfn main() -> Unit:\n    let words = [\"bb\", \"a\", \"ccc\"]\n    print(sort_by(words, same))\n    print(sort_by(words, length))\n    print(words)\n",
+            expected: Ok("[a, bb, ccc]\n[a, bb, ccc]\n[bb, a, ccc]\n"),
+        },
+        SortCase {
+            name: "sort-by-float-key-is-stable",
+            source: "record Cell:\n    id: Int\n    value: Float64\n\nfn by_value(cell: Cell) -> Float64:\n    return cell.value\n\nfn main() -> Unit:\n    let cells = [Cell(1, 0.0), Cell(2, -0.0), Cell(3, 0.0), Cell(4, -0.0)]\n    var out = \"\"\n    for cell in sort_by(cells, by_value):\n        set out = out + int_to_text(cell.id)\n    print(out)\n",
+            expected: Ok("2413\n"),
+        },
+        SortCase {
+            name: "sort-by-comparator-still-works",
+            source: "fn compare(left: Int, right: Int) -> Int:\n    return right - left\n\nfn main() -> Unit:\n    print(sort_by([1, 3, 2], compare))\n",
+            expected: Ok("[3, 2, 1]\n"),
+        },
+        SortCase {
+            name: "sort-by-int-key-still-works",
+            source: "fn negate(value: Int) -> Int:\n    return 0 - value\n\nfn main() -> Unit:\n    print(sort_by_int_key([1, 3, 2], negate))\n",
+            expected: Ok("[3, 2, 1]\n"),
+        },
+        SortCase {
+            name: "sort-by-bool-key-is-rejected",
+            source: "fn flag(value: Int) -> Bool:\n    return value > 1\n\nfn main() -> Int:\n    return len(sort_by([3, 1, 2], flag))\n",
+            expected: Err(("E_SORT_KEY", 5, 35)),
+        },
+        SortCase {
+            name: "sort-by-unit-key-is-rejected",
+            source: "fn nothing(value: Int) -> Unit:\n    print(value)\n\nfn main() -> Int:\n    return len(sort_by([3, 1, 2], nothing))\n",
+            expected: Err(("E_SORT_KEY", 5, 35)),
+        },
+        SortCase {
+            name: "sort-of-a-bool-list-is-rejected",
+            source: "fn main() -> Int:\n    return len(sort([true, false]))\n",
+            expected: Err(("E_SORT_KEY", 2, 21)),
+        },
+    ]
+}
+
+#[test]
+fn sort_cases_match_in_both_compilers() {
+    cases_match_in_both_compilers(sort_cases());
+}
+
+fn cases_match_in_both_compilers(cases: Vec<SortCase>) {
+    let compiler_artifact = prepare_self_host_compiler();
+    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+    for case in cases {
+        let project = TempProject::new(case.name);
+        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
+            &binary,
+            &compiler_artifact,
+            &project,
+            case.source,
+            case.name,
+        );
+        match case.expected {
+            Err((code, line, column)) => {
+                let expected = DiagnosticLocation {
+                    code: code.into(),
+                    source: "main.gu".into(),
+                    line,
+                    column,
+                    suggestions: Vec::new(),
+                };
+                assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
+                assert_eq!(
+                    bootstrap_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+                assert_eq!(
+                    self_host_diagnostic.as_ref(),
+                    Some(&expected),
+                    "{}",
+                    case.name
+                );
+            }
+            Ok(stdout) => {
+                let bootstrap = bootstrap.unwrap_or_else(|| {
+                    panic!(
+                        "{}: bootstrap rejected: {bootstrap_diagnostic:?}",
+                        case.name
+                    )
+                });
+                let self_host = self_host.unwrap_or_else(|| {
+                    panic!(
+                        "{}: self-host rejected: {self_host_diagnostic:?}",
+                        case.name
+                    )
+                });
+                for (compiler, artifact) in [("bootstrap", bootstrap), ("self-host", self_host)] {
+                    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+                    let observed = observe(artifact, &project.0).expect("artifact loads");
+                    assert_eq!(observed.stdout, stdout, "{}: {compiler} output", case.name);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn sort_cases_match_between_stage_two_and_three() {
+    cases_match_between_stages("sort-stages", sort_cases());
+}
+
+fn cases_match_between_stages(label: &str, cases: Vec<SortCase>) {
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let stage_directory = repository.join("target/self-hosted-bootstrap");
+    let project = TempProject::new(label);
+    let load = |name: &str| {
+        Runtime::new()
+            .load(
+                Artifact::from_bytes(
+                    &fs::read(stage_directory.join(name))
+                        .expect("run three-stage bootstrap before stage conformance"),
+                )
+                .expect("native reader accepts the stage artifact"),
+                HostPolicy {
+                    instruction_limit: 500_000_000,
+                    allocation_limit_bytes: 8_589_934_592,
+                    call_depth_limit: 160,
+                    max_collection_items: 1_000_000,
+                    ..HostPolicy::default()
+                }
+                .with_file_access(&project.0, true, false),
+            )
+            .expect("load stage compiler")
+    };
+    let mut stage2 = load("stage2.gub");
+    let mut stage3 = load("stage3.gub");
+    for case in cases {
+        let source_name = format!("cases/{}/main.gu", case.name);
+        project.write(&source_name, case.source);
+        let two = compile_with_stage(
+            &mut stage2,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        let three = compile_with_stage(
+            &mut stage3,
+            &source_name,
+            case.source,
+            "",
+            serde_json::json!({}),
+        );
+        match (case.expected, two, three) {
+            (Ok(_), Ok(two), Ok(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 artifact mismatch", case.name)
+            }
+            (Err((code, line, column)), Err(two), Err(three)) => {
+                assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
+                assert_eq!(two["diagnostic"]["code"], code, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["line"], line, "{}", case.name);
+                assert_eq!(two["diagnostic"]["span"]["column"], column, "{}", case.name);
+            }
+            (expected, two, three) => panic!(
+                "{}: acceptance mismatch: expected {expected:?}, C2={two:?}, C3={three:?}",
+                case.name
+            ),
+        }
+    }
+}
+
+// ---- First-class function values (artifact format 66) ----
+
+fn function_value_cases() -> Vec<SortCase> {
+    let double = "fn double(x: Int) -> Int:\n    return x * 2\n\n";
+    let leak = |body: &'static str| -> &'static str {
+        Box::leak(format!("{double}{body}").into_boxed_str())
+    };
+    vec![
+        SortCase {
+            name: "fn-value-let-and-call",
+            source: leak("fn main() -> Unit:\n    let f = double\n    let g: fn(Int) -> Int = f\n    print(f(4))\n    print(g(5))\n"),
+            expected: Ok("8\n10\n"),
+        },
+        SortCase {
+            name: "fn-value-apply-twice",
+            source: leak("fn apply_twice(f: fn(Int) -> Int, x: Int) -> Int:\n    return f(f(x))\n\nfn main() -> Unit:\n    print(apply_twice(double, 3))\n"),
+            expected: Ok("12\n"),
+        },
+        SortCase {
+            name: "fn-value-returned-and-composed",
+            source: leak("fn add_one(x: Int) -> Int:\n    return x + 1\n\nfn pick(first: Bool) -> fn(Int) -> Int:\n    if first:\n        return double\n    return add_one\n\nfn compose(f: fn(Int) -> Int, g: fn(Int) -> Int, x: Int) -> Int:\n    return f(g(x))\n\nfn main() -> Unit:\n    print(compose(pick(true), pick(false), 5))\n"),
+            expected: Ok("12\n"),
+        },
+        SortCase {
+            name: "fn-value-local-shadows-function",
+            source: leak("fn add_one(x: Int) -> Int:\n    return x + 1\n\nfn apply(double: fn(Int) -> Int, x: Int) -> Int:\n    return double(x)\n\nfn main() -> Unit:\n    print(apply(add_one, 1))\n    print(double(1))\n"),
+            expected: Ok("2\n2\n"),
+        },
+        SortCase {
+            name: "fn-value-in-record-list-and-map",
+            source: leak("record Handler:\n    name: Text\n    run: fn(Int) -> Int\n\nfn main() -> Unit:\n    let handler = Handler(\"double\", double)\n    let run = handler.run\n    print(run(21))\n    let fns = [double, double]\n    var total = 0\n    for f in fns:\n        set total = total + f(3)\n    print(total)\n    let by_name = {\"double\": double}\n    match map_get(by_name, \"double\"):\n        Some(f):\n            print(f(9))\n        None:\n            print(\"missing\")\n"),
+            expected: Ok("42\n12\n18\n"),
+        },
+        SortCase {
+            name: "fn-value-sort-by-key-variable",
+            source: "record Person:\n    name: Text\n    score: Int\n\nfn score_of(person: Person) -> Int:\n    return person.score\n\nfn name_of(person: Person) -> Text:\n    return person.name\n\nfn names(people: List[Person]) -> Text:\n    var out = \"\"\n    for person in people:\n        set out = out + person.name\n    return out\n\nfn main() -> Unit:\n    let people = [Person(\"c\", 3), Person(\"a\", 1), Person(\"b\", 2)]\n    let key = score_of\n    print(names(sort_by(people, key)))\n    print(names(sort_by(people, score_of)))\n    let by_name = name_of\n    print(names(sort_by(people, by_name)))\n",
+            expected: Ok("abc\nabc\nabc\n"),
+        },
+        SortCase {
+            name: "fn-value-sort-by-int-key-and-comparator-variables",
+            source: "fn negate(x: Int) -> Int:\n    return 0 - x\n\nfn descending(left: Int, right: Int) -> Int:\n    return right - left\n\nfn main() -> Unit:\n    let key = negate\n    print(sort_by_int_key([1, 3, 2], key))\n    print(merge_sorted_by_int_key([[3, 1], [2]], key))\n    let compare = descending\n    print(sort_by([1, 3, 2], compare))\n",
+            expected: Ok("[3, 2, 1]\n[3, 2, 1]\n[3, 2, 1]\n"),
+        },
+        SortCase {
+            name: "fn-value-parallel-map-variable-worker",
+            source: "fn square(x: Int) -> Int:\n    return x * x\n\nfn main() -> Unit:\n    let worker = square\n    match parallel_map([1, 2, 3], worker, 2):\n        Ok(values):\n            print(values)\n        Err(error):\n            print(\"failed\")\n",
+            expected: Ok("[1, 4, 9]\n"),
+        },
+        SortCase {
+            name: "fn-value-list-builtins",
+            source: leak("fn add(total: Int, x: Int) -> Int:\n    return total + x\n\nfn big(x: Int) -> Bool:\n    return x > 2\n\nfn main() -> Unit:\n    print(map_list([1, 2, 3], double))\n    print(filter_list([1, 2, 3, 4], big))\n    print(fold_list([1, 2, 3], 10, add))\n    print(any_list([1, 2, 3], big))\n    print(all_list([1, 2, 3], big))\n    let f = double\n    print(map_list([4], f))\n"),
+            expected: Ok("[2, 4, 6]\n[3, 4]\n16\ntrue\nfalse\n[8]\n"),
+        },
+        SortCase {
+            name: "fn-value-lambda-is-no-closure",
+            source: leak("fn main() -> Unit:\n    let f = fn(x: Int) -> Int: x + 1\n    print(f(1))\n"),
+            expected: Err(("E_FN_NO_CLOSURES", 5, 13)),
+        },
+        SortCase {
+            name: "fn-value-nested-fn-is-no-closure",
+            source: "fn main() -> Unit:\n    fn inner(x: Int) -> Int:\n        return x\n    print(1)\n",
+            expected: Err(("E_FN_NO_CLOSURES", 2, 5)),
+        },
+        SortCase {
+            name: "fn-value-compare-is-rejected",
+            source: leak("fn main() -> Unit:\n    let f = double\n    let g = double\n    print(f == g)\n"),
+            expected: Err(("E_FN_COMPARE", 7, 13)),
+        },
+        SortCase {
+            name: "fn-value-call-with-wrong-arity",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn main() -> Unit:\n    let f = add\n    print(f(1))\n",
+            expected: Err(("E_CALL_ARITY", 6, 11)),
+        },
+        SortCase {
+            name: "fn-value-call-with-wrong-type",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn main() -> Unit:\n    let f = add\n    print(f(1, \"two\"))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 6, 16)),
+        },
+        SortCase {
+            name: "fn-value-annotation-mismatch",
+            source: leak("fn main() -> Unit:\n    let f: fn(Int) -> Text = double\n    print(1)\n"),
+            expected: Err(("E_TYPE_ANNOTATION", 5, 5)),
+        },
+        SortCase {
+            name: "fn-value-passed-with-the-wrong-shape",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn apply(f: fn(Int) -> Int, x: Int) -> Int:\n    return f(x)\n\nfn main() -> Unit:\n    print(apply(add, 1))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 8, 17)),
+        },
+        SortCase {
+            name: "fn-value-not-serializable-json",
+            source: leak("fn main() -> Unit:\n    let f = double\n    print(json_stringify(json_set(json_object(), \"k\", f)))\n"),
+            expected: Err(("E_FN_NOT_SERIALIZABLE", 6, 55)),
+        },
+        SortCase {
+            name: "fn-value-not-serializable-record-field-in-process-args",
+            source: leak("record Box:\n    run: fn(Int) -> Int\n\nfn main() -> Unit:\n    let box = Box(double)\n    native_process_run(\"ls\", [box], \"\")\n"),
+            expected: Err(("E_FN_NOT_SERIALIZABLE", 9, 30)),
+        },
+        SortCase {
+            name: "fn-value-not-serializable-print",
+            source: leak("fn main() -> Unit:\n    print(double)\n"),
+            expected: Err(("E_FN_NOT_SERIALIZABLE", 5, 11)),
+        },
+        SortCase {
+            name: "fn-value-map-list-wrong-shape",
+            source: "fn add(a: Int, b: Int) -> Int:\n    return a + b\n\nfn main() -> Unit:\n    print(map_list([1], add))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 5, 25)),
+        },
+        SortCase {
+            name: "fn-value-fold-list-wrong-accumulator",
+            source: "fn text_of(a: Text, b: Int) -> Text:\n    return a\n\nfn main() -> Unit:\n    print(fold_list([1], 0, text_of))\n",
+            expected: Err(("E_TYPE_ARGUMENT", 5, 29)),
+        },
+        SortCase {
+            name: "fn-value-call-of-a-non-function-local",
+            source: "fn main() -> Unit:\n    let zzzzz = 3\n    print(zzzzz(1))\n",
+            expected: Err(("E_NAME_UNKNOWN", 3, 11)),
+        },
+    ]
+}
+
+#[test]
+fn function_value_cases_match_in_both_compilers() {
+    cases_match_in_both_compilers(function_value_cases());
+}
+
+#[test]
+fn function_value_cases_match_between_stage_two_and_three() {
+    cases_match_between_stages("function-value-stages", function_value_cases());
 }

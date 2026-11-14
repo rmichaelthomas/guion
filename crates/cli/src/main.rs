@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env, fs,
     path::{Component, Path},
     process::ExitCode,
@@ -18,6 +18,7 @@ mod package_version;
 mod pool_alloc;
 mod registry;
 mod source_run_cache;
+mod templates;
 
 #[global_allocator]
 static GLOBAL_ALLOCATOR: pool_alloc::PoolAllocator = pool_alloc::PoolAllocator;
@@ -52,7 +53,7 @@ build      compile to an artifact
 package    produce a distributable package; verify-package checks one
 add        add a dependency; sync and update resolve and refresh them
 inspect    print artifact and function metadata and the effects a program can have
-doc        print function, record and external signatures
+doc        print function, record and external signatures; `doc std:NAME` prints a standard-library module, `doc --all --json` all of them
 doctor     report the current host and enabled profile
 install    install a library package
 publish    publish a package to a registry; yank withdraws a version; token manages publisher tokens
@@ -135,12 +136,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "sync" {
         if args.iter().any(|argument| argument == "--locked") {
-            if !args.iter().any(|argument| argument == "--offline") {
-                return Err("native sync currently requires --locked --offline".into());
-            }
             let project = std::env::current_dir()
                 .map_err(|error| format!("cannot inspect current directory: {error}"))?;
-            println!("{}", native_packages::sync_locked_offline(&project)?);
+            if args.iter().any(|argument| argument == "--offline") {
+                println!("{}", native_packages::sync_locked_offline(&project)?);
+            } else {
+                println!("{}", native_packages::sync_locked(&project)?);
+            }
             return Ok(ExitCode::SUCCESS);
         }
         #[cfg(not(feature = "python-interop"))]
@@ -289,7 +291,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             let path = args.get(index + 1).ok_or("--path requires a directory")?;
             println!(
                 "{}",
-                native_packages::add_path(&project, name, Path::new(path))?
+                native_packages::add_path(
+                    &project,
+                    name,
+                    Path::new(path),
+                    args.iter()
+                        .any(|argument| argument == "--approve-capabilities")
+                )?
             );
             return Ok(ExitCode::SUCCESS);
         }
@@ -305,7 +313,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         ) {
             println!(
                 "{}",
-                native_packages::add_url(&project, name, url, version, sha256)?
+                native_packages::add_url(
+                    &project,
+                    name,
+                    url,
+                    version,
+                    sha256,
+                    args.iter()
+                        .any(|argument| argument == "--approve-capabilities")
+                )?
             );
             return Ok(ExitCode::SUCCESS);
         }
@@ -315,7 +331,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 native_packages::add_from_registry(
                     &project,
                     name,
-                    get_option("--version").map(String::as_str)
+                    get_option("--version").map(String::as_str),
+                    args.iter()
+                        .any(|argument| argument == "--approve-capabilities")
                 )?
             );
             return Ok(ExitCode::SUCCESS);
@@ -482,6 +500,73 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     if command == "verify-package" {
         let json_verification = args.iter().any(|argument| argument == "--json");
+        let positional: Vec<&String> = args[1..]
+            .iter()
+            .filter(|argument| !argument.starts_with("--"))
+            .collect();
+        if positional.len() >= 2 {
+            // `NAME VERSION` checks a published release against the registry; `ARCHIVE NAME
+            // VERSION` checks archive bytes already on disk against the same record.
+            let (archive, name, version) = match positional.as_slice() {
+                [name, version] => (None, name, version),
+                [archive, name, version] => (Some(archive), name, version),
+                _ => {
+                    return Err(
+                        "usage: guion verify-package [--json] <package-directory> | [--json] [ARCHIVE] NAME VERSION"
+                            .into(),
+                    )
+                }
+            };
+            let project = std::env::current_dir()
+                .map_err(|error| format!("cannot inspect current directory: {error}"))?;
+            let outcome = (|| {
+                let bytes = match archive {
+                    Some(path) => {
+                        Some(fs::read(path).map_err(|error| registry::VerifyFailure {
+                            code: "E_PACKAGE_ARCHIVE",
+                            message: format!("cannot read {path}: {error}"),
+                        })?)
+                    }
+                    None => None,
+                };
+                registry::Registry::configured(&project)
+                    .map_err(|message| registry::VerifyFailure {
+                        code: "E_PACKAGE_REGISTRY",
+                        message,
+                    })?
+                    .verify_release(name, version, bytes)
+            })();
+            return match outcome {
+                Ok(report) => {
+                    if json_verification {
+                        println!(
+                            "{}",
+                            serde_json::json!({
+                                "schema_version": 1,
+                                "kind": "guion_package_release_verification",
+                                "status": "verified",
+                                "name": name,
+                                "version": version,
+                                "sha256": report.sha256,
+                                "log_seq": report.log_seq,
+                                "key_id": report.key_id,
+                            })
+                        );
+                    } else {
+                        println!(
+                            "verified {name} {version}: archive {}, log entry {} signed",
+                            report.sha256, report.log_seq
+                        );
+                    }
+                    Ok(ExitCode::SUCCESS)
+                }
+                Err(failure) if json_verification => {
+                    print_cli_diagnostic(failure.code, &failure.message);
+                    Ok(ExitCode::from(1))
+                }
+                Err(failure) => Err(format!("{}: {}", failure.code, failure.message)),
+            };
+        }
         let path_index = if args.get(1).is_some_and(|argument| argument == "--json") {
             2
         } else {
@@ -530,6 +615,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     .contains(&command)
     {
         return Err(format!("unknown command `{command}`\n{USAGE}"));
+    }
+    if command == "doc"
+        && args[1..]
+            .iter()
+            .any(|arg| arg == "--all" || arg.starts_with("std:"))
+    {
+        return doc_standard_library(&args[1..]);
     }
     let mut json_run = false;
     let mut no_source_cache = false;
@@ -608,6 +700,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     };
     let (source_path, project_root) = resolve_target(path)?;
     let path = source_path.to_string_lossy().into_owned();
+    if path.ends_with(".gut") {
+        return Err(format!(
+            "{path} is a template: it is compiled to Guion by the project that imports its `.gut.gu` module, so name that project or a `.gu` entry (templates are not formatted or linted)"
+        ));
+    }
     let mut runtime_file_roots = Vec::with_capacity(file_root_overrides.len());
     for root in &file_root_overrides {
         let root = Path::new(root);
@@ -627,6 +724,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if command == "fmt" {
         let source =
             fs::read_to_string(&path).map_err(|error| format!("cannot read {path}: {error}"))?;
+        if templates::is_generated(&source) {
+            println!("skipped {path} (generated from a template)");
+            return Ok(ExitCode::SUCCESS);
+        }
         compile_project(&source_path, &project_root)
             .map_err(|error| render_diagnostic(&path, &error))?;
         let formatted = format_source(&source);
@@ -644,6 +745,23 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if command == "lint" {
         let source =
             fs::read_to_string(&path).map_err(|error| format!("cannot read {path}: {error}"))?;
+        if templates::is_generated(&source) {
+            if json_lint {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "schema_version": 1,
+                        "kind": "guion_lint_report",
+                        "source": path,
+                        "status": "passed",
+                        "diagnostics": [],
+                    })
+                );
+            } else {
+                println!("skipped {path} (generated from a template)");
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
         if let Err(error) = compile_project(&source_path, &project_root) {
             if json_lint {
                 println!("{}", render_diagnostic_json(&path, &error));
@@ -757,6 +875,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             Err(error) => return Err(render_diagnostic(&path, &error)),
         }
     };
+    if matches!(command, "check" | "build" | "run") {
+        enforce_approved_package_effects(&path, &project_root, &artifact)?;
+    }
     match command {
         "check" => {
             let writes_files =
@@ -854,10 +975,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         "inspect" => {
             if json_inspect {
-                println!(
-                    "{}",
-                    inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"))
-                );
+                let mut report =
+                    inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
+                report["package_effects"] =
+                    api_report(&path, &project_root, &artifact)["package_effects"].clone();
+                println!("{report}");
                 return Ok(ExitCode::SUCCESS);
             }
             let effects_report =
@@ -890,6 +1012,24 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             }
             if !artifact.externals.is_empty() {
                 println!("  Python declarations are opaque external effects; declared types do not prove behavior.");
+            }
+            let package_report =
+                api_report(&path, &project_root, &artifact)["package_effects"].clone();
+            for (package, entry) in package_report.as_object().into_iter().flatten() {
+                let effects = entry["effects"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(serde_json::Value::as_str)
+                    .collect::<Vec<_>>();
+                println!(
+                    "  package {package}: {}",
+                    if effects.is_empty() {
+                        "no known host effects".to_owned()
+                    } else {
+                        effects.join(", ")
+                    }
+                );
             }
             if entry_writes_files(&effects_report) {
                 println!("{}", file_write_notice(&project_root));
@@ -1498,6 +1638,7 @@ fn compile_project(
     entry: &std::path::Path,
     project_root: &std::path::Path,
 ) -> Result<Artifact, guion_model::Diagnostic> {
+    templates::prepass(entry, project_root).map_err(|error| error.to_diagnostic())?;
     let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
             guion_model::Diagnostic::new(
@@ -1522,6 +1663,7 @@ fn compile_project(
         compiler_driver::standard_library_root().as_deref(),
         &package_roots,
     )
+    .map_err(|error| templates::remap(error, project_root))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1543,6 +1685,7 @@ fn compile_project_for_run(
     ),
     guion_model::Diagnostic,
 > {
+    templates::prepass(entry, project_root).map_err(|error| error.to_diagnostic())?;
     let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
             guion_model::Diagnostic::new(
@@ -1615,7 +1758,8 @@ fn compile_project_for_run(
                 )
             }
         },
-    )?;
+    )
+    .map_err(|error| templates::remap(error, project_root))?;
     Ok((artifact, cache_status, compiler_timings))
 }
 
@@ -2449,6 +2593,15 @@ fn display_type(ty: &guion_model::Type) -> String {
         Type::Map(item) => format!("Map[Text, {}]", display_type(item)),
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
+        Type::Fn(parameters, result) => format!(
+            "fn({}) -> {}",
+            parameters
+                .iter()
+                .map(display_type)
+                .collect::<Vec<_>>()
+                .join(", "),
+            display_type(result)
+        ),
     }
 }
 
@@ -2554,8 +2707,13 @@ fn inspection_report(
     for (function_index, function) in artifact.functions.iter().enumerate() {
         for instruction in &function.code {
             match &instruction.op {
-                Op::Call(target, _) => {
+                // A function value takes on its function's effects where it is formed;
+                // calling through it adds nothing further.
+                Op::Call(target, _) | Op::MakeFn(target) => {
                     calls[function_index].insert(*target);
+                }
+                Op::HigherOrder(guion_model::HigherOrderKind::ParallelMap) => {
+                    direct_effects[function_index].insert("concurrency.parallel".into());
                 }
                 Op::ParallelMap(target) => {
                     direct_effects[function_index].insert("concurrency.parallel".into());
@@ -2584,6 +2742,9 @@ fn inspection_report(
                         }
                         .into(),
                     );
+                    if function.also_reads() {
+                        direct_effects[function_index].insert("filesystem.read".into());
+                    }
                 }
                 Op::WriteText | Op::WriteTextAtomic | Op::WriteBytes => {
                     direct_effects[function_index].insert("filesystem.write".into());
@@ -2605,6 +2766,22 @@ fn inspection_report(
                 }
                 Op::Environment => {
                     direct_effects[function_index].insert("process.environment".into());
+                }
+                // A SQLite database is a file: opening it can create and write it, a statement or
+                // transaction that changes it writes, and a query reads.
+                Op::SqliteOpen => {
+                    direct_effects[function_index].insert("filesystem.read".into());
+                    direct_effects[function_index].insert("filesystem.write".into());
+                }
+                Op::SqliteExecute | Op::SqliteBegin | Op::SqliteCommit | Op::SqliteRollback => {
+                    direct_effects[function_index].insert("filesystem.write".into());
+                }
+                Op::SqliteQuery | Op::SqliteBeginRead => {
+                    direct_effects[function_index].insert("filesystem.read".into());
+                }
+                Op::LogAppend => {
+                    direct_effects[function_index].insert("output.write".into());
+                    direct_effects[function_index].insert("filesystem.write".into());
                 }
                 Op::UnixTimeMs | Op::TimeTodayLocal => {
                     direct_effects[function_index].insert("clock.read".into());
@@ -2885,6 +3062,10 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
                 .map(move |(name, parameters, public)| (identity.clone(), name, parameters, public))
         })
         .collect::<Vec<_>>();
+    let deprecations = source_texts
+        .iter()
+        .map(|(identity, text)| (identity.clone(), function_deprecations(text)))
+        .collect::<BTreeMap<_, _>>();
     let inspected = inspection_report(source, artifact, project_root, false);
     let functions = artifact.functions.iter().map(|function| {
         let (module_id, base_name) = if let Some(rest) = function.name.strip_prefix("@module/") {
@@ -2902,14 +3083,20 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
             })
         }).collect::<Vec<_>>();
         let effects = inspected["functions"].get(&function.name).and_then(|entry| entry["effects"].as_array()).cloned().unwrap_or_default();
-        serde_json::json!({
+        let mut entry = serde_json::json!({
             "name": function.name,
             "source": selected.map(|(source, _, _, _)| source.as_str()),
             "parameters": parameters,
             "result": display_type(&function.result),
             "effects": effects,
             "profile_requirements": if artifact.externals.is_empty() { Vec::<String>::new() } else { vec!["python-interop".to_owned()] },
-        })
+        });
+        if let Some((source, name, _, _)) = selected {
+            if let Some((since, replacement)) = deprecations.get(source).and_then(|marked| marked.get(name)) {
+                entry["deprecated"] = deprecation_json(since, replacement);
+            }
+        }
+        entry
     }).collect::<Vec<_>>();
     let required_stdlib = artifact
         .sources
@@ -2957,9 +3144,92 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
             "required_modules": required_stdlib,
         },
         "native_packages": packages,
+        "package_effects": package_effects_report(&functions, &packages, project_root),
         "optional_profiles": if artifact.externals.is_empty() { Vec::<String>::new() } else { vec!["python-interop".to_owned()] },
         "capabilities": inspected["network_grant"],
     })
+}
+
+/// Per linked package, the union of the effects of the functions it defines (a function's effects
+/// already include everything it reaches, in this package, another package or the standard
+/// library), and, when the project keeps `[approved-capabilities.NAME]`, what that approval does
+/// not cover. A package function that calls into another package is attributed to the caller's
+/// package with the callee's effects, so an approval is checked against what really runs.
+fn package_effects_report(
+    functions: &[serde_json::Value],
+    packages: &BTreeSet<String>,
+    project_root: &Path,
+) -> serde_json::Value {
+    let approved = native_packages::project_approved_capabilities(project_root)
+        .ok()
+        .flatten();
+    let mut report = serde_json::Map::new();
+    for package in packages {
+        let prefix = format!("pkg:{package}/");
+        let mut effects = BTreeSet::<String>::new();
+        for function in functions {
+            if function["source"]
+                .as_str()
+                .is_some_and(|s| s.starts_with(&prefix))
+            {
+                effects.extend(
+                    function["effects"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|e| e.as_str().map(str::to_owned)),
+                );
+            }
+        }
+        let (approved_json, beyond) = match &approved {
+            Some(map) => {
+                let entry = map.get(package).cloned().unwrap_or_default();
+                (entry.to_toml_json(), entry.uncovered_effects(&effects))
+            }
+            None => (serde_json::Value::Null, Vec::new()),
+        };
+        report.insert(
+            package.clone(),
+            serde_json::json!({
+                "effects": effects.iter().collect::<Vec<_>>(),
+                "approved": approved_json,
+                "beyond_approved": beyond,
+            }),
+        );
+    }
+    serde_json::Value::Object(report)
+}
+
+/// With `[approved-capabilities]` in the project manifest, a program whose linked packages reach
+/// effects beyond their approval does not check, build or run.
+fn enforce_approved_package_effects(
+    source: &str,
+    project_root: &Path,
+    artifact: &Artifact,
+) -> Result<(), String> {
+    // Nothing to approve unless the project has installed a package (which always writes a lock),
+    // so a project that links none pays no analysis cost.
+    if !project_lock_path(project_root).is_file()
+        || native_packages::project_approved_capabilities(project_root)?.is_none()
+    {
+        return Ok(());
+    }
+    let report = api_report(source, project_root, artifact);
+    let mut lines = Vec::new();
+    for (package, entry) in report["package_effects"].as_object().into_iter().flatten() {
+        for beyond in entry["beyond_approved"].as_array().into_iter().flatten() {
+            if let Some(beyond) = beyond.as_str() {
+                lines.push(format!("  {package}: {beyond}"));
+            }
+        }
+    }
+    if lines.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "linked packages reach effects beyond what the project approved:\n{}\nwiden [approved-capabilities.NAME] in guion.toml, or remove the call",
+        lines.join("\n")
+    ))
 }
 
 fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {
@@ -2977,7 +3247,22 @@ fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {
             continue;
         };
         let name = signature[..open].trim();
-        let Some(close) = signature[open + 1..].find(')') else {
+        // The closing parenthesis that matches this one: a parameter of function type has
+        // parentheses of its own.
+        let mut depth = 0usize;
+        let mut close = None;
+        for (index, character) in signature[open + 1..].char_indices() {
+            match character {
+                '(' => depth += 1,
+                ')' if depth == 0 => {
+                    close = Some(index);
+                    break;
+                }
+                ')' => depth -= 1,
+                _ => {}
+            }
+        }
+        let Some(close) = close else {
             continue;
         };
         let parameter_text = &signature[open + 1..open + 1 + close];
@@ -2994,14 +3279,57 @@ fn function_declarations(source: &str) -> Vec<(String, Vec<String>, bool)> {
     declarations
 }
 
+/// Parse one `# deprecated(since 0.3.0): use NAME` doc-comment line (VERSIONING.md section 7).
+fn parse_deprecation_comment(line: &str) -> Option<(String, String)> {
+    let rest = line
+        .trim_start()
+        .strip_prefix('#')?
+        .trim_start()
+        .strip_prefix("deprecated(since ")?;
+    let (since, rest) = rest.split_once(')')?;
+    let replacement = rest.strip_prefix(':')?.trim_start().strip_prefix("use ")?;
+    let replacement = replacement.trim();
+    let since = since.trim();
+    (!since.is_empty() && !replacement.is_empty() && !replacement.contains(char::is_whitespace))
+        .then(|| (since.to_owned(), replacement.to_owned()))
+}
+
+/// The deprecation markers of a module's public functions: name to (since, replacement). The
+/// marker is a comment line in the block of `#` lines directly above `pub fn`.
+fn function_deprecations(source: &str) -> BTreeMap<String, (String, String)> {
+    let lines = source.lines().collect::<Vec<_>>();
+    let mut deprecations = BTreeMap::new();
+    for (index, line) in lines.iter().enumerate() {
+        let Some(signature) = line.trim_start().strip_prefix("pub fn ") else {
+            continue;
+        };
+        let Some(name) = signature.split('(').next().map(str::trim) else {
+            continue;
+        };
+        let marker = lines[..index]
+            .iter()
+            .rev()
+            .take_while(|above| above.trim_start().starts_with('#'))
+            .find_map(|above| parse_deprecation_comment(above));
+        if let Some(marker) = marker {
+            deprecations.insert(name.to_owned(), marker);
+        }
+    }
+    deprecations
+}
+
+fn deprecation_json(since: &str, replacement: &str) -> serde_json::Value {
+    serde_json::json!({"since": since, "use": replacement})
+}
+
 fn split_signature_parameters(parameters: &str) -> Vec<&str> {
     let mut result = Vec::new();
     let mut depth = 0usize;
     let mut start = 0usize;
     for (index, character) in parameters.char_indices() {
         match character {
-            '[' => depth += 1,
-            ']' => depth = depth.saturating_sub(1),
+            '[' | '(' => depth += 1,
+            ']' | ')' => depth = depth.saturating_sub(1),
             ',' if depth == 0 => {
                 result.push(parameters[start..index].trim());
                 start = index + 1;
@@ -3050,39 +3378,244 @@ fn list_stdlib_modules(root: &Path) -> Vec<String> {
     modules
 }
 
+/// Names of the shipped standard-library modules, sorted. Reads the same root `std:` imports
+/// resolve against.
+fn shipped_std_module_names() -> Result<Vec<String>, String> {
+    let root = compiler_driver::standard_library_root()
+        .ok_or_else(|| "no standard-library root was found".to_owned())?;
+    let mut names = fs::read_dir(&root)
+        .map_err(|error| format!("cannot read {}: {error}", root.display()))?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            (path.is_file() && path.extension().is_some_and(|extension| extension == "gu"))
+                .then(|| {
+                    path.file_stem()
+                        .map(|stem| stem.to_string_lossy().into_owned())
+                })
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    names.sort();
+    Ok(names)
+}
+
+/// The public surface of one shipped module: the `guion_api_report` of a program that imports
+/// it, narrowed to the functions and records the module itself declares publicly.
+fn std_module_report(name: &str) -> Result<serde_json::Value, String> {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let standard_root = compiler_driver::standard_library_root()
+        .ok_or_else(|| "no standard-library root was found".to_owned())?;
+    let module_text = fs::read_to_string(source_module_path(&standard_root.join(name)))
+        .map_err(|error| format!("cannot read std:{name}: {error}"))?;
+    let public_functions = function_declarations(&module_text)
+        .into_iter()
+        .filter(|(_, _, public)| *public)
+        .map(|(function, _, _)| function)
+        .collect::<BTreeSet<_>>();
+    let record_names = module_text
+        .lines()
+        .filter_map(|line| {
+            let rest = line.strip_prefix("pub record ")?;
+            Some(rest.trim().trim_end_matches(':').trim().to_owned())
+        })
+        .collect::<BTreeSet<_>>();
+    let scratch = env::temp_dir().join(format!(
+        "guion-doc-std-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&scratch)
+        .map_err(|error| format!("cannot create {}: {error}", scratch.display()))?;
+    let entry = scratch.join("main.gu");
+    let result = (|| {
+        fs::write(
+            &entry,
+            format!("import \"std:{name}\"\n\nfn main() -> Int:\n    return 0\n"),
+        )
+        .map_err(|error| format!("cannot write {}: {error}", entry.display()))?;
+        let artifact = compile_project(&entry, &scratch)
+            .map_err(|error| render_diagnostic(&format!("std:{name}"), &error))?;
+        Ok::<_, String>(api_report(&format!("std:{name}"), &scratch, &artifact))
+    })();
+    let _ = fs::remove_dir_all(&scratch);
+    let mut report = result?;
+    let identity = format!("std:{name}");
+    if let Some(functions) = report["functions"].as_array_mut() {
+        functions.retain(|function| {
+            function["source"].as_str() == Some(identity.as_str())
+                && function["name"]
+                    .as_str()
+                    .is_some_and(|function| public_functions.contains(function))
+        });
+    }
+    if let Some(records) = report["records"].as_array_mut() {
+        records.retain(|record| {
+            record["name"]
+                .as_str()
+                .is_some_and(|record| record_names.contains(record))
+        });
+    }
+    let deprecations = function_deprecations(&module_text);
+    if let Some(functions) = report["functions"].as_array_mut() {
+        for function in functions {
+            let marker = function["name"]
+                .as_str()
+                .and_then(|name| deprecations.get(name))
+                .cloned();
+            if let Some((since, replacement)) = marker {
+                function["deprecated"] = deprecation_json(&since, &replacement);
+            }
+        }
+    }
+    report["python_functions"] = serde_json::json!([]);
+    // The module's one-line summary: a leading `# std:NAME: ...` comment line, if it has one.
+    let summary_prefix = format!("# std:{name}: ");
+    if let Some(summary) = module_text
+        .lines()
+        .take_while(|line| line.starts_with('#') || line.starts_with("import ") || line.is_empty())
+        .find_map(|line| line.strip_prefix(summary_prefix.as_str()))
+    {
+        report["summary"] = serde_json::json!(summary.trim());
+    }
+    Ok(report)
+}
+
+/// `guion doc std:NAME [--json]` and `guion doc --all --json`.
+fn doc_standard_library(args: &[String]) -> Result<ExitCode, String> {
+    let json = args.iter().any(|arg| arg == "--json");
+    let all = args.iter().any(|arg| arg == "--all");
+    let targets = args
+        .iter()
+        .filter(|arg| !arg.starts_with("--"))
+        .collect::<Vec<_>>();
+    let known = shipped_std_module_names()?;
+    if all {
+        if !json || !targets.is_empty() {
+            return Err("usage: guion doc --all --json".into());
+        }
+        let mut modules = Vec::new();
+        for name in &known {
+            let report = std_module_report(name)?;
+            let mut functions = report["functions"].as_array().cloned().unwrap_or_default();
+            functions.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+            let mut records = report["records"].as_array().cloned().unwrap_or_default();
+            records.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
+            modules.push(serde_json::json!({
+                "module": name,
+                "functions": functions,
+                "records": records,
+            }));
+        }
+        println!(
+            "{}",
+            serde_json::json!({
+                "schema_version": 1,
+                "kind": "guion_std_surface",
+                "modules": modules,
+            })
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    let [target] = targets.as_slice() else {
+        return Err(
+            "usage: guion doc [--json] <std:MODULE|source.gu> | guion doc --all --json".into(),
+        );
+    };
+    let name = target.strip_prefix("std:").unwrap_or_default();
+    if !known.iter().any(|module| module == name) {
+        let listing = known
+            .iter()
+            .map(|module| format!("  std:{module}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(format!(
+            "unknown standard-library module `{target}`; valid modules:\n{listing}"
+        ));
+    }
+    let report = std_module_report(name)?;
+    if json {
+        println!("{report}");
+    } else {
+        print_std_report_human(&report);
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn print_std_report_human(report: &serde_json::Value) {
+    println!("API for {}", report["source"].as_str().unwrap_or("std"));
+    if let Some(summary) = report["summary"].as_str() {
+        println!("{summary}");
+    }
+    for function in report["functions"].as_array().into_iter().flatten() {
+        println!("{}", api_function_line(function));
+    }
+    for record in report["records"].as_array().into_iter().flatten() {
+        let fields = record["fields"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|field| {
+                format!(
+                    "{}: {}",
+                    field["name"].as_str().unwrap_or("?"),
+                    field["type"].as_str().unwrap_or("?")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!(
+            "record {}({fields})",
+            record["name"].as_str().unwrap_or("?")
+        );
+    }
+}
+
+fn api_function_line(function: &serde_json::Value) -> String {
+    let parameters = function["parameters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|parameter| {
+            format!(
+                "{}: {}",
+                parameter["name"].as_str().unwrap_or("arg"),
+                parameter["type"].as_str().unwrap_or("?")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let effects = function["effects"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .collect::<Vec<_>>();
+    format!(
+        "fn {}({parameters}) -> {}{}",
+        function["name"].as_str().unwrap_or("?"),
+        function["result"].as_str().unwrap_or("?"),
+        if effects.is_empty() {
+            String::new()
+        } else {
+            format!("  effects: {}", effects.join(", "))
+        },
+    ) + &match (
+        function["deprecated"]["since"].as_str(),
+        function["deprecated"]["use"].as_str(),
+    ) {
+        (Some(since), Some(replacement)) => {
+            format!("  deprecated since {since}: use {replacement}")
+        }
+        _ => String::new(),
+    }
+}
+
 fn print_api_report_human(report: &serde_json::Value) {
     println!("API for {}", report["source"].as_str().unwrap_or("source"));
     if let Some(functions) = report["functions"].as_array() {
         for function in functions {
-            let parameters = function["parameters"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .map(|parameter| {
-                    format!(
-                        "{}: {}",
-                        parameter["name"].as_str().unwrap_or("arg"),
-                        parameter["type"].as_str().unwrap_or("?")
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            let effects = function["effects"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(serde_json::Value::as_str)
-                .collect::<Vec<_>>();
-            println!(
-                "fn {}({parameters}) -> {}{}",
-                function["name"].as_str().unwrap_or("?"),
-                function["result"].as_str().unwrap_or("?"),
-                if effects.is_empty() {
-                    String::new()
-                } else {
-                    format!("  effects: {}", effects.join(", "))
-                }
-            );
+            println!("{}", api_function_line(function));
         }
     }
     println!("Standard library profile: core");
@@ -3283,24 +3816,7 @@ fn lint_source(source: &str, source_path: &Path, project_root: &Path) -> Vec<ser
             }
         }
         if let Some(import_path) = import_path(trimmed) {
-            if let Some(imported_source) =
-                lint_import_source(import_path, source_path, project_root)
-            {
-                let exports = imported_source
-                    .lines()
-                    .filter_map(|import_line| {
-                        let declaration = import_line
-                            .trim_start()
-                            .strip_prefix("pub fn ")
-                            .or_else(|| import_line.trim_start().strip_prefix("pub record "))?;
-                        let name = declaration
-                            .split(|character: char| {
-                                !character.is_ascii_alphanumeric() && character != '_'
-                            })
-                            .next()?;
-                        (!name.is_empty()).then_some(name.to_owned())
-                    })
-                    .collect::<Vec<_>>();
+            if let Some(exports) = lint_module_exports(import_path, source_path, project_root, 0) {
                 if !exports.is_empty()
                     && exports
                         .iter()
@@ -3311,6 +3827,35 @@ fn lint_source(source: &str, source_path: &Path, project_root: &Path) -> Vec<ser
                         format!("import `{import_path}` provides no symbols used by this module"),
                         line_index + 1,
                         leading + 1,
+                    ));
+                }
+            }
+        }
+    }
+    // Calls to functions that an imported module marks `# deprecated(since X): use NAME`.
+    let mut deprecated = BTreeMap::new();
+    for line in &lines {
+        if let Some(import_path) = import_path(line.trim_start()) {
+            deprecated.extend(lint_module_deprecations(
+                import_path,
+                source_path,
+                project_root,
+                0,
+            ));
+        }
+    }
+    for (name, _, _) in function_declarations(source) {
+        deprecated.remove(&name);
+    }
+    if !deprecated.is_empty() {
+        for (line_index, line) in lines.iter().enumerate() {
+            for (name, column) in call_sites(line) {
+                if let Some((since, replacement)) = deprecated.get(&name) {
+                    diagnostics.push(lint_diagnostic(
+                        "W_DEPRECATED_CALL",
+                        format!("`{name}` is deprecated since {since}: use `{replacement}`"),
+                        line_index + 1,
+                        column,
                     ));
                 }
             }
@@ -3410,7 +3955,134 @@ fn import_path(line: &str) -> Option<&str> {
     Some(&remainder[start..end])
 }
 
-fn lint_import_source(import: &str, source_path: &Path, project_root: &Path) -> Option<String> {
+/// The public names a module offers its importers: its own `pub fn` and `pub record`
+/// declarations plus whatever it re-exports with `pub import`.
+fn lint_module_exports(
+    import: &str,
+    source_path: &Path,
+    project_root: &Path,
+    depth: usize,
+) -> Option<Vec<String>> {
+    const MAX_REEXPORT_DEPTH: usize = 8;
+    let (module_path, module_source) = lint_import_source(import, source_path, project_root)?;
+    let mut exports = Vec::new();
+    for line in module_source.lines() {
+        let line = line.trim_start();
+        if let Some(reexported) = line
+            .strip_prefix("pub ")
+            .and_then(|rest| import_path(rest.trim_start()))
+        {
+            if depth < MAX_REEXPORT_DEPTH {
+                if let Some(nested) =
+                    lint_module_exports(reexported, &module_path, project_root, depth + 1)
+                {
+                    exports.extend(nested);
+                }
+            }
+            continue;
+        }
+        let Some(declaration) = line
+            .strip_prefix("pub fn ")
+            .or_else(|| line.strip_prefix("pub record "))
+        else {
+            continue;
+        };
+        let name = declaration
+            .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+            .next()?;
+        if !name.is_empty() {
+            exports.push(name.to_owned());
+        }
+    }
+    Some(exports)
+}
+
+/// Deprecation markers of the public functions an import offers, following `pub import`
+/// re-exports the way `lint_module_exports` does.
+fn lint_module_deprecations(
+    import: &str,
+    source_path: &Path,
+    project_root: &Path,
+    depth: usize,
+) -> BTreeMap<String, (String, String)> {
+    const MAX_REEXPORT_DEPTH: usize = 8;
+    let Some((module_path, module_source)) = lint_import_source(import, source_path, project_root)
+    else {
+        return BTreeMap::new();
+    };
+    let mut deprecations = function_deprecations(&module_source);
+    if depth < MAX_REEXPORT_DEPTH {
+        for line in module_source.lines() {
+            if let Some(reexported) = line
+                .trim_start()
+                .strip_prefix("pub ")
+                .and_then(|rest| import_path(rest.trim_start()))
+            {
+                deprecations.extend(lint_module_deprecations(
+                    reexported,
+                    &module_path,
+                    project_root,
+                    depth + 1,
+                ));
+            }
+        }
+    }
+    deprecations
+}
+
+/// The names called on one source line, with their 1-based columns: an identifier directly
+/// followed by `(` that is not a declaration. Strings and comments are skipped.
+fn call_sites(line: &str) -> Vec<(String, usize)> {
+    let characters = line.chars().collect::<Vec<_>>();
+    let mut calls = Vec::new();
+    let mut cursor = 0;
+    let mut previous_word = String::new();
+    while cursor < characters.len() {
+        let character = characters[cursor];
+        if character == '#' {
+            break;
+        }
+        if character == '"' {
+            cursor += 1;
+            let mut escaped = false;
+            while cursor < characters.len() {
+                let current = characters[cursor];
+                cursor += 1;
+                if escaped {
+                    escaped = false;
+                } else if current == '\\' {
+                    escaped = true;
+                } else if current == '"' {
+                    break;
+                }
+            }
+        } else if character.is_ascii_alphabetic() || character == '_' {
+            let start = cursor;
+            while cursor < characters.len()
+                && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+            {
+                cursor += 1;
+            }
+            let word = characters[start..cursor].iter().collect::<String>();
+            if characters.get(cursor) == Some(&'(') && previous_word != "fn" {
+                calls.push((word.clone(), start + 1));
+            }
+            previous_word = word;
+        } else {
+            if !character.is_whitespace() {
+                previous_word.clear();
+            }
+            cursor += 1;
+        }
+    }
+    calls
+}
+
+fn lint_import_source(
+    import: &str,
+    source_path: &Path,
+    project_root: &Path,
+) -> Option<(std::path::PathBuf, String)> {
     let path = if let Some(relative) = import.strip_prefix("std:") {
         let root = compiler_driver::standard_library_root()?;
         root.join(relative)
@@ -3422,7 +4094,8 @@ fn lint_import_source(import: &str, source_path: &Path, project_root: &Path) -> 
         source_path.parent()?.join(import)
     };
     let path = source_module_path(&path);
-    fs::read_to_string(path).ok()
+    let source = fs::read_to_string(&path).ok()?;
+    Some((path, source))
 }
 
 fn source_module_path(path: &Path) -> std::path::PathBuf {
@@ -3496,6 +4169,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             "call_depth_limit",
             "instruction_limit",
             "max_collection_items",
+            "decompress_limit_bytes",
             "max_file_bytes",
             "max_integer_digits",
             "max_parallelism",
@@ -3523,6 +4197,11 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             runtime_usize(runtime, "max_collection_items", policy.max_collection_items)?;
         policy.max_parallelism = runtime_usize(runtime, "max_parallelism", policy.max_parallelism)?;
         policy.max_file_bytes = runtime_usize(runtime, "max_file_bytes", policy.max_file_bytes)?;
+        policy.decompress_limit_bytes = runtime_usize(
+            runtime,
+            "decompress_limit_bytes",
+            policy.decompress_limit_bytes,
+        )?;
     }
     if let Some(network) = manifest.get("network") {
         let network = network
@@ -3657,6 +4336,23 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
         )?);
         policy.max_socket_read_bytes =
             runtime_usize(sockets, "max_read_bytes", policy.max_socket_read_bytes)?;
+    }
+    if let Some(log) = manifest.get("log") {
+        let log = log.as_table().ok_or("guion.toml [log] must be a table")?;
+        if let Some(key) = log.keys().find(|key| key.as_str() != "level") {
+            return Err(format!("unsupported guion.toml [log] field `{key}`"));
+        }
+        if let Some(level) = log.get("level") {
+            let level = level
+                .as_str()
+                .ok_or("guion.toml [log].level must be a string")?;
+            if !["debug", "info", "warn", "error"].contains(&level) {
+                return Err(format!(
+                    "guion.toml [log].level must be debug, info, warn or error, not `{level}`"
+                ));
+            }
+            policy.log_level = Some(level.to_owned());
+        }
     }
     if let Some(clock) = manifest.get("clock") {
         let clock = clock
@@ -4096,13 +4792,21 @@ fn package_failure_diagnostic(message: &str) -> serde_json::Value {
 fn render_diagnostic(path: &str, error: &guion_model::Diagnostic) -> String {
     let source = error.source_name.as_deref().unwrap_or(path);
     format!(
-        "{source}:{}:{}: error[{}]: {}",
-        error.span.line, error.span.column, error.code, error.message
+        "{source}:{}:{}: error[{}]: {}{}",
+        error.span.line,
+        error.span.column,
+        error.code,
+        error.message,
+        error
+            .suggestions()
+            .iter()
+            .map(|candidate| format!("\nhelp: did you mean `{candidate}`?"))
+            .collect::<String>()
     )
 }
 
 fn render_diagnostic_json(path: &str, error: &guion_model::Diagnostic) -> serde_json::Value {
-    serde_json::json!({
+    let mut report = serde_json::json!({
         "schema_version": 1,
         "kind": "guion_diagnostic",
         "diagnostic": {
@@ -4112,7 +4816,11 @@ fn render_diagnostic_json(path: &str, error: &guion_model::Diagnostic) -> serde_
             "line": error.span.line,
             "column": error.span.column
         }
-    })
+    });
+    if !error.suggestions().is_empty() {
+        report["diagnostic"]["suggestions"] = serde_json::json!(error.suggestions());
+    }
+    report
 }
 
 fn runtime_diagnostic_json(
@@ -4136,11 +4844,16 @@ fn runtime_diagnostic_json(
             })
         })
         .collect::<Vec<_>>();
-    serde_json::json!({
+    let mut diagnostic = serde_json::json!({
         "code": error.code,
         "message": error.message,
         "trace": trace
-    })
+    });
+    if let Some((used, limit)) = error.step_usage {
+        diagnostic["used"] = serde_json::json!(used);
+        diagnostic["limit"] = serde_json::json!(limit);
+    }
+    diagnostic
 }
 
 fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeError) -> String {
@@ -4170,9 +4883,23 @@ fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeE
 
 #[cfg(test)]
 mod tests {
-    use super::{add_runtime_profile, copy_rust_notices, publish_package_stage};
+    use super::{
+        add_runtime_profile, copy_rust_notices, function_deprecations, publish_package_stage,
+    };
     use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn deprecation_markers_attach_to_the_public_function_below_them() {
+        let source = "# deprecated(since 0.3.0): use b\npub fn a() -> Int:\n    return 1\n\n\
+                      # deprecated(since 0.3.0): use d\nfn c() -> Int:\n    return 1\n\n\
+                      # deprecated(since 0.4.0): use f\n# More about it.\npub fn e() -> Int:\n    return 1\n\n\
+                      # deprecated(since 0.4.0): use g h\npub fn bad() -> Int:\n    return 1\n";
+        let found = function_deprecations(source);
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert_eq!(found["a"], ("0.3.0".to_owned(), "b".to_owned()));
+        assert_eq!(found["e"], ("0.4.0".to_owned(), "f".to_owned()));
+    }
 
     #[test]
     fn small_blocks_survive_crossing_threads_through_the_pool_allocator() {

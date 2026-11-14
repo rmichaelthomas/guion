@@ -1,7 +1,7 @@
 pub use guion_model::Diagnostic;
 use guion_model::{
-    Artifact, BigInt, ExternalFunction, Float64, Function, Instruction, Op, RecordDefinition,
-    RecordField, Span, Type, Value,
+    Artifact, BigInt, ExternalFunction, Float64, Function, HigherOrderKind, Instruction, Op,
+    RecordDefinition, RecordField, Span, Type, Value,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -12,6 +12,9 @@ use std::{
 };
 
 mod builtin_catalog;
+
+const FN_NO_CLOSURES_MESSAGE: &str =
+    "function values name an existing function; closures are not supported";
 
 /// Opt-in timings for source-module loading and function lowering.
 #[derive(Clone, Debug, Default)]
@@ -57,6 +60,59 @@ struct Token {
     kind: Kind,
     text: String,
     span: Span,
+}
+
+/// Suggestion rule for an unknown call name (B9). A candidate qualifies when its Levenshtein
+/// distance over Unicode scalar values is at most `max(2, len(name) / 3)`, or when it is the
+/// name followed by `_list` (the list-taking builtin of that name: `map` finds `map_list`,
+/// `filter` finds `filter_list`) and the name has at least three characters. A candidate that
+/// qualifies only by the `_list` rule counts as exactly the threshold away. Candidates are
+/// sorted by distance, then by name, and at most three are kept. The self-hosted compiler
+/// (`language/self_host/compiler.gu`, `suggest_names`) implements the same rule.
+fn suggest_names(name: &str, candidates: &[&str]) -> Vec<String> {
+    let name_chars: Vec<char> = name.chars().collect();
+    let threshold = std::cmp::max(2, name_chars.len() / 3);
+    let list_form = (name_chars.len() >= 3).then(|| format!("{name}_list"));
+    let mut scored: Vec<(usize, &str)> = candidates
+        .iter()
+        .copied()
+        .filter(|candidate| *candidate != name)
+        .filter_map(|candidate| {
+            let distance = edit_distance(&name_chars, candidate);
+            if distance <= threshold {
+                Some((distance, candidate))
+            } else if list_form.as_deref() == Some(candidate) {
+                Some((threshold, candidate))
+            } else {
+                None
+            }
+        })
+        .collect();
+    scored.sort();
+    scored.dedup();
+    scored
+        .into_iter()
+        .take(3)
+        .map(|(_, candidate)| candidate.to_string())
+        .collect()
+}
+
+fn edit_distance(left: &[char], right: &str) -> usize {
+    let right: Vec<char> = right.chars().collect();
+    let mut previous: Vec<usize> = (0..=right.len()).collect();
+    for (row, left_char) in left.iter().enumerate() {
+        let mut current = vec![row + 1];
+        for (column, right_char) in right.iter().enumerate() {
+            let substitution = previous[column] + usize::from(left_char != right_char);
+            current.push(
+                substitution
+                    .min(previous[column + 1] + 1)
+                    .min(current[column] + 1),
+            );
+        }
+        previous = current;
+    }
+    previous[right.len()]
 }
 
 fn diagnostic(code: &str, message: impl Into<String>, span: Span) -> Diagnostic {
@@ -611,6 +667,8 @@ enum Stmt {
     While(Expr, Vec<Stmt>, Span),
     For(String, Expr, Vec<Stmt>, Span),
     Match(Expr, Vec<MatchArm>, Span),
+    Break(Span),
+    Continue(Span),
     Expr(Expr, Span),
 }
 #[derive(Clone, Debug)]
@@ -748,6 +806,22 @@ impl Parser {
                 Ok(Type::NativeResource(t.text))
             }
             "Json" => Ok(Type::Json),
+            "fn" => {
+                self.expect("(")?;
+                let mut parameters = Vec::new();
+                if self.cur().text != ")" {
+                    loop {
+                        parameters.push(self.ty()?);
+                        if self.eat(",").is_none() {
+                            break;
+                        }
+                    }
+                }
+                self.expect(")")?;
+                self.expect("->")?;
+                let result = self.ty()?;
+                Ok(Type::Fn(parameters, Box::new(result)))
+            }
             "Array" => {
                 self.expect("[")?;
                 if self.cur().kind == Kind::Name {
@@ -1139,6 +1213,15 @@ impl Parser {
                 };
                 Ok(Stmt::If(c, yes, no, t.span))
             }
+            "break" | "continue" => {
+                self.advance();
+                self.expect_newline()?;
+                Ok(if t.text == "break" {
+                    Stmt::Break(t.span)
+                } else {
+                    Stmt::Continue(t.span)
+                })
+            }
             "while" => {
                 self.advance();
                 let c = self.expr(0)?;
@@ -1263,6 +1346,13 @@ impl Parser {
             Kind::Text => Expr::Text(t.text, t.span),
             Kind::Name if t.text == "true" => Expr::Bool(true, t.span),
             Kind::Name if t.text == "false" => Expr::Bool(false, t.span),
+            Kind::Name if t.text == "fn" => {
+                return Err(diagnostic(
+                    "E_FN_NO_CLOSURES",
+                    FN_NO_CLOSURES_MESSAGE,
+                    t.span,
+                ));
+            }
             Kind::Name if t.text == "not" || t.text == "-" => {
                 Expr::Unary(t.text, Box::new(self.expr(6)?), t.span)
             }
@@ -1381,6 +1471,46 @@ impl Parser {
     }
 }
 
+/// The function argument of a higher-order builtin: a named function the compiler resolves to
+/// an index, or an expression of function type whose value is on the stack.
+enum FunctionArgument {
+    Named {
+        index: usize,
+        parameters: Vec<Type>,
+        result: Type,
+        span: Span,
+    },
+    Value {
+        parameters: Vec<Type>,
+        result: Type,
+        span: Span,
+    },
+}
+
+impl FunctionArgument {
+    fn span(&self) -> Span {
+        match self {
+            FunctionArgument::Named { span, .. } | FunctionArgument::Value { span, .. } => *span,
+        }
+    }
+    fn signature(&self) -> (Vec<Type>, Type) {
+        match self {
+            FunctionArgument::Named {
+                parameters, result, ..
+            }
+            | FunctionArgument::Value {
+                parameters, result, ..
+            } => (parameters.clone(), result.clone()),
+        }
+    }
+    fn index(&self) -> Option<usize> {
+        match self {
+            FunctionArgument::Named { index, .. } => Some(*index),
+            FunctionArgument::Value { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone)]
 struct Local {
     slot: usize,
@@ -1396,9 +1526,21 @@ struct FnCompiler<'a> {
     visible_functions: &'a HashMap<String, String>,
     visible_externals: &'a HashMap<String, String>,
     visible_records: &'a HashSet<String>,
+    /// Symbols of functions declared in standard-library modules.
+    standard_functions: &'a HashSet<String>,
     locals: HashMap<String, Local>,
     next_local: usize,
     code: Vec<Instruction>,
+    loops: Vec<LoopFrame>,
+    /// Arguments of a builtin call that sit on a serialization boundary, by identity, with the
+    /// boundary's name: a type holding a function value may not reach them.
+    boundary_args: Vec<(*const Expr, String)>,
+}
+/// Jumps emitted by `break` and `continue` inside one loop, patched when the loop ends.
+#[derive(Default)]
+struct LoopFrame {
+    breaks: Vec<usize>,
+    continues: Vec<usize>,
 }
 impl<'a> FnCompiler<'a> {
     fn emit(&mut self, op: Op, span: Span) -> usize {
@@ -1414,6 +1556,47 @@ impl<'a> FnCompiler<'a> {
     }
     fn expr(&mut self, e: &Expr) -> Result<Type, Diagnostic> {
         self.expr_with_expected(e, None)
+    }
+
+    /// Resolve the function argument of a higher-order builtin. A bare name that is not a local
+    /// is a named function and emits nothing (the operation carries its index); anything else
+    /// must have a function type, and its value is left on the stack.
+    fn function_argument(
+        &mut self,
+        arg: &Expr,
+        not_a_function: (&str, &str),
+        label: &str,
+    ) -> Result<FunctionArgument, Diagnostic> {
+        if let Expr::Name(name, span) = arg {
+            if !self.locals.contains_key(name) {
+                let Some((index, parameters, result)) = self
+                    .visible_functions
+                    .get(name)
+                    .and_then(|symbol| self.signatures.get(symbol))
+                    .cloned()
+                else {
+                    return Err(diagnostic(
+                        "E_NAME_UNKNOWN",
+                        format!("unknown {label} `{name}`"),
+                        *span,
+                    ));
+                };
+                return Ok(FunctionArgument::Named {
+                    index,
+                    parameters,
+                    result,
+                    span: *span,
+                });
+            }
+        }
+        match self.expr(arg)? {
+            Type::Fn(parameters, result) => Ok(FunctionArgument::Value {
+                parameters,
+                result: *result,
+                span: arg.span(),
+            }),
+            _ => Err(diagnostic(not_a_function.0, not_a_function.1, arg.span())),
+        }
     }
 
     fn catalog_fixed_builtin(
@@ -1594,7 +1777,64 @@ impl<'a> FnCompiler<'a> {
         Ok(Some(result))
     }
 
+    /// Whether a type is, or holds, a function value, looking through record fields.
+    fn type_has_fn(&self, ty: &Type) -> bool {
+        fn walk(ty: &Type, records: &[RecordAst], seen: &mut Vec<String>) -> bool {
+            match ty {
+                Type::Fn(_, _) => true,
+                Type::List(item) | Type::Map(item) | Type::Option(item) => {
+                    walk(item, records, seen)
+                }
+                Type::Result(ok, err) => walk(ok, records, seen) || walk(err, records, seen),
+                Type::Record(name) => {
+                    if seen.contains(name) {
+                        return false;
+                    }
+                    seen.push(name.clone());
+                    records
+                        .iter()
+                        .find(|record| record.name == *name)
+                        .is_some_and(|record| {
+                            record
+                                .fields
+                                .iter()
+                                .any(|(_, field, _)| walk(field, records, seen))
+                        })
+                }
+                _ => false,
+            }
+        }
+        walk(ty, self.records, &mut Vec::new())
+    }
+
     fn expr_with_expected(
+        &mut self,
+        e: &Expr,
+        expected: Option<&Type>,
+    ) -> Result<Type, Diagnostic> {
+        let mark = self.boundary_args.len();
+        let result = self.expr_with_expected_inner(e, expected);
+        self.boundary_args.truncate(mark);
+        let ty = result?;
+        if mark > 0 {
+            let key = e as *const Expr;
+            if let Some((_, boundary)) = self.boundary_args[..mark]
+                .iter()
+                .find(|(pointer, _)| *pointer == key)
+            {
+                if self.type_has_fn(&ty) {
+                    return Err(diagnostic(
+                        "E_FN_NOT_SERIALIZABLE",
+                        format!("a type that holds a function value cannot cross {boundary}"),
+                        e.span(),
+                    ));
+                }
+            }
+        }
+        Ok(ty)
+    }
+
+    fn expr_with_expected_inner(
         &mut self,
         e: &Expr,
         expected: Option<&Type>,
@@ -1829,9 +2069,24 @@ impl<'a> FnCompiler<'a> {
                     self.emit(Op::MakeNone, *s);
                     return Ok(option_type.clone());
                 }
-                let l = self.locals.get(n).cloned().ok_or_else(|| {
-                    diagnostic("E_NAME_UNKNOWN", format!("unknown name `{n}`"), *s)
-                })?;
+                let Some(l) = self.locals.get(n).cloned() else {
+                    // A bare function name denotes the function value; a local of the same
+                    // name wins.
+                    if let Some((index, parameters, result)) = self
+                        .visible_functions
+                        .get(n)
+                        .and_then(|symbol| self.signatures.get(symbol))
+                        .cloned()
+                    {
+                        self.emit(Op::MakeFn(index), *s);
+                        return Ok(Type::Fn(parameters, Box::new(result)));
+                    }
+                    return Err(diagnostic(
+                        "E_NAME_UNKNOWN",
+                        format!("unknown name `{n}`"),
+                        *s,
+                    ));
+                };
                 self.emit(Op::Load(l.slot), *s);
                 Ok(l.ty)
             }
@@ -1903,6 +2158,13 @@ impl<'a> FnCompiler<'a> {
                 }
                 let lt = self.expr(a)?;
                 let rt = self.expr(b)?;
+                if (op == "==" || op == "!=") && (self.type_has_fn(&lt) || self.type_has_fn(&rt)) {
+                    return Err(diagnostic(
+                        "E_FN_COMPARE",
+                        "function values cannot be compared",
+                        *s,
+                    ));
+                }
                 let op_code = match op.as_str() {
                     "+" if lt == Type::Int && rt == Type::Int => Some(Op::Add),
                     "+" if lt == Type::Text && rt == Type::Text => Some(Op::Add),
@@ -1946,7 +2208,58 @@ impl<'a> FnCompiler<'a> {
                 }
             }
             Expr::Call(name, args, keywords, s) => {
+                // A local of function type is called through its value; a local of any other
+                // type leaves the name to the functions and builtins as before.
+                if let Some(local) = self.locals.get(name).cloned() {
+                    if let Type::Fn(parameters, result) = &local.ty {
+                        if args.len() != parameters.len() {
+                            return Err(diagnostic(
+                                "E_CALL_ARITY",
+                                format!(
+                                    "function value `{name}` expects {} arguments, got {}",
+                                    parameters.len(),
+                                    args.len()
+                                ),
+                                *s,
+                            ));
+                        }
+                        if !keywords.is_empty() {
+                            return Err(diagnostic(
+                                "E_CALL_KEYWORD",
+                                "keyword arguments are supported only for declared Python calls",
+                                keywords[0].2,
+                            ));
+                        }
+                        for (arg, expected) in args.iter().zip(parameters.iter()) {
+                            let actual = self.expr_with_expected(arg, Some(expected))?;
+                            if actual != *expected {
+                                return Err(diagnostic(
+                                    "E_TYPE_ARGUMENT",
+                                    format!(
+                                        "argument to `{name}` expects {expected:?}, got {actual:?}"
+                                    ),
+                                    arg.span(),
+                                ));
+                            }
+                        }
+                        self.emit(Op::Load(local.slot), *s);
+                        self.emit(Op::CallFn(args.len()), *s);
+                        return Ok(result.as_ref().clone());
+                    }
+                }
                 if let Some(signature) = builtin_catalog::get(name) {
+                    for (position, arg) in args.iter().enumerate() {
+                        if let Some(parameter) = signature.parameters.get(position) {
+                            if !(parameter.contains('$')
+                                || parameter.contains("fn(")
+                                || parameter.contains("Named")
+                                || parameter == "Sized")
+                            {
+                                self.boundary_args
+                                    .push((arg as *const Expr, boundary_label(name)));
+                            }
+                        }
+                    }
                     if args.len() != signature.parameters.len() {
                         return Err(diagnostic(
                             "E_CALL_ARITY",
@@ -2099,43 +2412,30 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
-                    let Expr::Name(worker_name, worker_span) = &args[1] else {
-                        return Err(diagnostic(
+                    let worker = self.function_argument(
+                        &args[1],
+                        (
                             "E_TYPE_ARGUMENT",
-                            "parallel_map worker must be a named function",
-                            args[1].span(),
-                        ));
-                    };
-                    let Some(worker_symbol) = self.visible_functions.get(worker_name) else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown worker function `{worker_name}`"),
-                            *worker_span,
-                        ));
-                    };
-                    let Some((worker_index, worker_params, worker_result)) =
-                        self.signatures.get(worker_symbol).cloned()
-                    else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown worker function `{worker_name}`"),
-                            *worker_span,
-                        ));
-                    };
+                            "parallel_map worker must be a named function or a function value",
+                        ),
+                        "worker function",
+                    )?;
+                    let worker_span = worker.span();
+                    let (worker_params, worker_result) = worker.signature();
                     if worker_params.iter().any(type_contains_native_resource)
                         || type_contains_native_resource(&worker_result)
                     {
                         return Err(diagnostic(
                             "E_PARALLEL_RESOURCE",
                             "parallel workers cannot accept or return native resources",
-                            *worker_span,
+                            worker_span,
                         ));
                     }
                     if worker_params != vec![item_type] {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
                             "parallel_map worker must accept one item of the list's item type",
-                            *worker_span,
+                            worker_span,
                         ));
                     }
                     if self.expr(&args[2])? != Type::Int {
@@ -2145,7 +2445,10 @@ impl<'a> FnCompiler<'a> {
                             args[2].span(),
                         ));
                     }
-                    self.emit(Op::ParallelMap(worker_index), *s);
+                    match worker.index() {
+                        Some(worker_index) => self.emit(Op::ParallelMap(worker_index), *s),
+                        None => self.emit(Op::HigherOrder(HigherOrderKind::ParallelMap), *s),
+                    };
                     return Ok(Type::Result(
                         Box::new(Type::List(Box::new(worker_result))),
                         Box::new(Type::TaskError),
@@ -2155,7 +2458,7 @@ impl<'a> FnCompiler<'a> {
                     if args.len() != 2 {
                         return Err(diagnostic(
                             "E_CALL_ARITY",
-                            "sort_by expects a list and a named comparator",
+                            "sort_by expects a list and a named key function or comparator",
                             *s,
                         ));
                     }
@@ -2169,37 +2472,160 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
-                    let Expr::Name(comparator_name, comparator_span) = &args[1] else {
-                        return Err(diagnostic(
+                    let comparator = self.function_argument(
+                        &args[1],
+                        (
                             "E_SORT_COMPARATOR",
-                            "sort_by comparator must be a named function",
-                            args[1].span(),
-                        ));
-                    };
-                    let Some(comparator_symbol) = self.visible_functions.get(comparator_name)
-                    else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown comparator `{comparator_name}`"),
-                            *comparator_span,
-                        ));
-                    };
-                    let Some((comparator_index, parameters, result)) =
-                        self.signatures.get(comparator_symbol).cloned()
-                    else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown comparator `{comparator_name}`"),
-                            *comparator_span,
-                        ));
-                    };
+                            "sort_by comparator must be a named function or a function value",
+                        ),
+                        "comparator",
+                    )?;
+                    let comparator_span = &comparator.span();
+                    let (parameters, result) = comparator.signature();
+                    // A named function with one parameter is a key function `(T) -> K`
+                    // (artifact format 65); with two it is the comparator `(T, T) -> Int`
+                    // that format 36 introduced and that keeps compiling to `SortBy`.
+                    if parameters.len() == 1 {
+                        if parameters != vec![item_type.clone()] {
+                            return Err(diagnostic(
+                                "E_SORT_KEY",
+                                "sort_by key function must have type (T) -> K for the list item type",
+                                *comparator_span,
+                            ));
+                        }
+                        if !matches!(result, Type::Text | Type::Int | Type::Float64) {
+                            return Err(diagnostic(
+                                "E_SORT_KEY",
+                                "sort_by key function must return Text, Int or Float64",
+                                *comparator_span,
+                            ));
+                        }
+                        match comparator.index() {
+                            Some(index) => self.emit(Op::SortByKey(index), *s),
+                            None => self.emit(Op::HigherOrder(HigherOrderKind::SortByKey), *s),
+                        };
+                        return Ok(Type::List(Box::new(item_type)));
+                    }
                     if parameters != vec![item_type.clone(), item_type.clone()]
                         || result != Type::Int
                     {
                         return Err(diagnostic("E_SORT_COMPARATOR", "sort_by comparator must have type (T, T) -> Int for the list item type", *comparator_span));
                     }
-                    self.emit(Op::SortBy(comparator_index), *s);
+                    match comparator.index() {
+                        Some(index) => self.emit(Op::SortBy(index), *s),
+                        None => self.emit(Op::HigherOrder(HigherOrderKind::SortBy), *s),
+                    };
                     return Ok(Type::List(Box::new(item_type)));
+                }
+                if name == "sort" {
+                    if args.len() != 1 {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            "sort expects one list of Text, Int or Float64",
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "sort argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    if !matches!(item_type, Type::Text | Type::Int | Type::Float64) {
+                        return Err(diagnostic(
+                            "E_SORT_KEY",
+                            "sort requires a List of Text, Int or Float64; use sort_by with a key function for other items",
+                            args[0].span(),
+                        ));
+                    }
+                    self.emit(Op::SortNatural, *s);
+                    return Ok(Type::List(Box::new(item_type)));
+                }
+                if matches!(
+                    name.as_str(),
+                    "map_list" | "filter_list" | "fold_list" | "any_list" | "all_list"
+                ) {
+                    let fold = name == "fold_list";
+                    let expected_arguments = if fold { 3 } else { 2 };
+                    if args.len() != expected_arguments {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            format!("{name} expects {expected_arguments} arguments"),
+                            *s,
+                        ));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                format!("{name} first argument must be a List"),
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    let accumulator = if fold {
+                        Some(self.expr(&args[1])?)
+                    } else {
+                        None
+                    };
+                    let function_position = expected_arguments - 1;
+                    let function = self.function_argument(
+                        &args[function_position],
+                        (
+                            "E_TYPE_ARGUMENT",
+                            "the last argument must be a named function or a function value",
+                        ),
+                        "function",
+                    )?;
+                    let function_span = function.span();
+                    let (parameters, result) = function.signature();
+                    let (expected_parameters, expected_result) = match name.as_str() {
+                        "map_list" => (vec![item_type.clone()], None),
+                        "filter_list" | "any_list" | "all_list" => {
+                            (vec![item_type.clone()], Some(Type::Bool))
+                        }
+                        _ => {
+                            let accumulator =
+                                accumulator.clone().expect("fold has an initial value");
+                            (
+                                vec![accumulator.clone(), item_type.clone()],
+                                Some(accumulator),
+                            )
+                        }
+                    };
+                    if parameters != expected_parameters
+                        || expected_result
+                            .as_ref()
+                            .is_some_and(|expected| *expected != result)
+                    {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!(
+                                "{name} function must have type {expected_parameters:?} -> {:?}",
+                                expected_result.as_ref().unwrap_or(&result)
+                            ),
+                            function_span,
+                        ));
+                    }
+                    if let Some(index) = function.index() {
+                        self.emit(Op::MakeFn(index), function_span);
+                    }
+                    let (kind, result_type) = match name.as_str() {
+                        "map_list" => (HigherOrderKind::MapList, Type::List(Box::new(result))),
+                        "filter_list" => {
+                            (HigherOrderKind::FilterList, Type::List(Box::new(item_type)))
+                        }
+                        "fold_list" => (HigherOrderKind::FoldList, result),
+                        "any_list" => (HigherOrderKind::AnyList, Type::Bool),
+                        _ => (HigherOrderKind::AllList, Type::Bool),
+                    };
+                    self.emit(Op::HigherOrder(kind), *s);
+                    return Ok(result_type);
                 }
                 if name == "sort_by_int_key" {
                     if args.len() != 2 {
@@ -2219,29 +2645,16 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
-                    let Expr::Name(key_name, key_span) = &args[1] else {
-                        return Err(diagnostic(
+                    let key = self.function_argument(
+                        &args[1],
+                        (
                             "E_SORT_KEY",
-                            "sort_by_int_key key function must be a named function",
-                            args[1].span(),
-                        ));
-                    };
-                    let Some(key_symbol) = self.visible_functions.get(key_name) else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown key function `{key_name}`"),
-                            *key_span,
-                        ));
-                    };
-                    let Some((key_index, parameters, result)) =
-                        self.signatures.get(key_symbol).cloned()
-                    else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown key function `{key_name}`"),
-                            *key_span,
-                        ));
-                    };
+                            "sort_by_int_key key function must be a named function or a function value",
+                        ),
+                        "key function",
+                    )?;
+                    let key_span = &key.span();
+                    let (parameters, result) = key.signature();
                     if parameters != vec![item_type.clone()] || result != Type::Int {
                         return Err(diagnostic(
                             "E_SORT_KEY",
@@ -2249,7 +2662,10 @@ impl<'a> FnCompiler<'a> {
                             *key_span,
                         ));
                     }
-                    self.emit(Op::SortByIntKey(key_index), *s);
+                    match key.index() {
+                        Some(key_index) => self.emit(Op::SortByIntKey(key_index), *s),
+                        None => self.emit(Op::HigherOrder(HigherOrderKind::SortByIntKey), *s),
+                    };
                     return Ok(Type::List(Box::new(item_type)));
                 }
                 if name == "merge_sorted_by_int_key" {
@@ -2277,29 +2693,16 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
-                    let Expr::Name(key_name, key_span) = &args[1] else {
-                        return Err(diagnostic(
+                    let key = self.function_argument(
+                        &args[1],
+                        (
                             "E_SORT_KEY",
-                            "merge_sorted_by_int_key key function must be a named function",
-                            args[1].span(),
-                        ));
-                    };
-                    let Some(key_symbol) = self.visible_functions.get(key_name) else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown key function `{key_name}`"),
-                            *key_span,
-                        ));
-                    };
-                    let Some((key_index, parameters, result)) =
-                        self.signatures.get(key_symbol).cloned()
-                    else {
-                        return Err(diagnostic(
-                            "E_NAME_UNKNOWN",
-                            format!("unknown key function `{key_name}`"),
-                            *key_span,
-                        ));
-                    };
+                            "merge_sorted_by_int_key key function must be a named function or a function value",
+                        ),
+                        "key function",
+                    )?;
+                    let key_span = &key.span();
+                    let (parameters, result) = key.signature();
                     if parameters != vec![item_type.clone()] || result != Type::Int {
                         return Err(diagnostic(
                             "E_SORT_KEY",
@@ -2307,7 +2710,12 @@ impl<'a> FnCompiler<'a> {
                             *key_span,
                         ));
                     }
-                    self.emit(Op::MergeSortedByIntKey(key_index), *s);
+                    match key.index() {
+                        Some(key_index) => self.emit(Op::MergeSortedByIntKey(key_index), *s),
+                        None => {
+                            self.emit(Op::HigherOrder(HigherOrderKind::MergeSortedByIntKey), *s)
+                        }
+                    };
                     return Ok(Type::List(Box::new(item_type)));
                 }
                 if name == "list_get" || name == "map_get" {
@@ -2711,11 +3119,21 @@ impl<'a> FnCompiler<'a> {
                     let (names, types): (Vec<_>, Vec<_>) = params.into_iter().unzip();
                     (index, types, Some(names), result, true)
                 } else {
+                    let mut candidates: Vec<&str> = builtin_catalog::names().collect();
+                    candidates.extend(["map_record_get", "map_record_set"]);
+                    let own: Vec<&str> = self
+                        .visible_functions
+                        .keys()
+                        .chain(self.visible_externals.keys())
+                        .map(String::as_str)
+                        .collect();
+                    candidates.extend(own);
                     return Err(diagnostic(
                         "E_NAME_UNKNOWN",
                         format!("unknown function `{name}`"),
                         *s,
-                    ));
+                    )
+                    .with_suggestions(suggest_names(name, &candidates)));
                 };
                 if !external && args.len() != params.len() {
                     return Err(diagnostic(
@@ -2742,6 +3160,20 @@ impl<'a> FnCompiler<'a> {
                     let expected = &params[position];
                     let actual = self.expr_with_expected(arg, Some(expected))?;
                     if actual != *expected {
+                        let standard = !external
+                            && self
+                                .visible_functions
+                                .get(name)
+                                .is_some_and(|symbol| self.standard_functions.contains(symbol));
+                        if standard && self.type_has_fn(&actual) && !self.type_has_fn(expected) {
+                            return Err(diagnostic(
+                                "E_FN_NOT_SERIALIZABLE",
+                                format!(
+                                    "a type that holds a function value cannot cross the standard-library function `{name}`"
+                                ),
+                                arg.span(),
+                            ));
+                        }
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
                             format!("argument to `{name}` expects {expected:?}, got {actual:?}"),
@@ -3073,7 +3505,14 @@ impl<'a> FnCompiler<'a> {
                             *span,
                         ));
                     }
-                    self.expr(&args[0])?;
+                    let printed = self.expr(&args[0])?;
+                    if self.type_has_fn(&printed) {
+                        return Err(diagnostic(
+                            "E_FN_NOT_SERIALIZABLE",
+                            "a type that holds a function value cannot cross program output",
+                            args[0].span(),
+                        ));
+                    }
                     self.emit(
                         if name == "eprint" {
                             Op::PrintErr
@@ -3120,10 +3559,19 @@ impl<'a> FnCompiler<'a> {
                     }
                     let exit = self.emit(Op::JumpIfFalse(0), *span);
                     let before = self.locals.clone();
+                    self.loops.push(LoopFrame::default());
                     self.stmts(body)?;
+                    let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = before;
                     self.emit(Op::Jump(start), *span);
-                    self.patch(exit, self.code.len());
+                    let end = self.code.len();
+                    self.patch(exit, end);
+                    for jump in frame.breaks {
+                        self.patch(jump, end);
+                    }
+                    for jump in frame.continues {
+                        self.patch(jump, start);
+                    }
                 }
                 Stmt::For(name, values, body, span) => {
                     let item_type = match self.expr(values)? {
@@ -3174,14 +3622,42 @@ impl<'a> FnCompiler<'a> {
                             mutable: false,
                         },
                     );
+                    self.loops.push(LoopFrame::default());
                     self.stmts(body)?;
+                    let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = old_locals;
+                    let advance = self.code.len();
                     self.emit(Op::Load(index_slot), *span);
                     self.emit(Op::Const(Value::Int(BigInt::one())), *span);
                     self.emit(Op::Add, *span);
                     self.emit(Op::Store(index_slot), *span);
                     self.emit(Op::Jump(start), *span);
-                    self.patch(exit, self.code.len());
+                    let end = self.code.len();
+                    self.patch(exit, end);
+                    for jump in frame.breaks {
+                        self.patch(jump, end);
+                    }
+                    for jump in frame.continues {
+                        self.patch(jump, advance);
+                    }
+                }
+                Stmt::Break(span) | Stmt::Continue(span) => {
+                    let is_break = matches!(s, Stmt::Break(_));
+                    if self.loops.is_empty() {
+                        let word = if is_break { "break" } else { "continue" };
+                        return Err(diagnostic(
+                            "E_NO_LOOP",
+                            format!("`{word}` outside a loop"),
+                            *span,
+                        ));
+                    }
+                    let jump = self.emit(Op::Jump(0), *span);
+                    let frame = self.loops.last_mut().expect("checked above");
+                    if is_break {
+                        frame.breaks.push(jump);
+                    } else {
+                        frame.continues.push(jump);
+                    }
                 }
                 Stmt::Match(value, arms, span) => {
                     let value_type = self.expr(value)?;
@@ -4252,6 +4728,16 @@ fn compile_program(
     for function in &program.functions {
         *global_name_counts.entry(&function.name).or_default() += 1;
     }
+    let standard_functions: HashSet<String> = program
+        .functions
+        .iter()
+        .filter(|function| {
+            sources
+                .get(function.module_id)
+                .is_some_and(|identity| identity.starts_with("std:"))
+        })
+        .map(|function| function_symbol(function.module_id, &function.name))
+        .collect();
     let mut functions = Vec::new();
     for f in &program.functions {
         let mut compiler = FnCompiler {
@@ -4262,9 +4748,12 @@ fn compile_program(
             visible_functions: &visible_functions_by_module[&f.module_id],
             visible_externals: &visible_externals_by_module[&f.module_id],
             visible_records: &scopes[&f.module_id].records,
+            standard_functions: &standard_functions,
             locals: HashMap::new(),
             next_local: 0,
             code: Vec::new(),
+            loops: Vec::new(),
+            boundary_args: Vec::new(),
         };
         for (name, ty, span) in &f.params {
             let slot = compiler.next_local;
@@ -4367,6 +4856,30 @@ fn compile_program(
     Ok(artifact)
 }
 
+/// What a builtin's non-generic argument is, for the `E_FN_NOT_SERIALIZABLE` message.
+fn boundary_label(name: &str) -> String {
+    let label = if name.starts_with("json_") {
+        "a JSON conversion"
+    } else if name.starts_with("csv_") {
+        "a CSV conversion"
+    } else if name.starts_with("native_toml_") {
+        "a TOML conversion"
+    } else if name.starts_with("native_sqlite_") {
+        "a SQLite parameter or result"
+    } else if name.starts_with("native_process_") || name == "args" || name == "env" {
+        "process arguments or the environment"
+    } else if name.starts_with("http_") {
+        "an HTTP request or response"
+    } else if name == "print" || name == "eprint" {
+        "program output"
+    } else if name.starts_with("read_") || name.starts_with("write_") {
+        "a file"
+    } else {
+        return format!("the builtin `{name}`");
+    };
+    label.to_owned()
+}
+
 fn type_is_known(ty: &Type, records: &std::collections::HashSet<String>) -> bool {
     match ty {
         Type::Record(name) => records.contains(name),
@@ -4376,6 +4889,12 @@ fn type_is_known(ty: &Type, records: &std::collections::HashSet<String>) -> bool
         ),
         Type::List(item) | Type::Map(item) | Type::Option(item) => type_is_known(item, records),
         Type::Result(ok, err) => type_is_known(ok, records) && type_is_known(err, records),
+        Type::Fn(parameters, result) => {
+            parameters
+                .iter()
+                .all(|parameter| type_is_known(parameter, records))
+                && type_is_known(result, records)
+        }
         _ => true,
     }
 }
@@ -4389,6 +4908,12 @@ fn type_is_visible(ty: &Type, records: &HashSet<String>) -> bool {
         ),
         Type::List(item) | Type::Map(item) | Type::Option(item) => type_is_visible(item, records),
         Type::Result(ok, err) => type_is_visible(ok, records) && type_is_visible(err, records),
+        Type::Fn(parameters, result) => {
+            parameters
+                .iter()
+                .all(|parameter| type_is_visible(parameter, records))
+                && type_is_visible(result, records)
+        }
         _ => true,
     }
 }
@@ -4405,7 +4930,7 @@ fn python_bridge_type(ty: &Type) -> bool {
         Type::List(item) => python_bridge_type(item),
         Type::Map(item) => python_bridge_type(item),
         Type::Record(_) => false,
-        Type::NativeResource(_) | Type::Array(_) => false,
+        Type::NativeResource(_) | Type::Array(_) | Type::Fn(_, _) => false,
         Type::Option(_)
         | Type::Result(_, _)
         | Type::TaskError
@@ -4423,6 +4948,10 @@ fn type_contains_native_resource(ty: &Type) -> bool {
         }
         Type::Result(ok, err) => {
             type_contains_native_resource(ok) || type_contains_native_resource(err)
+        }
+        Type::Fn(parameters, result) => {
+            parameters.iter().any(type_contains_native_resource)
+                || type_contains_native_resource(result)
         }
         _ => false,
     }

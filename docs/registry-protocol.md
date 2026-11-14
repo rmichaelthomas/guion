@@ -93,6 +93,10 @@ Failures are `{ "error": { "code": "E_...", "message": "..." } }` with an HTTP s
 
 For every package it installs, a client checks that the same hash appears in all of: the index entry, the log entry at the index's `log_seq`, the lock file, and the downloaded archive's own bytes. Any disagreement fails closed. It also checks that the log entry's own hash recomputes, that the chain links to the previous entry, and, when it knows the registry's public key, that both entries carry a valid signature from it; a missing or invalid signature fails closed. The Guion client pins the default registry's key and reads another registry's key from `GUION_REGISTRY_PUBLIC_KEY`, then `[registry] public_key` in `guion.toml`.
 
+## Verifying one release
+
+`guion verify-package NAME VERSION` (or `ARCHIVE NAME VERSION` for bytes already on disk) applies the checks above to a single release without installing it, and adds one: the archive's own `guion.toml` must name that package and version. It fails closed with a typed code: `E_PACKAGE_CHECKSUM` when the archive does not hash to the index and log value, `E_PACKAGE_SIGNATURE` when the log entry is not signed by a trusted key (or no key is configured), `E_PACKAGE_LOG` for a log entry that disagrees with the index, fails its own hash or is not chained, `E_PACKAGE_MANIFEST`, `E_PACKAGE_NOT_FOUND` and `E_PACKAGE_REGISTRY`. The registry protocol itself is unchanged.
+
 ## Not in this version
 
 Publisher signatures (the per-version field is reserved), namespaces and organisation ownership. Precompiled `.gub` attachments are deferred: the compiler links whole programs from source, so nothing could use them until libraries compile separately.

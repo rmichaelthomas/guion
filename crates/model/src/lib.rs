@@ -124,9 +124,9 @@ mod shared_text_tests {
 mod tests {
     use super::Shared;
     use super::{
-        Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue, Function,
-        Instruction, JsonErrorValue, NetFunction, Op, PackageIdentity, ProcessFunction,
-        RegexFunction, ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
+        Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue,
+        FsFunction, Function, Instruction, JsonErrorValue, NetFunction, Op, PackageIdentity,
+        ProcessFunction, RegexFunction, ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1399,6 +1399,266 @@ mod tests {
         );
     }
 
+    /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
+    /// at `first_format` and at the current format it round-trips.
+    fn assert_gated(op: Op, first_format: u32) {
+        let mut artifact = Artifact {
+            format_version: Artifact::CURRENT_VERSION,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = first_format;
+        let at_first = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&at_first).unwrap(), artifact);
+        artifact.format_version = first_format - 1;
+        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let mut old = bytes;
+        old[4..8].copy_from_slice(&(first_format - 1).to_le_bytes());
+        assert_eq!(
+            Artifact::from_bytes(&old).unwrap_err().code,
+            "E_ARTIFACT_VERSION"
+        );
+    }
+
+    #[test]
+    fn sha256_instructions_are_gated_on_format_67() {
+        assert_gated(Op::Codec(CodecFunction::Sha256), 67);
+        assert_gated(Op::Fs(FsFunction::Sha256), 67);
+    }
+
+    #[test]
+    fn random_bytes_instruction_is_gated_on_format_68() {
+        assert_gated(Op::RandomBytes, 68);
+    }
+
+    #[test]
+    fn sqlite_begin_read_instruction_is_gated_on_format_69() {
+        assert_gated(Op::SqliteBeginRead, 69);
+    }
+
+    #[test]
+    fn log_instructions_are_gated_on_format_70() {
+        assert_gated(Op::LogAppend, 70);
+        assert_gated(Op::LogDefaultLevel, 70);
+    }
+
+    #[test]
+    fn compression_instructions_are_gated_on_format_71() {
+        assert_gated(Op::GzipCompress, 71);
+        assert_gated(Op::GzipDecompress, 71);
+        assert_gated(Op::ZlibCompress, 71);
+        assert_gated(Op::ZlibDecompress, 71);
+        assert_gated(Op::Fs(FsFunction::GzipCompressFile), 71);
+        assert_gated(Op::Fs(FsFunction::GzipDecompressFile), 71);
+        assert_gated(Op::Fs(FsFunction::TarWrite), 71);
+        assert_gated(Op::Fs(FsFunction::TarRead), 71);
+        assert_gated(Op::Fs(FsFunction::TarList), 71);
+    }
+
+    #[test]
+    fn static_file_instructions_are_gated_on_format_73() {
+        assert_gated(Op::Fs(FsFunction::ReadRange), 73);
+        assert_gated(Op::Fs(FsFunction::ConfinedPath), 73);
+    }
+
+    #[test]
+    fn the_yaml_instruction_is_gated_on_format_72() {
+        assert_gated(Op::YamlParse, 72);
+    }
+
+    #[test]
+    fn a_format_72_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 72,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::YamlParse,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 73;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn a_format_71_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 71,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::GzipCompress,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 72;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn a_format_70_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 70,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::LogDefaultLevel,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 71;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn a_format_69_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 69,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::SqliteBeginRead,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 70;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
+    #[test]
+    fn a_format_68_artifact_with_a_write_transaction_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 68,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::SqliteBegin,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 69;
+        assert!(artifact.to_bytes().is_ok());
+    }
+
     #[test]
     fn sha1_and_xor_instructions_are_gated_on_format_59() {
         let mut artifact = Artifact {
@@ -1629,12 +1889,19 @@ pub struct Span {
     pub column: usize,
 }
 
+/// Behind a box so a `Diagnostic` in a `Result::Err` stays under clippy's size limit.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SuggestionList(Vec<String>);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
     pub code: String,
     pub message: String,
     pub span: Span,
     pub source_name: Option<String>,
+    /// Near-miss names the author may have meant, nearest first; read it with
+    /// `suggestions()`. Boxed and optional so `Diagnostic` stays small in `Result` errors.
+    suggestions: Option<Box<SuggestionList>>,
 }
 
 impl Diagnostic {
@@ -1644,7 +1911,21 @@ impl Diagnostic {
             message: message.into(),
             span,
             source_name: None,
+            suggestions: None,
         }
+    }
+
+    pub fn with_suggestions(mut self, suggestions: Vec<String>) -> Self {
+        self.suggestions = (!suggestions.is_empty()).then(|| Box::new(SuggestionList(suggestions)));
+        self
+    }
+
+    /// Candidate names for an unknown call, nearest first; empty when there are none.
+    /// They are only ever shown, never substituted.
+    pub fn suggestions(&self) -> &[String] {
+        self.suggestions
+            .as_deref()
+            .map_or(&[], |list| list.0.as_slice())
     }
 
     pub fn with_source_name(mut self, source_name: impl Into<String>) -> Self {
@@ -2108,6 +2389,19 @@ impl PartialEq for Float64 {
 }
 impl Eq for Float64 {}
 
+/// The order `sort` and `sort_by` give `Float64` values: a total order in which every NaN
+/// sorts after every number (and equal to every other NaN) and `-0.0` sorts before `0.0`.
+/// Values the language produces are always finite; this is total so that it never panics
+/// and never depends on a payload.
+pub fn sort_order_f64(left: f64, right: f64) -> std::cmp::Ordering {
+    match (left.is_nan(), right.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => left.total_cmp(&right),
+    }
+}
+
 /// Text shared between values. Cloning shares the bytes. The bytes follow a header holding
 /// the reference count, length and capacity in one allocation, so reading text is one pointer
 /// step. Text built by appending to a local is marked growable, so that appending to it while
@@ -2390,6 +2684,7 @@ impl ShareAcrossThreads for Value {
             | Value::FileError(_)
             | Value::HttpError(_)
             | Value::NativeResource(_)
+            | Value::Function(_)
             | Value::Unit => {}
         }
     }
@@ -2925,6 +3220,7 @@ pub enum Value {
     FileError(Box<FileErrorValue>),
     HttpError(Box<HttpErrorValue>),
     NativeResource(Box<NativeResourceValue>),
+    Function(usize),
     Unit,
 }
 
@@ -3001,6 +3297,7 @@ impl PartialEq for Value {
             (Value::FileError(left), Value::FileError(right)) => left == right,
             (Value::HttpError(left), Value::HttpError(right)) => left == right,
             (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
+            (Value::Function(left), Value::Function(right)) => left == right,
             (Value::Unit, Value::Unit) => true,
             _ => false,
         }
@@ -3125,6 +3422,7 @@ impl fmt::Display for Value {
             Value::FileError(error) => write!(f, "FileError({}, {})", error.code, error.message),
             Value::HttpError(error) => write!(f, "HttpError({}, {})", error.code, error.message),
             Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
+            Value::Function(index) => write!(f, "<function {index}>"),
             Value::Unit => f.write_str("()"),
         }
     }
@@ -3149,7 +3447,85 @@ pub enum Type {
     HttpError,
     NativeResource(String),
     Array(ElementType),
+    Fn(Vec<Type>, Box<Type>),
     Unit,
+}
+
+/// `Type::Fn` is the type of a function value: the parameter types and the result type of a
+/// named top-level function (artifact format 66). `Value::Function` is an index into the function
+/// table of the artifact that made it, and `Op::MakeFn`, `Op::CallFn` and `Op::HigherOrder` form,
+/// call and pass function values. A function value captures nothing.
+impl Type {
+    /// Whether this type is, or holds, a function value.
+    pub fn contains_fn(&self) -> bool {
+        match self {
+            Type::Fn(_, _) => true,
+            Type::List(item) | Type::Map(item) | Type::Option(item) => item.contains_fn(),
+            Type::Result(ok, err) => ok.contains_fn() || err.contains_fn(),
+            _ => false,
+        }
+    }
+}
+
+/// The higher-order builtins that take a function value from the stack (`Op::HigherOrder`).
+/// Codes are part of artifact format 66.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HigherOrderKind {
+    SortBy,
+    SortByKey,
+    SortByIntKey,
+    MergeSortedByIntKey,
+    ParallelMap,
+    MapList,
+    FilterList,
+    FoldList,
+    AnyList,
+    AllList,
+}
+
+impl HigherOrderKind {
+    pub const ALL: [HigherOrderKind; 10] = [
+        HigherOrderKind::SortBy,
+        HigherOrderKind::SortByKey,
+        HigherOrderKind::SortByIntKey,
+        HigherOrderKind::MergeSortedByIntKey,
+        HigherOrderKind::ParallelMap,
+        HigherOrderKind::MapList,
+        HigherOrderKind::FilterList,
+        HigherOrderKind::FoldList,
+        HigherOrderKind::AnyList,
+        HigherOrderKind::AllList,
+    ];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|kind| *kind == self)
+            .expect("every kind is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(code as usize).copied()
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            HigherOrderKind::SortBy => "SortBy",
+            HigherOrderKind::SortByKey => "SortByKey",
+            HigherOrderKind::SortByIntKey => "SortByIntKey",
+            HigherOrderKind::MergeSortedByIntKey => "MergeSortedByIntKey",
+            HigherOrderKind::ParallelMap => "ParallelMap",
+            HigherOrderKind::MapList => "MapList",
+            HigherOrderKind::FilterList => "FilterList",
+            HigherOrderKind::FoldList => "FoldList",
+            HigherOrderKind::AnyList => "AnyList",
+            HigherOrderKind::AllList => "AllList",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|kind| kind.name() == name)
+    }
 }
 
 /// Pure `Float64` math functions behind `Op::Math`. Codes are part of artifact format 52.
@@ -3274,10 +3650,12 @@ pub enum CodecFunction {
     Sha1,
     /// XOR of a byte string with a repeating key (format 59); used for WebSocket masking.
     BytesXor,
+    /// SHA-256 digest of a byte string (format 67).
+    Sha256,
 }
 
 impl CodecFunction {
-    const ALL: [CodecFunction; 14] = [
+    const ALL: [CodecFunction; 15] = [
         CodecFunction::Base64Encode,
         CodecFunction::Base64UrlEncode,
         CodecFunction::Base64Decode,
@@ -3292,6 +3670,7 @@ impl CodecFunction {
         CodecFunction::PercentDecode,
         CodecFunction::Sha1,
         CodecFunction::BytesXor,
+        CodecFunction::Sha256,
     ];
 
     pub fn code(self) -> u8 {
@@ -3322,6 +3701,7 @@ impl CodecFunction {
             CodecFunction::PercentDecode => "CodecPercentDecode",
             CodecFunction::Sha1 => "CodecSha1",
             CodecFunction::BytesXor => "CodecBytesXor",
+            CodecFunction::Sha256 => "CodecSha256",
         }
     }
 
@@ -3358,10 +3738,28 @@ pub enum FsFunction {
     Copy,
     TempDir,
     TempFile,
+    /// Streamed SHA-256 digest of a file (format 67); needs the file-read grant.
+    Sha256,
+    /// Streamed gzip compression of one file into another (format 71).
+    GzipCompressFile,
+    /// Streamed gzip decompression of one file into another, bounded by the runtime ceiling
+    /// (format 71).
+    GzipDecompressFile,
+    /// Writes a directory's contents as a tar archive, gzip-compressed for `.tar.gz` and `.tgz`
+    /// names (format 71).
+    TarWrite,
+    /// Extracts a tar archive under the file-confinement rules (format 71).
+    TarRead,
+    /// Lists the entry names of a tar archive (format 71).
+    TarList,
+    /// Reads a bounded byte range of a file (format 73); needs the file-read grant.
+    ReadRange,
+    /// Checks that a relative path stays inside a root after symlink resolution (format 73).
+    ConfinedPath,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 12] = [
+    const ALL: [FsFunction; 20] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -3374,6 +3772,14 @@ impl FsFunction {
         FsFunction::Copy,
         FsFunction::TempDir,
         FsFunction::TempFile,
+        FsFunction::Sha256,
+        FsFunction::GzipCompressFile,
+        FsFunction::GzipDecompressFile,
+        FsFunction::TarWrite,
+        FsFunction::TarRead,
+        FsFunction::TarList,
+        FsFunction::ReadRange,
+        FsFunction::ConfinedPath,
     ];
 
     pub fn code(self) -> u8 {
@@ -3402,6 +3808,14 @@ impl FsFunction {
             FsFunction::Copy => "FsOpCopy",
             FsFunction::TempDir => "FsOpTempDir",
             FsFunction::TempFile => "FsOpTempFile",
+            FsFunction::Sha256 => "FsOpSha256",
+            FsFunction::GzipCompressFile => "FsOpGzipCompressFile",
+            FsFunction::GzipDecompressFile => "FsOpGzipDecompressFile",
+            FsFunction::TarWrite => "FsOpTarWrite",
+            FsFunction::TarRead => "FsOpTarRead",
+            FsFunction::TarList => "FsOpTarList",
+            FsFunction::ReadRange => "FsOpReadRange",
+            FsFunction::ConfinedPath => "FsOpConfinedPath",
         }
     }
 
@@ -3415,7 +3829,14 @@ impl FsFunction {
     /// Number of `Text` operands the function pops.
     pub fn arity(self) -> usize {
         match self {
-            FsFunction::Rename | FsFunction::Copy => 2,
+            FsFunction::Rename
+            | FsFunction::Copy
+            | FsFunction::GzipCompressFile
+            | FsFunction::GzipDecompressFile
+            | FsFunction::TarWrite
+            | FsFunction::TarRead
+            | FsFunction::ConfinedPath => 2,
+            FsFunction::ReadRange => 3,
             _ => 1,
         }
     }
@@ -3429,6 +3850,21 @@ impl FsFunction {
                 | FsFunction::Size
                 | FsFunction::ModifiedMs
                 | FsFunction::ListDir
+                | FsFunction::Sha256
+                | FsFunction::TarList
+                | FsFunction::ReadRange
+                | FsFunction::ConfinedPath
+        )
+    }
+
+    /// Whether the function also reads files, in addition to the grant `writes` reports.
+    pub fn also_reads(self) -> bool {
+        matches!(
+            self,
+            FsFunction::GzipCompressFile
+                | FsFunction::GzipDecompressFile
+                | FsFunction::TarWrite
+                | FsFunction::TarRead
         )
     }
 }
@@ -3822,6 +4258,20 @@ pub enum Op {
     Array(ArrayFunction, ElementType),
     ArraySetLocal(usize),
     CsvReadColumns,
+    SortNatural,
+    SortByKey(usize),
+    MakeFn(usize),
+    CallFn(usize),
+    HigherOrder(HigherOrderKind),
+    RandomBytes,
+    SqliteBeginRead,
+    LogAppend,
+    LogDefaultLevel,
+    GzipCompress,
+    GzipDecompress,
+    ZlibCompress,
+    ZlibDecompress,
+    YamlParse,
     IntToFloat,
     FloatToInt,
     NumberToText,
@@ -3979,7 +4429,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 64;
+    pub const CURRENT_VERSION: u32 = 73;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4273,6 +4723,60 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "csv_read_columns requires artifact format 64",
+            ));
+        }
+        if self.format_version < 65 && artifact_uses_general_sort(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "general sort and sort_by with a key require artifact format 65",
+            ));
+        }
+        if self.format_version < 66 && artifact_uses_function_values(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 73 && artifact_uses_static_files(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "ranged file reads and confined paths require artifact format 73",
+            ));
+        }
+        if self.format_version < 72 && artifact_uses_yaml(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the YAML instruction requires artifact format 72",
+            ));
+        }
+        if self.format_version < 71 && artifact_uses_compression(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "compression and tar instructions require artifact format 71",
+            ));
+        }
+        if self.format_version < 70 && artifact_uses_log(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "log instructions require artifact format 70",
+            ));
+        }
+        if self.format_version < 69 && artifact_uses_sqlite_begin_read(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "read transactions require artifact format 69",
+            ));
+        }
+        if self.format_version < 68 && artifact_uses_random_bytes(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "random bytes require artifact format 68",
+            ));
+        }
+        if self.format_version < 67 && artifact_uses_sha256(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "SHA-256 instructions require artifact format 67",
             ));
         }
         if self.format_version < 61 && artifact_uses_random_bits(self) {
@@ -4595,6 +5099,32 @@ impl Artifact {
                     Op::CsvNext => w.u8(113),
                     Op::CsvEncode => w.u8(114),
                     Op::CsvReadColumns => w.u8(195),
+                    Op::SortNatural => w.u8(196),
+                    Op::SortByKey(target) => {
+                        w.u8(197);
+                        w.count(*target)?;
+                    }
+                    Op::MakeFn(target) => {
+                        w.u8(198);
+                        w.count(*target)?;
+                    }
+                    Op::RandomBytes => w.u8(201),
+                    Op::SqliteBeginRead => w.u8(202),
+                    Op::LogAppend => w.u8(203),
+                    Op::LogDefaultLevel => w.u8(204),
+                    Op::GzipCompress => w.u8(205),
+                    Op::GzipDecompress => w.u8(206),
+                    Op::ZlibCompress => w.u8(207),
+                    Op::ZlibDecompress => w.u8(208),
+                    Op::YamlParse => w.u8(209),
+                    Op::CallFn(argc) => {
+                        w.u8(199);
+                        w.count(*argc)?;
+                    }
+                    Op::HigherOrder(kind) => {
+                        w.u8(200);
+                        w.u8(kind.code());
+                    }
                     Op::JsonTryGet => w.u8(115),
                     Op::JsonTryIndex => w.u8(116),
                     Op::JsonTryText => w.u8(117),
@@ -5025,6 +5555,24 @@ impl Artifact {
                     }
                     183 if format_version >= 54 => {
                         let code = r.u8()?;
+                        if code >= 12 && format_version < 67 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "SHA-256 instructions require artifact format 67",
+                            ));
+                        }
+                        if code >= 13 && format_version < 71 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "compression and tar instructions require artifact format 71",
+                            ));
+                        }
+                        if code >= 18 && format_version < 73 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "ranged file reads and confined paths require artifact format 73",
+                            ));
+                        }
                         Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -5044,6 +5592,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "SHA-1 and byte XOR instructions require artifact format 59",
+                            ));
+                        }
+                        if code >= 14 && format_version < 67 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "SHA-256 instructions require artifact format 67",
                             ));
                         }
                         Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
@@ -5110,6 +5664,70 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "csv_read_columns requires artifact format 64",
+                        ));
+                    }
+                    196 if format_version >= 65 => Op::SortNatural,
+                    197 if format_version >= 65 => Op::SortByKey(r.count()?),
+                    196 | 197 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "general sort and sort_by with a key require artifact format 65",
+                        ));
+                    }
+                    198 if format_version >= 66 => Op::MakeFn(r.count()?),
+                    199 if format_version >= 66 => Op::CallFn(r.count()?),
+                    200 if format_version >= 66 => {
+                        let code = r.u8()?;
+                        Op::HigherOrder(HigherOrderKind::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_OP",
+                                format!("unknown higher-order operation code {code}"),
+                            )
+                        })?)
+                    }
+                    198..=200 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "function values require artifact format 66",
+                        ));
+                    }
+                    201 if format_version >= 68 => Op::RandomBytes,
+                    201 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "random bytes require artifact format 68",
+                        ));
+                    }
+                    203 if format_version >= 70 => Op::LogAppend,
+                    204 if format_version >= 70 => Op::LogDefaultLevel,
+                    203 | 204 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "log instructions require artifact format 70",
+                        ));
+                    }
+                    205 if format_version >= 71 => Op::GzipCompress,
+                    206 if format_version >= 71 => Op::GzipDecompress,
+                    207 if format_version >= 71 => Op::ZlibCompress,
+                    208 if format_version >= 71 => Op::ZlibDecompress,
+                    205..=208 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "compression instructions require artifact format 71",
+                        ));
+                    }
+                    209 if format_version >= 72 => Op::YamlParse,
+                    209 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "the YAML instruction requires artifact format 72",
+                        ));
+                    }
+                    202 if format_version >= 69 => Op::SqliteBeginRead,
+                    202 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "read transactions require artifact format 69",
                         ));
                     }
                     193 | 194 => {
@@ -5567,6 +6185,12 @@ impl Artifact {
                 "arrays require artifact format 62",
             ));
         }
+        if format_version < 66 && artifact_uses_function_values(&artifact) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "function values require artifact format 66",
+            ));
+        }
         if format_version < 48 && artifact_uses_time_format_utc_date(&artifact) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -5771,6 +6395,116 @@ fn artifact_uses_format_63_arrays(artifact: &Artifact) -> bool {
             matches!(instruction.op, Op::Array(array_function, _) if array_function.min_format() >= 63)
         })
     })
+}
+
+fn artifact_uses_general_sort(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SortNatural | Op::SortByKey(_)))
+    })
+}
+
+fn artifact_uses_compression(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::GzipCompress
+                    | Op::GzipDecompress
+                    | Op::ZlibCompress
+                    | Op::ZlibDecompress
+                    | Op::Fs(
+                        FsFunction::GzipCompressFile
+                            | FsFunction::GzipDecompressFile
+                            | FsFunction::TarWrite
+                            | FsFunction::TarRead
+                            | FsFunction::TarList
+                    )
+            )
+        })
+    })
+}
+
+fn artifact_uses_static_files(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Fs(FsFunction::ReadRange | FsFunction::ConfinedPath)
+            )
+        })
+    })
+}
+
+fn artifact_uses_yaml(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::YamlParse))
+    })
+}
+
+fn artifact_uses_log(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::LogAppend | Op::LogDefaultLevel))
+    })
+}
+
+fn artifact_uses_sqlite_begin_read(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::SqliteBeginRead))
+    })
+}
+
+fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::RandomBytes))
+    })
+}
+
+fn artifact_uses_sha256(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Codec(CodecFunction::Sha256) | Op::Fs(FsFunction::Sha256)
+            )
+        })
+    })
+}
+
+fn artifact_uses_function_values(artifact: &Artifact) -> bool {
+    artifact
+        .records
+        .iter()
+        .any(|record| record.fields.iter().any(|field| field.ty.contains_fn()))
+        || artifact.externals.iter().any(|external| {
+            external.parameters.iter().any(Type::contains_fn) || external.result.contains_fn()
+        })
+        || artifact.functions.iter().any(|function| {
+            function.parameters.iter().any(Type::contains_fn)
+                || function.result.contains_fn()
+                || function
+                    .code
+                    .iter()
+                    .any(|instruction| match &instruction.op {
+                        Op::MakeFn(_) | Op::CallFn(_) | Op::HigherOrder(_) => true,
+                        Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) => ty.contains_fn(),
+                        _ => false,
+                    })
+        })
 }
 
 fn artifact_uses_csv_read_columns(artifact: &Artifact) -> bool {
@@ -6144,6 +6878,9 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
                         | Op::CryptoVerifyHmacSha256
                         | Op::SqliteOpen
                         | Op::SqliteBegin
+                        | Op::SqliteBeginRead
+                        | Op::LogAppend
+                        | Op::LogDefaultLevel
                         | Op::SqliteExecute
                         | Op::SqliteQuery
                         | Op::SqliteCommit
@@ -6169,9 +6906,23 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
     for caller in &artifact.functions {
         for instruction in &caller.code {
             let root = match instruction.op {
-                Op::SortBy(root) | Op::SortByIntKey(root) | Op::MergeSortedByIntKey(root) => root,
+                Op::SortBy(root)
+                | Op::SortByKey(root)
+                | Op::SortByIntKey(root)
+                | Op::MergeSortedByIntKey(root) => root,
                 _ => continue,
             };
+            // A key function whose own parameter holds a function value would call code this
+            // check cannot see, so it is rejected; function values formed inside the call
+            // graph are followed through `MakeFn` below.
+            if let Some(root_function) = artifact.functions.get(root) {
+                if root_function.parameters.iter().any(Type::contains_fn) {
+                    return Err(format!(
+                        "sort comparator `{}` takes a function value",
+                        root_function.name
+                    ));
+                }
+            }
             let mut pending = vec![root];
             let mut seen = HashSet::new();
             while let Some(index) = pending.pop() {
@@ -6186,7 +6937,9 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                 for instruction in &callee.code {
                     match instruction.op {
                         Op::Call(target, _)
+                        | Op::MakeFn(target)
                         | Op::SortBy(target)
+                        | Op::SortByKey(target)
                         | Op::SortByIntKey(target)
                         | Op::MergeSortedByIntKey(target) => pending.push(target),
                         Op::Print
@@ -6211,6 +6964,8 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::CsvNext
                         | Op::CsvReadColumns
                         | Op::FsWalk
+                        | Op::RandomBytes
+                        | Op::HigherOrder(HigherOrderKind::ParallelMap)
                         | Op::ParallelMap(_) => {
                             return Err(format!(
                                 "sort comparator `{}` reaches an effectful operation",
@@ -6379,6 +7134,14 @@ impl Writer {
                 self.u8(18);
                 self.u8(element.code());
             }
+            Type::Fn(parameters, result) => {
+                self.u8(19);
+                self.count(parameters.len())?;
+                for parameter in parameters {
+                    self.ty(parameter)?;
+                }
+                self.ty(result)?;
+            }
         }
         Ok(())
     }
@@ -6523,6 +7286,12 @@ impl Writer {
                     "arrays cannot be serialized as constants",
                 ));
             }
+            Value::Function(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_VALUE",
+                    "function values cannot be serialized as constants",
+                ));
+            }
         }
         Ok(())
     }
@@ -6626,6 +7395,20 @@ impl<'a> Reader<'a> {
                             format!("unknown array element code {code}"),
                         )
                     })
+            }
+            19 => {
+                let count = self.count()?;
+                if count > 255 {
+                    return Err(ArtifactError::new(
+                        "E_ARTIFACT_TYPE",
+                        "function type has more than 255 parameters",
+                    ));
+                }
+                let mut parameters = Vec::with_capacity(count);
+                for _ in 0..count {
+                    parameters.push(self.ty_at(depth + 1)?);
+                }
+                Ok(Type::Fn(parameters, Box::new(self.ty_at(depth + 1)?)))
             }
             _ => Err(ArtifactError::new("E_ARTIFACT_TYPE", "unknown type tag")),
         }
@@ -6764,6 +7547,8 @@ pub struct RuntimeError {
     pub code: String,
     pub message: String,
     pub trace: Vec<Span>,
+    /// `(used, limit)` for an `R_STEP_LIMIT` error; `None` for every other code.
+    pub step_usage: Option<(u64, u64)>,
 }
 
 impl RuntimeError {
@@ -6772,6 +7557,7 @@ impl RuntimeError {
             code: code.into(),
             message: message.into(),
             trace: vec![span],
+            step_usage: None,
         }
     }
 }

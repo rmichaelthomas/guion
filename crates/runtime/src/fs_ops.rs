@@ -12,12 +12,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// The most bytes one ranged read returns, so a caller holds a bounded block.
+const MAX_RANGE_BYTES: u64 = 16 * 1024 * 1024;
 const TEMP_DIRECTORY: &str = ".guion-tmp";
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 type Outcome = Result<Value, RuntimeError>;
 
-fn file_error(
+pub(crate) fn file_error(
     error: &std::io::Error,
     fallback: &'static str,
     what: &str,
@@ -50,7 +52,11 @@ fn granted_roots(policy: &HostPolicy) -> Vec<PathBuf> {
 
 /// Creates `requested` and any missing parents, one directory at a time, so every step is
 /// confined by the same resolver as an ordinary write.
-fn make_dir_all(policy: &HostPolicy, requested: &str, span: Span) -> Result<PathBuf, RuntimeError> {
+pub(crate) fn make_dir_all(
+    policy: &HostPolicy,
+    requested: &str,
+    span: Span,
+) -> Result<PathBuf, RuntimeError> {
     if let Some(parent) = Path::new(requested).parent() {
         let parent = parent.to_string_lossy();
         if !parent.is_empty() && host_file_path(policy, &parent, false, span).is_err() {
@@ -152,6 +158,39 @@ fn run_inner(
             };
             Ok(ok(int(millis)))
         }
+        FsFunction::Sha256 => {
+            use sha2::{Digest, Sha256};
+            use std::io::Read;
+            let resolved = host_file_path(policy, path, false, span)?;
+            let mut file = fs::File::open(&resolved)
+                .map_err(|error| file_error(&error, "R_FILE_READ", "open", path, span))?;
+            if !file
+                .metadata()
+                .map_err(|error| file_error(&error, "R_FILE_READ", "inspect", path, span))?
+                .is_file()
+            {
+                return Err(RuntimeError::new(
+                    "R_FILE_READ",
+                    format!("cannot digest `{path}`: it is not a regular file"),
+                    span,
+                ));
+            }
+            // Streamed in 64 KiB blocks: memory stays constant however large the file is, and the
+            // read ceiling for `read_text` does not apply because nothing is held.
+            let mut hasher = Sha256::new();
+            let mut block = vec![0u8; 64 * 1024];
+            loop {
+                match file.read(&mut block) {
+                    Ok(0) => break,
+                    Ok(count) => hasher.update(&block[..count]),
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(error) => {
+                        return Err(file_error(&error, "R_FILE_READ", "read", path, span));
+                    }
+                }
+            }
+            Ok(ok(Value::Bytes(Shared::new(hasher.finalize().to_vec()))))
+        }
         FsFunction::ListDir => {
             let resolved = host_file_path(policy, path, false, span)?;
             let entries = fs::read_dir(&resolved)
@@ -239,6 +278,74 @@ fn run_inner(
             let copied = fs::copy(&source_path, &destination_path)
                 .map_err(|error| file_error(&error, "R_FILE_WRITE", "copy", path, span))?;
             Ok(ok(int(i64::try_from(copied).unwrap_or(i64::MAX))))
+        }
+        FsFunction::ReadRange => {
+            use std::io::{Read, Seek, SeekFrom};
+            let parse = |text: &str, what: &str| -> Result<u64, RuntimeError> {
+                text.parse::<u64>().map_err(|_| {
+                    RuntimeError::new(
+                        "R_FILE_READ",
+                        format!("the {what} of a ranged read is not a non-negative integer"),
+                        span,
+                    )
+                })
+            };
+            let start = parse(operands[1].as_str(), "start")?;
+            let length = parse(operands[2].as_str(), "length")?;
+            if length > MAX_RANGE_BYTES {
+                return Err(RuntimeError::new(
+                    "R_FILE_READ",
+                    format!("a ranged read is at most {MAX_RANGE_BYTES} bytes"),
+                    span,
+                ));
+            }
+            let resolved = host_file_path(policy, path, false, span)?;
+            let mut file = fs::File::open(&resolved)
+                .map_err(|error| file_error(&error, "R_FILE_READ", "open", path, span))?;
+            if !file
+                .metadata()
+                .map_err(|error| file_error(&error, "R_FILE_READ", "inspect", path, span))?
+                .is_file()
+            {
+                return Err(RuntimeError::new(
+                    "R_FILE_READ",
+                    format!("cannot read `{path}`: it is not a regular file"),
+                    span,
+                ));
+            }
+            file.seek(SeekFrom::Start(start))
+                .map_err(|error| file_error(&error, "R_FILE_READ", "seek in", path, span))?;
+            // Reads at most `length` bytes; a range that runs past the end is short.
+            let mut data = Vec::new();
+            file.take(length)
+                .read_to_end(&mut data)
+                .map_err(|error| file_error(&error, "R_FILE_READ", "read", path, span))?;
+            Ok(ok(Value::Bytes(Shared::new(data))))
+        }
+        FsFunction::ConfinedPath => {
+            let relative = operands[1].as_str();
+            let joined = format!("{}/{}", path.trim_end_matches('/'), relative);
+            let root = host_file_path(policy, path, false, span)?;
+            let target = host_file_path(policy, &joined, false, span)?;
+            // Both are resolved through symlinks, so a link inside the root that points outside it
+            // no longer starts with the root.
+            let root = root.canonicalize().unwrap_or(root);
+            let target = target.canonicalize().unwrap_or(target);
+            if !target.starts_with(&root) {
+                return Err(RuntimeError::new(
+                    "R_HOST_DENIED",
+                    format!("`{relative}` resolves outside `{path}`"),
+                    span,
+                ));
+            }
+            Ok(ok(Value::Text(joined.as_str().into())))
+        }
+        FsFunction::GzipCompressFile
+        | FsFunction::GzipDecompressFile
+        | FsFunction::TarWrite
+        | FsFunction::TarRead
+        | FsFunction::TarList => {
+            super::compress::run_file_function(policy, function, operands, span)
         }
         FsFunction::TempDir | FsFunction::TempFile => {
             let valid = !path.is_empty()

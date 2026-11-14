@@ -1,0 +1,78 @@
+import "std:types"
+import "std:text"
+import "std:fs"
+import "std:path"
+import "std:toml"
+import "std:process"
+import "std:http_response"
+import "std:http_body"
+
+# Cover images: one file part through std:http_body, written under uploads/ with a random name,
+# resized into public/ by an external command, then the upload is removed.
+
+fn refuse(status: Int, code: Text, message: Text) -> HttpFailure:
+    return HttpFailure(status, code, message)
+
+fn limits() -> BodyLimits:
+    return BodyLimits(16, 8192, 4, 600000, 1048576)
+
+# The resize command is named in guion.toml ([resize] command, and listed under [process]).
+fn resize_command() -> Result[Text, HttpFailure]:
+    match read_text("guion.toml"):
+        Err(problem):
+            return Err(refuse(500, "E_RESIZE_SETTING", "guion.toml cannot be read"))
+        Ok(source):
+            match toml_parse(source):
+                Err(problem):
+                    return Err(refuse(500, "E_RESIZE_SETTING", "guion.toml is not TOML"))
+                Ok(document):
+                    match toml_get_text(document, ["resize", "command"]):
+                        Ok(command):
+                            return Ok(command)
+                        Err(problem):
+                            return Err(refuse(500, "E_RESIZE_SETTING", "guion.toml has no [resize] command"))
+
+# The one function that knows the tool: shrinks `source` to fit 512 by 512 and writes a PNG.
+pub fn resize_image(source: Text, target: Text) -> Result[Unit, HttpFailure]:
+    let command = resize_command()?
+    var arguments = [source, "-resize", "512x512", "png:" + target]
+    if command == "sips":
+        set arguments = ["-s", "format", "png", "-Z", "512", source, "--out", target]
+    match process_run(command, arguments, ""):
+        Err(problem):
+            return Err(refuse(500, "E_RESIZE_FAILED", "the resize command did not run: " + problem.code))
+        Ok(done):
+            if done.exit_code != 0:
+                return Err(refuse(415, "E_COVER_IMAGE", "the file is not an image the resize command reads"))
+            return Ok(finished())
+
+fn finished() -> Unit:
+    let nothing = 0
+
+fn forget(files: List[UploadedFile]) -> Unit:
+    var index = 0
+    while index < len(files):
+        let removed = fs_remove(files[index].stored_path)
+        set index = index + 1
+
+fn image_name(name: Text) -> Bool:
+    let extension = text_casefold(path_extension(name))
+    return extension == ".png" or extension == ".jpg" or extension == ".jpeg"
+
+# Stores the request's cover as public/cover-ID.png and returns the file name. Every refusal is an
+# HttpFailure below 500; an upload that is refused leaves nothing behind.
+pub fn cover_receive(request: Request, id: Int) -> Result[Text, HttpFailure]:
+    let form = multipart_parse(request, "uploads", limits())?
+    if len(form.files) != 1 or form.files[0].field != "cover":
+        forget(form.files)
+        return Err(refuse(400, "E_COVER_FIELD", "send one file in the part named cover"))
+    let file = form.files[0]
+    if not image_name(file.original_name) or (file.content_type != "image/png" and file.content_type != "image/jpeg"):
+        forget(form.files)
+        return Err(refuse(415, "E_COVER_TYPE", "a cover is a PNG or JPEG file"))
+    let name = "cover-" + int_to_text(id) + ".png"
+    let sized = resize_image(file.stored_path, "public/" + name)
+    forget(form.files)
+    if not is_ok(sized):
+        return Err(error(sized))
+    return Ok(name)
