@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runner for the comprehension harness (H-1.2).
+"""Runner for the comprehension harness (H-1.3).
 
     run.py setup  t1|t2|t3 RUN [--dist DIR] [--dest DIR]   make an isolated subject root, print the prompt
     run.py score  t1|t2|t3 ROOT                            re-run everything against the subject's project
@@ -28,7 +28,7 @@ REPO = HERE.parent.parent
 DEFAULT_DIST = REPO / "target/completion/releases/macos-aarch64/current"
 STARTERS = {"t1": "t1-server", "t2": "t2-tags", "t3": "t3-grant", "t4": "t4-effects", "t5": "t5-csv"}
 T2_EXPECTED = ["rust: 3", "cli: 2", "web: 2", "docs: 1"]
-VERSION = "H-1.2"
+VERSION = "H-1.3"
 
 
 def guion(root):
@@ -110,13 +110,16 @@ def score(args):
         out = project / "out.txt"
         if out.exists():
             out.unlink()
-        extra = []
+        extra = ["--allow-http-host", args.host] if getattr(args, "host", None) else []
         ran = run_program(root, project, extra)
         wrote = out.exists() and re.search(r"wrote \d+ bytes", ran.stdout or "")
         print(f"  with the manifest alone: exit {ran.returncode}: {ran.stdout.strip()[:80]}")
         print(f"  grant in guion.toml: network.hosts = {hosts}")
         wildcard = any("*" in h for h in hosts)
-        ok = bool(wrote) and len(hosts) == 1 and not wildcard
+        if getattr(args, "host", None):
+            hosts = hosts or [args.host]
+            print(f"  re-run with the subject's command-line grant --allow-http-host {args.host}: exit {ran.returncode}")
+        ok = bool(wrote) and len(hosts) == 1 and not wildcard and "*" not in "".join(hosts)
         if not wrote:
             print("  the program did not run from the manifest alone; if the subject used a command-line flag, read the report and re-run with it, e.g. --allow-http-host HOST")
         print("T3 " + ("closed: one host, no wildcard" if ok else "NOT closed (check the report for a command-line grant before scoring)"))
@@ -161,7 +164,7 @@ def main():
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("setup"); s.add_argument("task", choices=STARTERS); s.add_argument("run", type=int); s.add_argument("--dist", default=str(DEFAULT_DIST)); s.add_argument("--dest")
-    s = sub.add_parser("score"); s.add_argument("task", choices=STARTERS); s.add_argument("root")
+    s = sub.add_parser("score"); s.add_argument("task", choices=STARTERS); s.add_argument("root"); s.add_argument("--host", help="T3: the host the subject granted on the command line instead of in guion.toml")
     s = sub.add_parser("check"); s.add_argument("transcript"); s.add_argument("--root")
     s = sub.add_parser("receipt"); s.add_argument("task", choices=STARTERS); s.add_argument("run", type=int); s.add_argument("of", type=int); s.add_argument("--root", required=True)
     s.add_argument("--subject", default="unknown"); s.add_argument("--budget", default="not hit"); s.add_argument("--contamination", default="clean"); s.add_argument("--success", default="unscored")

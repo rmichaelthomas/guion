@@ -1,6 +1,6 @@
-# Comprehension harness — H-1.2
+# Comprehension harness — H-1.3
 
-**Frozen:** 2026-11-14, against Guion 0.4.0, artifact format 73. Successor to H-1.0 (frozen 2026-11-12 against 0.2.0; kept as `HARNESS-H-1.0.md`, its receipts stay H-1.0; H-1.1 is `HARNESS-H-1.1.md`).
+**Frozen:** 2026-11-14, against Guion 0.4.0, artifact format 73. Successor to H-1.0 (frozen 2026-11-12 against 0.2.0; kept as `HARNESS-H-1.0.md`, its receipts stay H-1.0; H-1.1 is `HARNESS-H-1.1.md`, H-1.2 is `HARNESS-H-1.2.md`).
 **Question it answers:** can a competent outsider, given only what ships in
 `share/guion/`, get three ordinary things right — and how many wrong turns does it
 take?
@@ -59,7 +59,7 @@ Task text lives in `tasks/` and is frozen. Starters live in `starters/` and are
 frozen. Rewording a task after seeing a result is the one thing that would make
 this instrument useless, so any change is a new version and a new receipt.
 
-## Ground truth (re-verified against format 73 before H-1.2 was frozen)
+## Ground truth (re-verified against format 73 before H-1.3 was frozen)
 
 | Task | Verified fact | Evidence |
 |---|---|---|
@@ -169,7 +169,7 @@ paths read: <count, and any path outside share/guion/>
 ## Freeze rule
 
 H-1.0 is the tasks, the starters, the prompt, the taxonomy, and this document. Change
-any of them and it is H-1.3; the old receipts stay labelled H-1.0 and remain
+any of them and it is H-1.4; the old receipts stay labelled H-1.0 and remain
 comparable only to each other. Re-verify ground truth against the artifact version
 in use before every campaign — a harness scored against a stale answer key reports
 false wrong turns, which is worse than reporting nothing.
@@ -185,7 +185,7 @@ false wrong turns, which is worse than reporting nothing.
 - **A runner** (`run.py`): setup against any distribution, automatic scoring where
   a program decides it (T1 both runs, T2 output, T3 grant and run), contamination
   scan, and an append-only receipt writer under `receipts/`.
-- **Receipts for H-1.0 are not comparable to H-1.2 on T2.** T1 and T3 are. H-1.1 receipts (the n=1 pilot) stay in `receipts/H-1.1.md`.
+- **Receipts for H-1.0 are not comparable to H-1.3 on T2.** T1 and T3 are. H-1.1 receipts (the n=1 pilot) stay in `receipts/H-1.1.md`.
 - **Not yet automated:** reading the subject's written report (T2's two-halves rule, T3's
   quoted grant, T1's limit paragraph) and counting wrong turns. A person reads those.
 
@@ -201,3 +201,12 @@ false wrong turns, which is worse than reporting nothing.
 - **A shipped defect the pilot found is fixed in the repo, not in the harness**: the release now
   ships the docs and examples the standard library points to, and a test guards it. A new
   campaign on the next release should show it gone.
+
+## What changed from H-1.2 (the n=3 campaign)
+
+- **T2 now asks the question.** Across six runs (three H-1.1/H-1.2 pilots and three campaign
+  runs) every subject solved T2 with a `Map` and none said whether a dedupe or group-by builtin
+  exists, because the task gave them no reason to look. The report rule was measuring the task's
+  wording, not the language's legibility. The task now asks, and a wrong answer ("yes, `unique`")
+  is a W2 with a quote. The check on the program is unchanged.
+- Everything else is unchanged from H-1.2; T1, T3, T4 and T5 receipts remain comparable.
