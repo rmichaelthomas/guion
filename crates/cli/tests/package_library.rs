@@ -647,7 +647,10 @@ fn a_project_with_no_approval_table_approves_nothing() {
     );
     assert!(approved.status.success(), "{}", text(&approved));
     let manifest = std::fs::read_to_string(project.join("guion.toml")).unwrap();
-    assert!(manifest.contains("[approved-capabilities.fetcher]"), "{manifest}");
+    assert!(
+        manifest.contains("[approved-capabilities.fetcher]"),
+        "{manifest}"
+    );
     // A package that declares nothing needs no approval.
     let quiet = dir.join("quiet");
     write_library(&quiet, "", "pub fn one() -> Int:\n    return 1\n");
@@ -656,7 +659,10 @@ fn a_project_with_no_approval_table_approves_nothing() {
         "[package]\nname = \"quiet\"\nversion = \"1.0.0\"\nentry = \"src/lib.gu\"\nexports = [\"src/lib.gu\"]\n",
     )
     .unwrap();
-    let added = guion(&project, &["add", "quiet", "--path", quiet.to_str().unwrap()]);
+    let added = guion(
+        &project,
+        &["add", "quiet", "--path", quiet.to_str().unwrap()],
+    );
     assert!(added.status.success(), "{}", text(&added));
     let _ = std::fs::remove_dir_all(&dir);
 }

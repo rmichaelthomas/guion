@@ -733,7 +733,12 @@ fn set_dependency_source(
     requirement.insert("version".into(), toml::Value::String(version.into()));
     let source = if kind == "path" {
         let project = fs::canonicalize(manifest_path.parent().unwrap_or(Path::new(".")))
-            .unwrap_or_else(|_| manifest_path.parent().unwrap_or(Path::new(".")).to_path_buf());
+            .unwrap_or_else(|_| {
+                manifest_path
+                    .parent()
+                    .unwrap_or(Path::new("."))
+                    .to_path_buf()
+            });
         portable_path(&project, Path::new(source))
     } else {
         source.to_owned()
@@ -1280,13 +1285,7 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
             let url = dependency.get("url").and_then(toml::Value::as_str);
             match (path, url) {
                 (Some(path), None) => {
-                    sources.push((
-                        name.clone(),
-                        version,
-                        Some(project.join(path)),
-                        None,
-                        None,
-                    ))
+                    sources.push((name.clone(), version, Some(project.join(path)), None, None))
                 }
                 (None, Some(url)) => {
                     let sha256 = dependency

@@ -92,9 +92,8 @@ pub fn compare_allowing(
                     let (before, after) = (signature(old_function), signature(new_function));
                     if before != after {
                         let qualified = format!("std:{name}.{function}");
-                        let line = format!(
-                            "re-signed function {qualified}: {before} became {after}"
-                        );
+                        let line =
+                            format!("re-signed function {qualified}: {before} became {after}");
                         if allowed.iter().any(|prefix| qualified.starts_with(prefix)) {
                             added.push(format!("allowed {line}"));
                         } else {
