@@ -3027,6 +3027,25 @@
       "operation": "FsOpTarList"
     },
     {
+      "name": "native_fs_read_range",
+      "parameters": [
+        "Text",
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Bytes, FileError]",
+      "operation": "FsOpReadRange"
+    },
+    {
+      "name": "native_fs_confined_path",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpConfinedPath"
+    },
+    {
       "name": "native_fs_modified_ms",
       "parameters": [
         "Text"

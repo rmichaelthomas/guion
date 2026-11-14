@@ -12,6 +12,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// The most bytes one ranged read returns, so a caller holds a bounded block.
+const MAX_RANGE_BYTES: u64 = 16 * 1024 * 1024;
 const TEMP_DIRECTORY: &str = ".guion-tmp";
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -276,6 +278,67 @@ fn run_inner(
             let copied = fs::copy(&source_path, &destination_path)
                 .map_err(|error| file_error(&error, "R_FILE_WRITE", "copy", path, span))?;
             Ok(ok(int(i64::try_from(copied).unwrap_or(i64::MAX))))
+        }
+        FsFunction::ReadRange => {
+            use std::io::{Read, Seek, SeekFrom};
+            let parse = |text: &str, what: &str| -> Result<u64, RuntimeError> {
+                text.parse::<u64>().map_err(|_| {
+                    RuntimeError::new(
+                        "R_FILE_READ",
+                        format!("the {what} of a ranged read is not a non-negative integer"),
+                        span,
+                    )
+                })
+            };
+            let start = parse(operands[1].as_str(), "start")?;
+            let length = parse(operands[2].as_str(), "length")?;
+            if length > MAX_RANGE_BYTES {
+                return Err(RuntimeError::new(
+                    "R_FILE_READ",
+                    format!("a ranged read is at most {MAX_RANGE_BYTES} bytes"),
+                    span,
+                ));
+            }
+            let resolved = host_file_path(policy, path, false, span)?;
+            let mut file = fs::File::open(&resolved)
+                .map_err(|error| file_error(&error, "R_FILE_READ", "open", path, span))?;
+            if !file
+                .metadata()
+                .map_err(|error| file_error(&error, "R_FILE_READ", "inspect", path, span))?
+                .is_file()
+            {
+                return Err(RuntimeError::new(
+                    "R_FILE_READ",
+                    format!("cannot read `{path}`: it is not a regular file"),
+                    span,
+                ));
+            }
+            file.seek(SeekFrom::Start(start))
+                .map_err(|error| file_error(&error, "R_FILE_READ", "seek in", path, span))?;
+            // Reads at most `length` bytes; a range that runs past the end is short.
+            let mut data = Vec::new();
+            file.take(length)
+                .read_to_end(&mut data)
+                .map_err(|error| file_error(&error, "R_FILE_READ", "read", path, span))?;
+            Ok(ok(Value::Bytes(Shared::new(data))))
+        }
+        FsFunction::ConfinedPath => {
+            let relative = operands[1].as_str();
+            let joined = format!("{}/{}", path.trim_end_matches('/'), relative);
+            let root = host_file_path(policy, path, false, span)?;
+            let target = host_file_path(policy, &joined, false, span)?;
+            // Both are resolved through symlinks, so a link inside the root that points outside it
+            // no longer starts with the root.
+            let root = root.canonicalize().unwrap_or(root);
+            let target = target.canonicalize().unwrap_or(target);
+            if !target.starts_with(&root) {
+                return Err(RuntimeError::new(
+                    "R_HOST_DENIED",
+                    format!("`{relative}` resolves outside `{path}`"),
+                    span,
+                ));
+            }
+            Ok(ok(Value::Text(joined.as_str().into())))
         }
         FsFunction::GzipCompressFile
         | FsFunction::GzipDecompressFile

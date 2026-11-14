@@ -502,7 +502,7 @@ fn yaml_parse_is_gated_on_format_72() {
     let mut bytes = std::fs::read(scratch.0.join("main.gub")).unwrap();
     assert_eq!(&bytes[0..4], b"VRTA");
     let format = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
-    assert_eq!(format, 72);
+    assert!(format >= 72);
     bytes[4..8].copy_from_slice(&71u32.to_le_bytes());
     std::fs::write(scratch.0.join("old.gub"), &bytes).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_guion"))

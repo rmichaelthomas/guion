@@ -9024,7 +9024,8 @@ fn fs_result_type(function: FsFunction) -> Type {
         FsFunction::Exists => Type::Bool,
         FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
         FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
-        FsFunction::Sha256 => Type::Bytes,
+        FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
+        FsFunction::ConfinedPath => Type::Text,
         FsFunction::GzipCompressFile
         | FsFunction::GzipDecompressFile
         | FsFunction::TarWrite

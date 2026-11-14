@@ -863,6 +863,10 @@ fn ab_fs_code(name: Text) -> Int:
         return 16
     if name == "FsOpTarList":
         return 17
+    if name == "FsOpReadRange":
+        return 18
+    if name == "FsOpConfinedPath":
+        return 19
     return -1
 
 fn ab_regex_code(name: Text) -> Int:
@@ -1114,7 +1118,7 @@ pub fn artifact_assemble(ir: Json) -> Bytes:
     let records = json_get(ir, "records")
     let externals = json_get(ir, "externals")
     let functions = json_get(ir, "functions")
-    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(72), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
+    var parts: List[Bytes] = [bytes_from_text("VRTA"), ab_u32(73), ab_string(source_name), ab_string(entry), ab_count(json_len(sources))]
     var cursor = 0
     while cursor < json_len(sources):
         set parts = list_push(parts, ab_string(json_as_text(json_index(sources, cursor))))

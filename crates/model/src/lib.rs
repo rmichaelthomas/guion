@@ -1479,8 +1479,48 @@ mod tests {
     }
 
     #[test]
+    fn static_file_instructions_are_gated_on_format_73() {
+        assert_gated(Op::Fs(FsFunction::ReadRange), 73);
+        assert_gated(Op::Fs(FsFunction::ConfinedPath), 73);
+    }
+
+    #[test]
     fn the_yaml_instruction_is_gated_on_format_72() {
         assert_gated(Op::YamlParse, 72);
+    }
+
+    #[test]
+    fn a_format_72_artifact_still_loads() {
+        let mut artifact = Artifact {
+            format_version: 72,
+            build_metadata: None,
+            compiled_source_sha256: None,
+            source_name: "x".into(),
+            sources: vec!["x".into()],
+            entry: "main".into(),
+            functions: vec![Function {
+                name: "main".into(),
+                parameters: vec![],
+                result: Type::Unit,
+                local_count: 0,
+                code: vec![
+                    Instruction {
+                        op: Op::YamlParse,
+                        span: Span::default(),
+                    },
+                    Instruction {
+                        op: Op::Return,
+                        span: Span::default(),
+                    },
+                ],
+            }],
+            externals: vec![],
+            records: vec![],
+        };
+        let bytes = artifact.to_bytes().unwrap();
+        assert_eq!(Artifact::from_bytes(&bytes).unwrap(), artifact);
+        artifact.format_version = 73;
+        assert!(artifact.to_bytes().is_ok());
     }
 
     #[test]
@@ -3712,10 +3752,14 @@ pub enum FsFunction {
     TarRead,
     /// Lists the entry names of a tar archive (format 71).
     TarList,
+    /// Reads a bounded byte range of a file (format 73); needs the file-read grant.
+    ReadRange,
+    /// Checks that a relative path stays inside a root after symlink resolution (format 73).
+    ConfinedPath,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 18] = [
+    const ALL: [FsFunction; 20] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -3734,6 +3778,8 @@ impl FsFunction {
         FsFunction::TarWrite,
         FsFunction::TarRead,
         FsFunction::TarList,
+        FsFunction::ReadRange,
+        FsFunction::ConfinedPath,
     ];
 
     pub fn code(self) -> u8 {
@@ -3768,6 +3814,8 @@ impl FsFunction {
             FsFunction::TarWrite => "FsOpTarWrite",
             FsFunction::TarRead => "FsOpTarRead",
             FsFunction::TarList => "FsOpTarList",
+            FsFunction::ReadRange => "FsOpReadRange",
+            FsFunction::ConfinedPath => "FsOpConfinedPath",
         }
     }
 
@@ -3786,7 +3834,9 @@ impl FsFunction {
             | FsFunction::GzipCompressFile
             | FsFunction::GzipDecompressFile
             | FsFunction::TarWrite
-            | FsFunction::TarRead => 2,
+            | FsFunction::TarRead
+            | FsFunction::ConfinedPath => 2,
+            FsFunction::ReadRange => 3,
             _ => 1,
         }
     }
@@ -3802,6 +3852,8 @@ impl FsFunction {
                 | FsFunction::ListDir
                 | FsFunction::Sha256
                 | FsFunction::TarList
+                | FsFunction::ReadRange
+                | FsFunction::ConfinedPath
         )
     }
 
@@ -4377,7 +4429,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 72;
+    pub const CURRENT_VERSION: u32 = 73;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4683,6 +4735,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 73 && artifact_uses_static_files(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "ranged file reads and confined paths require artifact format 73",
             ));
         }
         if self.format_version < 72 && artifact_uses_yaml(self) {
@@ -5507,6 +5565,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "compression and tar instructions require artifact format 71",
+                            ));
+                        }
+                        if code >= 18 && format_version < 73 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "ranged file reads and confined paths require artifact format 73",
                             ));
                         }
                         Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
@@ -6358,6 +6422,17 @@ fn artifact_uses_compression(artifact: &Artifact) -> bool {
                             | FsFunction::TarRead
                             | FsFunction::TarList
                     )
+            )
+        })
+    })
+}
+
+fn artifact_uses_static_files(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Fs(FsFunction::ReadRange | FsFunction::ConfinedPath)
             )
         })
     })

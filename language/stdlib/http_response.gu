@@ -12,10 +12,14 @@ import "std:text"
 # literal skips construction, response_serialize checks every header again.
 #
 # A Body is one of three explicit shapes: bytes, text or a stream. A stream is sent with chunked
-# transfer encoding. stream_from_list sends the chunks it holds; stream_from_file reads the file when
-# the response is serialized or sent, so the file is held in memory then (a ranged read arrives with
-# the static-file module). A function value cannot live in a value that is compared with `==`, so a
-# stream names its source (a path or a list of chunks) instead of holding a producer function.
+# transfer encoding. stream_from_list sends the chunks it holds; stream_from_file names a file that
+# is read in blocks when the response is sent by std:http_server (response_wire and
+# response_serialize read it whole, for tests). std:http_static builds two more stream shapes with
+# Content-Length framing instead of chunking: a file range (kind "file_range", the path, and the
+# start and length as decimal text in `chunks`) and a head-only body (kind "sized", the length in
+# `chunks`, for HEAD; kind "headers_only", no length, for 304 and 416). A function value cannot live
+# in a value that is compared with `==`, so a stream names its source (a path or a list of chunks)
+# instead of holding a producer function.
 
 pub record Header:
     name: Text
@@ -51,6 +55,13 @@ pub record Request:
     headers: List[Header]
     body: Bytes
     params: Map[Text, Text]
+
+# Where a file-backed body comes from and how it is framed, so a server can send it in blocks.
+pub record FilePlan:
+    path: Text
+    start: Int
+    length: Int
+    chunked: Bool
 
 fn hr_reason(status: Int) -> Text:
     if status == 100:
@@ -269,6 +280,8 @@ fn hr_frames(data: Bytes) -> List[Bytes]:
 # Frames for a stream whose chunks are held in the value (a file stream has none here).
 fn hr_list_frames(stream: Stream) -> List[Bytes]:
     var frames: List[Bytes] = []
+    if stream.kind != "list":
+        return frames
     var index = 0
     while index < len(stream.chunks):
         if len(stream.chunks[index]) > 0:
@@ -277,11 +290,43 @@ fn hr_list_frames(stream: Stream) -> List[Bytes]:
     return frames
 
 fn hr_is_file_stream(response: Response) -> Bool:
-    return response.body.kind == "stream" and response.body.stream.kind == "file"
+    return response.body.kind == "stream" and (response.body.stream.kind == "file" or response.body.stream.kind == "file_range")
 
-# Puts the pieces together: the head, then (for a bytes or text body) the body in the same piece or
-# (for a stream) one piece per frame and the closing `0` chunk.
-fn hr_assemble(response: Response, keep_alive: Bool, frames: List[Bytes]) -> Result[List[Bytes], HttpFailure]:
+fn hr_stream_kind(response: Response) -> Text:
+    if response.body.kind == "stream":
+        return response.body.stream.kind
+    return ""
+
+# A stream whose length is stated by Content-Length and not by chunking.
+fn hr_is_sized(response: Response) -> Bool:
+    let kind = hr_stream_kind(response)
+    return kind == "file_range" or kind == "sized" or kind == "headers_only"
+
+fn hr_chunk_int(stream: Stream, index: Int) -> Int:
+    if index >= len(stream.chunks):
+        return -1
+    match text_from_bytes(stream.chunks[index]):
+        Some(text):
+            match text_parse_int(text):
+                Ok(value):
+                    return value
+                Err(problem):
+                    return -1
+        None:
+            return -1
+
+# The length a sized stream states, or -1 when it is malformed.
+fn hr_sized_length(response: Response) -> Int:
+    let stream = response.body.stream
+    if stream.kind == "file_range":
+        return hr_chunk_int(stream, 1)
+    if stream.kind == "sized":
+        return hr_chunk_int(stream, 0)
+    return 0
+
+# The head: status line, the headers that are the caller's, a default Content-Type, the framing line
+# (for example `Content-Length: 12\r\n`) and Connection, ending at the blank line.
+fn hr_head(response: Response, keep_alive: Bool, framing: Text) -> Result[Text, HttpFailure]:
     if response.status < 100 or response.status > 599:
         return Err(HttpFailure(500, "E_HTTP_STATUS_INVALID", "status is outside 100 to 599"))
     var head = "HTTP/1.1 " + int_to_text(response.status) + " " + hr_reason(response.status) + "\r\n"
@@ -303,8 +348,31 @@ fn hr_assemble(response: Response, keep_alive: Bool, frames: List[Bytes]) -> Res
     var connection = "close"
     if keep_alive:
         set connection = "keep-alive"
+    return Ok(head + framing + "Connection: " + connection + "\r\n\r\n")
+
+fn hr_sized_framing(response: Response) -> Result[Text, HttpFailure]:
+    if response.body.stream.kind == "headers_only":
+        return Ok("")
+    let length = hr_sized_length(response)
+    if length < 0:
+        return Err(HttpFailure(500, "E_HTTP_STREAM_RANGE", "a sized stream holds a malformed length"))
+    return Ok("Content-Length: " + int_to_text(length) + "\r\n")
+
+# Puts the pieces together: the head, then (for a bytes or text body) the body in the same piece or
+# (for a chunked stream) one piece per frame and the closing `0` chunk, or (for a sized stream) the
+# raw pieces given.
+fn hr_assemble(response: Response, keep_alive: Bool, frames: List[Bytes]) -> Result[List[Bytes], HttpFailure]:
+    if hr_is_sized(response):
+        let framing = hr_sized_framing(response)?
+        let head = hr_head(response, keep_alive, framing)?
+        var parts: List[Bytes] = [bytes_from_text(head)]
+        var next = 0
+        while next < len(frames):
+            set parts = list_push(parts, frames[next])
+            set next = next + 1
+        return Ok(parts)
     if response.body.kind == "stream":
-        set head = head + "Transfer-Encoding: chunked\r\nConnection: " + connection + "\r\n\r\n"
+        let head = hr_head(response, keep_alive, "Transfer-Encoding: chunked\r\n")?
         var parts: List[Bytes] = [bytes_from_text(head)]
         var next = 0
         while next < len(frames):
@@ -312,30 +380,112 @@ fn hr_assemble(response: Response, keep_alive: Bool, frames: List[Bytes]) -> Res
             set next = next + 1
         set parts = list_push(parts, bytes_from_text("0\r\n\r\n"))
         return Ok(parts)
-    set head = head + "Content-Length: " + int_to_text(len(response.body.data)) + "\r\nConnection: " + connection + "\r\n\r\n"
+    let head = hr_head(response, keep_alive, "Content-Length: " + int_to_text(len(response.body.data)) + "\r\n")?
     return Ok([bytes_join([bytes_from_text(head), response.body.data])])
 
 # The wire form of a response as pieces to send in order: the head (with the whole body for a bytes
 # or text body), then one piece per chunk and the closing `0` chunk for a stream. Content-Length,
 # Transfer-Encoding and Connection are set here, so a header of those names on the value is not sent.
 # A missing Content-Type becomes text/plain for a text body and application/octet-stream otherwise.
-# This form touches no file, so it carries no file effect: a stream from stream_from_file is refused
-# with E_HTTP_STREAM_FILE (use response_wire, which reads the file).
+# This form touches no file, so it carries no file effect: a stream from stream_from_file or a file
+# range is refused with E_HTTP_STREAM_FILE (use response_wire, which reads the file).
 pub fn response_wire_memory(response: Response, keep_alive: Bool) -> Result[List[Bytes], HttpFailure]:
     if hr_is_file_stream(response):
         return Err(HttpFailure(500, "E_HTTP_STREAM_FILE", "a file stream is read by response_wire, not response_wire_memory"))
     return hr_assemble(response, keep_alive, hr_list_frames(response.body.stream))
 
-# The same pieces, reading the file of a stream_from_file stream (effect filesystem.read) in chunks of
-# at most 16384 bytes. An unreadable file is E_HTTP_STREAM_READ.
+# The same pieces, reading the file of a stream_from_file stream or a file range (effect
+# filesystem.read). A whole file is read into memory here, in chunks of at most 16384 bytes; a range
+# is read at most 16 MiB at a time. std:http_server does not use this form to send a file: it sends
+# in blocks (see response_file_plan). An unreadable file is E_HTTP_STREAM_READ.
 pub fn response_wire(response: Response, keep_alive: Bool) -> Result[List[Bytes], HttpFailure]:
+    if hr_stream_kind(response) == "file_range":
+        let plan = hr_range_plan(response)?
+        match native_fs_read_range(plan.path, int_to_text(plan.start), int_to_text(plan.length)):
+            Ok(data):
+                if len(data) != plan.length:
+                    return Err(HttpFailure(500, "E_HTTP_STREAM_READ", "the file is shorter than the range"))
+                return hr_assemble(response, keep_alive, [data])
+            Err(problem):
+                return Err(HttpFailure(500, "E_HTTP_STREAM_READ", file_error_message(problem)))
     if hr_is_file_stream(response):
         match read_bytes(response.body.stream.path):
             Ok(data):
                 return hr_assemble(response, keep_alive, hr_frames(data))
             Err(problem):
                 return Err(HttpFailure(500, "E_HTTP_STREAM_READ", file_error_message(problem)))
-    return response_wire_memory(response, keep_alive)
+    return hr_assemble(response, keep_alive, hr_list_frames(response.body.stream))
+
+fn hr_range_plan(response: Response) -> Result[FilePlan, HttpFailure]:
+    let stream = response.body.stream
+    let start = hr_chunk_int(stream, 0)
+    let length = hr_chunk_int(stream, 1)
+    if start < 0 or length < 0:
+        return Err(HttpFailure(500, "E_HTTP_STREAM_RANGE", "a file range holds a malformed start or length"))
+    return Ok(FilePlan(stream.path, start, length, false))
+
+fn hr_some_plan(plan: FilePlan) -> Option[FilePlan]:
+    return Some(plan)
+
+fn hr_no_plan() -> Option[FilePlan]:
+    return None
+
+# For a response whose body is a file (stream_from_file or a file range), how to send it in blocks:
+# the path, the first byte, the number of bytes and whether the body is chunked. None for any other
+# body. A whole-file stream is sized by the file's current size (effect filesystem.read).
+pub fn response_file_plan(response: Response) -> Result[Option[FilePlan], HttpFailure]:
+    if hr_stream_kind(response) == "file_range":
+        let plan = hr_range_plan(response)?
+        return Ok(hr_some_plan(plan))
+    if hr_stream_kind(response) == "file":
+        match native_fs_size(response.body.stream.path):
+            Ok(size):
+                return Ok(hr_some_plan(FilePlan(response.body.stream.path, 0, size, true)))
+            Err(problem):
+                return Err(HttpFailure(500, "E_HTTP_STREAM_READ", file_error_message(problem)))
+    return Ok(hr_no_plan())
+
+# The head to send before the blocks of a file body (Content-Length for a range, chunked for a whole
+# file). Touches no file.
+pub fn response_file_head(response: Response, keep_alive: Bool) -> Result[Bytes, HttpFailure]:
+    if hr_stream_kind(response) == "file_range":
+        let plan = hr_range_plan(response)?
+        let head = hr_head(response, keep_alive, "Content-Length: " + int_to_text(plan.length) + "\r\n")?
+        return Ok(bytes_from_text(head))
+    let head = hr_head(response, keep_alive, "Transfer-Encoding: chunked\r\n")?
+    return Ok(bytes_from_text(head))
+
+# How many file bytes one block of a plan holds: 65536, or 16384 when chunked.
+pub fn response_file_block_size(plan: FilePlan) -> Int:
+    if plan.chunked:
+        return 16384
+    return 65536
+
+# The next piece of a planned file body, starting `offset` bytes into it: at most 65536 bytes, or
+# 16384 when chunked, framed as a chunk when the plan is chunked. Empty once offset reaches the end.
+# The file shrinking underneath is E_HTTP_STREAM_READ.
+pub fn response_file_block(plan: FilePlan, offset: Int) -> Result[Bytes, HttpFailure]:
+    if offset >= plan.length:
+        return Ok(bytes_from_ints([]))
+    let block = response_file_block_size(plan)
+    var take = plan.length - offset
+    if take > block:
+        set take = block
+    match native_fs_read_range(plan.path, int_to_text(plan.start + offset), int_to_text(take)):
+        Ok(data):
+            if len(data) != take:
+                return Err(HttpFailure(500, "E_HTTP_STREAM_READ", "the file changed while it was being sent"))
+            if plan.chunked:
+                return Ok(hr_frame(data))
+            return Ok(data)
+        Err(problem):
+            return Err(HttpFailure(500, "E_HTTP_STREAM_READ", file_error_message(problem)))
+
+# What follows the last block: the closing `0` chunk when chunked, nothing otherwise.
+pub fn response_file_end(plan: FilePlan) -> Bytes:
+    if plan.chunked:
+        return bytes_from_text("0\r\n\r\n")
+    return bytes_from_ints([])
 
 pub fn response_serialize_for(response: Response, keep_alive: Bool) -> Result[Bytes, HttpFailure]:
     let parts = response_wire(response, keep_alive)?

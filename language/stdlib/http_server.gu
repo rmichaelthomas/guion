@@ -415,10 +415,63 @@ pub fn http_request_value(request: HttpServerRequest) -> Result[Request, HttpFai
 # unreadable streamed file) is answered with 500 and the failure is returned. A failed send closes
 # the connection.
 pub fn http_server_send_response(request: HttpServerRequest, response: Response) -> Result[Unit, HttpFailure]:
+    match response_file_plan(response):
+        Ok(found):
+            match found:
+                Some(plan):
+                    return hs_send_file(request, response, plan)
+                None:
+                    return hs_send_value(request, response)
+        Err(failure):
+            hs_reject(request.conn, 500)
+            return Err(failure)
+
+fn hs_send_value(request: HttpServerRequest, response: Response) -> Result[Unit, HttpFailure]:
     match response_wire(response, request.keep_alive):
         Ok(parts):
             match hs_send_parts(request.conn, parts):
                 Ok(count):
+                    if not request.keep_alive:
+                        let closed = tcp_close(request.conn)
+                    return Ok(hs_done())
+                Err(problem):
+                    let closed = tcp_close(request.conn)
+                    return Err(HttpFailure(500, problem.code, problem.message))
+        Err(failure):
+            hs_reject(request.conn, 500)
+            return Err(failure)
+
+# A file body goes out one block at a time, so a large file is never held in memory. A failure after
+# the head is sent can only close the connection.
+fn hs_send_file(request: HttpServerRequest, response: Response, plan: FilePlan) -> Result[Unit, HttpFailure]:
+    match response_file_head(response, request.keep_alive):
+        Ok(head):
+            match tcp_send(request.conn, head):
+                Ok(count):
+                    var offset = 0
+                    while offset < plan.length:
+                        match response_file_block(plan, offset):
+                            Ok(block):
+                                if len(block) == 0:
+                                    let closed = tcp_close(request.conn)
+                                    return Err(HttpFailure(500, "E_HTTP_STREAM_READ", "the file ended early"))
+                                match tcp_send(request.conn, block):
+                                    Ok(sent):
+                                        set offset = offset + response_file_block_size(plan)
+                                    Err(problem):
+                                        let closed = tcp_close(request.conn)
+                                        return Err(HttpFailure(500, problem.code, problem.message))
+                            Err(failure):
+                                let closed = tcp_close(request.conn)
+                                return Err(failure)
+                    let tail = response_file_end(plan)
+                    if len(tail) > 0:
+                        match tcp_send(request.conn, tail):
+                            Ok(sent):
+                                set offset = offset
+                            Err(problem):
+                                let closed = tcp_close(request.conn)
+                                return Err(HttpFailure(500, problem.code, problem.message))
                     if not request.keep_alive:
                         let closed = tcp_close(request.conn)
                     return Ok(hs_done())
