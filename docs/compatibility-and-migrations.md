@@ -39,7 +39,7 @@ Nothing is removed or renamed, and no word is newly reserved: a 0.3.0 program co
 - **Path dependencies are relative.** `guion add NAME --path PATH` writes the dependency as a path relative to the project (for example `../fetcher`) in `guion.toml` and `guion.lock`, where 0.3.0 wrote an absolute path. Manifests written by 0.3.0 with absolute paths still work.
 - **Templates.** A file named `NAME.gut` is now compiled by the CLI to `NAME.gut.gu` next to it. A project that already has a file with that name is refused with `TEMPLATE_OUTPUT_EXISTS` rather than overwritten. Add `*.gut.gu` to the project's ignore file if you keep generated files out of version control.
 - **Native `Bool` arguments.** A `Bool` passed to a function that runs as machine code could arrive as `true` when the caller ran in the interpreter (for example a `main` that also prints). 0.4.0 passes it correctly. A program that worked around this does not need to change, and a built artifact needs no rebuild.
-- **Packages.** `guion.lock` stays at format 2. The `web` package is not on the registry; install it with `guion add web --path PATH`.
+- **Packages.** `guion.lock` stays at format 2. The `web` package 0.1.0 is on the registry: `guion add web --approve-capabilities`, or `--path PATH` for a checkout.
 
 ## Moving from 0.2.0 to 0.3.0
 
