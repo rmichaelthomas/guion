@@ -140,6 +140,11 @@ fn hs_reject(conn: TcpConn, status: Int) -> Unit:
     let sent = hs_send(conn, status, "text/plain; charset=utf-8", bytes_from_text(hs_reason(status) + "\n"), false)
     let closed = tcp_close(conn)
 
+# A 413 names the limit that was exceeded; it is sent before any of the body is read.
+fn hs_reject_too_large(conn: TcpConn, max_body_bytes: Int) -> Unit:
+    let sent = hs_send(conn, 413, "text/plain; charset=utf-8", bytes_from_text("max_body_bytes (" + int_to_text(max_body_bytes) + ") exceeded: the request body is larger\n"), false)
+    let closed = tcp_close(conn)
+
 fn hs_fill(conn: TcpConn, buffer: Bytes, timeout_ms: Int) -> Result[Bytes, StdError]:
     match tcp_recv(conn, 4096, timeout_ms):
         Ok(chunk):
@@ -218,7 +223,7 @@ fn hs_read_chunked(conn: TcpConn, rest: Bytes, timeout_ms: Int, max_body_bytes: 
                     set finished = true
                 else:
                     if len(body) + size > max_body_bytes:
-                        hs_reject(conn, 413)
+                        hs_reject_too_large(conn, max_body_bytes)
                         return Err(std_error("E_HTTP_BODY_TOO_LARGE", "request body is larger than the limit"))
                     while len(buffer) < size + 2:
                         match hs_fill(conn, buffer, timeout_ms):
@@ -340,7 +345,7 @@ pub fn http_server_read_request_from(conn: TcpConn, pending: Bytes, timeout_ms: 
                 return Err(problem)
     else:
         if content_length > max_body_bytes:
-            hs_reject(conn, 413)
+            hs_reject_too_large(conn, max_body_bytes)
             return Err(std_error("E_HTTP_BODY_TOO_LARGE", "request body is larger than the limit"))
         if content_length > 0:
             set body = after_head
