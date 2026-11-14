@@ -703,8 +703,25 @@ impl ExactSum {
 
 /// Pairwise summation in f64, for accuracy on long arrays.
 fn pairwise_sum<T: Element>(items: &[T]) -> f64 {
-    if items.len() <= 128 {
+    if items.len() < 8 {
         return items.iter().fold(0.0, |total, item| total + item.to_f64());
+    }
+    if items.len() <= 128 {
+        // Eight independent running sums (the block NumPy uses), so the additions do not wait
+        // on one another. The order of the additions is fixed, so the result is repeatable.
+        let mut lanes = [0.0f64; 8];
+        let mut chunks = items.chunks_exact(8);
+        for chunk in &mut chunks {
+            for (lane, item) in lanes.iter_mut().zip(chunk) {
+                *lane += item.to_f64();
+            }
+        }
+        let mut total = ((lanes[0] + lanes[1]) + (lanes[2] + lanes[3]))
+            + ((lanes[4] + lanes[5]) + (lanes[6] + lanes[7]));
+        for item in chunks.remainder() {
+            total += item.to_f64();
+        }
+        return total;
     }
     let middle = items.len() / 2;
     pairwise_sum(&items[..middle]) + pairwise_sum(&items[middle..])
