@@ -551,3 +551,37 @@ fn effects_reached_through_another_package_are_attributed_and_checked() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn add_path_writes_a_relative_path_so_the_manifest_is_portable() {
+    let dir = scratch("lib-portable");
+    let library = dir.join("fetcher");
+    let project = dir.join("app");
+    write_library(&library, "", READS_A_FILE);
+    std::fs::create_dir_all(project.join("src")).unwrap();
+    std::fs::write(
+        project.join("guion.toml"),
+        "[project]\nname = \"app\"\nversion = \"0.1.0\"\nentry = \"src/main.gu\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        project.join("src/main.gu"),
+        "fn main() -> Int:\n    return 0\n",
+    )
+    .unwrap();
+    let added = guion(
+        &project,
+        &["add", "fetcher", "--path", library.to_str().unwrap()],
+    );
+    assert!(added.status.success(), "{}", text(&added));
+    let manifest = std::fs::read_to_string(project.join("guion.toml")).unwrap();
+    assert!(manifest.contains("path = \"../fetcher\""), "{manifest}");
+    let lock = std::fs::read_to_string(project.join("guion.lock")).unwrap();
+    assert!(lock.contains("source = \"../fetcher\""), "{lock}");
+    assert!(!manifest.contains(dir.to_str().unwrap()), "{manifest}");
+    assert!(!lock.contains(dir.to_str().unwrap()), "{lock}");
+    // `update` resolves the relative path against the project, not the working directory.
+    let updated = guion(&project, &["update"]);
+    assert!(updated.status.success(), "{}", text(&updated));
+    let _ = std::fs::remove_dir_all(&dir);
+}

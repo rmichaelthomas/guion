@@ -686,6 +686,30 @@ fn tar_field(field: &[u8]) -> Result<String, String> {
         .map_err(|_| "package archive path is not UTF-8".into())
 }
 
+/// A path dependency is written relative to the project so a committed manifest works on any
+/// machine; a target on another drive or root stays absolute.
+pub(crate) fn portable_path(project: &Path, target: &Path) -> String {
+    use std::path::Component;
+    let from: Vec<Component> = project.components().collect();
+    let to: Vec<Component> = target.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    if common == 0 {
+        return target.display().to_string();
+    }
+    let mut relative = PathBuf::new();
+    for _ in common..from.len() {
+        relative.push("..");
+    }
+    for component in &to[common..] {
+        relative.push(component.as_os_str());
+    }
+    if relative.as_os_str().is_empty() {
+        ".".into()
+    } else {
+        relative.display().to_string()
+    }
+}
+
 fn set_dependency_source(
     manifest_path: &Path,
     name: &str,
@@ -707,7 +731,14 @@ fn set_dependency_source(
         .ok_or("[dependencies] must be a table")?;
     let mut requirement = toml::map::Map::new();
     requirement.insert("version".into(), toml::Value::String(version.into()));
-    requirement.insert(kind.into(), toml::Value::String(source.into()));
+    let source = if kind == "path" {
+        let project = fs::canonicalize(manifest_path.parent().unwrap_or(Path::new(".")))
+            .unwrap_or_else(|_| manifest_path.parent().unwrap_or(Path::new(".")).to_path_buf());
+        portable_path(&project, Path::new(source))
+    } else {
+        source.to_owned()
+    };
+    requirement.insert(kind.into(), toml::Value::String(source));
     if let Some(sha256) = sha256 {
         requirement.insert("sha256".into(), toml::Value::String(sha256.into()));
     }
@@ -1086,7 +1117,7 @@ fn add_path_internal(
             ));
         }
     }
-    let package_lock = locked_library_value(&manifest, &digest, &source);
+    let package_lock = locked_library_value(&manifest, &digest, &source, &project);
     lock.native.insert(manifest.name.clone(), package_lock);
 
     let manifest_path = project_manifest_path(&project);
@@ -1122,7 +1153,7 @@ fn add_path_internal(
     );
     requirement.insert(
         "path".into(),
-        toml::Value::String(source.display().to_string()),
+        toml::Value::String(portable_path(&project, &source)),
     );
     dependencies.insert(manifest.name.clone(), toml::Value::Table(requirement));
 
@@ -1249,7 +1280,13 @@ pub fn update_paths(project: &Path, approve_capabilities: bool) -> Result<String
             let url = dependency.get("url").and_then(toml::Value::as_str);
             match (path, url) {
                 (Some(path), None) => {
-                    sources.push((name.clone(), version, Some(PathBuf::from(path)), None, None))
+                    sources.push((
+                        name.clone(),
+                        version,
+                        Some(project.join(path)),
+                        None,
+                        None,
+                    ))
                 }
                 (None, Some(url)) => {
                     let sha256 = dependency
@@ -1931,7 +1968,12 @@ fn read_library_manifest(
     })
 }
 
-fn locked_library_value(manifest: &LibraryManifest, digest: &str, source: &Path) -> toml::Value {
+fn locked_library_value(
+    manifest: &LibraryManifest,
+    digest: &str,
+    source: &Path,
+    project: &Path,
+) -> toml::Value {
     let mut value = toml::map::Map::new();
     value.insert(
         "version".into(),
@@ -1969,7 +2011,7 @@ fn locked_library_value(manifest: &LibraryManifest, digest: &str, source: &Path)
     value.insert("source_kind".into(), toml::Value::String("path".into()));
     value.insert(
         "source".into(),
-        toml::Value::String(source.display().to_string()),
+        toml::Value::String(portable_path(project, source)),
     );
     toml::Value::Table(value)
 }
