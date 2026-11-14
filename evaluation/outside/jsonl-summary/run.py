@@ -6,6 +6,7 @@ REPS times, reports medians in milliseconds, and exits non-zero if the Guion
 and Python outputs differ byte for byte (or any run fails).
 """
 import argparse
+import json
 import os
 import shutil
 import statistics
@@ -24,6 +25,9 @@ HELLO = 'fn main() -> Int:\n    print("hello")\n    return 0\n'
 
 def timed(cmd, cwd, reps):
     times, out = [], None
+    # One untimed run first: the first run after a build or another command pays for cold
+    # caches, and for a few-millisecond program that is larger than the allowance.
+    subprocess.run(cmd, cwd=cwd, capture_output=True)
     for _ in range(reps):
         start = time.perf_counter()
         done = subprocess.run(cmd, cwd=cwd, capture_output=True)
@@ -42,10 +46,12 @@ def main():
     ap.add_argument("--binary", default=os.path.join(REPO, "target", "release", "guion"))
     ap.add_argument("--rows", type=int, nargs="+", default=[5000, 200000])
     ap.add_argument("--reps", type=int, default=7)
+    ap.add_argument("--json", metavar="PATH", help="also write the medians to PATH as JSON")
     args = ap.parse_args()
     binary = os.path.abspath(args.binary)
 
     ok = True
+    result = {"reps": args.reps, "rows": {}}
     with tempfile.TemporaryDirectory(prefix="guion-jsonl-") as tmp:
         hello = os.path.join(tmp, "hello")
         os.makedirs(hello)
@@ -53,6 +59,7 @@ def main():
             f.write(HELLO)
         med, _ = timed([binary, "run", "hello.gu"], hello, args.reps)
         print(f"hello world                      median {med:9.1f} ms  ({args.reps} reps)")
+        result["hello_ms"] = round(med, 1)
 
         for rows in args.rows:
             work = os.path.join(tmp, f"rows{rows}")
@@ -68,6 +75,16 @@ def main():
             print(f"guion  {rows:>7} rows            median {g_med:9.1f} ms")
             print(f"python {rows:>7} rows            median {p_med:9.1f} ms")
             print(f"  output byte-identical: {same}")
+            result["rows"][str(rows)] = {
+                "guion_ms": round(g_med, 1),
+                "python_ms": round(p_med, 1),
+                "output_identical": same,
+            }
+    result["outputs_identical"] = ok
+    if args.json:
+        with open(args.json, "w") as out:
+            json.dump(result, out, indent=1)
+            out.write("\n")
     if not ok:
         print("FAIL: Guion and Python outputs differ", file=sys.stderr)
     return 0 if ok else 1

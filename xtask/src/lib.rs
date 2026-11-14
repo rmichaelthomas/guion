@@ -5,6 +5,7 @@ pub mod builders;
 pub mod builtin_catalog;
 pub mod completion;
 pub mod inventory;
+pub mod outside_check;
 pub mod performance;
 pub mod release;
 pub mod runner;

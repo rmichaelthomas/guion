@@ -1071,12 +1071,15 @@ fn print_json(value: &Value) -> Result<(), String> {
 
 pub fn run(root: &Path, args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|browser-docs|artifact-format-audit|surface-diff> [options]");
+        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|browser-docs|artifact-format-audit|surface-diff|outside-check> [options]");
         return 2;
     }
     let command = args[0].as_str();
     if command == "surface-diff" {
         return crate::surface_diff::run(&args[1..]);
+    }
+    if command == "outside-check" {
+        return crate::outside_check::run(root, &args[1..]);
     }
     if command == "catalog" {
         let result = if args.iter().any(|arg| arg == "--write") {

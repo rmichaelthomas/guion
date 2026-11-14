@@ -29,6 +29,8 @@ These keep a MINOR release additive (see [VERSIONING.md](VERSIONING.md)).
 
 - **Docs name the release.** `shipped_getting_started_names_this_release` (`crates/cli/tests/release_hygiene.rs`) requires every version `docs/getting-started.md` names to be the `X.Y.Z` core of `[workspace.package].version` in `Cargo.toml`, so `0.3.0-rc.1` is documented as `0.3.0`. While the changelog's top section is marked `(unreleased)`, the page may also name that section's version, so it can be updated before the version bump. Anything else fails.
 
+- **Outside program.** After `cargo build --locked --release -p guion-cli`, `cargo xtask outside-check` runs `evaluation/outside/jsonl-summary/run.py` and fails if the Guion and Python outputs differ or if the hello world, 5,000-row or 200,000-row Guion median is more than 5% slower than `baseline-0.2.0.json` (the noise allowance; see that directory's README). It does not build, because a few-millisecond hello world measures slow for a while after a build; re-run once before treating a single over-allowance result as a regression.
+
 ## Change expectations
 
 - Keep the source of truth in the implementation and `language/spec.md`; do not duplicate API signatures by hand when a generated report can provide them.

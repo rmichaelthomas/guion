@@ -1,0 +1,10 @@
+{
+ "label": "baseline-0.2.0",
+ "note": "Medians of 7 runs on an Apple M1 Pro, release build of main at 78b5332 (guion 0.2.0, artifact format 64), 2026-11-13; copied from docs/superpowers/results/2026-11-13-batch-4.md. `cargo xtask outside-check` compares the guion_ms values and hello_ms against these.",
+ "reps": 7,
+ "hello_ms": 6.1,
+ "rows": {
+  "5000": {"guion_ms": 23.1, "python_ms": 35.9},
+  "200000": {"guion_ms": 420.6, "python_ms": 349.2}
+ }
+}
