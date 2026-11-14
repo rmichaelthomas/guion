@@ -1,0 +1,41 @@
+{
+  "name": "guion",
+  "displayName": "Guion",
+  "description": "Guion language support: errors as you type, hover, go to definition, completion and formatting, from `guion lsp`.",
+  "version": "0.1.0",
+  "publisher": "guion",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Programming Languages"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:guion"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "guion",
+        "aliases": ["Guion"],
+        "extensions": [".gu", ".gut"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "guion",
+        "scopeName": "source.guion",
+        "path": "./syntaxes/guion.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Guion",
+      "properties": {
+        "guion.executable": {
+          "type": "string",
+          "default": "guion",
+          "description": "Path to the guion program that provides `guion lsp`."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1"
+  }
+}

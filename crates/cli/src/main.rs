@@ -10,6 +10,8 @@ mod bytecode_ir;
 mod compiler_driver;
 #[cfg(feature = "python-interop")]
 mod dependencies;
+mod lsp;
+mod repl;
 mod native_dependencies;
 mod native_packages;
 mod package_capabilities;
@@ -39,7 +41,7 @@ fn main() -> ExitCode {
     }
 }
 
-const USAGE: &str = "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token|cache> [path]";
+const USAGE: &str = "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token|lsp|repl|cache> [path]";
 
 const HELP: &str = "\
 new        create a project (guion new <dir>, or --lib for a library)
@@ -55,6 +57,8 @@ add        add a dependency; sync and update resolve and refresh them
 inspect    print artifact and function metadata and the effects a program can have
 doc        print function, record and external signatures; `doc std:NAME` prints a standard-library module, `doc --all --json` all of them
 doctor     report the current host and enabled profile
+lsp        language server for editors, over standard input and output
+repl       interactive prompt; takes the same permission flags as run
 install    install a library package
 publish    publish a package to a registry; yank withdraws a version; token manages publisher tokens
 cache      guion cache clean [project] removes the compiled-source cache
@@ -65,6 +69,13 @@ Programs run with no permissions until you grant them. See docs/getting-started.
 fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if args.first().is_some_and(|command| command == "cache") {
         return execute_cache_command(&args);
+    }
+    if args.first().is_some_and(|command| command == "lsp") {
+        lsp::run_stdio();
+        return Ok(ExitCode::SUCCESS);
+    }
+    if args.first().is_some_and(|command| command == "repl") {
+        return repl::run(&args[1..]);
     }
     let phase_timings_enabled = env::var_os("GUION_PHASE_TIMINGS").is_some();
     let cli_started = phase_timings_enabled.then(Instant::now);
