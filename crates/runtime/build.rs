@@ -85,6 +85,8 @@ fn main() {
     cc::Build::new()
         .file(manifest.join("../../native/libical_bridge.c"))
         .include(&include)
+        // Static linking: without this the Windows headers declare the functions dllimport.
+        .define("LIBICAL_STATIC", None)
         .warnings(true)
         .compile("guion_ical_bridge");
 }
