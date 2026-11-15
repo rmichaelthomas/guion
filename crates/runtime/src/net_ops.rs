@@ -4,8 +4,8 @@
 //! reads and writes take a timeout capped by the host policy, reads are capped in size, and the
 //! table holds a fixed number of sockets. Connecting, sending datagrams and binding are checked
 //! against exact `host:port` grants (`*` matches any port); nothing is allowed by default.
-use super::{HostPolicy, RuntimeError, Shared, SharedText, Span, Value};
-use guion_model::{BigInt, NetFunction, TlsFunction};
+use super::{GrantKind, HostPolicy, RuntimeError, Shared, SharedText, Span, Value};
+use guion_model::{BigInt, GrantHint, NetFunction, TlsFunction};
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
 use rustls::server::WebPkiClientVerifier;
@@ -330,8 +330,15 @@ fn tcp_connect(
 ) -> Result<Value, Failure> {
     let port = port_of(port)?;
     let timeout = timeout_of(policy, timeout)?;
-    if !granted(&policy.allowed_connect, host, port) {
-        return Err(denied("connect", host, port, "--allow-connect"));
+    if !permitted(policy, false, host, port) {
+        return Err(denied(
+            policy,
+            "connect",
+            host,
+            port,
+            "--allow-connect",
+            false,
+        ));
     }
     let mut last = Failure::new("E_NET_RESOLVE", format!("`{host}` has no addresses"));
     for address in resolve(host, port)? {
@@ -346,12 +353,48 @@ fn tcp_connect(
     Err(last)
 }
 
-fn denied(action: &str, host: &str, port: u16, flag: &str) -> Failure {
-    Failure::new(
-        "E_NET_DENIED",
-        format!(
-            "{action} to `{host}:{port}` is not granted; add it to guion.toml [sockets] or pass {flag} HOST:PORT"
-        ),
+fn denied(
+    policy: &HostPolicy,
+    action: &str,
+    host: &str,
+    port: u16,
+    flag: &str,
+    bind: bool,
+) -> Failure {
+    let target = format!("{host}:{port}");
+    let hint = if bind {
+        GrantHint::socket_bind(&target)
+    } else {
+        GrantHint::socket_connect(&target)
+    };
+    let table_key = if bind { "bind" } else { "connect" };
+    let message = format!(
+        "{action} to `{target}` is not granted; add `[sockets] {table_key} = [{target:?}]` to guion.toml or pass {flag} {target}"
+    );
+    policy.record_denial("E_NET_DENIED", &message, Some(&hint));
+    Failure::new("E_NET_DENIED", message)
+}
+
+/// Whether `host:port` may be used: granted by the fixed sets, or by a person asked now.
+fn permitted(policy: &HostPolicy, bind: bool, host: &str, port: u16) -> bool {
+    let (grants, kind, hint) = if bind {
+        (
+            &policy.allowed_bind,
+            GrantKind::Bind,
+            GrantHint::socket_bind(&format!("{host}:{port}")),
+        )
+    } else {
+        (
+            &policy.allowed_connect,
+            GrantKind::Connect,
+            GrantHint::socket_connect(&format!("{host}:{port}")),
+        )
+    };
+    policy.authorize(
+        kind,
+        &format!("{host}:{port}"),
+        granted(grants, host, port),
+        &hint,
     )
 }
 
@@ -363,8 +406,8 @@ fn bind(
     port: i64,
 ) -> Result<Value, Failure> {
     let port = port_of(port)?;
-    if !granted(&policy.allowed_bind, host, port) {
-        return Err(denied("binding", host, port, "--allow-bind"));
+    if !permitted(policy, true, host, port) {
+        return Err(denied(policy, "binding", host, port, "--allow-bind", true));
     }
     let address = resolve(host, port)?
         .into_iter()
@@ -561,8 +604,15 @@ fn udp_send_to(
     data: &[u8],
 ) -> Result<Value, Failure> {
     let port = port_of(port)?;
-    if !granted(&policy.allowed_connect, host, port) {
-        return Err(denied("sending", host, port, "--allow-connect"));
+    if !permitted(policy, false, host, port) {
+        return Err(denied(
+            policy,
+            "sending",
+            host,
+            port,
+            "--allow-connect",
+            false,
+        ));
     }
     if data.len() > policy.max_socket_read_bytes {
         return Err(Failure::new("E_NET_ARGUMENT", "datagram is too large"));
@@ -770,8 +820,15 @@ fn tls_connect(
 ) -> Result<Value, Failure> {
     let port = port_of(port)?;
     let timeout_value = timeout_of(policy, timeout)?;
-    if !granted(&policy.allowed_connect, host, port) {
-        return Err(denied("connect", host, port, "--allow-connect"));
+    if !permitted(policy, false, host, port) {
+        return Err(denied(
+            policy,
+            "connect",
+            host,
+            port,
+            "--allow-connect",
+            false,
+        ));
     }
     let server_name = ServerName::try_from(host.to_owned()).map_err(|_| {
         Failure::new(

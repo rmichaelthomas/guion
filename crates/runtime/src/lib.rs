@@ -1,7 +1,7 @@
 use guion_model::{
-    Artifact, BigInt, FileErrorValue, Float64, HigherOrderKind, HttpErrorValue, JsonErrorValue,
-    NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText,
-    Span, TaskErrorValue, TextMap, Type, Value,
+    Artifact, BigInt, FileErrorValue, Float64, GrantHint, HigherOrderKind, HttpErrorValue,
+    JsonErrorValue, NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson,
+    SharedText, Span, TaskErrorValue, TextMap, Type, Value,
 };
 use guion_vm_core::ordering::{
     apply_sort_order, consume_sort_step, sort_allocation, stable_sort_order, SortKey,
@@ -32,6 +32,10 @@ use std::{
 };
 mod compress;
 mod fs_ops;
+mod grants;
+pub use grants::{
+    DenialRecord, GrantAnswer, GrantAnswerRecord, GrantAsker, GrantBroker, GrantKind, GrantRequest,
+};
 mod native_arena;
 use native_arena::*;
 mod http_client;
@@ -310,6 +314,11 @@ pub struct HostPolicy {
     pub allowed_bind: HashSet<String>,
     pub max_socket_timeout: Duration,
     pub max_socket_read_bytes: usize,
+    /// Optional route to put one plain question to a person when an effect lacks a grant.
+    /// `None` for tests, replays and agents: a missing grant is then simply a denial.
+    pub broker: Option<std::sync::Arc<GrantBroker>>,
+    /// Denied effects, shared by every copy of this policy (including parallel workers).
+    pub denials: std::sync::Arc<std::sync::Mutex<Vec<DenialRecord>>>,
 }
 impl Default for HostPolicy {
     fn default() -> Self {
@@ -354,6 +363,8 @@ impl Default for HostPolicy {
             allowed_bind: HashSet::new(),
             max_socket_timeout: Duration::from_secs(30),
             max_socket_read_bytes: 1024 * 1024,
+            broker: None,
+            denials: Default::default(),
         }
     }
 }
@@ -2746,11 +2757,19 @@ impl Instance {
             }
             Op::UnixTimeMs | Op::TimeTodayLocal => {
                 if !self.policy.allow_clock {
-                    return Err(RuntimeError::new(
-                        "R_CLOCK_DENIED",
-                        "wall-clock access is not granted",
-                        instruction.span,
-                    ));
+                    let hint = GrantHint::clock();
+                    if !self
+                        .policy
+                        .authorize(GrantKind::Clock, "clock", false, &hint)
+                    {
+                        let message = "wall-clock access is not granted";
+                        self.policy
+                            .record_denial("R_CLOCK_DENIED", message, Some(&hint));
+                        return Err(
+                            RuntimeError::new("R_CLOCK_DENIED", message, instruction.span)
+                                .with_grant(hint),
+                        );
+                    }
                 }
                 let effect = self.begin_effect(EffectKind::ClockRead, "system-clock");
                 let unix_time_ms = match self.policy.clock_unix_time_ms_override {
@@ -4256,16 +4275,20 @@ impl Instance {
                         ));
                     }
                 };
-                if !self
-                    .policy
-                    .allowed_environment_variables
-                    .contains(name.as_ref())
-                {
-                    return Err(RuntimeError::new(
-                        "R_ENV_DENIED",
-                        format!("environment variable `{name}` is not granted"),
-                        instruction.span,
-                    ));
+                let hint = GrantHint::environment_variable(name.as_ref());
+                if !self.policy.authorize(
+                    GrantKind::Environment,
+                    name.as_ref(),
+                    self.policy
+                        .allowed_environment_variables
+                        .contains(name.as_ref()),
+                    &hint,
+                ) {
+                    let message = format!("environment variable `{name}` is not granted");
+                    self.policy
+                        .record_denial("R_ENV_DENIED", &message, Some(&hint));
+                    return Err(RuntimeError::new("R_ENV_DENIED", message, instruction.span)
+                        .with_grant(hint));
                 }
                 let effect = self.begin_effect(EffectKind::EnvironmentRead, name.as_ref());
                 match std::env::var(name.as_ref()) {
@@ -5990,6 +6013,16 @@ impl Instance {
     }
 
     /// Effect attempts from the most recent invocation and their last observed state.
+    /// Every effect this instance refused for lack of a grant, in order.
+    pub fn denials(&self) -> Vec<DenialRecord> {
+        self.policy.denials()
+    }
+
+    /// The grants a person gave at a question while this instance ran.
+    pub fn answered_grants(&self) -> Vec<GrantAnswerRecord> {
+        self.policy.answered_grants()
+    }
+
     pub fn effect_report(&self) -> &[EffectRecord] {
         &self.effect_report
     }
@@ -9135,11 +9168,25 @@ fn host_file_path_with_walk_root(
         })
         .collect::<Result<Vec<_>, _>>()?;
     if requested_path.is_absolute() {
-        return Err(RuntimeError::new(
+        // Name the folder that would have to be granted, so the denial says how to fix itself.
+        let folder = if requested_path.is_dir() {
+            Some(requested_path)
+        } else {
+            requested_path.parent()
+        }
+        .map(|folder| folder.to_string_lossy().into_owned())
+        .filter(|folder| !folder.is_empty());
+        let mut error = RuntimeError::new(
             "R_HOST_DENIED",
             "file paths must be relative to the granted project root",
             span,
-        ));
+        );
+        if let Some(folder) = folder {
+            let hint = GrantHint::file_root(&folder);
+            policy.record_denial("R_HOST_DENIED", &error.message, Some(&hint));
+            error = error.with_grant(hint);
+        }
+        return Err(error);
     }
     if requested_path.components().any(|component| {
         matches!(

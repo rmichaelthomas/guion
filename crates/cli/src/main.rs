@@ -1301,6 +1301,17 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 })
                 .collect::<Vec<_>>();
             let omitted_effects = instance.omitted_effects();
+            let denials = instance
+                .denials()
+                .iter()
+                .map(|denial| {
+                    serde_json::json!({
+                        "code": denial.code,
+                        "message": denial.message,
+                        "grant": denial.grant.as_ref().map(grant_json),
+                    })
+                })
+                .collect::<Vec<_>>();
             instance.close();
             if json_run {
                 let (status, exit_code, diagnostic) = match result {
@@ -1342,6 +1353,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "host_stderr": host_stderr,
                     "effects": effects,
                     "omitted_effects": omitted_effects,
+                    "denials": denials,
                     "python_native_image_observation": python_native_image_observation,
                     "python_native_images": python_native_images,
                     "source_cache": source_cache_status,
@@ -5123,7 +5135,24 @@ fn runtime_diagnostic_json(
         diagnostic["used"] = serde_json::json!(used);
         diagnostic["limit"] = serde_json::json!(limit);
     }
+    if let Some(grant) = &error.grant {
+        diagnostic["grant"] = grant_json(grant);
+    }
     diagnostic
+}
+
+/// The machine form of a missing grant: the manifest table, key and value, and the run flag.
+fn grant_json(grant: &guion_model::GrantHint) -> serde_json::Value {
+    serde_json::json!({
+        "table": grant.table,
+        "key": grant.key,
+        "value": grant.value,
+        "flag": if grant.flag.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::String(grant.flag.clone())
+        },
+    })
 }
 
 fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeError) -> String {
@@ -5145,9 +5174,16 @@ fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeE
         .skip(1)
         .map(|s| format!("\n  at {}:{}:{}", source_for(s), s.line, s.column))
         .collect::<String>();
+    let fix = error
+        .grant
+        .as_ref()
+        .map(|grant| grant.fix_it())
+        .filter(|text| !text.is_empty())
+        .map(|text| format!("\n{text}"))
+        .unwrap_or_default();
     format!(
-        "{where_}runtime error[{}]: {}{}",
-        error.code, error.message, frames
+        "{where_}runtime error[{}]: {}{}{}",
+        error.code, error.message, fix, frames
     )
 }
 

@@ -4,7 +4,7 @@
 //! environment (only `PATH` and granted variables), the project file root as working directory,
 //! a wall-clock timeout, and a per-stream output cap. The child runs in its own process group so a
 //! timeout or an output overflow kills it together with anything it spawned.
-use super::{HostPolicy, Shared, SharedText, Value};
+use super::{GrantHint, GrantKind, HostPolicy, Shared, SharedText, Value};
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -80,11 +80,18 @@ fn exit_code(status: std::process::ExitStatus) -> i64 {
 }
 
 pub(crate) fn run(policy: &HostPolicy, command: &str, arguments: &[String], stdin: &str) -> Value {
-    if !policy.allowed_commands.contains(command) {
-        return failure(
-            "E_PROCESS_DENIED",
-            format!("command `{command}` is not granted; add it to guion.toml [process].commands or pass --allow-command"),
+    let hint = GrantHint::command(command);
+    if !policy.authorize(
+        GrantKind::Command,
+        command,
+        policy.allowed_commands.contains(command),
+        &hint,
+    ) {
+        let message = format!(
+            "command `{command}` is not granted; add `[process] commands = [{command:?}]` to guion.toml or pass --allow-command {command}"
         );
+        policy.record_denial("E_PROCESS_DENIED", &message, Some(&hint));
+        return failure("E_PROCESS_DENIED", message);
     }
     if arguments.len() > MAX_ARGUMENTS
         || arguments
