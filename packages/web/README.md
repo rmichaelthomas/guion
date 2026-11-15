@@ -2,7 +2,7 @@
 
 Routing, middleware and serving for Guion applications, built on `std:http_response`, `std:http_server` and `std:log`.
 
-Use it from a project with `guion add web --path PATH/TO/web --approve-capabilities` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is not published to the registry yet. The user guide is `docs/web.md` in the repository.
+Use it from a project with `guion add web --path PATH/TO/web --approve-capabilities` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is published to the registry as `web` 0.1.2, so `guion add web --approve-capabilities` installs it without a checkout. The user guide is `docs/web.md` in the repository.
 
 ```
 import "pkg:web/src/lib.gu"
@@ -43,7 +43,7 @@ A handler is `fn(Request) -> Result[Response, HttpFailure]`. Guion has no type a
 
 ## Middleware and applications
 
-Function values capture nothing, so a middleware cannot wrap a handler in a closure. A middleware is a record of two named functions and the settings they read (`config`, a `Map[Text, Text]` passed to both on every request), and an `App` holds the router and the layers:
+A middleware is a record of two functions and the settings they read (`config`, a `Map[Text, Text]` passed to both on every request), and an `App` holds the router and the layers:
 
 ```
 fn require_key(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
@@ -62,7 +62,7 @@ fn build(table: Router) -> App:
 
 - `before(config, request) -> Result[Request, Response]`: `Ok(request)` passes the request inward, `Err(response)` answers now.
 - `after(config, request, response) -> Result[Response, HttpFailure]`: sees the response on the way out.
-- `middleware(before, after)`, `middleware_before(before)` and `middleware_after(after)` build a layer with an empty `config`; `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one with settings (the session layer's store and policy travel this way); `wrap(app, layer)` makes it the outermost; `app_with(router, layers)` lists layers outermost first.
+- `middleware(before, after)`, `middleware_before(before)` and `middleware_after(after)` build a layer with an empty `config`; `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one with settings (the session layer's store and policy travel this way); `layer(before, after)`, `layer_before(before)` and `layer_after(after)` take closures that read no config map and may capture variables; `wrap(app, layer)` makes it the outermost; `app_with(router, layers)` lists layers outermost first.
 - Order is deterministic: the outermost layer's `before` runs first and its `after` last. When a `before` answers with `Err(response)`, that layer's `after` does not run, and the `after` of every outer layer does, innermost first. An `Err(HttpFailure)` skips the remaining `after` functions.
 - Middleware wraps the router's own 404, 405 and 400 responses too.
 - Effects attach where a function value is formed, so the function that writes `middleware_before(audit)` reports the effects of `audit`.

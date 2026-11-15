@@ -1209,7 +1209,7 @@ fn the_web_package_packs_installs_from_a_local_registry_and_tests_itself_there()
     assert!(ran.status.success(), "{}", text(&ran));
     assert_eq!(String::from_utf8_lossy(&ran.stdout), "200\n");
 
-    let installed = app.join(".guion/packages/web/0.1.1");
+    let installed = app.join(".guion/packages/web/0.1.2");
     assert!(installed.join("tests.gu").is_file());
     assert!(installed.join("src/static.gu").is_file());
     let tested = guion(&installed, &registry, None, &["test", "tests.gu"]);

@@ -128,7 +128,7 @@ fn main() -> Int:
 }
 
 #[test]
-fn sorting_with_a_closure_says_it_needs_a_named_function() {
+fn sorting_with_a_capturing_literal_is_refused_at_check_time() {
     let (ok, _, err) = run(r##"fn main() -> Int:
     let k = 2
     let sorted = sort_by_int_key([3, 1, 2], fn(x: Int) -> Int: x * k)
@@ -136,5 +136,42 @@ fn sorting_with_a_closure_says_it_needs_a_named_function() {
     return 0
 "##);
     assert!(!ok);
+    assert!(err.contains("E_FN_CLOSURE"), "{err}");
+    assert!(!err.contains("runtime error"), "{err}");
+}
+
+#[test]
+fn sorting_with_a_closure_held_in_a_variable_still_says_it_needs_a_named_function() {
+    let (ok, _, err) = run(r##"fn main() -> Int:
+    let k = 2
+    let key = fn(x: Int) -> Int: x * k
+    let sorted = sort_by_int_key([3, 1, 2], key)
+    print(f"{len(sorted)}")
+    return 0
+"##);
+    assert!(!ok);
     assert!(err.contains("R_FN_CLOSURE"), "{err}");
+}
+
+#[test]
+fn sort_by_takes_a_function_literal_that_captures_nothing() {
+    let (ok, out, err) = run(r##"fn main() -> Int:
+    let sorted = sort_by([3, 1, 2], fn(x: Int) -> Int: 0 - x)
+    print(f"{sorted[0]}")
+    return 0
+"##);
+    assert!(ok, "{err}");
+    assert_eq!(out, "3\n");
+}
+
+#[test]
+fn an_unimported_std_function_names_its_module_instead_of_a_lexical_neighbour() {
+    let (ok, _, err) = run(r##"fn main() -> Int:
+    print(text_join(["a", "b"], ","))
+    return 0
+"##);
+    assert!(!ok);
+    assert!(err.contains("E_NAME_UNKNOWN"), "{err}");
+    assert!(err.contains("import \"std:text\""), "{err}");
+    assert!(!err.contains("text_find"), "{err}");
 }

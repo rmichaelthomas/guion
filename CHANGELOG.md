@@ -2,6 +2,14 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## 0.6.0 — 2026-11-14
+
+Additions only, plus the artifact format going from 74 to 75 (older artifacts still load; a program that uses `Map[Int, T]` needs this runtime). Nothing is removed or re-signed.
+
+- Fixes from a verification pass: a function literal that uses a local variable, passed to `sort_by`, `sort_by_int_key`, `merge_sorted_by_int_key` or `parallel_map`, is `E_FN_CLOSURE` at `guion check` instead of `R_FN_CLOSURE` at run time (a function literal that uses no outside variable works in all of them, and the docs now say so); an unknown call whose name a `std:` module exports says which module to import instead of suggesting a lexical neighbour (`text_join` no longer suggests `text_find`); the archive ships `docs/basics.md`, `docs/concurrency.md` and `docs/known-issues.md`; the `docs/concurrency.md` opening sentence matches its own measurements; the `web` README no longer says the package is unpublished.
+- Language: `Map[Int, T]` (artifact format 75; numeric key order, no text conversion by hand) and generic records (`record Pair[A, B]:`, compile-time monomorphisation, no format change). `web` 0.1.2 on the registry gains closure-friendly `layer`, `layer_before` and `layer_after` (additive; the old constructors stay). Record and replay no longer limit `parallel_map` to one worker: each item has its own lane on the tape (tape format 2 when a program uses `parallel_map`, format 1 otherwise), so any worker limit replays identically. The browser VM now runs `map_list`, `try_map_list`, `filter_list`, `fold_list`, `any_list`, `all_list` and every sort, closures included, with the same results and instruction charges as the native runtime (`parallel_map` stays unsupported there: no threads). The agent reference size cap rose from 120 KiB to 128 KiB to hold the new text.
+- The self-hosted compiler is frozen as a historical proof artifact; the CLI compiles with the Rust compiler and only verifies the seed.
+
 ## 0.5.0 — 2026-11-14
 
 - Language: `else if`, range loops, compound `set`, f-text, `priv` record fields, closures (nested `fn` captures by value), enums with exhaustive `match`, and generic functions (artifact format 74). `try_map_list` is a per-item fault boundary; the `web` package in this repo answers 500 for a handler fault and keeps serving (`web` on the registry is still 0.1.0 until republished).

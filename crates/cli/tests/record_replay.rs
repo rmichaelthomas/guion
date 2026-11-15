@@ -340,3 +340,110 @@ fn a_server_replays_its_connections_without_a_socket() {
     assert!(replayed.status.success(), "{}", text(&replayed.stderr));
     assert_eq!(text(&replayed.stdout), original);
 }
+
+const FAN_OUT: &str = r#"fn load(n: Int) -> Int:
+    var size = 0 - 1
+    match read_text(f"item{n}.txt"):
+        Ok(body):
+            set size = len(body) + n
+        Err(error):
+            set size = 0 - 1
+    return size
+
+fn main() -> Int:
+    let sizes = parallel_map([1, 2, 3, 4, 5, 6], load, 4)
+    match sizes:
+        Ok(values):
+            for value in values:
+                print(f"{value}")
+        Err(error):
+            print("failed")
+    return 0
+"#;
+
+fn fan_out_directory(name: &str, program: &str) -> std::path::PathBuf {
+    let directory = scratch(name);
+    std::fs::write(directory.join("main.gu"), program).unwrap();
+    for n in 1..=6 {
+        std::fs::write(directory.join(format!("item{n}.txt")), "x".repeat(n * 3)).unwrap();
+    }
+    directory
+}
+
+#[test]
+fn parallel_map_items_keep_their_own_lanes_on_the_tape_and_replay_with_any_worker_count() {
+    let directory = fan_out_directory("lanes", FAN_OUT);
+    let recorded = guion(&directory, &["run", "--record", "fan.tape", "main.gu"]);
+    assert!(recorded.status.success(), "{}", text(&recorded.stderr));
+    let original = text(&recorded.stdout);
+    assert_eq!(original, "4\n8\n12\n16\n20\n24\n");
+
+    let tape = std::fs::read_to_string(directory.join("fan.tape")).unwrap();
+    assert!(tape.starts_with("{\"guion_tape\":2"), "{tape}");
+    for item in 0..6 {
+        assert!(tape.contains(&format!("\"lane\":\"0.{item}\"")), "{tape}");
+    }
+
+    for _ in 0..5 {
+        for n in 1..=6 {
+            let _ = std::fs::remove_file(directory.join(format!("item{n}.txt")));
+        }
+        let replayed = guion(&directory, &["run", "--replay", "fan.tape", "main.gu"]);
+        assert!(replayed.status.success(), "{}", text(&replayed.stderr));
+        assert_eq!(text(&replayed.stdout), original);
+    }
+}
+
+#[test]
+fn a_program_without_parallel_work_still_writes_the_first_tape_format() {
+    let directory = scratch("plain-version");
+    std::fs::write(directory.join("main.gu"), READER).unwrap();
+    std::fs::write(directory.join("data.txt"), "alpha").unwrap();
+    let recorded = guion(
+        &directory,
+        &["run", "--allow-clock", "--record", "plain.tape", "main.gu"],
+    );
+    assert!(recorded.status.success(), "{}", text(&recorded.stderr));
+    let tape = std::fs::read_to_string(directory.join("plain.tape")).unwrap();
+    assert!(tape.starts_with("{\"guion_tape\":1"), "{tape}");
+    assert!(!tape.contains("\"lane\""), "{tape}");
+}
+
+#[test]
+fn a_divergence_inside_a_parallel_item_names_its_lane_even_though_the_program_sees_an_err() {
+    let directory = fan_out_directory("lane-divergence", FAN_OUT);
+    let recorded = guion(&directory, &["run", "--record", "fan.tape", "main.gu"]);
+    assert!(recorded.status.success(), "{}", text(&recorded.stderr));
+    // The same program reading another file name in each item.
+    std::fs::write(
+        directory.join("main.gu"),
+        FAN_OUT.replace("item{n}.txt", "other{n}.txt"),
+    )
+    .unwrap();
+    let replayed = guion(
+        &directory,
+        &["run", "--replay-changed", "fan.tape", "main.gu"],
+    );
+    assert!(!replayed.status.success());
+    let error = text(&replayed.stderr);
+    assert!(error.contains("R_TAPE_DIVERGED"), "{error}");
+    assert!(error.contains("parallel_map lane 0."), "{error}");
+}
+
+#[test]
+fn an_item_that_fails_replays_to_the_same_failure_whatever_its_siblings_did() {
+    let program = FAN_OUT.replace(
+        "    return size\n",
+        "    if n == 3:\n        let boom = 1 / (n - 3)\n    return size\n",
+    );
+    let directory = fan_out_directory("lane-failure", &program);
+    let recorded = guion(&directory, &["run", "--record", "fan.tape", "main.gu"]);
+    assert!(recorded.status.success(), "{}", text(&recorded.stderr));
+    let original = text(&recorded.stdout);
+    assert_eq!(original, "failed\n");
+    for _ in 0..10 {
+        let replayed = guion(&directory, &["run", "--replay", "fan.tape", "main.gu"]);
+        assert!(replayed.status.success(), "{}", text(&replayed.stderr));
+        assert_eq!(text(&replayed.stdout), original);
+    }
+}

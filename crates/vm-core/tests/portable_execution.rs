@@ -158,3 +158,45 @@ fn unknown_export_and_arity_are_rejected() {
         "R_CALL_ARITY"
     );
 }
+
+/// The higher-order builtins and every sort run in the portable VM and print exactly what the
+/// native runtime printed for the same program (`higher_order.out` was captured from `guion run`).
+#[test]
+fn higher_order_builtins_and_sorts_match_the_native_runtime() {
+    let mut host = PortableHost::new(
+        artifact_from_source("higher_order.gu", include_str!("fixtures/higher_order.gu")),
+        VmLimits::default(),
+    );
+    host.invoke("main", vec![], 1_000_000)
+        .expect("higher-order program runs in the portable VM");
+    assert_eq!(
+        host.take_output(),
+        include_str!("fixtures/higher_order.out")
+    );
+}
+
+#[test]
+fn a_closure_cannot_be_a_sort_key_and_parallel_map_stays_unsupported() {
+    let closure = "fn main() -> Int:\n    let k = 2\n    let key = fn(x: Int) -> Int: x * k\n    return sort_by_int_key([3, 1], key)[0]\n";
+    let mut host = PortableHost::new(artifact_from_source("c.gu", closure), VmLimits::default());
+    let error = host
+        .invoke("main", vec![], 10_000)
+        .expect_err("closure key");
+    assert_eq!(error.code, "R_FN_CLOSURE");
+
+    let parallel = "fn double(x: Int) -> Int:\n    return x * 2\n\nfn main() -> Int:\n    let r = parallel_map([1, 2], double, 2)\n    return 0\n";
+    let mut host = PortableHost::new(artifact_from_source("p.gu", parallel), VmLimits::default());
+    let error = host.invoke("main", vec![], 10_000).expect_err("no threads");
+    assert_eq!(error.code, "R_HOST_UNSUPPORTED");
+    assert!(error.message.contains("ParallelMap"), "{}", error.message);
+}
+
+#[test]
+fn the_step_budget_covers_work_done_inside_higher_order_builtins() {
+    let source = "fn work(x: Int) -> Int:\n    var n = 0\n    while n < 1000:\n        set n = n + 1\n    return n\n\nfn main() -> Int:\n    return len(map_list([1, 2, 3], work))\n";
+    let mut host = PortableHost::new(artifact_from_source("b.gu", source), VmLimits::default());
+    let error = host
+        .invoke("main", vec![], 500)
+        .expect_err("budget runs out inside the callee");
+    assert_eq!(error.code, "R_STEP_LIMIT");
+}

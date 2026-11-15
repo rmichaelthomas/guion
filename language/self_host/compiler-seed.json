@@ -1,7 +1,7 @@
 {
-  "artifact_format": 74,
-  "artifact_schema_sha256": "501095a025c90b1511446725087b2916b9f01da4cdba2c86ef3faa06614f8707",
-  "artifact_sha256": "f9c793e487a2aeb899a51b69c80088bd8f4ad032c43a316f2ce3bd0c9457bdbe",
+  "artifact_format": 75,
+  "artifact_schema_sha256": "4b462ce46e1455db17911354e96a74a94389cad991fe5f6bde2b176c9abe8cbd",
+  "artifact_sha256": "835081ebc251f8ba00be3fd14a380b3a2234038c5672055b64791731ead7ebcd",
   "compiler_entry": "compiler.gu",
   "compiler_source_files": [
     "compiler.gu",

@@ -30,7 +30,7 @@ function section(id) {
 test('agents.json carries every claim with its conditions and evidence', async () => {
   const agents = JSON.parse(await read('agents.json'));
   assert.equal(agents.product, 'Guion');
-  assert.match(agents.status, /0\.5\.0/);
+  assert.match(agents.status, /0\.6\.0/);
   assert.equal(agents.site, 'https://rmichaelthomas.github.io/guion/');
   assert.equal(agents.contact, 'rmichael@rmichaelthomas.com');
   assert.equal(agents.claims.length, claims.length);
@@ -43,7 +43,7 @@ test('agents.json carries every claim with its conditions and evidence', async (
 
 test('llms.txt states the status, lists the claims with conditions, and invents no figure', async () => {
   const text = await read('llms.txt');
-  assert.match(text, /releases\/tag\/v0\.5\.0/);
+  assert.match(text, /releases\/tag\/v0\.6\.0/);
   assert.ok(text.includes('agents.json') && text.includes('rmichael@rmichaelthomas.com'));
   for (const claim of claims) {
     assert.ok(text.includes(claim.title), claim.title);
@@ -78,10 +78,10 @@ test('the agents section offers a copyable prompt and, for developers, the file 
   assert.ok(markup.includes('guion_inspection_report') && markup.includes('guion_check_report'));
 });
 
-test('the story has exactly the ten dated events, with the rename commit in the Developer view', () => {
+test('the story has exactly the eleven dated events, with the rename commit in the Developer view', () => {
   const markup = section('story');
   const dates = [...markup.matchAll(/<time datetime="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(dates, ['2026-10-22', '2026-10-25', '2026-10-27', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-05', '2026-11-12', '2026-11-14', '2026-11-14']);
+  assert.deepEqual(dates, ['2026-10-22', '2026-10-25', '2026-10-27', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-05', '2026-11-12', '2026-11-14', '2026-11-14', '2026-11-14']);
   assert.ok(markup.includes('Veritas'));
   assert.ok(markup.includes('6a4fab1'));
 });

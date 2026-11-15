@@ -2,7 +2,7 @@
 
 `web` is a Guion package for HTTP applications: a router, middleware, sessions with CSRF tokens, static files and checked templates, over `std:http_response`, `std:cookie`, `std:http_body`, `std:http_static` and `std:http_server`. It is a package, not part of the standard library: it is added to a project, pinned in `guion.lock`, and its capabilities are shown to you before it is installed. This page is the user guide. The package's own README (`packages/web/README.md`) carries the same API in more detail.
 
-The package is on the registry (0.1.1): `guion add web --approve-capabilities`. To use a checkout instead, `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
+The package is on the registry (0.1.2): `guion add web --approve-capabilities`. To use a checkout instead, `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
 
 ## Quick start
 
@@ -46,7 +46,7 @@ Function values capture nothing, so there is no `wrap(mw, handler)` closure. A `
 
 - `before(config, request) -> Result[Request, Response]`: `Ok(request)` passes the request inward; `Err(response)` answers now.
 - `after(config, request, response) -> Result[Response, HttpFailure]`: sees the response on the way out.
-- `middleware(before, after)`, `middleware_before(before)`, `middleware_after(after)`, `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one. `wrap(app, layer)` makes it outermost; `app_with(router, layers)` lists layers outermost first; `app(router)` has none.
+- `middleware(before, after)`, `middleware_before(before)`, `middleware_after(after)`, `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one. `layer(before, after)`, `layer_before(before)` and `layer_after(after)` build one from closures that take no config map and may capture variables: `fn(Request) -> Result[Request, Response]` and `fn(Request, Response) -> Result[Response, HttpFailure]`. `wrap(app, layer)` makes it outermost; `app_with(router, layers)` lists layers outermost first; `app(router)` has none.
 - The outermost layer's `before` runs first and its `after` last. Middleware wraps the router's own 404 and 405 too.
 - `app_handle(app, request)` returns the `Result`; `app_respond(app, request)` always returns a `Response`.
 

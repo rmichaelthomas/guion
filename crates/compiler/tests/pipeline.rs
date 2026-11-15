@@ -447,3 +447,27 @@ fn single_file_compile_expands_enums_for_the_browser_playground() {
     let error = guion_compiler::compile("playground.gu", missing).unwrap_err();
     assert_eq!(error.code, "E_MATCH_MISSING_VARIANT");
 }
+
+#[test]
+fn sort_and_parallel_map_reject_a_capturing_function_literal_at_check_time() {
+    for call in [
+        "sort_by([3, 1, 2], fn(x: Int) -> Int: x * k)",
+        "sort_by_int_key([3, 1, 2], fn(x: Int) -> Int: x * k)",
+        "parallel_map([3, 1, 2], fn(x: Int) -> Int: x * k, 2)",
+    ] {
+        let source =
+            format!("fn main() -> Int:\n    let k = 2\n    let r = {call}\n    return 0\n");
+        let error = compile("capture.gu", &source).expect_err("a capturing literal is refused");
+        assert_eq!(error.code, "E_FN_CLOSURE", "{call}: {}", error.message);
+        assert!(error.message.contains("`k`"), "{}", error.message);
+    }
+    for call in [
+        "sort_by([3, 1, 2], fn(x: Int) -> Int: 0 - x)",
+        "sort_by_int_key([3, 1, 2], fn(x: Int) -> Int: 0 - x)",
+        "parallel_map([3, 1, 2], fn(x: Int) -> Int: x + 1, 2)",
+    ] {
+        let source =
+            format!("fn main() -> Int:\n    let k = 2\n    let r = {call}\n    return k\n");
+        compile("capture.gu", &source).unwrap_or_else(|e| panic!("{call}: {}", e.message));
+    }
+}

@@ -1758,6 +1758,62 @@
       }
     },
     {
+      "id": "type-intmap",
+      "kind": "type",
+      "name": "IntMap",
+      "owner_task": 0,
+      "source": "crates/model/src/lib.rs::Type",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "type.intmap.positive",
+          "state": "implemented",
+          "owner_task": 0
+        },
+        "negative": {
+          "case_id": "type.intmap.negative",
+          "state": "implemented",
+          "owner_task": 0
+        },
+        "interaction": {
+          "case_id": "type.intmap.interaction",
+          "state": "implemented",
+          "owner_task": 0
+        }
+      }
+    },
+    {
+      "id": "type-recordapp",
+      "kind": "type",
+      "name": "RecordApp",
+      "owner_task": 0,
+      "source": "crates/model/src/lib.rs::Type",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "type.recordapp.positive",
+          "state": "implemented",
+          "owner_task": 0
+        },
+        "negative": {
+          "case_id": "type.recordapp.negative",
+          "state": "implemented",
+          "owner_task": 0
+        },
+        "interaction": {
+          "case_id": "type.recordapp.interaction",
+          "state": "implemented",
+          "owner_task": 0
+        }
+      }
+    },
+    {
       "id": "type-option",
       "kind": "type",
       "name": "Option",

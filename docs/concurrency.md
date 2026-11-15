@@ -1,6 +1,6 @@
 # Concurrency: what the worker count buys
 
-`parallel_map(items, function, limit)` runs `function` on each item with at most `limit` workers at a time. The worker count is a ceiling for **waiting**, not a multiplier for **computing**.
+`parallel_map(items, function, limit)` runs `function` on each item with at most `limit` workers at a time. The worker count is a ceiling on how many jobs run at once. Jobs that **wait** (on a socket, a file or another process) and jobs that **compute** both finish sooner with more workers, up to the machine's cores; the measurements below show each.
 
 ## Waiting: workers share one listener
 

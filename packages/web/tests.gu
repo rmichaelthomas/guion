@@ -225,6 +225,25 @@ fn test_middleware_helpers_pass_the_other_side_through() -> Unit:
     assert(text_of(second) == "none")
     assert(unwrap(response_header(second, "x-out")) == "a")
 
+fn test_layer_closures_capture_the_values_they_use() -> Unit:
+    let tag = "mine"
+    let limit = 3
+    let before = fn(request: Request) -> Result[Request, Response]: Ok(request)
+    let after = fn(request: Request, response: Response) -> Result[Response, HttpFailure]: response_set_header(response, "x-tag", tag + int_to_text(limit))
+    let stacked = wrap(app(sample_router_with_trace()), layer(before, after))
+    let response = unwrap(app_handle(stacked, get("/trace")))
+    assert(unwrap(response_header(response, "x-tag")) == "mine3")
+
+fn test_layer_before_can_answer_from_a_captured_value() -> Unit:
+    let blocked = "/trace"
+    fn gate(request: Request) -> Result[Request, Response]:
+        if request.path == blocked:
+            return Err(response_text(403, "no"))
+        return Ok(request)
+    let stacked = wrap(app(sample_router_with_trace()), layer_before(gate))
+    assert(unwrap(app_handle(stacked, get("/trace"))).status == 403)
+    assert(unwrap(app_handle(stacked, get("/cookies"))).status == 200)
+
 fn test_three_set_cookie_headers_survive_two_wrappers() -> Unit:
     let stacked = wrap(wrap(app(sample_router_with_trace()), middleware(before_b, after_b)), middleware(before_a, after_a))
     let response = unwrap(app_handle(stacked, get("/cookies")))

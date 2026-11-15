@@ -1,8 +1,9 @@
 # Middleware and applications for the web package.
 #
-# Function values capture nothing, so Guion has no `wrap(mw, handler) -> handler` closure. A
-# middleware here is a record of two named functions and the settings they read, and an `App` is a
-# value that holds the router and the middleware in order:
+# A middleware here is a record of two functions and the settings they read, and an `App` is a
+# value that holds the router and the middleware in order. Function values capture the variables
+# they use, so a layer can be a closure (`layer`, `layer_before`, `layer_after` below); the `config`
+# map is the older way to carry settings and still works:
 #
 #     before(config, request) -> Result[Request, Response]
 #         Ok(request) passes the (possibly changed) request inward. Err(response) answers now: nothing
@@ -12,9 +13,9 @@
 #         becomes the result of the whole call.
 #
 # `config` is the layer's own `Map[Text, Text]`, set when the layer is built (`middleware_configured`)
-# and passed to both functions on every request. A function value cannot carry settings, so this is
-# how a layer such as the session layer knows its store and policy. It is empty for a layer built with
-# `middleware`, `middleware_before` or `middleware_after`.
+# and passed to both functions on every request. It is how a layer such as the session layer knows its
+# store and policy. It is empty for a layer built with `middleware`, `middleware_before`,
+# `middleware_after` or the closure constructors `layer`, `layer_before` and `layer_after`.
 #
 # Order is deterministic: the outermost middleware runs its `before` first and its `after` last.
 # `wrap(app, mw)` makes `mw` the new outermost layer, so after `wrap(wrap(app(r), a), b)` a request
@@ -76,6 +77,20 @@ pub fn middleware_before(before: fn(Map[Text, Text], Request) -> Result[Request,
 
 pub fn middleware_after(after: fn(Map[Text, Text], Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
     return Middleware(mw_keep_request, after, mw_no_config())
+
+# Closure-friendly constructors: the functions take no config map, and may capture variables.
+pub fn layer(before: fn(Request) -> Result[Request, Response], after: fn(Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
+    let wrapped_before = fn(config: Map[Text, Text], request: Request) -> Result[Request, Response]: before(request)
+    let wrapped_after = fn(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]: after(request, response)
+    return Middleware(wrapped_before, wrapped_after, mw_no_config())
+
+pub fn layer_before(before: fn(Request) -> Result[Request, Response]) -> Middleware:
+    let wrapped_before = fn(config: Map[Text, Text], request: Request) -> Result[Request, Response]: before(request)
+    return Middleware(wrapped_before, mw_keep_response, mw_no_config())
+
+pub fn layer_after(after: fn(Request, Response) -> Result[Response, HttpFailure]) -> Middleware:
+    let wrapped_after = fn(config: Map[Text, Text], request: Request, response: Response) -> Result[Response, HttpFailure]: after(request, response)
+    return Middleware(mw_keep_request, wrapped_after, mw_no_config())
 
 pub fn app(router: Router) -> App:
     let none: List[Middleware] = []
