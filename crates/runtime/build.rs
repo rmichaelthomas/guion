@@ -77,7 +77,7 @@ fn main() {
     let include = install.join("include/libical");
     let library = install.join("lib");
     println!("cargo:rustc-link-search=native={}", library.display());
-    println!("cargo:rustc-link-lib=static=ical");
+    println!("cargo:rustc-link-lib=static={}", libical_name(&library));
     if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() == Ok("unix") {
         println!("cargo:rustc-link-lib=pthread");
         println!("cargo:rustc-link-lib=m");
@@ -87,6 +87,37 @@ fn main() {
         .include(&include)
         .warnings(true)
         .compile("guion_ical_bridge");
+}
+
+/// The static library's link name: `ical` where the platform names it libical.a, and whatever
+/// the MSVC build installed (`libical-static.lib` or `ical.lib`) on Windows.
+fn libical_name(library: &std::path::Path) -> String {
+    let mut found = Vec::new();
+    if let Ok(entries) = fs::read_dir(library) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            found.push(name.clone());
+            let stem = name
+                .strip_suffix(".lib")
+                .or_else(|| name.strip_suffix(".a"));
+            let Some(stem) = stem else { continue };
+            let base = stem.strip_prefix("lib").unwrap_or(stem);
+            if base == "ical" || base == "ical-static" {
+                return stem
+                    .strip_prefix("lib")
+                    .filter(|_| name.ends_with(".a"))
+                    .unwrap_or(stem)
+                    .to_owned();
+            }
+        }
+    }
+    if env::var("CARGO_CFG_TARGET_FAMILY").as_deref() == Ok("windows") {
+        panic!(
+            "no libical static library in {}: {found:?}",
+            library.display()
+        );
+    }
+    "ical".to_owned()
 }
 
 fn run(command: &mut Command, action: &str) {
