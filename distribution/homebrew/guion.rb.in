@@ -1,0 +1,44 @@
+class Guion < Formula
+  desc "Programming language with readable syntax, explicit permissions and a built-in package registry"
+  homepage "https://rmichaelthomas.github.io/guion/"
+  version "@VERSION@"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      url "https://github.com/rmichaelthomas/guion/releases/download/v@VERSION@/guion-macos-aarch64.tar.gz"
+      sha256 "@SHA_MACOS_AARCH64@"
+    end
+    on_intel do
+      url "https://github.com/rmichaelthomas/guion/releases/download/v@VERSION@/guion-macos-x86_64.tar.gz"
+      sha256 "@SHA_MACOS_X86_64@"
+    end
+  end
+
+  on_linux do
+    on_arm do
+      url "https://github.com/rmichaelthomas/guion/releases/download/v@VERSION@/guion-debian-aarch64.tar.gz"
+      sha256 "@SHA_DEBIAN_AARCH64@"
+    end
+    on_intel do
+      url "https://github.com/rmichaelthomas/guion/releases/download/v@VERSION@/guion-debian-x86_64.tar.gz"
+      sha256 "@SHA_DEBIAN_X86_64@"
+    end
+  end
+
+  def install
+    # The binary finds its standard library at ../share/guion/stdlib, so keep the archive's layout.
+    libexec.install Dir["*"]
+    bin.write_exec_script libexec/"bin/guion"
+  end
+
+  test do
+    (testpath/"main.gu").write <<~EOS
+      import "std:text"
+
+      fn main() -> Unit:
+          print("ok")
+    EOS
+    assert_equal "ok\n", shell_output("#{bin}/guion run main.gu")
+  end
+end

@@ -2,20 +2,24 @@
 <div class="sectionhead">
 <div><p class="overline">Get started</p><h2 id="start-title">Install it.<br><span class="serif">Run your first program.</span></h2></div>
 <p class="v-plain">Four steps. You need a terminal and nothing else: no Rust and no Python.</p>
-<p class="v-dev">Download, unpack, <code>sh install.sh</code>, add <code>~/.local/bin</code> to <code>PATH</code>. No Rust or Python needed.</p>
+<p class="v-dev"><code>brew install rmichaelthomas/guion/guion</code>, the one-line installer, or an archive and <code>sh install.sh</code>; add <code>~/.local/bin</code> to <code>PATH</code> for the last two. No Rust or Python needed.</p>
 </div>
 <ol class="start-steps">
 <li>
-<h3>1. Download and install</h3>
-<p>Get the archive for your machine from the <a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0" rel="noopener">v0.4.0 release page</a>: <code>guion-macos-aarch64.tar.gz</code> for a Mac with Apple silicon, <code>guion-debian-x86_64.tar.gz</code> or <code>guion-debian-aarch64.tar.gz</code> for Linux. Then, in a terminal:</p>
+<h3>1. Install</h3>
+<p>On a Mac or Linux with Homebrew:</p>
+<pre class="code"><code>brew install rmichaelthomas/guion/guion</code></pre>
+<p>Or with the one-line installer, which checks the download's checksum and puts <code>guion</code> under <code>~/.local</code>:</p>
+<pre class="code"><code>curl -fsSL https://raw.githubusercontent.com/rmichaelthomas/guion/main/distribution/get-guion.sh | sh</code></pre>
+<p>Or download an archive from the <a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0" rel="noopener">v0.5.0 release page</a>: <code>guion-macos-aarch64.tar.gz</code> (Apple silicon), <code>guion-macos-x86_64.tar.gz</code> (Intel Mac), <code>guion-debian-x86_64.tar.gz</code> or <code>guion-debian-aarch64.tar.gz</code> (Linux), or <code>guion-windows-x86_64.zip</code> (Windows; unzip it and add its <code>bin</code> folder to your <code>PATH</code>). Then, on a Mac or Linux:</p>
 <pre class="code"><code>tar -xzf guion-macos-aarch64.tar.gz
 cd guion-macos-aarch64
 sh install.sh</code></pre>
-<p class="fineprint">Use the matching name for a Linux archive. The installer puts <code>guion</code> under <code>~/.local</code>; give it a path to choose another place.</p>
+<p class="fineprint">Use the matching name for another archive. Homebrew and the one-line installer need no further step. The archive installer puts <code>guion</code> under <code>~/.local</code>; give it a path to choose another place. The Windows build is not signed.</p>
 </li>
 <li>
 <h3>2. Let your terminal find it</h3>
-<p>Add the install folder to your <code>PATH</code> (put this line in your shell's startup file to keep it), then check it works:</p>
+<p>Homebrew does this for you. After the installer script or an archive, add the install folder to your <code>PATH</code> (put this line in your shell's startup file to keep it), then check it works:</p>
 <pre class="code"><code>export PATH="$HOME/.local/bin:$PATH"
 guion --version</code></pre>
 </li>

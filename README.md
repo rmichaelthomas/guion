@@ -75,34 +75,48 @@ You can try these examples and others [in your browser](https://rmichaelthomas.g
 
 ## Install
 
-### Linux
-
-Download the archive for your machine from the [v0.4.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0). Builds are for Debian 12–compatible systems on ARM64 and x86_64.
+### Homebrew (macOS and Linux)
 
 ```sh
-tar -xzf guion-debian-x86_64.tar.gz     # or guion-debian-aarch64.tar.gz
-cd guion-debian-x86_64
-sh install.sh                           # installs under ~/.local; pass a path to choose another place
+brew install rmichaelthomas/guion/guion
 ```
 
-Each archive has a matching `.sha256` checksum file. You don't need Rust or Python installed.
-
-### macOS (Apple Silicon)
-
-Download `guion-macos-aarch64.tar.gz` and its `.sha256` file from the [v0.4.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0).
+### One-line installer (macOS and Linux)
 
 ```sh
-shasum -a 256 -c guion-macos-aarch64.tar.gz.sha256
+curl -fsSL https://raw.githubusercontent.com/rmichaelthomas/guion/main/distribution/get-guion.sh | sh
+```
+
+It picks the archive for your machine, checks its checksum and installs under `~/.local` (`--prefix DIR` chooses another place, `--version X.Y.Z` another release). Read the script first if you like: it is [`distribution/get-guion.sh`](distribution/get-guion.sh).
+
+### Download an archive
+
+Every archive is on the [v0.5.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0) with a matching `.sha256` file. You don't need Rust or Python installed.
+
+| Machine | Archive |
+|---|---|
+| macOS, Apple Silicon (signed, notarized) | `guion-macos-aarch64.tar.gz` |
+| macOS, Intel (signed, notarized) | `guion-macos-x86_64.tar.gz` |
+| Linux, Debian 12-compatible, x86_64 | `guion-debian-x86_64.tar.gz` |
+| Linux, Debian 12-compatible, ARM64 | `guion-debian-aarch64.tar.gz` |
+| Windows, x86_64 (not signed) | `guion-windows-x86_64.zip` |
+
+On macOS and Linux:
+
+```sh
+shasum -a 256 -c guion-macos-aarch64.tar.gz.sha256     # sha256sum -c on Linux
 tar -xzf guion-macos-aarch64.tar.gz
 cd guion-macos-aarch64
 sh install.sh                           # installs under ~/.local; pass a path to choose another place
 ```
 
-The Mac build is signed with a Developer ID certificate and notarized by Apple, so macOS opens it without a warning. The first launch checks with Apple, so it needs an internet connection (a bare command-line binary cannot carry the notarization ticket with it).
+The Mac builds are signed with a Developer ID certificate and notarized by Apple, so macOS opens them without a warning. The first launch checks with Apple, so it needs an internet connection (a bare command-line binary cannot carry the notarization ticket with it).
+
+On Windows, unzip the archive and add its `bin` folder to your `PATH`. The Windows build is not signed, so Windows may warn the first time you run it. The Intel Mac and Windows builds were built and smoke-tested on GitHub's runners; the Windows build has not been through the full test suite.
 
 ### Other systems
 
-There is no package for Intel Macs, Windows or other Linux distributions yet. You can build from source with [Rust](https://rustup.rs):
+For other Linux distributions you can build from source with [Rust](https://rustup.rs):
 
 ```sh
 git clone https://github.com/rmichaelthomas/guion.git

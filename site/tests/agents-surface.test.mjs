@@ -30,7 +30,7 @@ function section(id) {
 test('agents.json carries every claim with its conditions and evidence', async () => {
   const agents = JSON.parse(await read('agents.json'));
   assert.equal(agents.product, 'Guion');
-  assert.match(agents.status, /0\.4\.0/);
+  assert.match(agents.status, /0\.5\.0/);
   assert.equal(agents.site, 'https://rmichaelthomas.github.io/guion/');
   assert.equal(agents.contact, 'rmichael@rmichaelthomas.com');
   assert.equal(agents.claims.length, claims.length);
@@ -43,7 +43,7 @@ test('agents.json carries every claim with its conditions and evidence', async (
 
 test('llms.txt states the status, lists the claims with conditions, and invents no figure', async () => {
   const text = await read('llms.txt');
-  assert.match(text, /releases\/tag\/v0\.4\.0/);
+  assert.match(text, /releases\/tag\/v0\.5\.0/);
   assert.ok(text.includes('agents.json') && text.includes('rmichael@rmichaelthomas.com'));
   for (const claim of claims) {
     assert.ok(text.includes(claim.title), claim.title);

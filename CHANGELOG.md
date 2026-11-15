@@ -2,11 +2,11 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
-## Unreleased
+## 0.5.0 — 2026-11-14
 
 - Language: `else if`, range loops, compound `set`, f-text, `priv` record fields, closures (nested `fn` captures by value), enums with exhaustive `match`, and generic functions (artifact format 74). `try_map_list` is a per-item fault boundary; the `web` package in this repo answers 500 for a handler fault and keeps serving (`web` on the registry is still 0.1.0 until republished).
 - `guion lsp`, `guion repl`, a VS Code extension folder, and `guion run --record/--replay` with `guion test --record/--replay` (tapes never store `Authorization`, `Cookie` or `Proxy-Authorization`; `[record] redact` in `guion.toml` keeps named hosts and paths off tapes).
-- Intel Mac builds (vendored libical now built for the target architecture) and a workflow for macOS x86_64 and Windows x86_64 builds; Windows is unverified until it runs on a runner.
+- Intel Mac and Windows x86_64 archives (the Intel Mac one is signed and notarized, the Windows one is not signed), a Homebrew tap (`brew install rmichaelthomas/guion/guion`) and `distribution/get-guion.sh`, a checksum-verifying one-line installer. Both were built and smoke-tested on GitHub runners. `web` 0.1.1 is on the registry.
 - Evaluation: `evaluation/development/recursion/` (naive `fib(32)`).
 - Comprehension campaign (n=3 per task, subagent subjects): 17 runs, no wrong turns, T1/T3/T4/T5 closed in every run. T2's answer key and wording were changed (H-1.3) after six runs showed the task gave subjects no reason to report that no dedupe or count-by builtin exists; the three H-1.3 runs closed. `docs/reference.md` now lists `map_get` among the built-ins (subjects reached for the `std:collections` wrappers instead). Receipts are in `evaluation/comprehension/receipts/`.
 - `evaluation/comprehension/`: the comprehension harness (H-1.2), brought into the repo with a runner and an n=1 pilot of five tasks (all closed, no wrong turns; one shipped-docs defect found and fixed below). T2 was replaced because `sort` now exists, and T4 and T5 were added; ground truth was re-run on 0.4.0. See `HARNESS.md`.
