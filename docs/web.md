@@ -46,7 +46,7 @@ Function values capture nothing, so there is no `wrap(mw, handler)` closure. A `
 
 - `before(config, request) -> Result[Request, Response]`: `Ok(request)` passes the request inward; `Err(response)` answers now.
 - `after(config, request, response) -> Result[Response, HttpFailure]`: sees the response on the way out.
-- `middleware(before, after)`, `middleware_before(before)`, `middleware_after(after)`, `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one. `wrap(app, layer)` makes it outermost; `app_with(router, layers)` lists layers outermost first; `app(router)` has none.
+- `middleware(before, after)`, `middleware_before(before)`, `middleware_after(after)`, `middleware_configured(before, after, config)` and `middleware_before_configured(before, config)` build one. `layer(before, after)`, `layer_before(before)` and `layer_after(after)` build one from closures that take no config map and may capture variables: `fn(Request) -> Result[Request, Response]` and `fn(Request, Response) -> Result[Response, HttpFailure]`. `wrap(app, layer)` makes it outermost; `app_with(router, layers)` lists layers outermost first; `app(router)` has none.
 - The outermost layer's `before` runs first and its `after` last. Middleware wraps the router's own 404 and 405 too.
 - `app_handle(app, request)` returns the `Result`; `app_respond(app, request)` always returns a `Response`.
 
