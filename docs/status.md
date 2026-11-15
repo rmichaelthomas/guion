@@ -4,7 +4,7 @@
 
 ## What is established
 
-- The default core CLI embeds a self-hosted compiler and runs on the Rust runtime. It can create, check, format, lint, test, run, build, package, verify, install, inspect, and document Guion programs.
+- The default core CLI compiles with the Rust `guion-compiler` crate and runs on the Rust runtime. The self-hosted compiler in `language/self_host/` is frozen as a historical proof artifact (see [self-hosted compiler](self-hosted-compiler.md)); the CLI build only verifies its seed. It can create, check, format, lint, test, run, build, package, verify, install, inspect, and document Guion programs.
 - The current language includes typed functions and records, modules, collections, `Option`/`Result`, JSON, bounded file and HTTP operations, SQLite/TOML services, Unicode helpers, and bounded parallel work. The [language contract](../language/spec.md) is authoritative about what syntax works and what remains unsupported.
 - New source, artifact, manifest, lock, and local-state names are `.gu`, `.gub`, `guion.toml`, `guion.lock`, and `.guion/`. A limited set of old Veritas project names remains readable during migration; see [compatibility](compatibility-and-migrations.md).
 - What is kept stable between releases, and what is not promised, is written in the [stability policy](stability-policy.md).
