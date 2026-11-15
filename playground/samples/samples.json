@@ -1,8 +1,13 @@
 [
-  { "id": "hello", "title": "Say hello", "blurb": "A function, a greeting, a result.", "expect": { "ok": true, "stdout": "Hello, Guion!\n" } },
-  { "id": "option", "title": "Handle absence", "blurb": "A missing value you have to look at before you use it.", "expect": { "ok": true, "stdout": "24\n" } },
-  { "id": "records", "title": "Make a record", "blurb": "Typed data and a change to it.", "expect": { "ok": true, "stdout": "5\n3\n" } },
-  { "id": "denied", "title": "Ask for a file", "blurb": "Try to read a file. The playground grants nothing, and says so.", "expect": { "ok": false, "code": "R_HOST_UNSUPPORTED" } },
-  { "id": "loop", "title": "Never stop", "blurb": "A loop with no end. The playground stops it.", "expect": { "ok": false, "code": "R_STEP_LIMIT" } },
-  { "id": "mistake", "title": "Make a mistake", "blurb": "Add a number to a word. Guion says where.", "expect": { "ok": false, "code": "E_TYPE_OPERATOR", "line": 2 } }
+  { "id": "hello", "title": "Say hello", "blurb": "A function, a greeting, a result.", "expect": {"ok": true, "stdout": "Hello, Guion!\n"} },
+  { "id": "option", "title": "Handle absence", "blurb": "A missing value you have to look at before you use it.", "expect": {"ok": true, "stdout": "24\n"} },
+  { "id": "records", "title": "Make a record", "blurb": "Typed data and a change to it.", "expect": {"ok": true, "stdout": "5\n3\n"} },
+  { "id": "enums", "title": "Choose between variants", "blurb": "A value that is one of several shapes, and a match that must cover them all.", "expect": {"ok": true, "stdout": "12\n10\n0\n"} },
+  { "id": "closures", "title": "Carry a value", "blurb": "A small function that remembers a value from around it.", "expect": {"ok": true, "stdout": "15\n42\n"} },
+  { "id": "generics", "title": "Work for any type", "blurb": "One function that works for lists of numbers and lists of words.", "expect": {"ok": true, "stdout": "7\nlily\n"} },
+  { "id": "everyday", "title": "Count with else if", "blurb": "A range loop, else if, and text with values inside.", "expect": {"ok": true, "stdout": "1\n2\nfizz\n4\nbuzz\nfizz\n7\n8\nfizz\nbuzz\n11\nfizz\n13\n14\nfizzbuzz\n"} },
+  { "id": "denied", "title": "Ask for a file", "blurb": "Try to read a file. The playground grants nothing, and says so.", "expect": {"ok": false, "code": "R_HOST_UNSUPPORTED"} },
+  { "id": "loop", "title": "Never stop", "blurb": "A loop with no end. The playground stops it.", "expect": {"ok": false, "code": "R_STEP_LIMIT"} },
+  { "id": "mistake", "title": "Make a mistake", "blurb": "Add a number to a word. Guion says where.", "expect": {"ok": false, "code": "E_TYPE_OPERATOR", "line": 2} },
+  { "id": "missing", "title": "Forget a variant", "blurb": "Leave one case out of a match. Guion refuses to build it and names the case.", "expect": {"ok": false, "code": "E_MATCH_MISSING_VARIANT", "line": 7} }
 ]
