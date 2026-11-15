@@ -7715,7 +7715,8 @@ pub struct RuntimeError {
     /// `(used, limit)` for an `R_STEP_LIMIT` error; `None` for every other code.
     pub step_usage: Option<(u64, u64)>,
     /// For an access denial, the exact grant that would have allowed the effect.
-    pub grant: Option<GrantHint>,
+    /// Boxed so the error stays small on every `Result` that carries it.
+    pub grant: Option<Box<GrantHint>>,
 }
 
 impl RuntimeError {
@@ -7730,7 +7731,7 @@ impl RuntimeError {
     }
 
     pub fn with_grant(mut self, grant: GrantHint) -> Self {
-        self.grant = Some(grant);
+        self.grant = Some(Box::new(grant));
         self
     }
 }

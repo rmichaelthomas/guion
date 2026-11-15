@@ -770,3 +770,90 @@ fn main() -> Int:
         assert!(header.get("grants_from_question").is_none(), "{header}");
     }
 }
+
+// ---- guion repl asks with the same rules, and "this run" lasts the session ----
+
+#[cfg(unix)]
+mod repl {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    /// Drive `guion repl` in a terminal: for each step, wait until `expect` has appeared after
+    /// everything seen so far, then type `send`. Returns everything printed.
+    fn session(project: &Project, steps: &[(&str, &str)]) -> String {
+        let binary = env!("CARGO_BIN_EXE_guion");
+        let mut command = Command::new("script");
+        if cfg!(target_os = "macos") {
+            command.args(["-q", "/dev/null", binary, "repl"]);
+        } else {
+            command.args(["-qec", &format!("{binary} repl"), "/dev/null"]);
+        }
+        command
+            .current_dir(project.path())
+            .env_remove("CI")
+            .env_remove("GUION_NO_PROMPT")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+        let mut child = command.spawn().expect("script starts");
+        let mut stdin = child.stdin.take().unwrap();
+        let mut stdout = child.stdout.take().unwrap();
+        let captured = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = Arc::clone(&captured);
+        let reader = std::thread::spawn(move || {
+            let mut chunk = [0u8; 4096];
+            while let Ok(count) = stdout.read(&mut chunk) {
+                if count == 0 {
+                    break;
+                }
+                sink.lock().unwrap().extend_from_slice(&chunk[..count]);
+            }
+        });
+        let mut from = 0usize;
+        for (expect, send) in steps {
+            let deadline = Instant::now() + Duration::from_secs(60);
+            loop {
+                let seen = captured.lock().unwrap().clone();
+                let text = String::from_utf8_lossy(&seen[from.min(seen.len())..]).into_owned();
+                if let Some(at) = text.find(expect) {
+                    from += at + expect.len();
+                    break;
+                }
+                assert!(
+                    Instant::now() < deadline,
+                    "never saw {expect:?}; saw: {}",
+                    String::from_utf8_lossy(&seen)
+                );
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            stdin.write_all(send.as_bytes()).unwrap();
+            stdin.flush().unwrap();
+        }
+        child.wait().unwrap();
+        drop(stdin);
+        reader.join().unwrap();
+        let text = String::from_utf8_lossy(&captured.lock().unwrap()).replace('\r', "");
+        text
+    }
+
+    #[test]
+    fn the_repl_asks_once_and_a_yes_lasts_the_rest_of_the_session() {
+        let project = Project::new("repl", "fn main() -> Int:\n    return 0\n", "");
+        let out = session(
+            &project,
+            &[
+                ("guion> ", "import \"std:time\"\n"),
+                ("guion> ", "today_local().year > 1970\n"),
+                ("Allow?", "y\n"),
+                ("guion> ", "today_local().year > 1971\n"),
+                ("guion> ", ":quit\n"),
+            ],
+        );
+        assert_eq!(out.matches("Allow?").count(), 1, "asked once: {out}");
+        assert!(out.contains("wants to:\n  · read the clock"), "{out}");
+        assert!(!out.contains("[a]"), "no always outside a project: {out}");
+        assert_eq!(out.matches("true : Bool").count(), 2, "{out}");
+    }
+}

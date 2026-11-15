@@ -12,6 +12,27 @@ use std::io::{BufRead, BufReader, IsTerminal, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+/// Set by `guion repl` for the runs it starts: the path of a file where a run records what a
+/// person allowed, and the sign that the repl has already found a person at the terminal (its own
+/// standard output is captured, so the run cannot see a terminal there).
+pub const REPL_ANSWERS: &str = "GUION_REPL_ANSWERS";
+
+/// Tell the repl that `flag` was allowed for the rest of its session.
+pub fn note_for_repl(flag: &str) {
+    let Some(path) = std::env::var_os(REPL_ANSWERS) else {
+        return;
+    };
+    if flag.starts_with("--") {
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "{flag}");
+        }
+    }
+}
+
 pub struct Tty {
     reader: BufReader<std::fs::File>,
     writer: Box<dyn Write + Send>,
@@ -25,9 +46,11 @@ pub fn present(no_prompt_flag: bool) -> Option<Tty> {
     {
         return None;
     }
-    if !(std::io::stdin().is_terminal()
-        && std::io::stdout().is_terminal()
-        && std::io::stderr().is_terminal())
+    let started_by_repl = std::env::var_os(REPL_ANSWERS).is_some();
+    if !started_by_repl
+        && !(std::io::stdin().is_terminal()
+            && std::io::stdout().is_terminal()
+            && std::io::stderr().is_terminal())
     {
         return None;
     }
@@ -173,7 +196,11 @@ impl GrantAsker for TtyAsker {
             request.kind.phrase(&request.target),
             options(can_save)
         ));
-        match parse_answer(tty.line(), can_save) {
+        let answer = parse_answer(tty.line(), can_save);
+        if answer != GrantAnswer::No {
+            note_for_repl(&request.grant.flag);
+        }
+        match answer {
             GrantAnswer::Always => {
                 let manifest = self.manifest.clone().expect("can_save implies a manifest");
                 if save_grant(&mut tty, &manifest, &request.grant) {

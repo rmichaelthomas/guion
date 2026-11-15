@@ -1313,6 +1313,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                                     }
                                 }
                                 need.note_answered(&policy, always);
+                                if let Some(hint) = need.hint() {
+                                    prompt::note_for_repl(&hint.flag);
+                                }
                                 need.grant_for_run(&mut policy);
                             }
                         }
