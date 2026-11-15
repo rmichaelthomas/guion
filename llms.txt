@@ -1,6 +1,6 @@
 # Guion
 
-> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.5.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0
+> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.6.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.6.0
 
 Site: https://rmichaelthomas.github.io/guion/
 Machine-readable copy of everything below: https://rmichaelthomas.github.io/guion/agents.json
@@ -134,7 +134,7 @@ NumPy and pandas make Python the default for numeric and data work. Guion now ha
 
 ### A release you can use
 
-Guion 0.5.0 is out for Linux (Debian 12 on ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64). It has a written stability policy, a live package registry, native arrays, closures, enums, generic functions, an editor server, and a web package with sessions, CSRF protection and checked templates. Both Mac builds are signed and notarized by Apple, so they open without a warning; the first launch checks with Apple and needs an internet connection. The Windows build is not signed, so Windows may warn the first time it runs, and the Intel Mac and Windows builds have had a build and a short smoke test, not the full test suite. Guion is still pre-1.0, and Python is a released language with a long track record.
+Guion 0.6.0 is out for Linux (Debian 12 on ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64). It has a written stability policy, a live package registry, native arrays, closures, enums, generic functions, an editor server, and a web package with sessions, CSRF protection and checked templates. Both Mac builds are signed and notarized by Apple, so they open without a warning; the first launch checks with Apple and needs an internet connection. The Windows build is not signed, so Windows may warn the first time it runs, and the Intel Mac and Windows builds have had a build and a short smoke test, not the full test suite. Guion is still pre-1.0, and Python is a released language with a long track record.
 
 ### Learning it
 
