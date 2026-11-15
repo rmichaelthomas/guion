@@ -203,12 +203,13 @@ fn public_text_states_the_current_release_platforms_and_library_size() {
         // "N standard-library modules" matches the shipped library.
         for (index, _) in text.match_indices(" standard-library modules") {
             let count = text[..index].split_whitespace().last().unwrap_or("");
-            if count.bytes().all(|b| b.is_ascii_digit()) && !count.is_empty() {
-                if count != modules.to_string() {
-                    problems.push(format!(
-                        "{file}: says {count} standard-library modules, language/stdlib has {modules}"
-                    ));
-                }
+            if !count.is_empty()
+                && count.bytes().all(|b| b.is_ascii_digit())
+                && count != modules.to_string()
+            {
+                problems.push(format!(
+                    "{file}: says {count} standard-library modules, language/stdlib has {modules}"
+                ));
             }
         }
     }
