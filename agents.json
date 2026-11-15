@@ -8,7 +8,7 @@
   "whereGuionIsBehind": [
     {
       "heading": "Libraries and packages",
-      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 27 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. The registry is live, and its first package is frames, a data-frame library."
+      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 35 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. The registry is live and holds two packages: frames, a data-frame library, and web, for web applications with sessions, protection against forged requests, checked templates and a router."
     },
     {
       "heading": "Arrays and data science",
@@ -16,15 +16,15 @@
     },
     {
       "heading": "A release you can use",
-      "body": "Guion 0.4.0 is out for Linux (Debian 12 on ARM64 and x86_64) and macOS on Apple Silicon. It has a written stability policy, a live package registry, native arrays, first-class function values and a web package with sessions, CSRF protection and checked templates. The Mac build is signed and notarized by Apple, so it opens without a warning; the first launch checks with Apple and needs an internet connection. Guion is still pre-1.0, and Python is a released language with a long track record."
+      "body": "Guion 0.5.0 is out for Linux (Debian 12 on ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64). It has a written stability policy, a live package registry, native arrays, closures, enums, generic functions, an editor server, and a web package with sessions, CSRF protection and checked templates. Both Mac builds are signed and notarized by Apple, so they open without a warning; the first launch checks with Apple and needs an internet connection. The Windows build is not signed, so Windows may warn the first time it runs, and the Intel Mac and Windows builds have had a build and a short smoke test, not the full test suite. Guion is still pre-1.0, and Python is a released language with a long track record."
     },
     {
       "heading": "Learning it",
-      "body": "Whether a new builder can learn Guion, find its APIs and make a realistic change from the guides is still being tested."
+      "body": "In the project's comprehension study, assistants were given the shipped guides and five small tasks. Across 17 runs none took a wrong turn; four tasks closed in every run, and the fifth was reworded after early runs and then closed in its three reruns. That measures assistants, not people: whether a person can learn Guion from the guides and make a realistic change is not yet tested."
     },
     {
       "heading": "Beyond the tasks measured",
-      "body": "Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build, and GitHub's standard runners no longer offer one, so that result is unresolved. Free-threaded Python and PyPy were not compared."
+      "body": "Every number on this page is for a named program on a named machine against a named Python version. The server results come from one run on each of two cloud machines; an Intel Xeon server measured Guion slower on an earlier build, and GitHub's standard runners no longer offer one, so that result is unresolved. The Apple Silicon results were measured on early-November builds and have not been re-run on 0.5.0. Free-threaded Python and PyPy were not compared."
     }
   ],
   "cli": {
@@ -75,12 +75,12 @@
       "id": "richards",
       "title": "Richards, a classic benchmark program",
       "group": "speed",
-      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 28.03 ms. CPython took 64.70 ms.",
-      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 61.",
-      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 23.4 MiB against 18.2 MiB. Free-threaded Python was not available to compare.",
+      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 26.86 ms. CPython took 66.49 ms.",
+      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7, on the signed 0.5.0 package (artifact format 74).",
+      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 25.1 MiB against 18.2 MiB. Free-threaded Python was not available to compare.",
       "evidence": [
-        "evidence/2026-11-05-mac-remeasurement.md",
-        "evidence/2026-11-05-richards-session-report.json"
+        "evidence/2026-11-14-mac-0.5.0-richards.md",
+        "evidence/2026-11-14-performance-suite.json"
       ]
     },
     {
