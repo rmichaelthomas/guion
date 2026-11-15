@@ -92,23 +92,23 @@
     "id": "richards",
     "title": "Richards, a classic benchmark program",
     "plain": {
-      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 28.03 ms. CPython took 64.70 ms.",
-      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7 and artifact format 61.",
-      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 23.4 MiB against 18.2 MiB. Free-threaded Python was not available to compare."
+      "say": "Starting from source with no compile cache, Guion finished the Richards benchmark in 26.86 ms. CPython took 66.49 ms.",
+      "holdsWhen": "A fresh-source run of 15 randomized trials on one Apple Silicon Mac running macOS 27, with CPython 3.14.7, on the signed 0.5.0 package (artifact format 74).",
+      "doesntTell": "Anything about other programs, other machines or other Python versions. On this same run Guion used more memory than Python for Richards: 25.1 MiB against 18.2 MiB. Free-threaded Python was not available to compare."
     },
     "dev": {
       "rows": [
         [
           "Guion median",
-          "28.03 ms"
+          "26.86 ms"
         ],
         [
           "CPython median",
-          "64.70 ms"
+          "66.49 ms"
         ],
         [
           "Ratio (95% interval)",
-          "0.433 (0.426–0.440)"
+          "0.402 (0.400–0.414)"
         ],
         [
           "Sprint target",
@@ -116,7 +116,7 @@
         ],
         [
           "Peak RSS, Guion / Python",
-          "23.4 MiB / 18.2 MiB"
+          "25.1 MiB / 18.2 MiB"
         ],
         [
           "Trials",
@@ -132,26 +132,26 @@
         ],
         [
           "Artifact format",
-          "61"
+          "74"
         ],
         [
           "Commit",
-          "484cefd"
+          "1c30c7d"
         ]
       ]
     },
     "figures": [
-      "28.03 ms",
-      "64.70 ms",
-      "0.433",
-      "0.426–0.440",
-      "23.4 MiB",
+      "26.86 ms",
+      "66.49 ms",
+      "0.402",
+      "0.400–0.414",
+      "25.1 MiB",
       "18.2 MiB",
       "0.60 target"
     ],
     "sources": [
       {
-        "path": "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
+        "path": "evaluation/completion/results/2026-11-14-mac-0.5.0/2026-11-14-mac-0.5.0-richards.md",
         "needles": [
           "CPython 3.14.7",
           "macOS 27",
@@ -164,8 +164,8 @@
       }
     ],
     "evidence": [
-      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-mac-remeasurement.md",
-      "evaluation/completion/results/2026-11-05-mac-remeasurement/2026-11-05-richards-session-report.json"
+      "evaluation/completion/results/2026-11-14-mac-0.5.0/2026-11-14-mac-0.5.0-richards.md",
+      "evaluation/completion/results/2026-11-14-mac-0.5.0/2026-11-14-performance-suite.json"
     ],
     "group": "speed"
   },

@@ -438,3 +438,12 @@ fn unknown_local_variable_gets_no_suggestion() {
     assert_eq!(error.code, "E_NAME_UNKNOWN");
     assert!(error.suggestions().is_empty());
 }
+
+#[test]
+fn single_file_compile_expands_enums_for_the_browser_playground() {
+    let source = "enum Shape:\n    Square(side: Int)\n    Dot\n\nfn area(shape: Shape) -> Int:\n    match shape:\n        Square(s):\n            return s * s\n        Dot:\n            return 0\n\nfn main() -> Int:\n    return area(Square(4))\n";
+    assert!(guion_compiler::compile("playground.gu", source).is_ok());
+    let missing = "enum Shape:\n    Square(side: Int)\n    Dot\n\nfn area(shape: Shape) -> Int:\n    match shape:\n        Square(s):\n            return s * s\n\nfn main() -> Int:\n    return 0\n";
+    let error = guion_compiler::compile("playground.gu", missing).unwrap_err();
+    assert_eq!(error.code, "E_MATCH_MISSING_VARIANT");
+}

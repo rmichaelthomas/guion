@@ -5531,7 +5531,8 @@ impl<'a> FnCompiler<'a> {
 }
 
 pub fn compile(source_name: &str, source: &str) -> Result<Artifact, Diagnostic> {
-    let program = parse_program(source, 0).map_err(|error| error.with_source_name(source_name))?;
+    let mut program =
+        parse_program(source, 0).map_err(|error| error.with_source_name(source_name))?;
     if !program.imports.is_empty() {
         return Err(diagnostic(
             "E_IMPORT_PROJECT_REQUIRED",
@@ -5540,6 +5541,7 @@ pub fn compile(source_name: &str, source: &str) -> Result<Artifact, Diagnostic> 
         )
         .with_source_name(source_name));
     }
+    desugar_enums(&mut program).map_err(|error| error.with_source_name(source_name))?;
     let scope = module_scope(&program);
     let mut artifact = compile_program(
         source_name,
