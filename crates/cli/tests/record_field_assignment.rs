@@ -3,11 +3,13 @@
 
 use std::process::Command;
 
+static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 fn run(source: &str) -> (bool, String, String) {
     let directory = std::env::temp_dir().join(format!(
         "guion-field-set-{}-{}",
         std::process::id(),
-        source.len()
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&directory).unwrap();
     let file = directory.join("main.gu");

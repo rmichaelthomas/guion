@@ -2,11 +2,13 @@
 
 use std::process::Command;
 
+static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 fn run(source: &str) -> (bool, String, String) {
     let directory = std::env::temp_dir().join(format!(
         "guion-syntax-{}-{}",
         std::process::id(),
-        source.len()
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(directory.join("main.gu"), source).unwrap();

@@ -2,11 +2,13 @@
 
 use std::process::Command;
 
+static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 fn run(source: &str) -> (bool, String, String) {
     let directory = std::env::temp_dir().join(format!(
         "guion-syntax-{}-{}",
         std::process::id(),
-        source.len()
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(directory.join("main.gu"), source).unwrap();
@@ -27,7 +29,7 @@ fn run_project(files: &[(&str, &str)]) -> (bool, String, String) {
     let directory = std::env::temp_dir().join(format!(
         "guion-syntax-project-{}-{}",
         std::process::id(),
-        files.iter().map(|(_, text)| text.len()).sum::<usize>()
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     std::fs::create_dir_all(&directory).unwrap();
     for (name, text) in files {
