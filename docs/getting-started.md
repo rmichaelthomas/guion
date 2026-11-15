@@ -59,7 +59,7 @@ Source runs keep a bounded compiled cache in the project’s `.guion/cache/` dir
 
 ## Host permissions
 
-File access is limited to the project or artifact directory unless an extra root is explicitly granted. Network access is denied by default; a project must grant exact hostnames in `guion.toml`. Clock access also requires a grant. These limits help keep programs predictable, but they are not operating-system security sandboxes.
+File access is limited to the project or artifact directory unless an extra root is explicitly granted. Network access is denied by default; a project must grant exact hostnames in `guion.toml`. Clock access also requires a grant. When a grant is missing the error names the exact `guion.toml` line and the `guion run` flag that would allow it, and in a terminal `guion run` asks once before running (`[y]` this run, `[a]` always, `[N]` no). `guion inspect --grants` shows what a program needs against what the project grants. `temp:name` is a private scratch file area removed after each run. These limits help keep programs predictable, but they are not operating-system security sandboxes.
 
 For the optional Python bridge, the CLI must be built with the `python-interop` feature. The bridge is not required for core Guion programs. See [compatibility and migration](compatibility-and-migrations.md) before using a project inherited from Veritas.
 

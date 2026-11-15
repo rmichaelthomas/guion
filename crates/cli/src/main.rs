@@ -54,12 +54,14 @@ fmt        format source (--check reports unformatted files)
 lint       report unused imports and locals and unreachable statements
 test       run the test_* functions of a file or project
 run        run a source file, artifact or project; permissions such as --file-root,
-           --allow-http-host and --allow-clock are granted with flags; --record
-           and --replay save and rerun from a tape
+           --allow-http-host and --allow-clock are granted with flags; in a terminal
+           it asks once about what is missing (--no-prompt turns that off); --sealed
+           runs with no access; --record and --replay save and rerun from a tape
 build      compile to an artifact
 package    produce a distributable package; verify-package checks one
 add        add a dependency; sync and update resolve and refresh them
-inspect    print artifact and function metadata and the effects a program can have
+inspect    print artifact and function metadata and the effects a program can have;
+           --grants compares what a program needs with what guion.toml grants
 doc        print function, record and external signatures; `doc std:NAME` prints a standard-library module, `doc --all --json` all of them
 doctor     report the current host and enabled profile
 lsp        language server for editors, over standard input and output

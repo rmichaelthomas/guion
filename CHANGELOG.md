@@ -2,6 +2,16 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## Unreleased
+
+Additions only; no artifact format change.
+
+- Denials say how to fix themselves. A denied clock, environment variable, command, HTTP host or socket names the `guion.toml` line and the run flag that would allow it. `guion run --json` carries `diagnostic.grant` (`table`, `key`, `value`, `flag`) on the error and a `denials` array that also lists denials a program handled itself. Error codes are unchanged.
+- `guion inspect --grants [--json]` compares the hosts, commands, sockets, environment names and clock use the code can reach with what `guion.toml` grants, and lists each missing grant as a manifest entry and a flag. Targets computed while running are reported as such.
+- `guion run` asks one plain question before the run when a person is at the terminal and a grant is missing: `[y]` this run, `[a]` always (adds the exact entries to `guion.toml`, keeping comments and order), `[N]` no. The answer is read from the terminal itself, never from piped input, and nothing is asked under `CI`, `GUION_NO_PROMPT`, `--no-prompt`, `--json`, `--sealed`, `--replay`, `guion test`, or without a terminal. A target only known while running is asked about by name at that point. `guion repl` follows the same rules; a yes lasts the session. A recording's header lists the grants that came from a question.
+- `temp:` is a private folder for each run and each test, under `TMPDIR`, removed when the run ends (`--keep-temp` keeps it). `--sealed` runs with no file access and none of the project's grants.
+- Fixed: `guion repl` placed its permission flags after the file name, where `run` read them as program arguments.
+
 ## 0.6.0 — 2026-11-14
 
 Additions only, plus the artifact format going from 74 to 75 (older artifacts still load; a program that uses `Map[Int, T]` needs this runtime). Nothing is removed or re-signed.
