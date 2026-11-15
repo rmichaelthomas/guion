@@ -120,6 +120,15 @@ impl Need {
         }
     }
 
+    /// Note that a person allowed this need at the question before the run.
+    pub fn note_answered(&self, policy: &HostPolicy, always: bool) {
+        policy.note_answered_grant(
+            self.kind.grant_kind(),
+            self.target.as_deref().unwrap_or(""),
+            always,
+        );
+    }
+
     pub fn is_computed(&self) -> bool {
         self.target.is_none() && self.kind != NeedKind::Clock
     }

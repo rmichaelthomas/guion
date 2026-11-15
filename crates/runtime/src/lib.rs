@@ -319,6 +319,8 @@ pub struct HostPolicy {
     pub broker: Option<std::sync::Arc<GrantBroker>>,
     /// Denied effects, shared by every copy of this policy (including parallel workers).
     pub denials: std::sync::Arc<std::sync::Mutex<Vec<DenialRecord>>>,
+    /// Grants a person gave at a question, kept so a recording can name where they came from.
+    pub answers: std::sync::Arc<std::sync::Mutex<Vec<GrantAnswerRecord>>>,
 }
 impl Default for HostPolicy {
     fn default() -> Self {
@@ -365,6 +367,7 @@ impl Default for HostPolicy {
             max_socket_read_bytes: 1024 * 1024,
             broker: None,
             denials: Default::default(),
+            answers: Default::default(),
         }
     }
 }
@@ -5976,7 +5979,7 @@ impl Instance {
         if tape.is_replay() {
             tape.finish_replay()
         } else {
-            tape.finish_record()
+            tape.finish_record(&self.policy.answered_grants())
                 .map_err(|message| RuntimeError::new("R_TAPE", message, Span::default()))
         }
     }

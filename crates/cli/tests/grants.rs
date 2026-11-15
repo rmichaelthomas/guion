@@ -664,3 +664,109 @@ fn guion_test_gives_each_test_its_own_temp_folder_and_never_asks() {
     assert!(!text.contains("wants to"), "{text}");
     assert!(base.entries().is_empty(), "{:?}", base.entries());
 }
+
+// ---- Part 4: asking during the run ----
+
+const COMPUTED_COMMAND_SOURCE: &str = r#"import "std:process"
+import "std:types"
+fn main() -> Int:
+    match process_run(args()[0], ["hi"], ""):
+        Ok(result):
+            print("ran")
+        Err(problem):
+            print(problem.code)
+    return 0
+"#;
+
+#[cfg(unix)]
+mod during_the_run {
+    use super::terminal::in_terminal;
+    use super::*;
+
+    #[test]
+    fn a_target_known_only_while_running_is_asked_about_by_name() {
+        let project = Project::new("mid-yes", COMPUTED_COMMAND_SOURCE, "");
+        let (out, ok) = in_terminal(&project, &["run", "main.gu", "echo"], &[], Some("y\n"));
+        assert!(ok, "{out}");
+        assert!(out.contains("main.gu wants to run echo"), "{out}");
+        assert!(out.contains("Allow? [y] this run  [N] no"), "{out}");
+        assert!(out.contains("ran"), "{out}");
+    }
+
+    #[test]
+    fn no_runs_on_with_the_usual_denial_and_always_saves_the_exact_target() {
+        let project = Project::new("mid-no", COMPUTED_COMMAND_SOURCE, "");
+        let (out, _) = in_terminal(&project, &["run", "main.gu", "echo"], &[], Some("\n"));
+        assert!(out.contains("E_PROCESS_DENIED"), "{out}");
+
+        let project = Project::new(
+            "mid-always",
+            COMPUTED_COMMAND_SOURCE,
+            "[log]\nlevel = \"info\"\n",
+        );
+        let (out, ok) = in_terminal(&project, &["run", "main.gu", "echo"], &[], Some("a\n"));
+        assert!(ok, "{out}");
+        let saved = std::fs::read_to_string(project.path().join("guion.toml")).unwrap();
+        assert!(saved.starts_with("[log]\nlevel = \"info\"\n"), "{saved}");
+        assert!(
+            saved.contains("[process]\ncommands = [\"echo\"]"),
+            "exact name, no wildcard: {saved}"
+        );
+    }
+
+    #[test]
+    fn a_no_to_the_first_question_means_nothing_more_is_asked_that_run() {
+        let source = r#"import "std:process"
+import "std:time"
+import "std:types"
+fn main() -> Int:
+    let today = today_local()
+    match process_run(args()[0], ["hi"], ""):
+        Ok(result):
+            print("ran")
+        Err(problem):
+            print(problem.code)
+    return 0
+"#;
+        let project = Project::new("mid-declined", source, "");
+        let (out, _) = in_terminal(&project, &["run", "main.gu", "echo"], &[], Some("\n"));
+        assert_eq!(out.matches("Allow?").count(), 1, "{out}");
+    }
+
+    #[test]
+    fn the_no_prompt_variable_stops_the_mid_run_question_too() {
+        let project = Project::new("mid-off", COMPUTED_COMMAND_SOURCE, "");
+        let (out, _) = in_terminal(
+            &project,
+            &["run", "main.gu", "echo"],
+            &[("GUION_NO_PROMPT", "1")],
+            None,
+        );
+        assert!(!out.contains("wants to"), "{out}");
+        assert!(out.contains("E_PROCESS_DENIED"), "{out}");
+    }
+
+    #[test]
+    fn a_recording_names_the_grants_a_person_gave_at_a_question() {
+        let project = Project::new("tape-question", CLOCK_SOURCE, "");
+        let (out, ok) = in_terminal(
+            &project,
+            &["run", "--record", "t.tape", "main.gu"],
+            &[],
+            Some("y\n"),
+        );
+        assert!(ok, "{out}");
+        let tape = std::fs::read_to_string(project.path().join("t.tape")).unwrap();
+        let header: serde_json::Value = serde_json::from_str(tape.lines().next().unwrap()).unwrap();
+        assert_eq!(
+            header["grants_from_question"],
+            serde_json::json!([{"effect": "clock", "target": "", "always": false}])
+        );
+        // A recording made with a flag has no such entry.
+        let flagged = project.run(&["--allow-clock", "--record", "f.tape"]);
+        assert!(flagged.status.success(), "{}", stderr(&flagged));
+        let tape = std::fs::read_to_string(project.path().join("f.tape")).unwrap();
+        let header: serde_json::Value = serde_json::from_str(tape.lines().next().unwrap()).unwrap();
+        assert!(header.get("grants_from_question").is_none(), "{header}");
+    }
+}

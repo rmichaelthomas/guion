@@ -88,7 +88,6 @@ pub struct DenialRecord {
 struct BrokerState {
     granted: HashSet<(GrantKind, String)>,
     refused: HashSet<(GrantKind, String)>,
-    answers: Vec<GrantAnswerRecord>,
 }
 
 /// Serializes questions and remembers answers, so one target is asked about at most once per run
@@ -96,6 +95,7 @@ struct BrokerState {
 pub struct GrantBroker {
     asker: Arc<dyn GrantAsker>,
     state: Mutex<BrokerState>,
+    answers: Arc<Mutex<Vec<GrantAnswerRecord>>>,
 }
 
 impl std::fmt::Debug for GrantBroker {
@@ -105,10 +105,11 @@ impl std::fmt::Debug for GrantBroker {
 }
 
 impl GrantBroker {
-    pub fn new(asker: Arc<dyn GrantAsker>) -> Self {
+    pub fn new(asker: Arc<dyn GrantAsker>, answers: Arc<Mutex<Vec<GrantAnswerRecord>>>) -> Self {
         Self {
             asker,
             state: Mutex::new(BrokerState::default()),
+            answers,
         }
     }
 
@@ -137,21 +138,24 @@ impl GrantBroker {
             }
             answer => {
                 state.granted.insert(key);
-                state.answers.push(GrantAnswerRecord {
-                    kind,
-                    target: target.to_owned(),
-                    always: answer == GrantAnswer::Always,
-                });
+                push_answer(
+                    &self.answers,
+                    GrantAnswerRecord {
+                        kind,
+                        target: target.to_owned(),
+                        always: answer == GrantAnswer::Always,
+                    },
+                );
                 true
             }
         }
     }
+}
 
-    fn answers(&self) -> Vec<GrantAnswerRecord> {
-        match self.state.lock() {
-            Ok(state) => state.answers.clone(),
-            Err(poisoned) => poisoned.into_inner().answers.clone(),
-        }
+fn push_answer(answers: &Mutex<Vec<GrantAnswerRecord>>, record: GrantAnswerRecord) {
+    match answers.lock() {
+        Ok(mut answers) => answers.push(record),
+        Err(poisoned) => poisoned.into_inner().push(record),
     }
 }
 
@@ -159,7 +163,7 @@ impl HostPolicy {
     /// Let `asker` put a question to a person when an effect lacks a grant. Used by `guion run`
     /// and `guion repl` only when a person is present; never by tests, replays or agents.
     pub fn with_grant_asker(mut self, asker: Arc<dyn GrantAsker>) -> Self {
-        self.broker = Some(Arc::new(GrantBroker::new(asker)));
+        self.broker = Some(Arc::new(GrantBroker::new(asker, self.answers.clone())));
         self
     }
 
@@ -173,10 +177,23 @@ impl HostPolicy {
 
     /// The grants a person gave at a question during this run.
     pub fn answered_grants(&self) -> Vec<GrantAnswerRecord> {
-        self.broker
-            .as_ref()
-            .map(|broker| broker.answers())
-            .unwrap_or_default()
+        match self.answers.lock() {
+            Ok(answers) => answers.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
+    }
+
+    /// Note a grant a person gave before the run started (the question `guion run` asks first),
+    /// so a recording can say where each grant came from.
+    pub fn note_answered_grant(&self, kind: GrantKind, target: &str, always: bool) {
+        push_answer(
+            &self.answers,
+            GrantAnswerRecord {
+                kind,
+                target: target.to_owned(),
+                always,
+            },
+        );
     }
 
     pub(crate) fn record_denial(&self, code: &str, message: &str, grant: Option<&GrantHint>) {
@@ -210,5 +227,84 @@ impl HostPolicy {
         self.broker
             .as_ref()
             .is_some_and(|broker| broker.permits(kind, target, hint))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Counting {
+        asked: AtomicUsize,
+        in_flight: AtomicUsize,
+        overlapped: AtomicUsize,
+        answer: GrantAnswer,
+    }
+
+    impl GrantAsker for Counting {
+        fn ask(&self, _request: &GrantRequest) -> GrantAnswer {
+            self.asked.fetch_add(1, Ordering::SeqCst);
+            if self.in_flight.fetch_add(1, Ordering::SeqCst) != 0 {
+                self.overlapped.fetch_add(1, Ordering::SeqCst);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            self.in_flight.fetch_sub(1, Ordering::SeqCst);
+            self.answer
+        }
+    }
+
+    fn counting(answer: GrantAnswer) -> Arc<Counting> {
+        Arc::new(Counting {
+            asked: AtomicUsize::new(0),
+            in_flight: AtomicUsize::new(0),
+            overlapped: AtomicUsize::new(0),
+            answer,
+        })
+    }
+
+    #[test]
+    fn workers_never_interleave_questions_and_a_target_is_asked_once() {
+        let asker = counting(GrantAnswer::ThisRun);
+        let policy = HostPolicy::default().with_grant_asker(asker.clone());
+        let handles = (0..8)
+            .map(|index| {
+                let policy = policy.clone();
+                std::thread::spawn(move || {
+                    let target = if index % 2 == 0 {
+                        "a.example"
+                    } else {
+                        "b.example"
+                    };
+                    policy.authorize(
+                        GrantKind::HttpHost,
+                        target,
+                        false,
+                        &GrantHint::network_host(target),
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        for handle in handles {
+            assert!(handle.join().unwrap());
+        }
+        assert_eq!(asker.asked.load(Ordering::SeqCst), 2, "once per target");
+        assert_eq!(asker.overlapped.load(Ordering::SeqCst), 0, "serialized");
+        assert_eq!(policy.answered_grants().len(), 2);
+    }
+
+    #[test]
+    fn a_refusal_is_remembered_and_a_policy_without_an_asker_never_asks() {
+        let asker = counting(GrantAnswer::No);
+        let policy = HostPolicy::default().with_grant_asker(asker.clone());
+        let hint = GrantHint::command("git");
+        assert!(!policy.authorize(GrantKind::Command, "git", false, &hint));
+        assert!(!policy.authorize(GrantKind::Command, "git", false, &hint));
+        assert_eq!(asker.asked.load(Ordering::SeqCst), 1);
+        assert!(policy.answered_grants().is_empty());
+
+        let silent = HostPolicy::default();
+        assert!(!silent.authorize(GrantKind::Command, "git", false, &hint));
+        assert!(silent.authorize(GrantKind::Command, "git", true, &hint));
     }
 }

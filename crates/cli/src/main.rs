@@ -1283,7 +1283,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
             }
             // One plain question before any Guion code runs, only when a person is present. It
-            // never runs for replays, JSON reports or without a terminal; see `prompt::present`.
+            // never runs for replays, sealed runs or JSON reports, and never without a terminal;
+            // see `prompt::present`. The same terminal then answers the rare mid-run case, a
+            // target that is only known while the program runs.
             if !json_run && tape_replay.is_none() && !sealed {
                 if let Some(mut tty) = prompt::present(no_prompt) {
                     let inspected =
@@ -1294,22 +1296,33 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         .collect::<Vec<_>>();
                     let manifest = project_manifest_path(&project_root);
                     let can_save = manifest.is_file();
+                    let program = source_path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.clone());
+                    let mut declined = false;
                     if !missing.is_empty() {
-                        let program = source_path
-                            .file_name()
-                            .map(|name| name.to_string_lossy().into_owned())
-                            .unwrap_or_else(|| path.clone());
                         let answer = prompt::ask_before_run(&mut tty, &program, &missing, can_save);
-                        if answer != guion_runtime::GrantAnswer::No {
+                        declined = answer == guion_runtime::GrantAnswer::No;
+                        if !declined {
+                            let always = answer == guion_runtime::GrantAnswer::Always;
                             for need in &missing {
-                                if answer == guion_runtime::GrantAnswer::Always {
+                                if always {
                                     if let Some(hint) = need.hint() {
                                         prompt::save_grant(&mut tty, &manifest, &hint);
                                     }
                                 }
+                                need.note_answered(&policy, always);
                                 need.grant_for_run(&mut policy);
                             }
                         }
+                    }
+                    // A "no" to the first question means run without them, so nothing more is
+                    // asked this run.
+                    if !declined {
+                        policy = policy.with_grant_asker(std::sync::Arc::new(
+                            prompt::TtyAsker::new(tty, &program, can_save.then_some(manifest)),
+                        ));
                     }
                 }
             }
@@ -1395,6 +1408,17 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 })
                 .collect::<Vec<_>>();
             let omitted_effects = instance.omitted_effects();
+            let grants_from_question = instance
+                .answered_grants()
+                .iter()
+                .map(|answer| {
+                    serde_json::json!({
+                        "effect": answer.kind.name(),
+                        "target": answer.target,
+                        "always": answer.always,
+                    })
+                })
+                .collect::<Vec<_>>();
             let denials = instance
                 .denials()
                 .iter()
@@ -1448,6 +1472,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "effects": effects,
                     "omitted_effects": omitted_effects,
                     "denials": denials,
+                    "grants_from_question": grants_from_question,
                     "python_native_image_observation": python_native_image_observation,
                     "python_native_images": python_native_images,
                     "source_cache": source_cache_status,
