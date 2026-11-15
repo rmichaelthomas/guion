@@ -196,20 +196,21 @@ pub fn run(flags: &[String]) -> Result<ExitCode, String> {
             }
             _ => {}
         }
-        let block = entry.trim_end().ends_with(':');
-        while block {
-            if interactive {
-                print!("...... ");
-                let _ = std::io::stdout().flush();
+        if entry.trim_end().ends_with(':') {
+            loop {
+                if interactive {
+                    print!("...... ");
+                    let _ = std::io::stdout().flush();
+                }
+                let Some(Ok(next)) = lines.next() else {
+                    break;
+                };
+                if next.trim().is_empty() {
+                    break;
+                }
+                entry.push('\n');
+                entry.push_str(next.trim_end());
             }
-            let Some(Ok(next)) = lines.next() else {
-                break;
-            };
-            if next.trim().is_empty() {
-                break;
-            }
-            entry.push('\n');
-            entry.push_str(next.trim_end());
         }
         handle(&mut session, &entry);
     }
@@ -252,7 +253,7 @@ fn handle(session: &mut Session, entry: &str) {
 
 fn evaluate_expression(session: &Session, entry: &str) {
     let probe = format!("let __repl = {entry}");
-    let outcome = session.check(&[probe.clone()]);
+    let outcome = session.check(std::slice::from_ref(&probe));
     if !outcome.success {
         // Not a value: it may be a call that returns nothing, such as `print("hi")`.
         if session.check(&[entry.to_owned()]).success {
@@ -264,7 +265,7 @@ fn evaluate_expression(session: &Session, entry: &str) {
     }
     for candidate in session.candidate_types() {
         let typed = format!("let __repl: {candidate} = {entry}");
-        if session.check(&[typed.clone()]).success {
+        if session.check(std::slice::from_ref(&typed)).success {
             let result = session.run(&[typed, "print(__repl)".to_owned()]);
             if result.success {
                 let value = result.stdout.trim_end_matches('\n');

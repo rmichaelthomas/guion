@@ -1,0 +1,10 @@
+# Sources are hashed byte for byte (the embedded compiler seed identity), so check them out with LF on every platform.
+* text=auto eol=lf
+*.png binary
+*.wasm binary
+*.gz binary
+*.tar binary
+*.ico binary
+*.woff2 binary
+*.jpg binary
+*.mp4 binary
