@@ -7714,6 +7714,9 @@ pub struct RuntimeError {
     pub trace: Vec<Span>,
     /// `(used, limit)` for an `R_STEP_LIMIT` error; `None` for every other code.
     pub step_usage: Option<(u64, u64)>,
+    /// For an access denial, the exact grant that would have allowed the effect.
+    /// Boxed so the error stays small on every `Result` that carries it.
+    pub grant: Option<Box<GrantHint>>,
 }
 
 impl RuntimeError {
@@ -7723,6 +7726,106 @@ impl RuntimeError {
             message: message.into(),
             trace: vec![span],
             step_usage: None,
+            grant: None,
         }
+    }
+
+    pub fn with_grant(mut self, grant: GrantHint) -> Self {
+        self.grant = Some(Box::new(grant));
+        self
+    }
+}
+
+/// The exact `guion.toml` entry and command-line flag that would grant one denied effect.
+///
+/// `table` and `key` name the manifest entry (`None` for a grant that has no manifest entry,
+/// such as an extra file folder); `value` is the one array element to add, or `true` for the
+/// clock; `flag` is the complete per-run form, ready to paste after `guion run`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GrantHint {
+    pub table: Option<String>,
+    pub key: Option<String>,
+    pub value: String,
+    pub flag: String,
+}
+
+impl GrantHint {
+    pub fn network_host(host: &str) -> Self {
+        Self::entry("network", "hosts", host, "--allow-http-host")
+    }
+
+    pub fn command(name: &str) -> Self {
+        Self::entry("process", "commands", name, "--allow-command")
+    }
+
+    pub fn clock() -> Self {
+        Self {
+            table: Some("clock".into()),
+            key: Some("enabled".into()),
+            value: "true".into(),
+            flag: "--allow-clock".into(),
+        }
+    }
+
+    pub fn environment_variable(name: &str) -> Self {
+        Self {
+            table: Some("environment".into()),
+            key: Some("variables".into()),
+            value: name.into(),
+            flag: String::new(),
+        }
+    }
+
+    pub fn socket_connect(target: &str) -> Self {
+        Self::entry("sockets", "connect", target, "--allow-connect")
+    }
+
+    pub fn socket_bind(target: &str) -> Self {
+        Self::entry("sockets", "bind", target, "--allow-bind")
+    }
+
+    pub fn file_root(directory: &str) -> Self {
+        Self {
+            table: None,
+            key: None,
+            value: directory.into(),
+            flag: format!("--file-root {directory}"),
+        }
+    }
+
+    fn entry(table: &str, key: &str, value: &str, flag: &str) -> Self {
+        Self {
+            table: Some(table.into()),
+            key: Some(key.into()),
+            value: value.into(),
+            flag: format!("{flag} {value}"),
+        }
+    }
+
+    /// The manifest line to add, for example `[network] hosts = ["api.github.com"]`.
+    pub fn manifest_line(&self) -> Option<String> {
+        let (table, key) = (self.table.as_deref()?, self.key.as_deref()?);
+        Some(if self.value == "true" && key == "enabled" {
+            format!("[{table}] {key} = true")
+        } else {
+            format!("[{table}] {key} = [{:?}]", self.value)
+        })
+    }
+
+    /// The two-line "how to fix it" text shown under a denial.
+    pub fn fix_it(&self) -> String {
+        let mut text = String::new();
+        if let Some(line) = self.manifest_line() {
+            text.push_str(&format!("  add to guion.toml:   {line}\n"));
+        }
+        if !self.flag.is_empty() {
+            text.push_str(&format!(
+                "  or for one run:      guion run {} <file>",
+                self.flag
+            ));
+        } else {
+            text = text.trim_end().to_owned();
+        }
+        text
     }
 }

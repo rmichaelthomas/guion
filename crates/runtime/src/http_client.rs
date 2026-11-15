@@ -69,11 +69,18 @@ pub(crate) fn validate_http_url(
         .host_str()
         .map(|host| host.trim_end_matches('.').to_ascii_lowercase())
         .ok_or_else(|| http_error("R_HTTP_URL", "URL has no host"))?;
-    if policy.allowed_http_hosts.is_empty() || !policy.allowed_http_hosts.contains(&host) {
-        return Err(http_error(
-            "R_NETWORK_DENIED",
-            "network access to this host is not granted",
-        ));
+    let hint = GrantHint::network_host(&host);
+    if !policy.authorize(
+        GrantKind::HttpHost,
+        &host,
+        policy.allowed_http_hosts.contains(&host),
+        &hint,
+    ) {
+        let message = format!(
+            "fetching {host} is not granted; add `[network] hosts = [{host:?}]` to guion.toml or pass --allow-http-host {host}"
+        );
+        policy.record_denial("R_NETWORK_DENIED", &message, Some(&hint));
+        return Err(http_error("R_NETWORK_DENIED", message));
     }
     Ok(host)
 }

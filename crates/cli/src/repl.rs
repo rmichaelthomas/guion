@@ -21,6 +21,11 @@ A line ending in `:` continues until an empty line.
 
 struct Session {
     flags: Vec<String>,
+    /// Whether a person is at the terminal, so a run may put its one question to them.
+    ask: bool,
+    /// Grants a person allowed with "this run" earlier in the session, as run flags: "this run"
+    /// means the rest of the repl session, and each entry is a separate run.
+    allowed: std::cell::RefCell<Vec<String>>,
     directory: PathBuf,
     declarations: Vec<String>,
     statements: Vec<String>,
@@ -76,11 +81,34 @@ impl Session {
             };
         };
         let mut child = Command::new(executable);
-        child.arg(command).arg(&file);
+        child.arg(command);
+        let answers = self.directory.join("answers");
         if command == "run" {
             child.args(&self.flags);
+            for flag in self.allowed.borrow().iter() {
+                child.args(flag.split_whitespace());
+            }
+            if self.ask {
+                // The run opens the person's terminal itself to ask, and tells us what was
+                // allowed so later entries need not ask again.
+                let _ = std::fs::remove_file(&answers);
+                child.env(crate::prompt::REPL_ANSWERS, &answers);
+            }
         }
-        match child.output() {
+        // Options come before the file: after it they would be arguments to the program.
+        child.arg(&file);
+        let result = child.output();
+        if command == "run" && self.ask {
+            if let Ok(text) = std::fs::read_to_string(&answers) {
+                let mut allowed = self.allowed.borrow_mut();
+                for line in text.lines().filter(|line| !line.is_empty()) {
+                    if !allowed.iter().any(|known| known == line) {
+                        allowed.push(line.to_owned());
+                    }
+                }
+            }
+        }
+        match result {
             Ok(output) => Outcome {
                 success: output.status.success(),
                 stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
@@ -156,8 +184,11 @@ pub fn run(flags: &[String]) -> Result<ExitCode, String> {
     let directory = std::env::temp_dir().join(format!("guion-repl-{}", std::process::id()));
     std::fs::create_dir_all(&directory)
         .map_err(|error| format!("cannot create the repl working directory: {error}"))?;
+    let ask = crate::prompt::present(flags.iter().any(|flag| flag == "--no-prompt")).is_some();
     let mut session = Session {
         flags: flags.to_vec(),
+        ask,
+        allowed: Default::default(),
         directory: directory.clone(),
         declarations: Vec::new(),
         statements: Vec::new(),

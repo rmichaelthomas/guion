@@ -10,15 +10,19 @@ mod bytecode_ir;
 mod compiler_driver;
 #[cfg(feature = "python-interop")]
 mod dependencies;
+mod grants;
 mod lsp;
+mod manifest_edit;
 mod native_dependencies;
 mod native_packages;
 mod package_capabilities;
 mod package_name;
 mod package_version;
 mod pool_alloc;
+mod prompt;
 mod registry;
 mod repl;
+mod scratch;
 mod source_run_cache;
 mod templates;
 
@@ -50,12 +54,14 @@ fmt        format source (--check reports unformatted files)
 lint       report unused imports and locals and unreachable statements
 test       run the test_* functions of a file or project
 run        run a source file, artifact or project; permissions such as --file-root,
-           --allow-http-host and --allow-clock are granted with flags; --record
-           and --replay save and rerun from a tape
+           --allow-http-host and --allow-clock are granted with flags; in a terminal
+           it asks once about what is missing (--no-prompt turns that off); --sealed
+           runs with no access; --record and --replay save and rerun from a tape
 build      compile to an artifact
 package    produce a distributable package; verify-package checks one
 add        add a dependency; sync and update resolve and refresh them
-inspect    print artifact and function metadata and the effects a program can have
+inspect    print artifact and function metadata and the effects a program can have;
+           --grants compares what a program needs with what guion.toml grants
 doc        print function, record and external signatures; `doc std:NAME` prints a standard-library module, `doc --all --json` all of them
 doctor     report the current host and enabled profile
 lsp        language server for editors, over standard input and output
@@ -162,7 +168,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--no-prompt] [--sealed] [--keep-temp] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -656,6 +662,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     let mut json_run = false;
     let mut no_source_cache = false;
+    let mut no_prompt = false;
+    let mut sealed = false;
+    let mut keep_temp = false;
     let mut file_root_overrides = Vec::new();
     let mut http_host_overrides = Vec::new();
     let mut clock_override = false;
@@ -679,6 +688,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 "--no-cache" => {
                     no_source_cache = true;
+                    index += 1;
+                }
+                "--no-prompt" => {
+                    no_prompt = true;
+                    index += 1;
+                }
+                "--sealed" => {
+                    sealed = true;
+                    index += 1;
+                }
+                "--keep-temp" => {
+                    keep_temp = true;
                     index += 1;
                 }
                 "--file-root" => {
@@ -734,7 +755,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         let mut index = 1;
         while matches!(
             args.get(index).map(String::as_str),
-            Some("--json") | Some("--speed")
+            Some("--json") | Some("--speed") | Some("--grants")
         ) {
             index += 1;
         }
@@ -1037,6 +1058,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         "inspect" if args.iter().any(|argument| argument == "--speed") => {
             return speed_report(&artifact, json_inspect);
         }
+        "inspect" if args.iter().any(|argument| argument == "--grants") => {
+            let inspected =
+                inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
+            let needs = grants::needs(&artifact, &inspected);
+            let policy = runtime_policy(&project_root)?;
+            if json_inspect {
+                println!("{}", grants::report_json(&path, &needs, &policy));
+            } else {
+                print!("{}", grants::report_text(&needs, &policy));
+            }
+            return Ok(ExitCode::SUCCESS);
+        }
         "inspect" => {
             if json_inspect {
                 let mut report =
@@ -1182,15 +1215,47 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 _ => runtime,
             };
             let program_args = args.iter().skip(path_index + 1).cloned().collect();
+            if sealed
+                && (!http_host_overrides.is_empty()
+                    || clock_override
+                    || !command_overrides.is_empty()
+                    || !socket_overrides.is_empty()
+                    || !runtime_file_roots.is_empty())
+            {
+                return Err("--sealed grants nothing, so it cannot be combined with --allow-http-host, --allow-clock, --allow-command, --allow-connect, --allow-bind or --file-root".into());
+            }
+            // The private `temp:` folder: fresh for this run, removed when it ends.
+            let mut scratch = None;
             let mut policy = if tape_replay.is_some() {
                 // A replay is fed from the tape: it gets no file, network, clock, command or
                 // socket access, whatever the command line says.
                 runtime_policy(&project_root)?
+            } else if sealed {
+                // Sealed runs code you have not read: no files, and none of the grants the
+                // project file would give either.
+                let mut policy = runtime_policy(&project_root)?.with_arguments(program_args);
+                policy.allowed_http_hosts.clear();
+                policy.allowed_commands.clear();
+                policy.allowed_environment_variables.clear();
+                policy.allowed_connect.clear();
+                policy.allowed_bind.clear();
+                policy.allow_clock = false;
+                policy
             } else {
-                runtime_policy(&project_root)?
+                let folder = scratch::ScratchDir::create()?;
+                let policy = runtime_policy(&project_root)?
                     .with_file_access(project_root.clone(), true, true)
-                    .with_arguments(program_args)
+                    .with_file_root_alias("temp:", folder.path())
+                    .with_arguments(program_args);
+                scratch = Some(folder);
+                policy
             };
+            if keep_temp {
+                if let Some(folder) = scratch.as_mut() {
+                    folder.keep();
+                    eprintln!("keeping temp folder: {}", folder.path().display());
+                }
+            }
             for host in http_host_overrides {
                 policy
                     .allowed_http_hosts
@@ -1218,6 +1283,53 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
             } else if let Some(interpreter) = env::var_os("GUION_PYTHON") {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
+            }
+            // One plain question before any Guion code runs, only when a person is present. It
+            // never runs for replays, sealed runs or JSON reports, and never without a terminal;
+            // see `prompt::present`. The same terminal then answers the rare mid-run case, a
+            // target that is only known while the program runs.
+            if !json_run && tape_replay.is_none() && !sealed {
+                if let Some(mut tty) = prompt::present(no_prompt) {
+                    let inspected =
+                        inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
+                    let missing = grants::needs(&artifact, &inspected)
+                        .into_iter()
+                        .filter(|need| need.hint().is_some() && !need.is_granted(&policy))
+                        .collect::<Vec<_>>();
+                    let manifest = project_manifest_path(&project_root);
+                    let can_save = manifest.is_file();
+                    let program = source_path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.clone());
+                    let mut declined = false;
+                    if !missing.is_empty() {
+                        let answer = prompt::ask_before_run(&mut tty, &program, &missing, can_save);
+                        declined = answer == guion_runtime::GrantAnswer::No;
+                        if !declined {
+                            let always = answer == guion_runtime::GrantAnswer::Always;
+                            for need in &missing {
+                                if always {
+                                    if let Some(hint) = need.hint() {
+                                        prompt::save_grant(&mut tty, &manifest, &hint);
+                                    }
+                                }
+                                need.note_answered(&policy, always);
+                                if let Some(hint) = need.hint() {
+                                    prompt::note_for_repl(&hint.flag);
+                                }
+                                need.grant_for_run(&mut policy);
+                            }
+                        }
+                    }
+                    // A "no" to the first question means run without them, so nothing more is
+                    // asked this run.
+                    if !declined {
+                        policy = policy.with_grant_asker(std::sync::Arc::new(
+                            prompt::TtyAsker::new(tty, &program, can_save.then_some(manifest)),
+                        ));
+                    }
+                }
             }
             let runtime_load_started = phase_timings_enabled.then(Instant::now);
             let mut instance = match runtime.load(artifact.clone(), policy) {
@@ -1301,6 +1413,28 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 })
                 .collect::<Vec<_>>();
             let omitted_effects = instance.omitted_effects();
+            let grants_from_question = instance
+                .answered_grants()
+                .iter()
+                .map(|answer| {
+                    serde_json::json!({
+                        "effect": answer.kind.name(),
+                        "target": answer.target,
+                        "always": answer.always,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let denials = instance
+                .denials()
+                .iter()
+                .map(|denial| {
+                    serde_json::json!({
+                        "code": denial.code,
+                        "message": denial.message,
+                        "grant": denial.grant.as_ref().map(grant_json),
+                    })
+                })
+                .collect::<Vec<_>>();
             instance.close();
             if json_run {
                 let (status, exit_code, diagnostic) = match result {
@@ -1342,6 +1476,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "host_stderr": host_stderr,
                     "effects": effects,
                     "omitted_effects": omitted_effects,
+                    "denials": denials,
+                    "grants_from_question": grants_from_question,
                     "python_native_image_observation": python_native_image_observation,
                     "python_native_images": python_native_images,
                     "source_cache": source_cache_status,
@@ -4878,10 +5014,21 @@ fn run_tests(
             failures += 1;
             continue;
         }
+        // Each test gets its own private `temp:` folder, removed when the test ends. A replayed
+        // test gets no file access at all.
+        let replaying = tape.is_some_and(|(replay, _)| *replay);
+        let scratch = if replaying {
+            None
+        } else {
+            Some(scratch::ScratchDir::create()?)
+        };
         #[cfg(feature = "python-interop")]
         let mut policy = base_policy.clone();
         #[cfg(not(feature = "python-interop"))]
-        let policy = base_policy.clone();
+        let mut policy = base_policy.clone();
+        if let Some(folder) = &scratch {
+            policy = policy.with_file_root_alias("temp:", folder.path());
+        }
         #[cfg(feature = "python-interop")]
         if let Some(interpreter) = env::var_os("GUION_PYTHON") {
             policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
@@ -4943,14 +5090,18 @@ fn run_tests(
                         })
                     })
                     .collect::<Vec<_>>();
+                let mut diagnostic = serde_json::json!({
+                    "code": error.code,
+                    "message": error.message,
+                    "trace": trace
+                });
+                if let Some(grant) = &error.grant {
+                    diagnostic["grant"] = grant_json(grant);
+                }
                 results.push(serde_json::json!({
                     "name": test.name,
                     "status": "failed",
-                    "diagnostic": {
-                        "code": error.code,
-                        "message": error.message,
-                        "trace": trace
-                    }
+                    "diagnostic": diagnostic
                 }));
                 failures += 1;
             }
@@ -5123,7 +5274,24 @@ fn runtime_diagnostic_json(
         diagnostic["used"] = serde_json::json!(used);
         diagnostic["limit"] = serde_json::json!(limit);
     }
+    if let Some(grant) = &error.grant {
+        diagnostic["grant"] = grant_json(grant);
+    }
     diagnostic
+}
+
+/// The machine form of a missing grant: the manifest table, key and value, and the run flag.
+fn grant_json(grant: &guion_model::GrantHint) -> serde_json::Value {
+    serde_json::json!({
+        "table": grant.table,
+        "key": grant.key,
+        "value": grant.value,
+        "flag": if grant.flag.is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::Value::String(grant.flag.clone())
+        },
+    })
 }
 
 fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeError) -> String {
@@ -5145,9 +5313,16 @@ fn render_runtime(path: &str, artifact: &Artifact, error: &guion_model::RuntimeE
         .skip(1)
         .map(|s| format!("\n  at {}:{}:{}", source_for(s), s.line, s.column))
         .collect::<String>();
+    let fix = error
+        .grant
+        .as_ref()
+        .map(|grant| grant.fix_it())
+        .filter(|text| !text.is_empty())
+        .map(|text| format!("\n{text}"))
+        .unwrap_or_default();
     format!(
-        "{where_}runtime error[{}]: {}{}",
-        error.code, error.message, frames
+        "{where_}runtime error[{}]: {}{}{}",
+        error.code, error.message, fix, frames
     )
 }
 

@@ -683,7 +683,10 @@ impl Tape {
     }
 
     /// Writes the tape file when recording; does nothing when replaying.
-    pub(crate) fn finish_record(&self) -> Result<(), String> {
+    pub(crate) fn finish_record(
+        &self,
+        answered: &[crate::GrantAnswerRecord],
+    ) -> Result<(), String> {
         let state = self.state.lock().unwrap();
         let TapeState::Recording {
             path,
@@ -701,7 +704,24 @@ impl Tape {
         } else {
             TAPE_VERSION
         };
-        let mut text = json!({"guion_tape": version, "program_sha256": program_sha256}).to_string();
+        let mut header = json!({"guion_tape": version, "program_sha256": program_sha256});
+        // Grants a person gave at a question, so a reader can tell "granted in guion.toml" from
+        // "granted by a person at the prompt". A replay ignores this; it gets no access at all.
+        if !answered.is_empty() {
+            header["grants_from_question"] = Json::Array(
+                answered
+                    .iter()
+                    .map(|answer| {
+                        json!({
+                            "effect": answer.kind.name(),
+                            "target": answer.target,
+                            "always": answer.always,
+                        })
+                    })
+                    .collect(),
+            );
+        }
+        let mut text = header.to_string();
         text.push('\n');
         // The main program first, then each parallel_map item in call and item order; within a
         // lane the order the operations ran in.
