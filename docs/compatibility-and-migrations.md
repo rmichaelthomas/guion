@@ -56,7 +56,7 @@ Nothing is removed or renamed, and no word is newly reserved: a 0.3.0 program co
 - **Artifact format 72.** The runtime reads formats 14 through 72 and writes 72. An artifact built by 0.2.0 (format 64 or lower) still loads and runs. A program that uses a 0.3.0 operation (`sort`, function values, `crypto_sha256`, `crypto_random_*`, `sqlite_begin_read`, `std:log`, `std:compress`, `std:tar`, `std:yaml`) is written at format 65 to 72 and is rejected by a runtime older than that format with `E_ARTIFACT_VERSION`. Rebuild artifacts with the 0.3.0 compiler to use the new library surface.
 - **New `guion.toml` keys.** `[runtime] decompress_limit_bytes` (default 1 GiB) bounds every inflate and tar extraction; `[log] level` sets the default `std:log` level. Existing manifests need no change.
 - **Diagnostics grew additive fields.** `R_STEP_LIMIT` reports `used` and `limit`; `guion check --json` diagnostics may carry `suggestions`; `guion doc --json` entries may carry `deprecated` and `summary`. Tools that read these reports should ignore fields they do not know.
-- **Browser.** In the browser VM, function values work, but the sorts, `parallel_map` and the higher-order builtins fail with `R_HOST_UNSUPPORTED`; see [browser.md](browser.md).
+- **Browser.** In the browser VM, function values, the higher-order builtins and the sorts work; `parallel_map` fails with `R_HOST_UNSUPPORTED`; see [browser.md](browser.md).
 - **Packages.** `guion.lock` stays at format 2. `frames` 0.1.0 still needs format 64 or later and works with 0.3.0.
 
 ## Supported artifact and package boundaries

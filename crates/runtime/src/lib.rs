@@ -3,6 +3,9 @@ use guion_model::{
     NativeResourceValue, Op, RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText,
     Span, TaskErrorValue, TextMap, Type, Value,
 };
+use guion_vm_core::ordering::{
+    apply_sort_order, consume_sort_step, sort_allocation, stable_sort_order, SortKey,
+};
 pub use guion_vm_core::CancellationToken;
 use guion_vm_core::{
     build_register_programs, charge_allocation, check_call_depth, cloned_value_allocation,
@@ -566,14 +569,11 @@ impl Runtime {
     ) -> Result<Instance, RuntimeError> {
         verify(&artifact)?;
         let tape = match &self.tape {
-            Some(mode) => {
-                policy.max_parallelism = 1;
-                Some(Arc::new(tape::Tape::open(
-                    mode,
-                    &artifact,
-                    &self.tape_redact,
-                )?))
-            }
+            Some(mode) => Some(Arc::new(tape::Tape::open(
+                mode,
+                &artifact,
+                &self.tape_redact,
+            )?)),
             None => None,
         };
         if let Some(metadata) = &artifact.build_metadata {
@@ -606,6 +606,8 @@ impl Runtime {
         let artifact = share_artifact(artifact);
         Ok(Instance {
             tape,
+            tape_lane: String::new(),
+            parallel_calls: 0,
             artifact,
             native_constants,
             registers,
@@ -652,6 +654,10 @@ impl Runtime {
 #[derive(Debug)]
 pub struct Instance {
     tape: Option<Arc<tape::Tape>>,
+    /// The `parallel_map` item this instance runs, as a tape lane name; empty for the program.
+    tape_lane: String,
+    /// How many `parallel_map` calls this instance has made, to name the next one's lanes.
+    parallel_calls: u32,
     artifact: Arc<Artifact>,
     native_constants: Arc<Vec<Value>>,
     registers: Arc<RegisterPrograms>,
@@ -799,157 +805,6 @@ fn forwarded_text_operation(function: &guion_model::Function) -> Option<Op> {
 
 fn value_limit_error(value: &Value, policy: &HostPolicy, span: Span) -> Option<RuntimeError> {
     guion_vm_core::value_limit_error(value, &policy.vm_limits(), span)
-}
-
-fn consume_sort_step(budget: &Budget, span: Span) -> Result<(), RuntimeError> {
-    if budget.is_cancelled() {
-        return Err(RuntimeError::new(
-            "R_CANCELLED",
-            "parallel task was cancelled after a sibling failed",
-            span,
-        ));
-    }
-    if !budget.consume() {
-        return Err(guion_vm_core::step_limit_error(budget, span));
-    }
-    Ok(())
-}
-
-/// A sort key as the native sorts compare it: each list holds one kind.
-enum SortKey {
-    Int(BigInt),
-    Float(f64),
-    Text(guion_model::SharedText),
-}
-
-impl SortKey {
-    fn from_value(value: &Value) -> Option<Self> {
-        match value {
-            Value::Int(key) => Some(SortKey::Int(key.clone())),
-            Value::Float64(key) => Some(SortKey::Float(key.get())),
-            Value::Text(key) => Some(SortKey::Text(key.clone())),
-            _ => None,
-        }
-    }
-
-    /// Keys of different kinds never meet in a verified artifact; equal keeps the sort total.
-    fn compare(&self, other: &SortKey) -> CmpOrdering {
-        match (self, other) {
-            (SortKey::Int(left), SortKey::Int(right)) => left.cmp(right),
-            (SortKey::Float(left), SortKey::Float(right)) => {
-                guion_model::sort_order_f64(*left, *right)
-            }
-            // Unicode scalar order: the UTF-8 bytes of valid text sort exactly like the scalars,
-            // as sorted map keys do.
-            (SortKey::Text(left), SortKey::Text(right)) => left.as_bytes().cmp(right.as_bytes()),
-            _ => CmpOrdering::Equal,
-        }
-    }
-}
-
-/// Bytes charged to the allocation budget for sorting `values`: the cloned list plus the
-/// order and visited bookkeeping, plus `key_bytes` per item for the keys held beside it.
-fn sort_allocation(values: &[Value], key_bytes: usize) -> usize {
-    let length = values.len();
-    let value_allocation = size_of::<Vec<Value>>()
-        .saturating_add(length.saturating_mul(size_of::<Value>()))
-        .saturating_add(
-            values
-                .iter()
-                .map(cloned_value_allocation)
-                .fold(0usize, usize::saturating_add),
-        );
-    let sort_storage = size_of::<Vec<usize>>()
-        .saturating_mul(2)
-        .saturating_add(size_of::<Vec<bool>>())
-        .saturating_add(
-            length.saturating_mul(
-                key_bytes
-                    .saturating_add(size_of::<usize>().saturating_mul(2))
-                    .saturating_add(size_of::<bool>()),
-            ),
-        )
-        .saturating_add(size_of::<Vec<BigInt>>());
-    value_allocation.saturating_add(sort_storage)
-}
-
-/// The stable order of `0..length` under `compare(a, b)` on item indexes. Insertion sort up to
-/// 32 items, bottom-up merge sort beyond; every comparison costs one instruction of the guest
-/// budget, exactly as `sort_by_int_key` (format 41) charges. Equal items keep input order.
-fn stable_sort_order<F>(
-    length: usize,
-    mut compare: F,
-    budget: &Budget,
-    span: Span,
-) -> Result<Vec<usize>, RuntimeError>
-where
-    F: FnMut(usize, usize) -> CmpOrdering,
-{
-    let mut order: Vec<usize> = (0..length).collect();
-    if length <= 32 {
-        for index in 1..length {
-            let value = order[index];
-            let mut position = index;
-            while position > 0 {
-                consume_sort_step(budget, span)?;
-                if compare(value, order[position - 1]) == CmpOrdering::Less {
-                    order[position] = order[position - 1];
-                    position -= 1;
-                } else {
-                    break;
-                }
-            }
-            order[position] = value;
-        }
-    } else {
-        let mut merged = Vec::with_capacity(length);
-        let mut width = 1usize;
-        while width < length {
-            merged.clear();
-            let mut run_start = 0usize;
-            while run_start < length {
-                let middle = run_start.saturating_add(width).min(length);
-                let run_end = middle.saturating_add(width).min(length);
-                let (mut left, mut right) = (run_start, middle);
-                while left < middle && right < run_end {
-                    consume_sort_step(budget, span)?;
-                    if compare(order[left], order[right]) != CmpOrdering::Greater {
-                        merged.push(order[left]);
-                        left += 1;
-                    } else {
-                        merged.push(order[right]);
-                        right += 1;
-                    }
-                }
-                merged.extend_from_slice(&order[left..middle]);
-                merged.extend_from_slice(&order[right..run_end]);
-                run_start = run_end;
-            }
-            std::mem::swap(&mut order, &mut merged);
-            width = width.saturating_mul(2);
-        }
-    }
-    Ok(order)
-}
-
-/// Rearranges `values` in place so that position `i` holds what was at `order[i]`.
-fn apply_sort_order<T>(values: &mut [T], order: &[usize]) {
-    let mut visited = vec![false; values.len()];
-    for start in 0..values.len() {
-        if visited[start] {
-            continue;
-        }
-        let mut current = start;
-        loop {
-            visited[current] = true;
-            let next = order[current];
-            if next == start {
-                break;
-            }
-            values.swap(current, next);
-            current = next;
-        }
-    }
 }
 
 fn value_limit_error_at_boundary(
@@ -1229,6 +1084,7 @@ impl VmHost for Instance {
         let operation = opcode_profile_name(&instruction.op);
         if tape.is_replay() {
             return match tape.replay(
+                &self.tape_lane,
                 operation,
                 &function.name,
                 instruction.span,
@@ -1255,7 +1111,14 @@ impl VmHost for Instance {
             Ok(()) => Ok(stack.as_slice()),
             Err(error) => Err(error),
         };
-        tape.record(operation, &function.name, instruction.span, &before, &after)?;
+        tape.record(
+            &self.tape_lane,
+            operation,
+            &function.name,
+            instruction.span,
+            &before,
+            &after,
+        )?;
         result
     }
 }
@@ -7311,6 +7174,9 @@ impl Instance {
         let native_code = self.native_code.clone();
         let values = Arc::new(values);
         let tape = self.tape.clone();
+        let call_number = self.parallel_calls;
+        self.parallel_calls += 1;
+        let parent_lane = self.tape_lane.clone();
         let native_calls = self.native_calls.clone();
         let native_deoptimizations = self.native_deoptimizations.clone();
         let native_deoptimization_sites = self.native_deoptimization_sites.clone();
@@ -7342,6 +7208,7 @@ impl Instance {
             let values = values.clone();
             let budget = worker_budget.clone();
             let tape = tape.clone();
+            let parent_lane = parent_lane.clone();
             let native_calls = native_calls.clone();
             let native_deoptimizations = native_deoptimizations.clone();
             let native_deoptimization_sites = native_deoptimization_sites.clone();
@@ -7371,8 +7238,15 @@ impl Instance {
                     }
                     database_roots.extend(policy.additional_file_roots.iter().cloned());
                     database_roots.extend(policy.file_root_aliases.values().cloned());
+                    let lane = if parent_lane.is_empty() {
+                        format!("{call_number}.{index}")
+                    } else {
+                        format!("{parent_lane}/{call_number}.{index}")
+                    };
                     let mut worker = Instance {
                         tape: tape.clone(),
+                        tape_lane: lane,
+                        parallel_calls: 0,
                         artifact: Arc::clone(&artifact),
                         native_constants: Arc::clone(&native_constants),
                         registers: Arc::clone(&registers),
@@ -7425,6 +7299,8 @@ impl Instance {
                     match &result {
                         // The result may share parts with values this worker still holds.
                         Ok(value) => value.share_across_threads(),
+                        // A cancellation is the effect of a failure, not a new one.
+                        Err(error) if error.code == "R_CANCELLED" => {}
                         Err(_) => cancelled.store(true, Ordering::Relaxed),
                     }
                     let _ = sender.send((index, result, worker.output, thread_id));
@@ -7441,6 +7317,25 @@ impl Instance {
         let mut worker_panicked = false;
         for handle in handles {
             worker_panicked |= handle.join().is_err();
+        }
+        if let Some(tape) = &tape {
+            // An item that never started, or that a failing sibling stopped, has a shorter
+            // lane than a full run; a replay of it stops at the same place.
+            for (index, item) in completed.iter().enumerate() {
+                let cut_short = match item {
+                    None => true,
+                    Some((Err(error), _)) => error.code == "R_CANCELLED",
+                    Some(_) => false,
+                };
+                if cut_short {
+                    let lane = if parent_lane.is_empty() {
+                        format!("{call_number}.{index}")
+                    } else {
+                        format!("{parent_lane}/{call_number}.{index}")
+                    };
+                    tape.mark_lane_incomplete(&lane);
+                }
+            }
         }
         budget.allocation.end_sharing();
         if budget.cancellation.is_cancelled() {

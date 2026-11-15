@@ -26,6 +26,7 @@ use std::{
 pub mod array;
 mod array_compute;
 mod matmul;
+pub mod ordering;
 mod register;
 mod verify;
 pub use verify::{verify, FlowState};
@@ -6568,13 +6569,573 @@ impl VmHost for PortableHost {
     }
 
     fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
-        let debug = format!("{:?}", context.instruction.op);
+        use guion_model::HigherOrderKind as Kind;
+        let op = context.instruction.op.clone();
+        let span = context.instruction.span;
+        // `parallel_map` needs threads, which this host does not have.
+        match op {
+            Op::HigherOrder(Kind::ParallelMap) | Op::ParallelMap(_) => {}
+            Op::HigherOrder(kind) => return self.portable_higher_order(kind, context),
+            Op::SortNatural => return self.portable_sort_natural(context),
+            Op::SortByKey(target) => return self.portable_sort_keyed(target, false, context),
+            Op::SortByIntKey(target) => return self.portable_sort_keyed(target, true, context),
+            Op::SortBy(target) => return self.portable_sort_by(target, context),
+            Op::MergeSortedByIntKey(target) => return self.portable_merge_sorted(target, context),
+            _ => {}
+        }
+        let debug = format!("{op:?}");
         let name = debug.split(['(', ' ']).next().unwrap_or(&debug);
         Err(RuntimeError::new(
             "R_HOST_UNSUPPORTED",
             format!("host operation `{name}` is not available in this environment"),
-            context.instruction.span,
+            span,
         ))
+    }
+}
+
+/// The values a closure captured, or none for a named function.
+type Captured = Option<Shared<Vec<Value>>>;
+
+fn list_items(value: Value, what: &str, span: Span) -> Result<Vec<Value>, RuntimeError> {
+    match value {
+        Value::List(values) => Ok(values.as_ref().clone()),
+        Value::Float64List(values) => Ok(values.iter().copied().map(Value::Float64).collect()),
+        _ => Err(RuntimeError::new(
+            "R_TYPE_INVALID",
+            format!("{what} requires a List"),
+            span,
+        )),
+    }
+}
+
+impl PortableHost {
+    /// Runs one function of the program to completion inside a host operation.
+    fn invoke_inner(
+        &mut self,
+        index: usize,
+        args: Vec<Value>,
+        depth: usize,
+        budget: Arc<Budget>,
+    ) -> Result<Value, RuntimeError> {
+        match self.start_frame(index, args, depth, &budget, None)? {
+            FrameStart::Returned(value) => Ok(value),
+            FrameStart::Vm(frame) => run_frames(self, frame, budget),
+            FrameStart::VmFrames(frames) => run_frames_with_stack(self, frames, budget),
+        }
+    }
+
+    fn pop_value(context: &mut HostOpContext<'_>) -> Result<Value, RuntimeError> {
+        context.stack.pop().ok_or_else(|| {
+            RuntimeError::new(
+                "R_STACK_UNDERFLOW",
+                "operand stack is empty",
+                context.instruction.span,
+            )
+        })
+    }
+
+    /// A named function (or, with `allow_closure`, a closure) of `arity` parameters.
+    fn pop_function(
+        &self,
+        context: &mut HostOpContext<'_>,
+        arity: usize,
+        allow_closure: bool,
+    ) -> Result<(usize, Captured), RuntimeError> {
+        let span = context.instruction.span;
+        let invalid = || {
+            RuntimeError::new(
+                "R_FN_INVALID",
+                "function value does not name a function of this program",
+                span,
+            )
+        };
+        let (index, captured) = match Self::pop_value(context)? {
+            Value::Function(index) => (index, None),
+            Value::Closure(index, values) if allow_closure => (index, Some(values)),
+            Value::Closure(..) => {
+                return Err(RuntimeError::new(
+                    "R_FN_CLOSURE",
+                    "sorts and parallel_map take a named function, not a function that captures values",
+                    span,
+                ));
+            }
+            _ => return Err(invalid()),
+        };
+        let held = captured.as_ref().map_or(0, |values| values.len());
+        if self
+            .artifact
+            .functions
+            .get(index)
+            .is_none_or(|callee| callee.parameters.len() != arity + held)
+        {
+            return Err(invalid());
+        }
+        Ok((index, captured))
+    }
+
+    fn call_with(
+        &mut self,
+        target: usize,
+        captured: &Captured,
+        args: Vec<Value>,
+        context: &HostOpContext<'_>,
+    ) -> Result<Value, RuntimeError> {
+        let args = match captured {
+            Some(values) => {
+                let mut with_captured = values.as_ref().clone();
+                with_captured.extend(args);
+                with_captured
+            }
+            None => args,
+        };
+        self.invoke_inner(target, args, context.depth + 1, Arc::clone(context.budget))
+            .map_err(|mut error| {
+                error.trace.push(context.instruction.span);
+                error
+            })
+    }
+
+    fn portable_higher_order(
+        &mut self,
+        kind: guion_model::HigherOrderKind,
+        mut context: HostOpContext<'_>,
+    ) -> Result<(), RuntimeError> {
+        use guion_model::HigherOrderKind as Kind;
+        let span = context.instruction.span;
+        match kind {
+            Kind::SortBy => {
+                let (target, _) = self.pop_function(&mut context, 2, false)?;
+                return self.portable_sort_by(target, context);
+            }
+            Kind::SortByKey | Kind::SortByIntKey => {
+                let (target, _) = self.pop_function(&mut context, 1, false)?;
+                return self.portable_sort_keyed(target, kind == Kind::SortByIntKey, context);
+            }
+            Kind::MergeSortedByIntKey => {
+                let (target, _) = self.pop_function(&mut context, 1, false)?;
+                return self.portable_merge_sorted(target, context);
+            }
+            _ => {}
+        }
+        let wanted = if kind == Kind::FoldList { 2 } else { 1 };
+        let (target, captured) = self.pop_function(&mut context, wanted, true)?;
+        let initial = if kind == Kind::FoldList {
+            Some(Self::pop_value(&mut context)?)
+        } else {
+            None
+        };
+        let items = list_items(Self::pop_value(&mut context)?, kind.name(), span)?;
+        ordering::charge_list_copy(context.budget, &items, span)?;
+        let wrong_type =
+            |message: &str| RuntimeError::new("R_TYPE_INVALID", message.to_owned(), span);
+        let result = match kind {
+            Kind::MapList => {
+                let mut mapped = Vec::with_capacity(items.len());
+                for item in items {
+                    mapped.push(self.call_with(target, &captured, vec![item], &context)?);
+                }
+                Value::from_list_items(mapped)
+            }
+            Kind::TryMapList => {
+                let mut outcomes = Vec::with_capacity(items.len());
+                for (index, item) in items.into_iter().enumerate() {
+                    match self.call_with(target, &captured, vec![item], &context) {
+                        Ok(value) => outcomes.push(Value::ResultOk(Box::new(value))),
+                        Err(error) if error.code == "R_CANCELLED" => return Err(error),
+                        Err(error) => {
+                            let mut trace = error.trace;
+                            trace.push(span);
+                            outcomes.push(Value::ResultErr(Box::new(Value::TaskError(Box::new(
+                                TaskErrorValue {
+                                    index: BigInt::from_usize(index),
+                                    code: error.code,
+                                    message: error.message,
+                                    trace,
+                                },
+                            )))));
+                        }
+                    }
+                }
+                Value::List(Shared::new(outcomes))
+            }
+            Kind::FilterList => {
+                let mut kept = Vec::new();
+                for item in items {
+                    match self.call_with(target, &captured, vec![item.clone()], &context)? {
+                        Value::Bool(true) => kept.push(item),
+                        Value::Bool(false) => {}
+                        _ => return Err(wrong_type("filter_list function must return Bool")),
+                    }
+                }
+                Value::from_list_items(kept)
+            }
+            Kind::AnyList | Kind::AllList => {
+                let any = kind == Kind::AnyList;
+                let mut answer = !any;
+                for item in items {
+                    match self.call_with(target, &captured, vec![item], &context)? {
+                        Value::Bool(flag) => {
+                            if flag == any {
+                                answer = any;
+                                break;
+                            }
+                        }
+                        _ => return Err(wrong_type("the function must return Bool")),
+                    }
+                }
+                Value::Bool(answer)
+            }
+            _ => {
+                let mut accumulator = initial.expect("fold_list has an initial value");
+                for item in items {
+                    accumulator =
+                        self.call_with(target, &captured, vec![accumulator, item], &context)?;
+                }
+                accumulator
+            }
+        };
+        if let Some(error) = value_limit_error(&result, &self.limits, span) {
+            return Err(error);
+        }
+        context.stack.push(result);
+        Ok(())
+    }
+
+    fn portable_sort_natural(
+        &mut self,
+        mut context: HostOpContext<'_>,
+    ) -> Result<(), RuntimeError> {
+        use std::cmp::Ordering as CmpOrdering;
+        let span = context.instruction.span;
+        let budget = Arc::clone(context.budget);
+        match Self::pop_value(&mut context)? {
+            Value::Float64List(floats) => {
+                let length = floats.len();
+                let mut sorted: Vec<Float64> = floats.as_ref().clone();
+                charge_allocation(
+                    &budget,
+                    size_of::<Vec<Float64>>()
+                        .saturating_add(
+                            length.saturating_mul(
+                                size_of::<Float64>()
+                                    .saturating_add(size_of::<usize>().saturating_mul(2))
+                                    .saturating_add(size_of::<bool>()),
+                            ),
+                        )
+                        .saturating_add(size_of::<Vec<usize>>().saturating_mul(2))
+                        .saturating_add(size_of::<Vec<bool>>()),
+                    span,
+                )?;
+                let order = ordering::stable_sort_order(
+                    length,
+                    |left, right| {
+                        guion_model::sort_order_f64(floats[left].get(), floats[right].get())
+                    },
+                    &budget,
+                    span,
+                )?;
+                ordering::apply_sort_order(&mut sorted, &order);
+                context.stack.push(Value::Float64List(Shared::new(sorted)));
+            }
+            Value::List(items) => {
+                let length = items.len();
+                if length < 2 {
+                    context.stack.push(Value::List(items));
+                } else {
+                    let mut values = items.as_ref().clone();
+                    charge_allocation(&budget, ordering::sort_allocation(&values, 0), span)?;
+                    let first = std::mem::discriminant(&values[0]);
+                    if !values.iter().all(|value| {
+                        matches!(value, Value::Int(_) | Value::Float64(_) | Value::Text(_))
+                            && std::mem::discriminant(value) == first
+                    }) {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort requires a List of Text, Int or Float64",
+                            span,
+                        ));
+                    }
+                    let order = ordering::stable_sort_order(
+                        length,
+                        |left, right| match (&values[left], &values[right]) {
+                            (Value::Int(a), Value::Int(b)) => a.cmp(b),
+                            (Value::Float64(a), Value::Float64(b)) => {
+                                guion_model::sort_order_f64(a.get(), b.get())
+                            }
+                            (Value::Text(a), Value::Text(b)) => a.as_bytes().cmp(b.as_bytes()),
+                            _ => CmpOrdering::Equal,
+                        },
+                        &budget,
+                        span,
+                    )?;
+                    ordering::apply_sort_order(&mut values, &order);
+                    context.stack.push(Value::from_list_items(values));
+                }
+            }
+            _ => {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "sort requires a List",
+                    span,
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// `sort_by` with a key function (`int_only` false) or `sort_by_int_key` (true).
+    fn portable_sort_keyed(
+        &mut self,
+        target: usize,
+        int_only: bool,
+        mut context: HostOpContext<'_>,
+    ) -> Result<(), RuntimeError> {
+        let span = context.instruction.span;
+        let budget = Arc::clone(context.budget);
+        let name = if int_only {
+            "sort_by_int_key"
+        } else {
+            "sort_by"
+        };
+        let mut values = list_items(Self::pop_value(&mut context)?, name, span)?;
+        let length = values.len();
+        let key_bytes = if int_only {
+            size_of::<BigInt>()
+        } else {
+            size_of::<ordering::SortKey>()
+        };
+        charge_allocation(&budget, ordering::sort_allocation(&values, key_bytes), span)?;
+        let mut keys: Vec<ordering::SortKey> = Vec::with_capacity(length);
+        for value in &values {
+            let key = self.call_with(target, &None, vec![value.clone()], &context)?;
+            let key = if int_only {
+                match key {
+                    Value::Int(key) => ordering::SortKey::Int(key),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sort_by_int_key key function must return Int",
+                            span,
+                        ));
+                    }
+                }
+            } else {
+                let Some(key) = ordering::SortKey::from_value(&key) else {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "sort_by key function must return Text, Int or Float64",
+                        span,
+                    ));
+                };
+                if keys.first().is_some_and(|first| {
+                    std::mem::discriminant(first) != std::mem::discriminant(&key)
+                }) {
+                    return Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "sort_by key function must return one key type",
+                        span,
+                    ));
+                }
+                key
+            };
+            keys.push(key);
+        }
+        let order = ordering::stable_sort_order(
+            length,
+            |left, right| keys[left].compare(&keys[right]),
+            &budget,
+            span,
+        )?;
+        ordering::apply_sort_order(&mut values, &order);
+        context.stack.push(Value::from_list_items(values));
+        Ok(())
+    }
+
+    /// `sort_by` with a two-argument comparator returning a negative Int for "comes first".
+    fn portable_sort_by(
+        &mut self,
+        target: usize,
+        mut context: HostOpContext<'_>,
+    ) -> Result<(), RuntimeError> {
+        let span = context.instruction.span;
+        let budget = Arc::clone(context.budget);
+        let mut values = list_items(Self::pop_value(&mut context)?, "sort_by", span)?;
+        let allocation = size_of::<Vec<Value>>()
+            .saturating_add(values.len().saturating_mul(size_of::<Value>()))
+            .saturating_add(
+                values
+                    .iter()
+                    .map(cloned_value_allocation)
+                    .fold(0usize, usize::saturating_add),
+            );
+        charge_allocation(&budget, allocation, span)?;
+        let compare =
+            |this: &mut Self, left: &Value, right: &Value| -> Result<BigInt, RuntimeError> {
+                match this.call_with(target, &None, vec![left.clone(), right.clone()], &context)? {
+                    Value::Int(ordering) => Ok(ordering),
+                    _ => Err(RuntimeError::new(
+                        "R_TYPE_INVALID",
+                        "sort comparator must return Int",
+                        span,
+                    )),
+                }
+            };
+        if values.len() <= 32 {
+            for index in 1..values.len() {
+                let value = values[index].clone();
+                let mut position = index;
+                while position > 0 {
+                    let ordering = compare(self, &value, &values[position - 1])?;
+                    if ordering.is_negative() {
+                        values[position] = values[position - 1].clone();
+                        position -= 1;
+                    } else {
+                        break;
+                    }
+                }
+                values[position] = value;
+            }
+        } else {
+            let length = values.len();
+            let index_storage = size_of::<Vec<usize>>()
+                .saturating_mul(2)
+                .saturating_add(size_of::<Vec<bool>>())
+                .saturating_add(length.saturating_mul(size_of::<usize>()).saturating_mul(2))
+                .saturating_add(length);
+            charge_allocation(&budget, index_storage, span)?;
+            let mut order: Vec<usize> = (0..length).collect();
+            let mut merged = Vec::with_capacity(length);
+            let mut width = 1usize;
+            while width < length {
+                merged.clear();
+                let mut run_start = 0usize;
+                while run_start < length {
+                    let middle = run_start.saturating_add(width).min(length);
+                    let run_end = middle.saturating_add(width).min(length);
+                    let (mut left, mut right) = (run_start, middle);
+                    while left < middle && right < run_end {
+                        let ordering = compare(self, &values[order[left]], &values[order[right]])?;
+                        if ordering.is_negative() || ordering.is_zero() {
+                            merged.push(order[left]);
+                            left += 1;
+                        } else {
+                            merged.push(order[right]);
+                            right += 1;
+                        }
+                    }
+                    merged.extend_from_slice(&order[left..middle]);
+                    merged.extend_from_slice(&order[right..run_end]);
+                    run_start = run_end;
+                }
+                std::mem::swap(&mut order, &mut merged);
+                width = width.saturating_mul(2);
+            }
+            ordering::apply_sort_order(&mut values, &order);
+        }
+        context.stack.push(Value::from_list_items(values));
+        Ok(())
+    }
+
+    fn portable_merge_sorted(
+        &mut self,
+        target: usize,
+        mut context: HostOpContext<'_>,
+    ) -> Result<(), RuntimeError> {
+        let span = context.instruction.span;
+        let budget = Arc::clone(context.budget);
+        let input_feeds = match Self::pop_value(&mut context)? {
+            Value::List(feeds) => feeds.as_ref().clone(),
+            _ => {
+                return Err(RuntimeError::new(
+                    "R_TYPE_INVALID",
+                    "merge_sorted_by_int_key requires a List of Lists",
+                    span,
+                ));
+            }
+        };
+        let mut feeds: Vec<Vec<Value>> = Vec::with_capacity(input_feeds.len());
+        let mut total = 0usize;
+        for feed in input_feeds {
+            let values = list_items(feed, "merge_sorted_by_int_key each feed", span)?;
+            total = total.saturating_add(values.len());
+            feeds.push(values);
+        }
+        if total > self.limits.max_collection_items {
+            return Err(RuntimeError::new(
+                "R_COLLECTION_LIMIT",
+                "merged list exceeds the configured collection limit",
+                span,
+            ));
+        }
+        let value_allocation = size_of::<Vec<Value>>()
+            .saturating_add(total.saturating_mul(size_of::<Value>()))
+            .saturating_add(
+                feeds
+                    .iter()
+                    .flat_map(|feed| feed.iter())
+                    .map(cloned_value_allocation)
+                    .fold(0usize, usize::saturating_add),
+            );
+        let key_storage = size_of::<Vec<Vec<Value>>>()
+            .saturating_add(feeds.len().saturating_mul(size_of::<Vec<Value>>()))
+            .saturating_add(size_of::<Vec<Vec<BigInt>>>())
+            .saturating_add(feeds.len().saturating_mul(size_of::<Vec<BigInt>>()))
+            .saturating_add(total.saturating_mul(size_of::<BigInt>()))
+            .saturating_add(size_of::<Vec<usize>>())
+            .saturating_add(feeds.len().saturating_mul(size_of::<usize>()));
+        charge_allocation(&budget, value_allocation.saturating_add(key_storage), span)?;
+        let mut keys: Vec<Vec<BigInt>> = Vec::with_capacity(feeds.len());
+        for feed in &feeds {
+            let mut feed_keys = Vec::with_capacity(feed.len());
+            for value in feed {
+                match self.call_with(target, &None, vec![value.clone()], &context)? {
+                    Value::Int(key) => feed_keys.push(key),
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "merge_sorted_by_int_key key function must return Int",
+                            span,
+                        ));
+                    }
+                }
+            }
+            for index in 1..feed_keys.len() {
+                ordering::consume_sort_step(&budget, span)?;
+                if feed_keys[index] < feed_keys[index - 1] {
+                    return Err(RuntimeError::new(
+                        "R_SORT_ORDER",
+                        "merge_sorted_by_int_key feeds must already be sorted by key",
+                        span,
+                    ));
+                }
+            }
+            keys.push(feed_keys);
+        }
+        let mut positions = vec![0usize; feeds.len()];
+        let mut output = Vec::with_capacity(total);
+        while output.len() < total {
+            let mut selected: Option<usize> = None;
+            for feed_index in 0..feeds.len() {
+                let position = positions[feed_index];
+                if position >= feeds[feed_index].len() {
+                    continue;
+                }
+                if let Some(best) = selected {
+                    ordering::consume_sort_step(&budget, span)?;
+                    if keys[feed_index][position] < keys[best][positions[best]] {
+                        selected = Some(feed_index);
+                    }
+                } else {
+                    selected = Some(feed_index);
+                }
+            }
+            let feed_index = selected.expect("remaining merge item must have a feed");
+            let position = positions[feed_index];
+            output.push(feeds[feed_index][position].clone());
+            positions[feed_index] = position + 1;
+        }
+        context.stack.push(Value::from_list_items(output));
+        Ok(())
     }
 }
 

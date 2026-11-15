@@ -1278,6 +1278,7 @@ E_UV_VERSION_MISMATCH
 E_VALUE_BYTES
 E_VERSION
 E_VERSION_EXISTS
+E_VERSION_LANES
 E_WS_CLOSED
 E_WS_HANDSHAKE
 E_WS_PROTOCOL
@@ -1632,4 +1633,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:1c547fd254e4ccb5b584f9c47f5b0c9f63bb4487b246325558d1431045c27ca6. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:e625204e294828d0af3a410f552d761e6919e4edd25088419caaa28d38c167e1. Validated by `cargo xtask agent-reference --check`. -->

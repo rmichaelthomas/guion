@@ -1,0 +1,54 @@
+fn neg(x: Int) -> Int:
+    return 0 - x
+
+fn cmp(a: Int, b: Int) -> Int:
+    return b - a
+
+fn ident(x: Int) -> Int:
+    return x
+
+fn word_len(w: Text) -> Int:
+    return len(w)
+
+fn show(xs: List[Int]) -> Text:
+    var out = ""
+    for x in xs:
+        set out = out + int_to_text(x) + ","
+    return out
+
+fn show_text(xs: List[Text]) -> Text:
+    var out = ""
+    for x in xs:
+        set out = out + x + ","
+    return out
+
+fn main() -> Int:
+    let k = 10
+    let xs = [5, 3, 9, 1, 7]
+    print(show(map_list(xs, fn(x: Int) -> Int: x * k)))
+    print(show(filter_list(xs, fn(x: Int) -> Bool: x > 4)))
+    print(f"{fold_list(xs, 0, fn(a: Int, x: Int) -> Int: a + x + k)}")
+    let found = any_list(xs, fn(x: Int) -> Bool: x == 9)
+    let every = all_list(xs, fn(x: Int) -> Bool: x > 1)
+    if found:
+        print("found")
+    if every:
+        print("every")
+    let words = ["b", "a", "c"]
+    let long = ["ccc", "a", "bb"]
+    print(show(sort(xs)))
+    print(show_text(sort(words)))
+    print(show(sort_by(xs, cmp)))
+    print(show(sort_by(xs, neg)))
+    print(show(sort_by_int_key(xs, neg)))
+    print(show_text(sort_by(long, word_len)))
+    print(show(merge_sorted_by_int_key([[1, 4], [2, 3], [0]], ident)))
+    var big: List[Int] = []
+    var i = 0
+    while i < 100:
+        set big = list_push(big, (i * 37) % 101)
+        set i = i + 1
+    let s1 = sort_by(big, cmp)
+    let s2 = sort_by_int_key(big, neg)
+    print(f"{s1[0]} {s1[99]} {s2[0]} {s2[99]} {len(sort(big))}")
+    return 0

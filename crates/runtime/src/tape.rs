@@ -12,7 +12,11 @@ use guion_model::{
 };
 use serde_json::{json, Value as Json};
 use sha2::{Digest, Sha256};
-use std::{path::PathBuf, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Mutex,
+};
 
 /// What `Runtime::with_tape` should do.
 #[derive(Clone, Debug)]
@@ -25,7 +29,31 @@ pub enum TapeMode {
     ReplayChanged(PathBuf),
 }
 
+/// The first tape format: one ordered list of operations.
 pub(crate) const TAPE_VERSION: u64 = 1;
+/// Adds lanes: `parallel_map` items each keep their own ordered list, so any worker count
+/// replays the same. A tape with no lanes is still written as version 1.
+pub(crate) const TAPE_VERSION_LANES: u64 = 2;
+
+/// Sort key of a lane name such as `0.2/1.5` (call 0 item 2, then call 1 item 5 inside it);
+/// the main lane, the empty name, sorts first.
+fn lane_key(lane: &str) -> Vec<(u64, u64)> {
+    lane.split('/')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let (call, item) = part.split_once('.').unwrap_or((part, "0"));
+            (call.parse().unwrap_or(0), item.parse().unwrap_or(0))
+        })
+        .collect()
+}
+
+fn lane_label(lane: &str) -> String {
+    if lane.is_empty() {
+        String::new()
+    } else {
+        format!(" (in parallel_map lane {lane})")
+    }
+}
 
 /// Values a tape cannot hold: function values and typed arrays.
 fn unsupported(kind: &str) -> String {
@@ -261,6 +289,8 @@ fn stack_fingerprint(stack: &[Value]) -> (String, String) {
 
 /// One recorded host operation.
 struct Entry {
+    /// The `parallel_map` item this operation ran in; empty for the main program.
+    lane: String,
     arguments_sha256: String,
     arguments: String,
     operation: String,
@@ -288,13 +318,23 @@ enum TapeState {
     Recording {
         path: PathBuf,
         entries: Vec<Entry>,
+        incomplete: Vec<String>,
         program_sha256: String,
         redact: Vec<String>,
     },
     Replaying {
-        entries: Vec<Entry>,
-        next: usize,
+        lanes: HashMap<String, Lane>,
+        /// Lanes whose recorded run was cut short by a sibling's failure.
+        incomplete: HashSet<String>,
+        /// The first divergence inside a `parallel_map` item, which the program sees only as an
+        /// `Err` result, kept so the replay still ends with it.
+        diverged: Option<RuntimeError>,
     },
+}
+
+struct Lane {
+    entries: Vec<Entry>,
+    next: usize,
 }
 
 pub(crate) struct Tape {
@@ -328,6 +368,7 @@ impl Tape {
             TapeMode::Record(path) => TapeState::Recording {
                 path: path.clone(),
                 entries: Vec::new(),
+                incomplete: Vec::new(),
                 program_sha256: hash,
                 redact: redact.to_vec(),
             },
@@ -338,7 +379,8 @@ impl Tape {
                 let mut lines = text.lines();
                 let header: Json = serde_json::from_str(lines.next().unwrap_or(""))
                     .map_err(|error| fail(format!("tape header is not valid: {error}")))?;
-                if header["guion_tape"].as_u64() != Some(TAPE_VERSION) {
+                let version = header["guion_tape"].as_u64();
+                if version != Some(TAPE_VERSION) && version != Some(TAPE_VERSION_LANES) {
                     return Err(fail(
                         "this tape was written by a different tape format".into(),
                     ));
@@ -350,10 +392,17 @@ impl Tape {
                         "the program has changed since this tape was recorded (program hash differs); record a new tape, or use --replay-changed to find the first call that differs".into(),
                     ));
                 }
-                let mut entries = Vec::new();
+                let mut lanes: HashMap<String, Lane> = HashMap::new();
+                let mut incomplete = HashSet::new();
                 for line in lines.filter(|line| !line.trim().is_empty()) {
                     let entry: Json = serde_json::from_str(line)
                         .map_err(|error| fail(format!("tape entry is not valid: {error}")))?;
+                    if entry.get("incomplete_lane").is_some() {
+                        incomplete
+                            .insert(entry["incomplete_lane"].as_str().unwrap_or("").to_owned());
+                        continue;
+                    }
+                    let lane = entry["lane"].as_str().unwrap_or("").to_owned();
                     let outcome = if entry.get("redacted").is_some() {
                         Outcome::Redacted
                     } else if let Some(error) = entry.get("error") {
@@ -364,19 +413,34 @@ impl Tape {
                     } else {
                         Outcome::Values(entry["tail"].as_array().cloned().unwrap_or_default())
                     };
-                    entries.push(Entry {
-                        arguments_sha256: entry["args_sha256"].as_str().unwrap_or("").to_owned(),
-                        arguments: entry["args"].as_str().unwrap_or("").to_owned(),
-                        operation: entry["op"].as_str().unwrap_or("").to_owned(),
-                        function: entry["function"].as_str().unwrap_or("").to_owned(),
-                        line: entry["line"].as_u64().unwrap_or(0) as usize,
-                        column: entry["column"].as_u64().unwrap_or(0) as usize,
-                        kept: entry["kept"].as_u64().unwrap_or(0) as usize,
-                        height: entry["height"].as_u64().unwrap_or(0) as usize,
-                        outcome,
-                    });
+                    lanes
+                        .entry(lane.clone())
+                        .or_insert_with(|| Lane {
+                            entries: Vec::new(),
+                            next: 0,
+                        })
+                        .entries
+                        .push(Entry {
+                            lane,
+                            arguments_sha256: entry["args_sha256"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_owned(),
+                            arguments: entry["args"].as_str().unwrap_or("").to_owned(),
+                            operation: entry["op"].as_str().unwrap_or("").to_owned(),
+                            function: entry["function"].as_str().unwrap_or("").to_owned(),
+                            line: entry["line"].as_u64().unwrap_or(0) as usize,
+                            column: entry["column"].as_u64().unwrap_or(0) as usize,
+                            kept: entry["kept"].as_u64().unwrap_or(0) as usize,
+                            height: entry["height"].as_u64().unwrap_or(0) as usize,
+                            outcome,
+                        });
                 }
-                TapeState::Replaying { entries, next: 0 }
+                TapeState::Replaying {
+                    lanes,
+                    incomplete,
+                    diverged: None,
+                }
             }
         };
         Ok(Tape {
@@ -392,6 +456,7 @@ impl Tape {
     /// the stack it left alone, and what it left above that (or its error).
     pub(crate) fn record(
         &self,
+        lane: &str,
         operation: &str,
         function: &str,
         span: Span,
@@ -443,6 +508,7 @@ impl Tape {
         };
         let (arguments_sha256, arguments) = stack_fingerprint(before);
         entries.push(Entry {
+            lane: lane.to_owned(),
             arguments_sha256,
             arguments,
             operation: operation.to_owned(),
@@ -460,6 +526,7 @@ impl Tape {
     /// how many stack values to keep and the values to push, or the recorded error.
     pub(crate) fn replay(
         &self,
+        lane: &str,
         operation: &str,
         function: &str,
         span: Span,
@@ -467,18 +534,53 @@ impl Tape {
     ) -> Result<Result<(usize, Vec<Value>), RuntimeError>, RuntimeError> {
         let height = stack.len();
         let mut state = self.state.lock().unwrap();
-        let TapeState::Replaying { entries, next } = &mut *state else {
+        let TapeState::Replaying {
+            lanes,
+            incomplete,
+            diverged: first_divergence,
+        } = &mut *state
+        else {
             return Err(RuntimeError::new(
                 "R_TAPE",
                 "tape is not in replay mode",
                 span,
             ));
         };
-        let diverged = |message: String| RuntimeError::new("R_TAPE_DIVERGED", message, span);
-        let index = *next;
-        let Some(entry) = entries.get(index) else {
+        let place = lane_label(lane);
+        let cut_short = incomplete.contains(lane);
+        let mut diverged = |message: String| {
+            let error = RuntimeError::new("R_TAPE_DIVERGED", message, span);
+            if !lane.is_empty() && first_divergence.is_none() {
+                *first_divergence = Some(error.clone());
+            }
+            error
+        };
+        let Some(recorded) = lanes.get_mut(lane) else {
+            if cut_short {
+                return Err(RuntimeError::new(
+                    "R_CANCELLED",
+                    "parallel task was cancelled after a sibling failed",
+                    span,
+                ));
+            }
             return Err(diverged(format!(
-                "replay diverged at host call {}: the program called {operation} in `{function}` at line {}, but the tape has no more calls",
+                "replay diverged{place}: the program called {operation} in `{function}` at line {}, but the tape has no calls for this part of the program",
+                span.line
+            )));
+        };
+        let index = recorded.next;
+        let Some(entry) = recorded.entries.get(index) else {
+            if cut_short {
+                // The recorded run of this item stopped here because a sibling failed; the
+                // replayed one stops at the same place.
+                return Err(RuntimeError::new(
+                    "R_CANCELLED",
+                    "parallel task was cancelled after a sibling failed",
+                    span,
+                ));
+            }
+            return Err(diverged(format!(
+                "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {}, but the tape has no more calls",
                 index + 1,
                 span.line
             )));
@@ -489,7 +591,7 @@ impl Tape {
             || entry.height != height
         {
             return Err(diverged(format!(
-                "replay diverged at host call {}: the program called {operation} in `{function}` at line {}, but the tape recorded {} in `{}` at line {}",
+                "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {}, but the tape recorded {} in `{}` at line {}",
                 index + 1,
                 span.line,
                 entry.operation,
@@ -500,13 +602,14 @@ impl Tape {
         let (fingerprint, preview) = stack_fingerprint(stack);
         if entry.arguments_sha256 != fingerprint {
             return Err(diverged(format!(
-                "replay diverged at host call {}: the program called {operation} in `{function}` at line {} with ({preview}), but the tape recorded it with ({})",
+                "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {} with ({preview}), but the tape recorded it with ({})",
                 index + 1,
                 span.line,
                 entry.arguments
             )));
         }
-        *next += 1;
+        recorded.next += 1;
+        let entry = &recorded.entries[index];
         Ok(match &entry.outcome {
             Outcome::Redacted => Err(RuntimeError::new(
                 "R_TAPE_REDACTED",
@@ -528,20 +631,52 @@ impl Tape {
         })
     }
 
-    /// At the end of a replayed run: calls on the tape the program never made.
+    /// Notes that a `parallel_map` item did not run to its end (a sibling failed first), so a
+    /// replay of that item may stop where the recording did.
+    ///
+    /// While replaying it excuses what is left of a lane the replay itself cut short: a failing
+    /// sibling can stop an item before it starts or part-way, whatever the recorded timing was.
+    pub(crate) fn mark_lane_incomplete(&self, lane: &str) {
+        match &mut *self.state.lock().unwrap() {
+            TapeState::Recording { incomplete, .. } => incomplete.push(lane.to_owned()),
+            TapeState::Replaying { incomplete, .. } => {
+                incomplete.insert(lane.to_owned());
+            }
+        }
+    }
+
+    /// At the end of a replayed run: a divergence inside a `parallel_map` item that the program
+    /// only saw as an `Err`, then calls on the tape the program never made.
     pub(crate) fn finish_replay(&self) -> Result<(), RuntimeError> {
         let state = self.state.lock().unwrap();
-        if let TapeState::Replaying { entries, next } = &*state {
-            if *next < entries.len() {
-                let entry = &entries[*next];
-                return Err(RuntimeError::new(
-                    "R_TAPE_DIVERGED",
-                    format!(
-                        "replay diverged: the program finished after {} host calls, but the tape also has {} in `{}` at line {}",
-                        next, entry.operation, entry.function, entry.line
-                    ),
-                    Span::default(),
-                ));
+        if let TapeState::Replaying {
+            lanes,
+            incomplete,
+            diverged,
+        } = &*state
+        {
+            if let Some(error) = diverged {
+                return Err(error.clone());
+            }
+            let mut names: Vec<&String> = lanes.keys().collect();
+            names.sort_by_key(|name| lane_key(name));
+            for name in names {
+                let lane = &lanes[name];
+                if lane.next < lane.entries.len() && !incomplete.contains(name) {
+                    let entry = &lane.entries[lane.next];
+                    return Err(RuntimeError::new(
+                        "R_TAPE_DIVERGED",
+                        format!(
+                            "replay diverged{}: the program finished after {} host calls, but the tape also has {} in `{}` at line {}",
+                            lane_label(name),
+                            lane.next,
+                            entry.operation,
+                            entry.function,
+                            entry.line
+                        ),
+                        Span::default(),
+                    ));
+                }
             }
         }
         Ok(())
@@ -553,22 +688,41 @@ impl Tape {
         let TapeState::Recording {
             path,
             entries,
+            incomplete,
             program_sha256,
             ..
         } = &*state
         else {
             return Ok(());
         };
-        let mut text =
-            json!({"guion_tape": TAPE_VERSION, "program_sha256": program_sha256}).to_string();
+        let has_lanes = entries.iter().any(|entry| !entry.lane.is_empty());
+        let version = if has_lanes {
+            TAPE_VERSION_LANES
+        } else {
+            TAPE_VERSION
+        };
+        let mut text = json!({"guion_tape": version, "program_sha256": program_sha256}).to_string();
         text.push('\n');
-        for entry in entries {
+        // The main program first, then each parallel_map item in call and item order; within a
+        // lane the order the operations ran in.
+        let mut ordered: Vec<&Entry> = entries.iter().collect();
+        ordered.sort_by_cached_key(|entry| lane_key(&entry.lane));
+        let mut marks: Vec<&String> = incomplete.iter().collect();
+        marks.sort_by_key(|name| lane_key(name));
+        for name in marks {
+            text.push_str(&json!({"incomplete_lane": name}).to_string());
+            text.push('\n');
+        }
+        for entry in ordered {
             let mut line = json!({
                 "op": entry.operation, "function": entry.function,
                 "line": entry.line, "column": entry.column,
                 "kept": entry.kept, "height": entry.height,
                 "args_sha256": entry.arguments_sha256, "args": entry.arguments,
             });
+            if !entry.lane.is_empty() {
+                line["lane"] = json!(entry.lane);
+            }
             match &entry.outcome {
                 Outcome::Redacted => line["redacted"] = json!(true),
                 Outcome::Values(tail) => line["tail"] = Json::Array(tail.clone()),

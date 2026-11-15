@@ -127,7 +127,7 @@ fn docs_name_r_host_unsupported_and_five_classes() {
 }
 
 #[test]
-fn function_values_work_but_higher_order_builtins_need_a_host_operation() {
+fn function_values_and_higher_order_builtins_run_in_the_browser_vm() {
     let page = page();
     assert!(page.contains("map_list"));
     let run = |source: &str| -> serde_json::Value {
@@ -144,11 +144,13 @@ fn function_values_work_but_higher_order_builtins_need_a_host_operation() {
     assert_eq!(direct["ok"], true, "{direct}");
     assert_eq!(direct["value"]["value"], "42");
     let mapped = run(
-        "fn double(x: Int) -> Int:\n    return x * 2\n\nfn main() -> Int:\n    return len(map_list([1, 2], double))\n",
+        "fn main() -> Int:\n    let k = 10\n    let scaled = map_list([1, 2], fn(x: Int) -> Int: x * k)\n    return scaled[1]\n",
     );
-    assert_eq!(mapped["ok"], false, "{mapped}");
-    assert_eq!(mapped["code"], "R_HOST_UNSUPPORTED");
-    assert!(mapped["message"].as_str().unwrap().contains("HigherOrder"));
+    assert_eq!(mapped["ok"], true, "{mapped}");
+    assert_eq!(mapped["value"]["value"], "20");
+    let sorted = run("fn main() -> Int:\n    return sort([3, 1, 2])[0]\n");
+    assert_eq!(sorted["ok"], true, "{sorted}");
+    assert_eq!(sorted["value"]["value"], "1");
 }
 
 #[test]
@@ -161,69 +163,25 @@ fn agent_index_lists_browser_page() {
 }
 
 #[test]
-fn sorts_workers_and_higher_order_builtins_name_their_operation() {
-    let run = |source: &str| -> serde_json::Value {
-        let artifact = compile("fixture.gu", source).unwrap().to_bytes().unwrap();
-        serde_json::from_slice(&execute_artifact_request(
-            &artifact,
-            br#"{"abi":{"major":1,"minor":0},"entry":"main","arguments":[],"capabilities":[]}"#,
-        ))
+fn parallel_map_is_the_one_higher_order_operation_the_browser_vm_lacks() {
+    let artifact = compile(
+        "fixture.gu",
+        "fn k(x: Int) -> Int:\n    return 0 - x\n\nfn main() -> Int:\n    let s = parallel_map([1], k, 2)\n    return 0\n",
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_slice(&execute_artifact_request(
+        &artifact,
+        br#"{"abi":{"major":1,"minor":0},"entry":"main","arguments":[],"capabilities":[]}"#,
+    ))
+    .unwrap();
+    assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+    assert!(response["message"]
+        .as_str()
         .unwrap()
-    };
-    let key = "fn k(x: Int) -> Int:\n    return 0 - x\n\n";
-    let cmp = "fn c(a: Int, b: Int) -> Int:\n    return a - b\n\n";
-    let fold = "fn a(x: Int, y: Int) -> Int:\n    return x + y\n\n";
-    let page = page();
-    for (source, operation) in [
-        (
-            "fn main() -> Int:\n    return sort([3, 1, 2])[0]\n".to_string(),
-            "SortNatural",
-        ),
-        (
-            format!("{key}fn main() -> Int:\n    return sort_by([3, 1], k)[0]\n"),
-            "SortByKey",
-        ),
-        (
-            format!("{cmp}fn main() -> Int:\n    return sort_by([3, 1], c)[0]\n"),
-            "SortBy",
-        ),
-        (
-            format!("{key}fn main() -> Int:\n    return sort_by_int_key([3, 1], k)[0]\n"),
-            "SortByIntKey",
-        ),
-        (
-            format!(
-                "{key}fn main() -> Int:\n    return merge_sorted_by_int_key([[1], [2]], k)[0]\n"
-            ),
-            "MergeSortedByIntKey",
-        ),
-        (
-            format!("{key}fn main() -> Int:\n    let s = parallel_map([1], k, 2)\n    return 0\n"),
-            "ParallelMap",
-        ),
-        (
-            format!("{key}fn main() -> Int:\n    return map_list([1], k)[0]\n"),
-            "HigherOrder",
-        ),
-        (
-            format!("{fold}fn main() -> Int:\n    return fold_list([3, 1], 0, a)\n"),
-            "HigherOrder",
-        ),
-    ] {
-        let response = run(&source);
-        assert_eq!(
-            response["code"], "R_HOST_UNSUPPORTED",
-            "{operation}: {response}"
-        );
-        assert!(
-            response["message"]
-                .as_str()
-                .unwrap()
-                .contains(&format!("`{operation}`")),
-            "{operation}: {response}"
-        );
-        assert!(page.contains(operation), "page names {operation}");
-    }
+        .contains("`ParallelMap`"));
+    assert!(page().contains("ParallelMap"));
 }
 
 #[test]
