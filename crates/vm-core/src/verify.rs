@@ -310,6 +310,7 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::HttpError
         | Type::Array(_)
         | Type::Unit => true,
+        Type::RecordApp(_, _) => false,
         Type::Fn(parameters, result) => {
             parameters
                 .iter()

@@ -635,6 +635,8 @@ struct ImportAst {
 #[derive(Clone, Debug)]
 struct RecordAst {
     name: String,
+    /// `record Pair[A, B]:`: the type parameters; empty for an ordinary record.
+    type_params: Vec<String>,
     fields: Vec<(String, Type, Span)>,
     /// Fields written `priv name: Type`: read, assigned and constructed only in the module that
     /// declares the record.
@@ -1007,6 +1009,15 @@ impl Parser {
                         t.span,
                     ));
                 }
+                if self.cur().text == "[" {
+                    self.advance();
+                    let mut arguments = vec![self.ty()?];
+                    while self.eat(",").is_some() {
+                        arguments.push(self.ty()?);
+                    }
+                    self.expect("]")?;
+                    return Ok(Type::RecordApp(t.text, arguments));
+                }
                 Ok(Type::Record(t.text))
             }
         }
@@ -1078,6 +1089,7 @@ impl Parser {
         }
         let record = RecordAst {
             name: name.text.clone(),
+            type_params: Vec::new(),
             fields,
             private_fields: Vec::new(),
             span: start,
@@ -1095,6 +1107,24 @@ impl Parser {
     fn record(&mut self, public: bool) -> Result<RecordAst, Diagnostic> {
         let start = self.expect("record")?.span;
         let name = self.name()?;
+        let mut type_params: Vec<String> = Vec::new();
+        if self.eat("[").is_some() {
+            loop {
+                let parameter = self.name()?;
+                if type_params.contains(&parameter.text) {
+                    return Err(diagnostic(
+                        "E_GENERIC_PARAMETER",
+                        format!("type parameter `{}` is declared twice", parameter.text),
+                        parameter.span,
+                    ));
+                }
+                type_params.push(parameter.text);
+                if self.eat(",").is_none() {
+                    break;
+                }
+            }
+            self.expect("]")?;
+        }
         self.expect(":")?;
         self.expect_newline()?;
         if self.cur().kind != Kind::Indent {
@@ -1150,6 +1180,7 @@ impl Parser {
         self.advance();
         Ok(RecordAst {
             name: name.text,
+            type_params,
             fields,
             private_fields,
             span: start,
@@ -2479,6 +2510,13 @@ fn substitute_type(ty: &Type, bindings: &HashMap<String, Type>) -> Type {
         Type::List(item) => Type::List(Box::new(substitute_type(item, bindings))),
         Type::Map(item) => Type::Map(Box::new(substitute_type(item, bindings))),
         Type::IntMap(item) => Type::IntMap(Box::new(substitute_type(item, bindings))),
+        Type::RecordApp(name, arguments) => Type::RecordApp(
+            name.clone(),
+            arguments
+                .iter()
+                .map(|argument| substitute_type(argument, bindings))
+                .collect(),
+        ),
         Type::Option(item) => Type::Option(Box::new(substitute_type(item, bindings))),
         Type::Result(ok, err) => Type::Result(
             Box::new(substitute_type(ok, bindings)),
@@ -2524,8 +2562,22 @@ fn unify_type(
     actual: &Type,
     parameters: &[String],
     bindings: &mut HashMap<String, Type>,
+    apps: &HashMap<String, (String, Vec<Type>)>,
 ) -> bool {
     match (pattern, actual) {
+        (Type::RecordApp(base, pattern_arguments), Type::Record(instance)) => {
+            match apps.get(instance) {
+                Some((actual_base, actual_arguments))
+                    if actual_base == base && actual_arguments.len() == pattern_arguments.len() =>
+                {
+                    pattern_arguments
+                        .iter()
+                        .zip(actual_arguments)
+                        .all(|(left, right)| unify_type(left, right, parameters, bindings, apps))
+                }
+                _ => false,
+            }
+        }
         (Type::Record(name), _) if parameters.contains(name) => match bindings.get(name) {
             Some(bound) => bound == actual,
             None => {
@@ -2537,21 +2589,322 @@ fn unify_type(
         | (Type::Map(left), Type::Map(right))
         | (Type::IntMap(left), Type::IntMap(right))
         | (Type::Option(left), Type::Option(right)) => {
-            unify_type(left, right, parameters, bindings)
+            unify_type(left, right, parameters, bindings, apps)
         }
         (Type::Result(left_ok, left_err), Type::Result(right_ok, right_err)) => {
-            unify_type(left_ok, right_ok, parameters, bindings)
-                && unify_type(left_err, right_err, parameters, bindings)
+            unify_type(left_ok, right_ok, parameters, bindings, apps)
+                && unify_type(left_err, right_err, parameters, bindings, apps)
         }
         (Type::Fn(left, left_result), Type::Fn(right, right_result)) => {
             left.len() == right.len()
                 && left
                     .iter()
                     .zip(right)
-                    .all(|(l, r)| unify_type(l, r, parameters, bindings))
-                && unify_type(left_result, right_result, parameters, bindings)
+                    .all(|(l, r)| unify_type(l, r, parameters, bindings, apps))
+                && unify_type(left_result, right_result, parameters, bindings, apps)
         }
         _ => pattern == actual,
+    }
+}
+
+/// How a type reads in the name of a generic record's instance: `Pair<Int, List[Text]>`.
+fn type_label(ty: &Type) -> String {
+    match ty {
+        Type::Int => "Int".into(),
+        Type::Float64 => "Float64".into(),
+        Type::Bool => "Bool".into(),
+        Type::Text => "Text".into(),
+        Type::Bytes => "Bytes".into(),
+        Type::Unit => "Unit".into(),
+        Type::Json => "Json".into(),
+        Type::JsonError => "JsonError".into(),
+        Type::FileError => "FileError".into(),
+        Type::HttpError => "HttpError".into(),
+        Type::TaskError => "TaskError".into(),
+        Type::Record(name) | Type::NativeResource(name) => name.clone(),
+        Type::Array(element) => format!("Array[{}]", element.name()),
+        Type::List(item) => format!("List[{}]", type_label(item)),
+        Type::Map(item) => format!("Map[Text, {}]", type_label(item)),
+        Type::IntMap(item) => format!("Map[Int, {}]", type_label(item)),
+        Type::Option(item) => format!("Option[{}]", type_label(item)),
+        Type::Result(ok, err) => format!("Result[{}, {}]", type_label(ok), type_label(err)),
+        Type::Fn(parameters, result) => format!(
+            "fn({}) -> {}",
+            parameters
+                .iter()
+                .map(type_label)
+                .collect::<Vec<_>>()
+                .join(", "),
+            type_label(result)
+        ),
+        Type::RecordApp(name, arguments) => format!(
+            "{name}[{}]",
+            arguments
+                .iter()
+                .map(type_label)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+    }
+}
+
+/// The name of the record a generic record becomes for one set of type arguments.
+fn record_instance_name(base: &str, arguments: &[Type]) -> String {
+    format!(
+        "{base}<{}>",
+        arguments
+            .iter()
+            .map(type_label)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+/// `RecordApp` replaced by the plain record it names, everywhere in `ty`. The record itself is
+/// made by `RecordResolver`; this only spells the name.
+fn mangle_applied(ty: &Type) -> Type {
+    match ty {
+        Type::RecordApp(base, arguments) => {
+            let arguments: Vec<Type> = arguments.iter().map(mangle_applied).collect();
+            Type::Record(record_instance_name(base, &arguments))
+        }
+        Type::List(item) => Type::List(Box::new(mangle_applied(item))),
+        Type::Map(item) => Type::Map(Box::new(mangle_applied(item))),
+        Type::IntMap(item) => Type::IntMap(Box::new(mangle_applied(item))),
+        Type::Option(item) => Type::Option(Box::new(mangle_applied(item))),
+        Type::Result(ok, err) => {
+            Type::Result(Box::new(mangle_applied(ok)), Box::new(mangle_applied(err)))
+        }
+        Type::Fn(parameters, result) => Type::Fn(
+            parameters.iter().map(mangle_applied).collect(),
+            Box::new(mangle_applied(result)),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// One generic record made concrete for one set of type arguments.
+#[derive(Clone, Debug)]
+struct RecordInstance {
+    base: String,
+    arguments: Vec<Type>,
+    record: RecordAst,
+}
+
+/// Turns every `Pair[Int, Text]` written in a program into the ordinary record `Pair<Int, Text>`,
+/// making that record the first time it is needed. A generic record is therefore an ordinary
+/// record by the time the artifact is built: there is nothing new to run.
+struct RecordResolver<'a> {
+    generics: &'a HashMap<String, RecordAst>,
+    instances: &'a mut Vec<RecordInstance>,
+    error: Option<Diagnostic>,
+}
+
+const MAX_RECORD_INSTANCES: usize = 256;
+
+impl RecordResolver<'_> {
+    fn fail(&mut self, code: &str, message: String, span: Span) {
+        if self.error.is_none() {
+            self.error = Some(diagnostic(code, message, span));
+        }
+    }
+
+    /// Make the instance of `base` for `arguments` (already resolved) if it does not exist.
+    fn instantiate(&mut self, base: &str, arguments: &[Type], span: Span) -> String {
+        let name = record_instance_name(base, arguments);
+        if self
+            .instances
+            .iter()
+            .any(|instance| instance.record.name == name)
+        {
+            return name;
+        }
+        let Some(template) = self.generics.get(base) else {
+            self.fail(
+                "E_TYPE_UNKNOWN",
+                format!("`{base}` is not a generic record"),
+                span,
+            );
+            return name;
+        };
+        if template.type_params.len() != arguments.len() {
+            self.fail(
+                "E_GENERIC_ARITY",
+                format!(
+                    "record `{base}` has {} type parameter(s), got {} type argument(s)",
+                    template.type_params.len(),
+                    arguments.len()
+                ),
+                span,
+            );
+            return name;
+        }
+        if self.instances.len() >= MAX_RECORD_INSTANCES {
+            self.fail(
+                "E_GENERIC_LIMIT",
+                format!("generic records created more than {MAX_RECORD_INSTANCES} instances"),
+                span,
+            );
+            return name;
+        }
+        let bindings: HashMap<String, Type> = template
+            .type_params
+            .iter()
+            .cloned()
+            .zip(arguments.iter().cloned())
+            .collect();
+        let mut record = template.clone();
+        record.type_params = Vec::new();
+        record.name = name.clone();
+        // Register the name before resolving the fields, so a record that mentions itself ends.
+        self.instances.push(RecordInstance {
+            base: base.to_owned(),
+            arguments: arguments.to_vec(),
+            record: record.clone(),
+        });
+        let slot = self.instances.len() - 1;
+        for (_, ty, field_span) in &mut record.fields {
+            let substituted = substitute_type(ty, &bindings);
+            *ty = self.ty(&substituted, *field_span);
+        }
+        self.instances[slot].record = record;
+        name
+    }
+
+    fn ty(&mut self, ty: &Type, span: Span) -> Type {
+        match ty {
+            Type::RecordApp(base, arguments) => {
+                let arguments: Vec<Type> = arguments.iter().map(|a| self.ty(a, span)).collect();
+                Type::Record(self.instantiate(base, &arguments, span))
+            }
+            Type::Record(name) if self.generics.contains_key(name) => {
+                self.fail(
+                    "E_GENERIC_ARITY",
+                    format!("record `{name}` is generic; write its type arguments, `{name}[...]`"),
+                    span,
+                );
+                ty.clone()
+            }
+            Type::List(item) => Type::List(Box::new(self.ty(item, span))),
+            Type::Map(item) => Type::Map(Box::new(self.ty(item, span))),
+            Type::IntMap(item) => Type::IntMap(Box::new(self.ty(item, span))),
+            Type::Option(item) => Type::Option(Box::new(self.ty(item, span))),
+            Type::Result(ok, err) => {
+                Type::Result(Box::new(self.ty(ok, span)), Box::new(self.ty(err, span)))
+            }
+            Type::Fn(parameters, result) => Type::Fn(
+                parameters.iter().map(|p| self.ty(p, span)).collect(),
+                Box::new(self.ty(result, span)),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    fn function(&mut self, function: &mut FunctionAst) {
+        let span = function.span;
+        for (_, ty, param_span) in &mut function.params {
+            *ty = self.ty(ty, *param_span);
+        }
+        function.result = self.ty(&function.result, span);
+        self.block(&mut function.body);
+    }
+
+    fn block(&mut self, body: &mut [Stmt]) {
+        for statement in body {
+            match statement {
+                Stmt::Let(_, _, annotation, value, span) => {
+                    if let Some(annotation) = annotation {
+                        *annotation = self.ty(annotation, *span);
+                    }
+                    self.expr(value);
+                }
+                Stmt::Set(_, value, _) | Stmt::Return(value, _) | Stmt::Expr(value, _) => {
+                    self.expr(value)
+                }
+                Stmt::If(condition, yes, no, _) => {
+                    self.expr(condition);
+                    self.block(yes);
+                    self.block(no);
+                }
+                Stmt::While(condition, inner, _) => {
+                    self.expr(condition);
+                    self.block(inner);
+                }
+                Stmt::For(_, values, inner, _) => {
+                    self.expr(values);
+                    self.block(inner);
+                }
+                Stmt::Match(scrutinee, arms, _) => {
+                    self.expr(scrutinee);
+                    for arm in arms {
+                        self.block(&mut arm.body);
+                    }
+                }
+                Stmt::Break(_) | Stmt::Continue(_) => {}
+            }
+        }
+    }
+
+    fn expr(&mut self, expression: &mut Expr) {
+        match expression {
+            Expr::Int(..) | Expr::Float(..) | Expr::Bool(..) | Expr::Text(..) | Expr::Name(..) => {}
+            Expr::Unary(_, inner, _) | Expr::Try(inner, _) | Expr::Field(inner, _, _) => {
+                self.expr(inner)
+            }
+            Expr::Binary(_, left, right, _) | Expr::Index(left, right, _) => {
+                self.expr(left);
+                self.expr(right);
+            }
+            Expr::Call(_, args, keywords, _) => {
+                for arg in args {
+                    self.expr(arg);
+                }
+                for (_, value, _) in keywords {
+                    self.expr(value);
+                }
+            }
+            Expr::List(items, _) => {
+                for item in items {
+                    self.expr(item);
+                }
+            }
+            Expr::Map(pairs, _) => {
+                for (key, value) in pairs {
+                    self.expr(key);
+                    self.expr(value);
+                }
+            }
+            Expr::Interpolated(parts, _) => {
+                for part in parts {
+                    if let FormatPart::Hole(inner) = part {
+                        self.expr(inner);
+                    }
+                }
+            }
+            Expr::Lambda(params, result, body, span) => {
+                for (_, ty, param_span) in params.iter_mut() {
+                    *ty = self.ty(ty, *param_span);
+                }
+                *result = self.ty(result, *span);
+                self.block(body);
+            }
+            Expr::GenericCall(name, types, args, span) => {
+                for arg in args.iter_mut() {
+                    self.expr(arg);
+                }
+                if self.generics.contains_key(name.as_str()) {
+                    // `Pair[Int, Text](1, "a")` builds the instance directly.
+                    let arguments: Vec<Type> = types.iter().map(|t| self.ty(t, *span)).collect();
+                    let instance = self.instantiate(name, &arguments, *span);
+                    let args = std::mem::take(args);
+                    *expression = Expr::Call(instance, args, Vec::new(), *span);
+                } else {
+                    for ty in types.iter_mut() {
+                        *ty = self.ty(ty, *span);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2596,6 +2949,11 @@ struct FnCompiler<'a> {
     instance_index: &'a HashMap<String, usize>,
     /// Instances this pass needed that do not exist yet; the driver adds them and recompiles.
     pending_instances: &'a std::cell::RefCell<Vec<PendingInstance>>,
+    /// Generic records by name, each instance's base record and type arguments by the instance's
+    /// name, and the instances this pass needed that do not exist yet.
+    record_generics: &'a HashMap<String, RecordAst>,
+    record_apps: &'a HashMap<String, (String, Vec<Type>)>,
+    pending_records: &'a std::cell::RefCell<Vec<(String, Vec<Type>)>>,
     locals: HashMap<String, Local>,
     next_local: usize,
     code: Vec<Instruction>,
@@ -3467,7 +3825,7 @@ impl<'a> FnCompiler<'a> {
                         value.span(),
                     ));
                 };
-                if !self.visible_records.contains(&record_name) {
+                if !self.visible_records.contains(&record_name) && !record_name.contains('<') {
                     return Err(diagnostic(
                         "E_NAME_UNKNOWN",
                         format!("record type `{record_name}` is not imported into this module"),
@@ -4695,9 +5053,13 @@ impl<'a> FnCompiler<'a> {
                         *s,
                     ));
                 }
+                if self.record_generics.contains_key(name.as_str()) && self.visible_records.contains(name) {
+                    return self.generic_record_call(name, args, keywords, *s);
+                }
                 if let Some((record_index, record)) =
                     self.records.iter().enumerate().find(|(_, record)| {
-                        record.name == *name && self.visible_records.contains(name)
+                        record.name == *name
+                            && (self.visible_records.contains(name) || name.contains('<'))
                     })
                 {
                     if !keywords.is_empty() {
@@ -4926,10 +5288,17 @@ impl<'a> FnCompiler<'a> {
             }
         }
         for (argument, (parameter_name, parameter_type, _)) in args.iter().zip(&generic.params) {
-            let expected = explicit.map(|_| substitute_type(parameter_type, &bindings));
+            let expected =
+                explicit.map(|_| mangle_applied(&substitute_type(parameter_type, &bindings)));
             let actual = self.expr_with_expected(argument, expected.as_ref())?;
             if explicit.is_none()
-                && !unify_type(parameter_type, &actual, &generic.type_params, &mut bindings)
+                && !unify_type(
+                    parameter_type,
+                    &actual,
+                    &generic.type_params,
+                    &mut bindings,
+                    self.record_apps,
+                )
             {
                 return Err(diagnostic(
                     "E_TYPE_ARGUMENT",
@@ -4939,7 +5308,7 @@ impl<'a> FnCompiler<'a> {
                     argument.span(),
                 ));
             }
-            let wanted = substitute_type(parameter_type, &bindings);
+            let wanted = mangle_applied(&substitute_type(parameter_type, &bindings));
             if wanted != actual {
                 return Err(diagnostic(
                     "E_TYPE_ARGUMENT",
@@ -4978,8 +5347,92 @@ impl<'a> FnCompiler<'a> {
             }
         };
         self.emit(Op::Call(index, args.len()), span);
-        Ok(substitute_type(&generic.result, &bindings))
+        Ok(mangle_applied(&substitute_type(&generic.result, &bindings)))
     }
+    /// `Pair(1, "a")`: a call to a generic record names no type arguments, so they come from
+    /// the arguments, the way a generic function's do.
+    fn generic_record_call(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        keywords: &[(String, Expr, Span)],
+        span: Span,
+    ) -> Result<Type, Diagnostic> {
+        let template = &self.record_generics[name];
+        if !keywords.is_empty() {
+            return Err(diagnostic(
+                "E_CALL_KEYWORD",
+                "record constructors accept positional fields only",
+                keywords[0].2,
+            ));
+        }
+        if template.module_id != self.ast.module_id && !template.private_fields.is_empty() {
+            return Err(diagnostic(
+                "E_FIELD_PRIVATE",
+                format!("record `{name}` has private fields, so it is built only by functions in the module that declares it"),
+                span,
+            ));
+        }
+        if args.len() != template.fields.len() {
+            return Err(diagnostic(
+                "E_CALL_ARITY",
+                format!(
+                    "record `{name}` expects {} fields, got {}",
+                    template.fields.len(),
+                    args.len()
+                ),
+                span,
+            ));
+        }
+        let mut bindings: HashMap<String, Type> = HashMap::new();
+        for (argument, (field, field_type, _)) in args.iter().zip(&template.fields) {
+            let actual = self.expr(argument)?;
+            if !unify_type(
+                field_type,
+                &actual,
+                &template.type_params,
+                &mut bindings,
+                self.record_apps,
+            ) || mangle_applied(&substitute_type(field_type, &bindings)) != actual
+            {
+                return Err(diagnostic(
+                    "E_TYPE_ARGUMENT",
+                    format!(
+                        "field `{field}` of `{name}` has type {actual:?}, which does not fit {field_type:?} with the other fields; write the type arguments, `{name}[...](...)`"
+                    ),
+                    argument.span(),
+                ));
+            }
+        }
+        let mut types = Vec::new();
+        for parameter in &template.type_params {
+            let Some(ty) = bindings.get(parameter) else {
+                return Err(diagnostic(
+                    "E_GENERIC_INFER",
+                    format!(
+                        "cannot tell what `{parameter}` is in this call to `{name}`; write it: `{name}[Int](...)`"
+                    ),
+                    span,
+                ));
+            };
+            types.push(ty.clone());
+        }
+        let instance = record_instance_name(name, &types);
+        match self.record_index_of(&instance) {
+            Some(index) => self.emit(Op::MakeRecord(index, args.len()), span),
+            None => {
+                let mut pending = self.pending_records.borrow_mut();
+                if !pending.iter().any(|(base, arguments)| {
+                    base == name && record_instance_name(base, arguments) == instance
+                }) {
+                    pending.push((name.to_owned(), types));
+                }
+                self.emit(Op::MakeRecord(0, args.len()), span)
+            }
+        };
+        Ok(Type::Record(instance))
+    }
+
     fn stmts(&mut self, body: &[Stmt]) -> Result<(), Diagnostic> {
         for s in body {
             match s {
@@ -6499,6 +6952,57 @@ fn compile_program(
         }
     }
     program.functions = ordinary;
+    // Generic records are templates: only the records they become are compiled.
+    let mut record_generics: HashMap<String, RecordAst> = HashMap::new();
+    let mut ordinary_records = Vec::new();
+    for record in std::mem::take(&mut program.records) {
+        if record.type_params.is_empty() {
+            ordinary_records.push(record);
+        } else if let Some(previous) = record_generics.insert(record.name.clone(), record) {
+            return Err(diagnostic(
+                "E_NAME_DUPLICATE",
+                format!("record name `{}` is already declared", previous.name),
+                previous.span,
+            ));
+        }
+    }
+    if let Some(clash) = ordinary_records
+        .iter()
+        .find(|record| record_generics.contains_key(&record.name))
+    {
+        return Err(diagnostic(
+            "E_NAME_DUPLICATE",
+            format!("record name `{}` is already declared", clash.name),
+            clash.span,
+        ));
+    }
+    program.records = ordinary_records;
+    let mut record_instances: Vec<RecordInstance> = Vec::new();
+    {
+        let mut resolver = RecordResolver {
+            generics: &record_generics,
+            instances: &mut record_instances,
+            error: None,
+        };
+        for function in &mut program.functions {
+            resolver.function(function);
+        }
+        for external in &mut program.externals {
+            let span = external.span;
+            for (_, ty, _) in &mut external.params {
+                *ty = resolver.ty(ty, span);
+            }
+            external.result = resolver.ty(&external.result, span);
+        }
+        for record in &mut program.records {
+            for (_, ty, span) in &mut record.fields {
+                *ty = resolver.ty(ty, *span);
+            }
+        }
+        if let Some(error) = resolver.error.take() {
+            return Err(error);
+        }
+    }
     let base = program.functions.len();
     let mut instances: Vec<PendingInstance> = Vec::new();
     loop {
@@ -6508,6 +7012,15 @@ fn compile_program(
             .map(|(offset, instance)| (instance.key.clone(), base + offset))
             .collect();
         let mut with_instances = program.clone();
+        let record_apps: HashMap<String, (String, Vec<Type>)> = record_instances
+            .iter()
+            .map(|instance| {
+                (
+                    instance.record.name.clone(),
+                    (instance.base.clone(), instance.arguments.clone()),
+                )
+            })
+            .collect();
         for (offset, instance) in instances.iter().enumerate() {
             match &instance.lambda {
                 Some(lambda) => {
@@ -6517,25 +7030,60 @@ fn compile_program(
                 }
                 None => {
                     let generic = &generics[&instance.symbol];
-                    with_instances
-                        .functions
-                        .push(instance_function(generic, &instance.types));
+                    let mut made = instance_function(generic, &instance.types);
+                    {
+                        let mut resolver = RecordResolver {
+                            generics: &record_generics,
+                            instances: &mut record_instances,
+                            error: None,
+                        };
+                        resolver.function(&mut made);
+                        if let Some(error) = resolver.error.take() {
+                            return Err(error);
+                        }
+                    }
+                    with_instances.functions.push(made);
                 }
             }
         }
+        with_instances.records.extend(
+            record_instances
+                .iter()
+                .map(|instance| instance.record.clone()),
+        );
         let pending = std::cell::RefCell::new(Vec::new());
+        let pending_records = std::cell::RefCell::new(Vec::new());
         let result = compile_program_pass(
             source_name,
             sources.clone(),
             &with_instances,
             &scopes,
-            &generics,
             &instance_index,
             &pending,
+            &GenericRecords {
+                functions: &generics,
+                generics: &record_generics,
+                apps: &record_apps,
+                pending: &pending_records,
+            },
         );
         let discovered = pending.into_inner();
-        if discovered.is_empty() {
+        let discovered_records = pending_records.into_inner();
+        if discovered.is_empty() && discovered_records.is_empty() {
             return result;
+        }
+        if !discovered_records.is_empty() {
+            let mut resolver = RecordResolver {
+                generics: &record_generics,
+                instances: &mut record_instances,
+                error: None,
+            };
+            for (base, arguments) in &discovered_records {
+                resolver.instantiate(base, arguments, Span::default());
+            }
+            if let Some(error) = resolver.error.take() {
+                return Err(error);
+            }
         }
         instances.extend(discovered);
         if instances.len() > 512 {
@@ -6548,14 +7096,23 @@ fn compile_program(
     }
 }
 
+/// What one compile pass needs to know about generic records: the templates, the type arguments
+/// of each instance by its name, and a place to report an instance the pass found missing.
+struct GenericRecords<'a> {
+    functions: &'a HashMap<String, FunctionAst>,
+    generics: &'a HashMap<String, RecordAst>,
+    apps: &'a HashMap<String, (String, Vec<Type>)>,
+    pending: &'a std::cell::RefCell<Vec<(String, Vec<Type>)>>,
+}
+
 fn compile_program_pass(
     source_name: &str,
     sources: Vec<String>,
     program: &Program,
     scopes: &HashMap<usize, ModuleScope>,
-    generics: &HashMap<String, FunctionAst>,
     instance_index: &HashMap<String, usize>,
     pending_instances: &std::cell::RefCell<Vec<PendingInstance>>,
+    records_state: &GenericRecords,
 ) -> Result<Artifact, Diagnostic> {
     let reserved = [
         "Int",
@@ -6805,9 +7362,12 @@ fn compile_program_pass(
             visible_externals: &visible_externals_by_module[&f.module_id],
             visible_records: &scopes[&f.module_id].records,
             standard_functions: &standard_functions,
-            generics,
+            generics: records_state.functions,
             instance_index,
             pending_instances,
+            record_generics: records_state.generics,
+            record_apps: records_state.apps,
+            pending_records: records_state.pending,
             locals: HashMap::new(),
             next_local: 0,
             code: Vec::new(),
@@ -6964,7 +7524,7 @@ fn type_is_known(ty: &Type, records: &std::collections::HashSet<String>) -> bool
 
 fn type_is_visible(ty: &Type, records: &HashSet<String>) -> bool {
     match ty {
-        Type::Record(name) => records.contains(name),
+        Type::Record(name) => records.contains(name) || name.contains('<'),
         Type::NativeResource(name) => matches!(
             name.as_str(),
             "FileReader" | "Db" | "Transaction" | "TomlDocument"
@@ -6995,7 +7555,11 @@ fn python_bridge_type(ty: &Type) -> bool {
         Type::List(item) => python_bridge_type(item),
         Type::Map(item) => python_bridge_type(item),
         Type::Record(_) => false,
-        Type::NativeResource(_) | Type::Array(_) | Type::Fn(_, _) | Type::IntMap(_) => false,
+        Type::NativeResource(_)
+        | Type::Array(_)
+        | Type::Fn(_, _)
+        | Type::IntMap(_)
+        | Type::RecordApp(_, _) => false,
         Type::Option(_)
         | Type::Result(_, _)
         | Type::TaskError

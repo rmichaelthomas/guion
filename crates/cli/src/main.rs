@@ -2771,6 +2771,14 @@ fn display_type(ty: &guion_model::Type) -> String {
         Type::List(item) => format!("List[{}]", display_type(item)),
         Type::Map(item) => format!("Map[Text, {}]", display_type(item)),
         Type::IntMap(item) => format!("Map[Int, {}]", display_type(item)),
+        Type::RecordApp(name, arguments) => format!(
+            "{name}[{}]",
+            arguments
+                .iter()
+                .map(display_type)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
         Type::Fn(parameters, result) => format!(

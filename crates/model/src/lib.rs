@@ -3447,6 +3447,7 @@ pub enum Type {
     List(Box<Type>),
     Map(Box<Type>),
     IntMap(Box<Type>),
+    RecordApp(String, Vec<Type>),
     Option(Box<Type>),
     Result(Box<Type>, Box<Type>),
     TaskError,
@@ -7264,6 +7265,14 @@ impl Writer {
             Type::IntMap(item) => {
                 self.u8(20);
                 self.ty(item)?;
+            }
+            Type::RecordApp(name, _) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_TYPE",
+                    format!(
+                        "generic record `{name}` was not resolved before the artifact was written"
+                    ),
+                ));
             }
             Type::Float64 => self.u8(12),
             Type::Record(name) => {
