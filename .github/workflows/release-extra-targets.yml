@@ -7,6 +7,10 @@ name: Intel Mac and Windows builds
 on:
   push:
     tags: ["v*-preview*"]
+  pull_request:
+    paths:
+      - ".github/workflows/release-extra-targets.yml"
+      - "crates/runtime/build.rs"
   workflow_dispatch:
 
 permissions:
