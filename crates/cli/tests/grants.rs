@@ -171,3 +171,137 @@ fn denial_codes_do_not_change() {
     let project = Project::new("fix-codes-http", HTTP_SOURCE, "");
     assert_eq!(stdout(&project.run(&[])), "R_NETWORK_DENIED\n");
 }
+
+// ---- Part 2: what a script needs versus what it has ----
+
+const NEEDS_SOURCE: &str = r#"import "std:process"
+import "std:net"
+import "std:time"
+import "std:types"
+fn main() -> Int:
+    let today = today_local()
+    match process_run("git", ["--version"], ""):
+        Ok(result):
+            print("ok")
+        Err(problem):
+            print(problem.code)
+    match tcp_connect("db.example.test", 5432, 500):
+        Ok(conn):
+            print("connected")
+        Err(problem):
+            print(problem.code)
+    let headers: Map[Text, Text] = {}
+    match http_request_bytes("GET", "https://api.github.com/x", headers, bytes_from_text(""), 1000):
+        Ok(_response):
+            print("ran")
+        Err(problem):
+            print(http_error_code(problem))
+    return 0
+"#;
+
+#[test]
+fn inspect_grants_compares_what_the_program_reaches_with_what_is_granted() {
+    let project = Project::new("inspect", NEEDS_SOURCE, "[process]\ncommands = [\"git\"]\n");
+    let output = project
+        .guion()
+        .args(["inspect", "--grants", "main.gu"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    assert!(text.contains("fetch from api.github.com"), "{text}");
+    assert!(
+        text.contains("[network] hosts = [\"api.github.com\"]"),
+        "{text}"
+    );
+    assert!(text.contains("run git"), "{text}");
+    assert!(text.contains("yes  (guion.toml [process])"), "{text}");
+    assert!(text.contains("read the clock"), "{text}");
+    assert!(text.contains("connect to db.example.test:5432"), "{text}");
+}
+
+#[test]
+fn inspect_grants_json_lists_each_missing_grant_as_a_table_key_value_and_flag() {
+    let project = Project::new(
+        "inspect-json",
+        NEEDS_SOURCE,
+        "[process]\ncommands = [\"git\"]\n",
+    );
+    let output = project
+        .guion()
+        .args(["inspect", "--grants", "--json", "main.gu"])
+        .output()
+        .unwrap();
+    let report = json_of(&output);
+    assert_eq!(report["kind"], "guion_grants_report");
+    let missing = report["missing"].as_array().unwrap();
+    let flags = missing
+        .iter()
+        .map(|grant| grant["flag"].as_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        flags,
+        [
+            "--allow-http-host api.github.com",
+            "--allow-clock",
+            "--allow-connect db.example.test:5432"
+        ]
+    );
+    let git = report["needs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|need| need["target"] == "git")
+        .unwrap();
+    assert_eq!(git["granted"], true);
+}
+
+#[test]
+fn inspect_grants_says_so_when_a_target_is_computed() {
+    let source = r#"import "std:types"
+fn main() -> Int:
+    let headers: Map[Text, Text] = {}
+    let url = "http://" + args()[0]
+    match http_request_bytes("GET", url, headers, bytes_from_text(""), 1000):
+        Ok(_response):
+            print("ran")
+        Err(problem):
+            print(http_error_code(problem))
+    return 0
+"#;
+    let project = Project::new("inspect-computed", source, "");
+    let output = project
+        .guion()
+        .args(["inspect", "--grants", "main.gu"])
+        .output()
+        .unwrap();
+    let text = stdout(&output);
+    assert!(
+        text.contains("fetch from a host chosen while running"),
+        "{text}"
+    );
+    assert!(text.contains("known only while running"), "{text}");
+    let output = project
+        .guion()
+        .args(["inspect", "--grants", "--json", "main.gu"])
+        .output()
+        .unwrap();
+    let report = json_of(&output);
+    assert_eq!(report["needs"][0]["computed"], true);
+    assert_eq!(report["missing"], serde_json::json!([]));
+}
+
+#[test]
+fn a_program_that_reaches_nothing_needs_no_grants() {
+    let project = Project::new("inspect-none", "fn main() -> Int:\n    return 0\n", "");
+    let output = project
+        .guion()
+        .args(["inspect", "--grants", "main.gu"])
+        .output()
+        .unwrap();
+    assert!(
+        stdout(&output).starts_with("needs no grants"),
+        "{}",
+        stdout(&output)
+    );
+}

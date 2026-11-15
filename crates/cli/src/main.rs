@@ -10,6 +10,7 @@ mod bytecode_ir;
 mod compiler_driver;
 #[cfg(feature = "python-interop")]
 mod dependencies;
+mod grants;
 mod lsp;
 mod native_dependencies;
 mod native_packages;
@@ -734,7 +735,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         let mut index = 1;
         while matches!(
             args.get(index).map(String::as_str),
-            Some("--json") | Some("--speed")
+            Some("--json") | Some("--speed") | Some("--grants")
         ) {
             index += 1;
         }
@@ -1036,6 +1037,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         "inspect" if args.iter().any(|argument| argument == "--speed") => {
             return speed_report(&artifact, json_inspect);
+        }
+        "inspect" if args.iter().any(|argument| argument == "--grants") => {
+            let inspected =
+                inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
+            let needs = grants::needs(&artifact, &inspected);
+            let policy = runtime_policy(&project_root)?;
+            if json_inspect {
+                println!("{}", grants::report_json(&path, &needs, &policy));
+            } else {
+                print!("{}", grants::report_text(&needs, &policy));
+            }
+            return Ok(ExitCode::SUCCESS);
         }
         "inspect" => {
             if json_inspect {
