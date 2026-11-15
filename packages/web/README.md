@@ -2,7 +2,7 @@
 
 Routing, middleware and serving for Guion applications, built on `std:http_response`, `std:http_server` and `std:log`.
 
-Use it from a project with `guion add web --path PATH/TO/web --approve-capabilities` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is published to the registry as `web` 0.1.1, so `guion add web --approve-capabilities` installs it without a checkout. The user guide is `docs/web.md` in the repository.
+Use it from a project with `guion add web --path PATH/TO/web --approve-capabilities` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is published to the registry as `web` 0.1.2, so `guion add web --approve-capabilities` installs it without a checkout. The user guide is `docs/web.md` in the repository.
 
 ```
 import "pkg:web/src/lib.gu"

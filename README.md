@@ -27,7 +27,7 @@
 
 Guion (say GUY-on) is a programming language for everyday work: scripts, command-line tools, data processing, web requests, and full applications. It aims to be easy to read, hard to get wrong, and fast to run.
 
-Guion is young. Version 0.5.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows, with a written [stability policy](docs/stability-policy.md) for what stays compatible between releases. The language is still changing between minor releases. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
+Guion is young. Version 0.6.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows, with a written [stability policy](docs/stability-policy.md) for what stays compatible between releases. The language is still changing between minor releases. Every speed and quality claim the project makes is measured, and the results are published with their raw data, including the places where Guion still falls short.
 
 ## A first look
 
@@ -91,7 +91,7 @@ It picks the archive for your machine, checks its checksum and installs under `~
 
 ### Download an archive
 
-Every archive is on the [v0.5.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0) with a matching `.sha256` file. You don't need Rust or Python installed.
+Every archive is on the [v0.6.0 release](https://github.com/rmichaelthomas/guion/releases/tag/v0.6.0) with a matching `.sha256` file. You don't need Rust or Python installed.
 
 | Machine | Archive |
 |---|---|

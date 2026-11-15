@@ -2,7 +2,7 @@
 
 `web` is a Guion package for HTTP applications: a router, middleware, sessions with CSRF tokens, static files and checked templates, over `std:http_response`, `std:cookie`, `std:http_body`, `std:http_static` and `std:http_server`. It is a package, not part of the standard library: it is added to a project, pinned in `guion.lock`, and its capabilities are shown to you before it is installed. This page is the user guide. The package's own README (`packages/web/README.md`) carries the same API in more detail.
 
-The package is on the registry (0.1.1): `guion add web --approve-capabilities`. To use a checkout instead, `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
+The package is on the registry (0.1.2): `guion add web --approve-capabilities`. To use a checkout instead, `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
 
 ## Quick start
 
