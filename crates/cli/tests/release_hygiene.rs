@@ -127,7 +127,7 @@ fn the_release_rule_rejects_a_stale_page() {
 
 /// Public text that states the current release, its platforms or the library size. The site's
 /// story section is left out on purpose: it is a dated history of earlier releases.
-const CURRENT_STATE_FILES: &[&str] = &[
+const PUBLIC_CLAIMS_OF_NOW: &[&str] = &[
     "README.md",
     "docs/getting-started.md",
     "site/src/sections/01-hero.html",
@@ -165,7 +165,7 @@ fn public_text_states_the_current_release_platforms_and_library_size() {
         })
         .count();
     let mut problems = Vec::new();
-    for file in CURRENT_STATE_FILES {
+    for file in PUBLIC_CLAIMS_OF_NOW {
         let text = read(file);
         // Release links point at the current release.
         for (index, _) in text.match_indices("releases/tag/v") {
