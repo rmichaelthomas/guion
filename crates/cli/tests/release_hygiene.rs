@@ -124,3 +124,103 @@ fn the_release_rule_rejects_a_stale_page() {
     assert!(check_page("no number here", &cargo("0.3.0"), "").is_err());
     assert!(check_page("Guion 0.4.0", &cargo("0.3.0"), "## 0.3.0 (unreleased)\n").is_err());
 }
+
+/// Public text that states the current release, its platforms or the library size. The site's
+/// story section is left out on purpose: it is a dated history of earlier releases.
+const CURRENT_STATE_FILES: &[&str] = &[
+    "README.md",
+    "docs/getting-started.md",
+    "site/src/sections/01-hero.html",
+    "site/src/sections/01a-start.html",
+    "site/src/sections/09-agents.html",
+    "site/src/sections/11-footer.html",
+    "site/src/instruments.json",
+    "site/agents/site-brief.md",
+    "site/tools/agents-surface.mjs",
+];
+
+fn read(relative: &str) -> String {
+    std::fs::read_to_string(repository().join(relative))
+        .unwrap_or_else(|error| panic!("read {relative}: {error}"))
+}
+
+fn is_version(token: &str) -> bool {
+    let parts: Vec<&str> = token.split('.').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
+#[test]
+fn public_text_states_the_current_release_platforms_and_library_size() {
+    let current = workspace_version(&read("Cargo.toml"));
+    let current = core_version(&current).to_owned();
+    let modules = std::fs::read_dir(repository().join("language/stdlib"))
+        .expect("language/stdlib exists")
+        .filter(|entry| {
+            entry
+                .as_ref()
+                .is_ok_and(|entry| entry.path().extension().is_some_and(|ext| ext == "gu"))
+        })
+        .count();
+    let mut problems = Vec::new();
+    for file in CURRENT_STATE_FILES {
+        let text = read(file);
+        // Release links point at the current release.
+        for (index, _) in text.match_indices("releases/tag/v") {
+            let version: String = text[index + "releases/tag/v".len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            if version != current {
+                problems.push(format!(
+                    "{file}: release link names v{version}, not v{current}"
+                ));
+            }
+        }
+        // "<something> X.Y.Z is out for ...": the version is current and every platform is named.
+        for (index, _) in text.match_indices(" is out") {
+            let before = text[..index].split_whitespace().last().unwrap_or("");
+            let before = before.trim_matches(|c: char| !c.is_ascii_digit() && c != '.');
+            if is_version(before) && before != current {
+                problems.push(format!(
+                    "{file}: says {before} is out, current is {current}"
+                ));
+            }
+            if before == current {
+                let sentence = text[index..].split(". ").next().unwrap_or("");
+                for platform in ["Linux", "Intel", "Windows"] {
+                    if !sentence.contains(platform) {
+                        problems.push(format!(
+                            "{file}: \"{current} is out\" sentence does not name {platform}: {}",
+                            sentence.chars().take(120).collect::<String>()
+                        ));
+                    }
+                }
+            }
+        }
+        // "N standard-library modules" matches the shipped library.
+        for (index, _) in text.match_indices(" standard-library modules") {
+            let count = text[..index].split_whitespace().last().unwrap_or("");
+            if count.bytes().all(|b| b.is_ascii_digit()) && !count.is_empty() {
+                if count != modules.to_string() {
+                    problems.push(format!(
+                        "{file}: says {count} standard-library modules, language/stdlib has {modules}"
+                    ));
+                }
+            }
+        }
+    }
+    let cli = read("site/src/content/cli.json");
+    if !cli.contains(&format!("\"version\": \"guion {current} ")) {
+        problems.push(format!(
+            "site/src/content/cli.json: version is not guion {current}"
+        ));
+    }
+    assert!(
+        problems.is_empty(),
+        "public text disagrees with the repository:\n{}",
+        problems.join("\n")
+    );
+}

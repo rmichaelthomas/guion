@@ -9,10 +9,16 @@
 <input type="radio" name="read-tab" id="tab-hello" class="sr-only" checked>
 <input type="radio" name="read-tab" id="tab-option" class="sr-only">
 <input type="radio" name="read-tab" id="tab-records" class="sr-only">
+<input type="radio" name="read-tab" id="tab-enums" class="sr-only">
+<input type="radio" name="read-tab" id="tab-closures" class="sr-only">
+<input type="radio" name="read-tab" id="tab-generics" class="sr-only">
 <div class="tablist" role="group" aria-label="Choose a program">
 <label for="tab-hello"><span class="tab-n">01</span> Start here</label>
 <label for="tab-option"><span class="tab-n">02</span> Handle absence</label>
 <label for="tab-records"><span class="tab-n">03</span> Make a record</label>
+<label for="tab-enums"><span class="tab-n">04</span> Choose between variants</label>
+<label for="tab-closures"><span class="tab-n">05</span> Carry a value</label>
+<label for="tab-generics"><span class="tab-n">06</span> Work for any type</label>
 </div>
 <article class="panel" id="panel-hello">
 <div class="panel-code"><p class="smallcaps">hello.gu</p><pre class="code"><code>{{sample-code:hello}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:hello}}</code></p></div>
@@ -37,6 +43,30 @@
 <p class="v-plain">A record is a named bundle of typed fields. This one moves a point two across and one down, then checks the result against what it should be.</p>
 <p class="v-dev"><code>record Point</code> has two <code>Int</code> fields; <code>translate</code> returns a new <code>Point</code>; <code>assert(finish == Point(5, 3))</code> compares the result to the expected record. <span class="facts">{{sample-facts:records}}</span></p>
 <button type="button" class="btn btn-lily" data-pg-load="records">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-enums">
+<div class="panel-code"><p class="smallcaps">enums.gu</p><pre class="code"><code>{{sample-code:enums}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:enums}}</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A value can be one of several named shapes, each carrying its own data. When you pick the shape apart with <code>match</code>, Guion makes you cover every one. Leave one out and it refuses to build, naming the missing case.</p>
+<p class="v-dev"><code>enum Shape</code> has three variants; <code>match shape:</code> must name each (<code>E_MATCH_MISSING_VARIANT</code> otherwise); a variant is built like a call, <code>Circle(2)</code>. Variants with no data, such as <code>Dot</code>, are written bare. The <em>Forget a variant</em> example shows the refusal. <span class="facts">{{sample-facts:enums}}</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="enums">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-closures">
+<div class="panel-code"><p class="smallcaps">closures.gu</p><pre class="code"><code>{{sample-code:closures}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:closures}}</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A small function written inside another one can use the values around it. Here <code>add_bonus</code> remembers <code>bonus</code> and adds it every time you call it.</p>
+<p class="v-dev">A nested <code>fn</code> captures the names it uses from the enclosing function, by value, at the point it is declared (artifact format 74, <code>Op::MakeClosure</code>). In the command-line runtime it can be passed to <code>map_list</code>, <code>filter_list</code> and the other list functions, but not to <code>sort</code> or <code>parallel_map</code>. <span class="facts">{{sample-facts:closures}}</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="closures">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-generics">
+<div class="panel-code"><p class="smallcaps">generics.gu</p><pre class="code"><code>{{sample-code:generics}}</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>{{sample-out:generics}}</code></p></div>
+<div class="panel-note">
+<p class="v-plain">One function can work for many types. <code>first</code> returns the first item of any list: here it is used once on numbers and once on words, and each result keeps its own type.</p>
+<p class="v-dev"><code>fn first[T](items: List[T]) -&gt; T</code> declares a type parameter; the compiler infers <code>T</code> at each call and builds one instance per type it sees (up to 512 per program). <span class="facts">{{sample-facts:generics}}</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="generics">Open in the playground <span aria-hidden="true">↑</span></button>
 </div>
 </article>
 </div>

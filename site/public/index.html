@@ -332,14 +332,23 @@
   .tab-n { font: 800 .72rem var(--mono); opacity: .7; }
   .tabs:has(#tab-hello:checked) label[for="tab-hello"],
   .tabs:has(#tab-option:checked) label[for="tab-option"],
-  .tabs:has(#tab-records:checked) label[for="tab-records"] { background: var(--lily); border-color: var(--lily); color: var(--ink); }
+  .tabs:has(#tab-records:checked) label[for="tab-records"],
+  .tabs:has(#tab-enums:checked) label[for="tab-enums"],
+  .tabs:has(#tab-closures:checked) label[for="tab-closures"],
+  .tabs:has(#tab-generics:checked) label[for="tab-generics"] { background: var(--lily); border-color: var(--lily); color: var(--ink); }
   .tabs:has(#tab-hello:focus-visible) label[for="tab-hello"],
   .tabs:has(#tab-option:focus-visible) label[for="tab-option"],
-  .tabs:has(#tab-records:focus-visible) label[for="tab-records"] { outline: 3px solid var(--lily); outline-offset: 3px; }
+  .tabs:has(#tab-records:focus-visible) label[for="tab-records"],
+  .tabs:has(#tab-enums:focus-visible) label[for="tab-enums"],
+  .tabs:has(#tab-closures:focus-visible) label[for="tab-closures"],
+  .tabs:has(#tab-generics:focus-visible) label[for="tab-generics"] { outline: 3px solid var(--lily); outline-offset: 3px; }
   .panel { display: none; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(1.2rem, 3vw, 3rem); align-items: start; }
   .tabs:has(#tab-hello:checked) #panel-hello,
   .tabs:has(#tab-option:checked) #panel-option,
-  .tabs:has(#tab-records:checked) #panel-records { display: grid; }
+  .tabs:has(#tab-records:checked) #panel-records,
+  .tabs:has(#tab-enums:checked) #panel-enums,
+  .tabs:has(#tab-closures:checked) #panel-closures,
+  .tabs:has(#tab-generics:checked) #panel-generics { display: grid; }
   .code { background: #0b1311; color: #e8f6df; padding: 1.2rem 1.4rem; border-radius: 14px; overflow-x: auto; font: 500 .9rem/1.75 var(--mono); border: 1px solid #2b5140; tab-size: 4; margin-top: .6rem; }
   .code .k { color: #8fb4ff; font-weight: 700; }
   .code .t { color: var(--lily); }
@@ -836,7 +845,7 @@ guion --version</code></pre>
 <div class="lab" data-ahi="ahi.computational-experiences.executable-code-laboratory" role="group" aria-label="Guion playground">
 <div class="lab-bar">
 <label for="pg-sample" class="smallcaps">Example</label>
-<select id="pg-sample"><option value="hello">Say hello</option><option value="option">Handle absence</option><option value="records">Make a record</option><option value="denied">Ask for a file</option><option value="loop">Never stop</option><option value="mistake">Make a mistake</option></select>
+<select id="pg-sample"><option value="hello">Say hello</option><option value="option">Handle absence</option><option value="records">Make a record</option><option value="enums">Choose between variants</option><option value="closures">Carry a value</option><option value="generics">Work for any type</option><option value="everyday">Count with else if</option><option value="denied">Ask for a file</option><option value="loop">Never stop</option><option value="mistake">Make a mistake</option><option value="missing">Forget a variant</option></select>
 <button type="button" id="pg-run" class="btn btn-lily">Run <span aria-hidden="true">▸</span></button>
 </div>
 <div class="lab-panes">
@@ -929,7 +938,7 @@ guion --version</code></pre>
 <li><code>guion build</code><strong>Build.</strong><span>Turns it into one portable file with a recorded fingerprint.</span></li>
 <li><code>guion package</code><strong>Hand over.</strong><span>Packs the program and the runtime it needs into a folder.</span></li>
 </ol>
-<p class="route-also">Also: <code>fmt</code> tidies spacing · <code>lint</code> flags unused code · <code>inspect</code> shows what a program can do · <code>doc</code> lists what it offers · <code>doctor</code> checks the machine · <code>verify-package</code>, <code>install</code>, <code>add</code>, <code>sync</code> and <code>update</code> handle delivery and dependencies · <code>add NAME</code> fetches a library from the Guion package registry after checking its hashes, and <code>publish</code> and <code>yank</code> put one there or withdraw it.</p>
+<p class="route-also">Also: <code>fmt</code> tidies spacing · <code>lint</code> flags unused code · <code>inspect</code> shows what a program can do · <code>doc</code> lists what it offers · <code>doctor</code> checks the machine · <code>lsp</code> lets an editor show errors and types as you type · <code>repl</code> is an interactive prompt · <code>run --record</code> keeps what a program read from files, the network and the clock so <code>--replay</code> can repeat the run without them · <code>verify-package</code>, <code>install</code>, <code>add</code>, <code>sync</code> and <code>update</code> handle delivery and dependencies · <code>add NAME</code> fetches a library from the Guion package registry after checking its hashes, and <code>publish</code> and <code>yank</code> put one there or withdraw it.</p>
 </div>
 <div class="v-dev">
 <div class="table-wrap" tabindex="0" role="region" aria-label="All guion subcommands">
@@ -977,10 +986,16 @@ guion --version</code></pre>
 <input type="radio" name="read-tab" id="tab-hello" class="sr-only" checked>
 <input type="radio" name="read-tab" id="tab-option" class="sr-only">
 <input type="radio" name="read-tab" id="tab-records" class="sr-only">
+<input type="radio" name="read-tab" id="tab-enums" class="sr-only">
+<input type="radio" name="read-tab" id="tab-closures" class="sr-only">
+<input type="radio" name="read-tab" id="tab-generics" class="sr-only">
 <div class="tablist" role="group" aria-label="Choose a program">
 <label for="tab-hello"><span class="tab-n">01</span> Start here</label>
 <label for="tab-option"><span class="tab-n">02</span> Handle absence</label>
 <label for="tab-records"><span class="tab-n">03</span> Make a record</label>
+<label for="tab-enums"><span class="tab-n">04</span> Choose between variants</label>
+<label for="tab-closures"><span class="tab-n">05</span> Carry a value</label>
+<label for="tab-generics"><span class="tab-n">06</span> Work for any type</label>
 </div>
 <article class="panel" id="panel-hello">
 <div class="panel-code"><p class="smallcaps">hello.gu</p><pre class="code"><code><span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
@@ -1040,6 +1055,72 @@ guion --version</code></pre>
 <p class="v-plain">A record is a named bundle of typed fields. This one moves a point two across and one down, then checks the result against what it should be.</p>
 <p class="v-dev"><code>record Point</code> has two <code>Int</code> fields; <code>translate</code> returns a new <code>Point</code>; <code>assert(finish == Point(5, 3))</code> compares the result to the expected record. <span class="facts">1601 artifact bytes · 35 steps</span></p>
 <button type="button" class="btn btn-lily" data-pg-load="records">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-enums">
+<div class="panel-code"><p class="smallcaps">enums.gu</p><pre class="code"><code>enum <span class="t">Shape</span>:
+    <span class="t">Circle</span>(radius: <span class="t">Int</span>)
+    <span class="t">Rect</span>(width: <span class="t">Int</span>, height: <span class="t">Int</span>)
+    <span class="t">Dot</span>
+
+<span class="k">fn</span> area(shape: <span class="t">Shape</span>) -&gt; <span class="t">Int</span>:
+    <span class="k">match</span> shape:
+        <span class="t">Circle</span>(r):
+            <span class="k">return</span> <span class="n">3</span> * r * r
+        <span class="t">Rect</span>(w, h):
+            <span class="k">return</span> w * h
+        <span class="t">Dot</span>:
+            <span class="k">return</span> <span class="n">0</span>
+
+<span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    print(f<span class="s">"{area(Circle(2))}"</span>)
+    print(f<span class="s">"{area(Rect(2, 5))}"</span>)
+    print(f<span class="s">"{area(Dot)}"</span>)
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>12
+10
+0
+</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A value can be one of several named shapes, each carrying its own data. When you pick the shape apart with <code>match</code>, Guion makes you cover every one. Leave one out and it refuses to build, naming the missing case.</p>
+<p class="v-dev"><code>enum Shape</code> has three variants; <code>match shape:</code> must name each (<code>E_MATCH_MISSING_VARIANT</code> otherwise); a variant is built like a call, <code>Circle(2)</code>. Variants with no data, such as <code>Dot</code>, are written bare. The <em>Forget a variant</em> example shows the refusal. <span class="facts">2708 artifact bytes · 78 steps</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="enums">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-closures">
+<div class="panel-code"><p class="smallcaps">closures.gu</p><pre class="code"><code><span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    <span class="k">let</span> bonus = <span class="n">5</span>
+
+    <span class="k">fn</span> add_bonus(score: <span class="t">Int</span>) -&gt; <span class="t">Int</span>:
+        <span class="k">return</span> score + bonus
+
+    print(add_bonus(<span class="n">10</span>))
+    print(add_bonus(<span class="n">37</span>))
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>15
+42
+</code></p></div>
+<div class="panel-note">
+<p class="v-plain">A small function written inside another one can use the values around it. Here <code>add_bonus</code> remembers <code>bonus</code> and adds it every time you call it.</p>
+<p class="v-dev">A nested <code>fn</code> captures the names it uses from the enclosing function, by value, at the point it is declared (artifact format 74, <code>Op::MakeClosure</code>). In the command-line runtime it can be passed to <code>map_list</code>, <code>filter_list</code> and the other list functions, but not to <code>sort</code> or <code>parallel_map</code>. <span class="facts">892 artifact bytes · 23 steps</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="closures">Open in the playground <span aria-hidden="true">↑</span></button>
+</div>
+</article>
+<article class="panel" id="panel-generics">
+<div class="panel-code"><p class="smallcaps">generics.gu</p><pre class="code"><code><span class="k">fn</span> first[<span class="t">T</span>](items: <span class="t">List</span>[<span class="t">T</span>]) -&gt; <span class="t">T</span>:
+    <span class="k">return</span> items[<span class="n">0</span>]
+
+<span class="k">fn</span> main() -&gt; <span class="t">Int</span>:
+    print(first([<span class="n">7</span>, <span class="n">8</span>, <span class="n">9</span>]))
+    print(first([<span class="s">"lily"</span>, <span class="s">"pad"</span>]))
+    <span class="k">return</span> <span class="n">0</span>
+</code></pre><p class="prints"><span class="smallcaps">Prints</span> <code>7
+lily
+</code></p></div>
+<div class="panel-note">
+<p class="v-plain">One function can work for many types. <code>first</code> returns the first item of any list: here it is used once on numbers and once on words, and each result keeps its own type.</p>
+<p class="v-dev"><code>fn first[T](items: List[T]) -&gt; T</code> declares a type parameter; the compiler infers <code>T</code> at each call and builds one instance per type it sees (up to 512 per program). <span class="facts">1009 artifact bytes · 21 steps</span></p>
+<button type="button" class="btn btn-lily" data-pg-load="generics">Open in the playground <span aria-hidden="true">↑</span></button>
 </div>
 </article>
 </div>
@@ -1585,9 +1666,9 @@ hosts = [&quot;api.example.test&quot;]
 <div class="footer-about">
 <p class="smallcaps">Good to know</p>
 <p>Guion is MIT licensed. Third-party notices are kept in the project repository. To say a claim is wrong, write to <a href="mailto:rmichael@rmichaelthomas.com">rmichael@rmichaelthomas.com</a>.</p>
-<p class="v-plain">This page is about 100 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 4.2 MB playground loads only when you press Run.</p>
+<p class="v-plain">This page is about 110 KB of HTML and 60 KB of styles, with 9.9 KB of JavaScript and 0 requests to anyone else. The 4.2 MB playground loads only when you press Run.</p>
 <table class="v-dev spec-table"><caption>Page weight</caption><tbody>
-<tr><th scope="row">HTML</th><td>100 KB</td></tr>
+<tr><th scope="row">HTML</th><td>110 KB</td></tr>
 <tr><th scope="row">CSS</th><td>60 KB</td></tr>
 <tr><th scope="row">JavaScript</th><td>9.9 KB (the playground loader; inert until Run)</td></tr>
 <tr><th scope="row">Wasm</th><td>4.2 MB, fetched on first Run</td></tr>

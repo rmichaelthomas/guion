@@ -1,0 +1,19 @@
+enum Shape:
+    Circle(radius: Int)
+    Rect(width: Int, height: Int)
+    Dot
+
+fn area(shape: Shape) -> Int:
+    match shape:
+        Circle(r):
+            return 3 * r * r
+        Rect(w, h):
+            return w * h
+        Dot:
+            return 0
+
+fn main() -> Int:
+    print(f"{area(Circle(2))}")
+    print(f"{area(Rect(2, 5))}")
+    print(f"{area(Dot)}")
+    return 0

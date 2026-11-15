@@ -1,0 +1,7 @@
+fn first[T](items: List[T]) -> T:
+    return items[0]
+
+fn main() -> Int:
+    print(first([7, 8, 9]))
+    print(first(["lily", "pad"]))
+    return 0
