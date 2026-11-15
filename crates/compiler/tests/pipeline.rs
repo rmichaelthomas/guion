@@ -455,7 +455,8 @@ fn sort_and_parallel_map_reject_a_capturing_function_literal_at_check_time() {
         "sort_by_int_key([3, 1, 2], fn(x: Int) -> Int: x * k)",
         "parallel_map([3, 1, 2], fn(x: Int) -> Int: x * k, 2)",
     ] {
-        let source = format!("fn main() -> Int:\n    let k = 2\n    let r = {call}\n    return 0\n");
+        let source =
+            format!("fn main() -> Int:\n    let k = 2\n    let r = {call}\n    return 0\n");
         let error = compile("capture.gu", &source).expect_err("a capturing literal is refused");
         assert_eq!(error.code, "E_FN_CLOSURE", "{call}: {}", error.message);
         assert!(error.message.contains("`k`"), "{}", error.message);
@@ -465,7 +466,8 @@ fn sort_and_parallel_map_reject_a_capturing_function_literal_at_check_time() {
         "sort_by_int_key([3, 1, 2], fn(x: Int) -> Int: 0 - x)",
         "parallel_map([3, 1, 2], fn(x: Int) -> Int: x + 1, 2)",
     ] {
-        let source = format!("fn main() -> Int:\n    let k = 2\n    let r = {call}\n    return k\n");
+        let source =
+            format!("fn main() -> Int:\n    let k = 2\n    let r = {call}\n    return k\n");
         compile("capture.gu", &source).unwrap_or_else(|e| panic!("{call}: {}", e.message));
     }
 }
