@@ -1323,6 +1323,125 @@ impl Instance {
                     return Err(error);
                 }
             }
+            Op::HigherOrder(HigherOrderKind::TryParallelMap) => {
+                let span = instruction.span;
+                let limits = match pop!() {
+                    Value::Record(name, fields) if name == "Workers" && fields.len() == 3 => {
+                        let mut numbers = [0i64; 3];
+                        for (slot, field) in numbers.iter_mut().zip(fields.iter()) {
+                            *slot = match field {
+                                Value::Int(value) => value.to_i64().unwrap_or(-1),
+                                _ => -1,
+                            };
+                        }
+                        numbers
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "try_parallel_map limits must be Workers",
+                            span,
+                        ));
+                    }
+                };
+                let [at_once, each_ms, all_ms] = limits;
+                if at_once < 1 || each_ms < 0 || all_ms < 0 {
+                    return Err(RuntimeError::new(
+                        "R_PARALLEL_LIMIT",
+                        "Workers needs at_once of at least 1, and each_ms and all_ms of 0 (no limit) or more",
+                        span,
+                    ));
+                }
+                let limit = at_once as usize;
+                if limit > self.policy.max_parallelism {
+                    return Err(RuntimeError::new(
+                        "R_PARALLEL_LIMIT",
+                        format!(
+                            "worker limit {limit} is above this project's limit of {}\n  raise it in guion.toml:   [runtime] max_parallelism = {limit}",
+                            self.policy.max_parallelism
+                        ),
+                        span,
+                    ));
+                }
+                let target = match pop!() {
+                    Value::Function(index) => index,
+                    Value::Closure(..) => {
+                        return Err(RuntimeError::new(
+                            "R_FN_CLOSURE",
+                            "try_parallel_map takes a named function, not a function that captures values",
+                            span,
+                        ));
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            span,
+                        ));
+                    }
+                };
+                let values = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "try_parallel_map requires a List",
+                            span,
+                        ));
+                    }
+                };
+                let input_copy_bytes = size_of::<Vec<Value>>()
+                    .saturating_add(values.len().saturating_mul(size_of::<Value>()))
+                    .saturating_add(
+                        values
+                            .iter()
+                            .map(cloned_value_allocation)
+                            .fold(0usize, usize::saturating_add),
+                    );
+                charge_allocation(budget.as_ref(), input_copy_bytes, span)?;
+                let deadlines = TryLimits {
+                    each_ms: each_ms as u64,
+                    all_ms: all_ms as u64,
+                };
+                match self.parallel_map(
+                    target,
+                    values,
+                    ParallelRun {
+                        limit,
+                        try_limits: Some(deadlines),
+                    },
+                    depth + 1,
+                    budget.clone(),
+                    span,
+                ) {
+                    Ok(ParallelOutcome::Items(items)) => {
+                        let outcomes = items
+                            .into_iter()
+                            .map(|item| match item {
+                                Ok(value) => Value::ResultOk(Box::new(value)),
+                                Err(error) => {
+                                    Value::ResultErr(Box::new(Value::TaskError(Box::new(error))))
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        push_stack!(Value::List(Shared::new(outcomes)));
+                    }
+                    Ok(ParallelOutcome::Whole(_)) => {
+                        return Err(RuntimeError::new(
+                            "R_WORKER_CANCELLED",
+                            "try_parallel_map returned one combined result",
+                            span,
+                        ));
+                    }
+                    Err(mut error) => {
+                        error.trace.push(span);
+                        return Err(error);
+                    }
+                }
+            }
             Op::HigherOrder(kind) => {
                 let (target, captured) = match pop!() {
                     Value::Function(index) => (index, None),
@@ -1515,18 +1634,28 @@ impl Instance {
                 match self.parallel_map(
                     target,
                     values,
-                    limit,
+                    ParallelRun {
+                        limit,
+                        try_limits: None,
+                    },
                     depth + 1,
                     budget.clone(),
                     instruction.span,
                 ) {
-                    Ok(Ok(results)) => {
+                    Ok(ParallelOutcome::Whole(Ok(results))) => {
                         push_stack!(Value::ResultOk(Box::new(Value::from_list_items(results))))
                     }
-                    Ok(Err(error)) => {
+                    Ok(ParallelOutcome::Whole(Err(error))) => {
                         push_stack!(Value::ResultErr(Box::new(Value::TaskError(Box::new(
                             error
                         )))))
+                    }
+                    Ok(ParallelOutcome::Items(_)) => {
+                        return Err(RuntimeError::new(
+                            "R_WORKER_CANCELLED",
+                            "parallel_map returned per-item results",
+                            instruction.span,
+                        ));
                     }
                     Err(mut error) => {
                         error.trace.push(instruction.span);
@@ -7146,11 +7275,13 @@ impl Instance {
         &mut self,
         function: usize,
         values: Vec<Value>,
-        limit: usize,
+        run: ParallelRun,
         depth: usize,
         budget: Arc<Budget>,
         span: Span,
-    ) -> Result<Result<Vec<Value>, TaskErrorValue>, RuntimeError> {
+    ) -> Result<ParallelOutcome, RuntimeError> {
+        let ParallelRun { limit, try_limits } = run;
+        let try_mode = try_limits.is_some();
         if values.len() > self.policy.max_collection_items {
             return Err(RuntimeError::new(
                 "R_COLLECTION_LIMIT",
@@ -7159,7 +7290,11 @@ impl Instance {
             ));
         }
         if values.is_empty() {
-            return Ok(Ok(Vec::new()));
+            return Ok(if try_mode {
+                ParallelOutcome::Items(Vec::new())
+            } else {
+                ParallelOutcome::Whole(Ok(Vec::new()))
+            });
         }
         if function >= self.artifact.functions.len() {
             return Err(RuntimeError::new(
@@ -7213,6 +7348,14 @@ impl Instance {
         self.registers.share_across_threads();
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
+        // Deadlines run on a monotonic clock the program cannot read, so they need no clock grant.
+        let started_at = std::time::Instant::now();
+        let each_limit = try_limits
+            .filter(|limits| limits.each_ms > 0)
+            .map(|limits| Duration::from_millis(limits.each_ms));
+        let all_deadline = try_limits
+            .filter(|limits| limits.all_ms > 0)
+            .map(|limits| started_at + Duration::from_millis(limits.all_ms));
         let artifact = Arc::clone(&self.artifact);
         let registers = Arc::clone(&self.registers);
         let native_constants = Arc::clone(&self.native_constants);
@@ -7277,6 +7420,27 @@ impl Instance {
                         break;
                     }
                     let thread_id = format!("{:?}", thread::current().id());
+                    if all_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+                        // Out of time before this item could start: it never runs.
+                        let _ = sender.send((
+                            index,
+                            Err(RuntimeError::new(
+                                "R_DEADLINE",
+                                "the item did not start before all_ms passed",
+                                span,
+                            )),
+                            String::new(),
+                            thread_id,
+                        ));
+                        continue;
+                    }
+                    let each_deadline = each_limit.map(|each| std::time::Instant::now() + each);
+                    let mut item_policy = policy.clone();
+                    item_policy.deadline = [item_policy.deadline, each_deadline, all_deadline]
+                        .into_iter()
+                        .flatten()
+                        .min();
+                    let item_deadline = item_policy.deadline;
                     let mut database_roots = Vec::with_capacity(
                         1 + policy.additional_file_roots.len() + policy.file_root_aliases.len(),
                     );
@@ -7290,6 +7454,7 @@ impl Instance {
                     } else {
                         format!("{parent_lane}/{call_number}.{index}")
                     };
+                    let lane_name = lane.clone();
                     let mut worker = Instance {
                         tape: tape.clone(),
                         tape_lane: lane,
@@ -7298,8 +7463,13 @@ impl Instance {
                         native_constants: Arc::clone(&native_constants),
                         registers: Arc::clone(&registers),
                         native: None,
-                        native_code: native_code.clone(),
-                        native_enabled,
+                        native_code: if item_deadline.is_none() {
+                            native_code.clone()
+                        } else {
+                            None
+                        },
+                        // Native code does not look at a deadline, so a timed item runs on the VM.
+                        native_enabled: native_enabled && item_deadline.is_none(),
                         native_whole_program_entry: false,
                         native_compile_attempted: false,
                         runtime_profile_enabled: false,
@@ -7310,7 +7480,7 @@ impl Instance {
                         native_deoptimization_sites: native_deoptimization_sites.clone(),
                         native_entry_copy_dominated: Vec::new(),
                         native_compilations: native_compilations.clone(),
-                        policy: policy.clone(),
+                        policy: item_policy,
                         http: http.clone(),
                         readers: stdlib_data::FileReaderRegistry::new(
                             usize::MAX,
@@ -7343,14 +7513,47 @@ impl Instance {
                         depth,
                         budget.clone(),
                     );
+                    let mut output = worker.output;
+                    let mut result = result;
+                    if try_mode {
+                        // A deadline stops the item through the same cancellation check a failing
+                        // sibling does, so the code says why: time ran out, or the recording
+                        // being replayed had stopped this item.
+                        let replay_cut = tape
+                            .as_ref()
+                            .is_some_and(|tape| tape.lane_cut_short(&lane_name));
+                        let timed_out = match &result {
+                            Err(error) if error.code == "R_CANCELLED" => {
+                                replay_cut
+                                    || item_deadline.is_some_and(|d| std::time::Instant::now() >= d)
+                            }
+                            Ok(_) => replay_cut,
+                            _ => false,
+                        };
+                        if timed_out && !budget.cancellation.is_cancelled() {
+                            output.clear();
+                            let limit_name = match (each_deadline, all_deadline) {
+                                (Some(each), Some(all)) if each < all => "each_ms",
+                                (Some(_), None) => "each_ms",
+                                _ => "all_ms",
+                            };
+                            result = Err(RuntimeError::new(
+                                "R_DEADLINE",
+                                format!("the item ran out of time ({limit_name})"),
+                                span,
+                            ));
+                        }
+                    }
                     match &result {
                         // The result may share parts with values this worker still holds.
                         Ok(value) => value.share_across_threads(),
                         // A cancellation is the effect of a failure, not a new one.
                         Err(error) if error.code == "R_CANCELLED" => {}
+                        // With per-item results a fault belongs to its item; siblings carry on.
+                        Err(_) if try_mode => {}
                         Err(_) => cancelled.store(true, Ordering::Relaxed),
                     }
-                    let _ = sender.send((index, result, worker.output, thread_id));
+                    let _ = sender.send((index, result, output, thread_id));
                 }
             }));
         }
@@ -7371,7 +7574,9 @@ impl Instance {
             for (index, item) in completed.iter().enumerate() {
                 let cut_short = match item {
                     None => true,
-                    Some((Err(error), _)) => error.code == "R_CANCELLED",
+                    Some((Err(error), _)) => {
+                        error.code == "R_CANCELLED" || error.code == "R_DEADLINE"
+                    }
                     Some(_) => false,
                 };
                 if cut_short {
@@ -7391,6 +7596,47 @@ impl Instance {
                 "invocation was cancelled while parallel workers were running",
                 span,
             ));
+        }
+        if try_mode {
+            let mut items = Vec::with_capacity(values.len());
+            for (index, item) in completed.into_iter().enumerate() {
+                let (result, output) = item.unwrap_or_else(|| {
+                    (
+                        Err(RuntimeError::new(
+                            "R_CANCELLED",
+                            "the item did not run because a sibling used up the instruction budget",
+                            span,
+                        )),
+                        String::new(),
+                    )
+                });
+                if self.output.len().saturating_add(output.len()) > self.policy.output_limit_bytes {
+                    return Err(RuntimeError::new(
+                        "R_OUTPUT_LIMIT",
+                        "parallel worker output exceeds the configured limit",
+                        span,
+                    ));
+                }
+                self.output.push_str(&output);
+                items.push(result.map_err(|error| {
+                    let mut trace = error.trace;
+                    trace.push(span);
+                    TaskErrorValue {
+                        index: BigInt::from_usize(index),
+                        code: error.code,
+                        message: error.message,
+                        trace,
+                    }
+                }));
+            }
+            if worker_panicked {
+                return Err(RuntimeError::new(
+                    "R_WORKER_PANIC",
+                    "a parallel worker terminated unexpectedly",
+                    span,
+                ));
+            }
+            return Ok(ParallelOutcome::Items(items));
         }
         let mut results = Vec::with_capacity(values.len());
         let mut first_error = None;
@@ -7418,12 +7664,12 @@ impl Instance {
         if let Some((index, error)) = first_error {
             let mut trace = error.trace;
             trace.push(span);
-            return Ok(Err(TaskErrorValue {
+            return Ok(ParallelOutcome::Whole(Err(TaskErrorValue {
                 index: BigInt::from_usize(index),
                 code: error.code,
                 message: error.message,
                 trace,
-            }));
+            })));
         }
         if worker_panicked {
             return Err(RuntimeError::new(
@@ -7439,8 +7685,29 @@ impl Instance {
                 span,
             ));
         }
-        Ok(Ok(results))
+        Ok(ParallelOutcome::Whole(Ok(results)))
     }
+}
+
+/// What a `parallel_map` family call produced: one combined result (`parallel_map`) or one result
+/// per item (`try_parallel_map`).
+enum ParallelOutcome {
+    Whole(Result<Vec<Value>, TaskErrorValue>),
+    Items(Vec<Result<Value, TaskErrorValue>>),
+}
+
+/// How a `parallel_map` family call runs: the worker count, and the time limits when each item
+/// gets its own result.
+struct ParallelRun {
+    limit: usize,
+    try_limits: Option<TryLimits>,
+}
+
+/// Time limits of `try_parallel_map`, in milliseconds; 0 means none.
+#[derive(Clone, Copy)]
+struct TryLimits {
+    each_ms: u64,
+    all_ms: u64,
 }
 
 unsafe extern "C" fn native_capture_vm_continuation(

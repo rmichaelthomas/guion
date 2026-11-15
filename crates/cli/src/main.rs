@@ -3036,7 +3036,10 @@ fn inspection_report(
                 Op::Call(target, _) | Op::MakeFn(target) | Op::MakeClosure(target, _) => {
                     calls[function_index].insert(*target);
                 }
-                Op::HigherOrder(guion_model::HigherOrderKind::ParallelMap) => {
+                Op::HigherOrder(
+                    guion_model::HigherOrderKind::ParallelMap
+                    | guion_model::HigherOrderKind::TryParallelMap,
+                ) => {
                     direct_effects[function_index].insert("concurrency.parallel".into());
                 }
                 Op::ParallelMap(target) => {

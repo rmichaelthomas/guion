@@ -5,6 +5,13 @@ pub record ProcessResult:
     stdout: Text
     stderr: Text
 
+# Limits for `try_parallel_map`: how many items run at once, how long each may take, and how long
+# the whole fan-out may take. A time of 0 means no limit.
+pub record Workers:
+    at_once: Int
+    each_ms: Int
+    all_ms: Int
+
 pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]:
     match native_process_run(command, arguments, stdin):
         Ok(fields):

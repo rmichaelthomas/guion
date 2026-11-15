@@ -3526,10 +3526,13 @@ pub enum HigherOrderKind {
     AnyList,
     AllList,
     TryMapList,
+    /// `try_parallel_map(list, f, Workers(...))` (format 76): workers with per-item results and
+    /// deadlines.
+    TryParallelMap,
 }
 
 impl HigherOrderKind {
-    pub const ALL: [HigherOrderKind; 11] = [
+    pub const ALL: [HigherOrderKind; 12] = [
         HigherOrderKind::SortBy,
         HigherOrderKind::SortByKey,
         HigherOrderKind::SortByIntKey,
@@ -3541,6 +3544,7 @@ impl HigherOrderKind {
         HigherOrderKind::AnyList,
         HigherOrderKind::AllList,
         HigherOrderKind::TryMapList,
+        HigherOrderKind::TryParallelMap,
     ];
 
     pub fn code(self) -> u8 {
@@ -3567,6 +3571,7 @@ impl HigherOrderKind {
             HigherOrderKind::AnyList => "AnyList",
             HigherOrderKind::AllList => "AllList",
             HigherOrderKind::TryMapList => "TryMapList",
+            HigherOrderKind::TryParallelMap => "TryParallelMap",
         }
     }
 
@@ -4878,7 +4883,7 @@ impl Artifact {
         if self.format_version < 76 && artifact_uses_core_count(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
-                "core_count requires artifact format 76",
+                "core_count and try_parallel_map require artifact format 76",
             ));
         }
         if self.format_version < 67 && artifact_uses_sha256(self) {
@@ -5807,6 +5812,12 @@ impl Artifact {
                     199 if format_version >= 66 => Op::CallFn(r.count()?),
                     200 if format_version >= 66 => {
                         let code = r.u8()?;
+                        if code == HigherOrderKind::TryParallelMap.code() && format_version < 76 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "try_parallel_map requires artifact format 76",
+                            ));
+                        }
                         Op::HigherOrder(HigherOrderKind::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_OP",
@@ -6609,10 +6620,13 @@ fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
 
 fn artifact_uses_core_count(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
-        function
-            .code
-            .iter()
-            .any(|instruction| matches!(instruction.op, Op::Process(ProcessFunction::CoreCount)))
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Process(ProcessFunction::CoreCount)
+                    | Op::HigherOrder(HigherOrderKind::TryParallelMap)
+            )
+        })
     })
 }
 
@@ -7141,6 +7155,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::FsWalk
                         | Op::RandomBytes
                         | Op::HigherOrder(HigherOrderKind::ParallelMap)
+                        | Op::HigherOrder(HigherOrderKind::TryParallelMap)
                         | Op::ParallelMap(_) => {
                             return Err(format!(
                                 "sort comparator `{}` reaches an effectful operation",

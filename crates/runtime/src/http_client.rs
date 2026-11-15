@@ -357,7 +357,7 @@ pub(crate) fn perform_http_get(
             input,
             headers: &BTreeMap::new(),
             body: &[],
-            timeout: policy.http_timeout,
+            timeout: policy.cap(policy.http_timeout),
         },
         budget,
     )?;

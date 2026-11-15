@@ -1554,6 +1554,14 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 use guion_model::HigherOrderKind as Kind;
                 let name = kind.name();
                 let mut worker_limit = false;
+                if *kind == Kind::TryParallelMap {
+                    if pop_type(&mut state.stack, pc)? != Type::Record("Workers".into()) {
+                        return Err(format!(
+                            "try_parallel_map limits must be Workers at instruction {pc}"
+                        ));
+                    }
+                    worker_limit = true;
+                }
                 if *kind == Kind::ParallelMap {
                     if pop_type(&mut state.stack, pc)? != Type::Int {
                         return Err(format!(
@@ -1625,6 +1633,23 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                             Box::new(Type::List(Box::new(result))),
                             Box::new(Type::TaskError),
                         )
+                    }
+                    Kind::TryParallelMap => {
+                        let Type::List(item) = input else {
+                            return Err(format!("parallel input must be List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1
+                            || *item != parameters[0]
+                            || !worker_limit
+                            || type_contains_native_resource(&parameters[0])
+                            || type_contains_native_resource(&result)
+                        {
+                            return Err(bad_shape());
+                        }
+                        Type::List(Box::new(Type::Result(
+                            Box::new(result),
+                            Box::new(Type::TaskError),
+                        )))
                     }
                     Kind::MapList => {
                         let Type::List(item) = input else {

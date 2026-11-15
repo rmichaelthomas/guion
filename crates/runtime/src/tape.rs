@@ -636,6 +636,15 @@ impl Tape {
     ///
     /// While replaying it excuses what is left of a lane the replay itself cut short: a failing
     /// sibling can stop an item before it starts or part-way, whatever the recorded timing was.
+    /// While replaying: whether the recording stopped this lane early (a failing sibling, or a
+    /// deadline). Always false when recording.
+    pub(crate) fn lane_cut_short(&self, lane: &str) -> bool {
+        match &*self.state.lock().unwrap() {
+            TapeState::Replaying { incomplete, .. } => incomplete.contains(lane),
+            _ => false,
+        }
+    }
+
     pub(crate) fn mark_lane_incomplete(&self, lane: &str) {
         match &mut *self.state.lock().unwrap() {
             TapeState::Recording { incomplete, .. } => incomplete.push(lane.to_owned()),

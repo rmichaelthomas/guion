@@ -1312,6 +1312,7 @@ R_CLOCK_RANGE
 R_CLOCK_UNAVAILABLE
 R_COLLECTION_LIMIT
 R_CSV_MALFORMED
+R_DEADLINE
 R_DIV_ZERO
 R_ENV_DENIED
 R_ENV_ENCODING
@@ -1636,4 +1637,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:818c96077e1cb1b40ffc45f60cfa142aa7352dedddc1a78b4ead1a9ebaa80e44. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:4565d6013ca6f0e00642bbb6f4dff38771ca6ad32c950e9ff1b23e33ec0cdda3. Validated by `cargo xtask agent-reference --check`. -->

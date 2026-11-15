@@ -56,7 +56,11 @@ fn slow_server(delay: Duration) -> SlowServer {
                 let now = open.fetch_add(1, Ordering::SeqCst) + 1;
                 peak.fetch_max(now, Ordering::SeqCst);
                 let mut buffer = [0u8; 2048];
-                let _ = stream.read(&mut buffer);
+                let read = stream.read(&mut buffer).unwrap_or(0);
+                if String::from_utf8_lossy(&buffer[..read]).starts_with("GET /hang") {
+                    // A server that takes the request and never answers.
+                    std::thread::sleep(Duration::from_secs(25));
+                }
                 std::thread::sleep(delay);
                 let _ = stream.write_all(
                     b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
@@ -150,4 +154,165 @@ fn core_count_reports_this_machines_cores() {
     );
     let expected = std::thread::available_parallelism().unwrap().get();
     assert_eq!(stdout(&output), expected.to_string(), "{}", stderr(&output));
+}
+
+// ---- Part 2: deadlines ----
+
+const SUMMARY: &str = "fn show(results: List[Result[Int, TaskError]]) -> Int:\n    for each in results:\n        if is_ok(each):\n            print(\"ok \" + int_to_text(unwrap(each)))\n        else:\n            print(task_code(error(each)))\n    return 0\n";
+
+fn try_source(address: &str, urls: &[&str], limits: &str) -> String {
+    let list = urls
+        .iter()
+        .map(|path| format!("\"http://{address}{path}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "import \"std:process\"\n\nfn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\n{SUMMARY}\nfn main() -> Int:\n    let urls: List[Text] = [{list}]\n    let results = try_parallel_map(urls, fetch, {limits})\n    return show(results)\n"
+    )
+}
+
+#[test]
+fn an_item_past_each_ms_is_r_deadline_and_a_hung_call_still_returns_on_time() {
+    let server = slow_server(Duration::from_millis(10));
+    let started = Instant::now();
+    let output = run_project(
+        "each",
+        "",
+        &["--allow-http-host", "127.0.0.1"],
+        &try_source(
+            &server.address,
+            &["/a", "/hang", "/b"],
+            "Workers(3, 700, 0)",
+        ),
+    );
+    let elapsed = started.elapsed();
+    assert_eq!(
+        stdout(&output),
+        "ok 1\nR_DEADLINE\nok 1",
+        "{}",
+        stderr(&output)
+    );
+    // The hung request would hold the item for 15 s (the HTTP timeout) or 25 s (the server).
+    assert!(elapsed < Duration::from_secs(6), "took {elapsed:?}");
+}
+
+#[test]
+fn all_ms_keeps_finished_results_and_stops_the_rest() {
+    let server = slow_server(Duration::from_millis(10));
+    let output = run_project(
+        "all",
+        "",
+        &["--allow-http-host", "127.0.0.1"],
+        &try_source(
+            &server.address,
+            &["/a", "/b", "/hang", "/hang", "/c"],
+            "Workers(2, 0, 900)",
+        ),
+    );
+    // Two finish; two are cut off while running; the last never starts.
+    assert_eq!(
+        stdout(&output),
+        "ok 1\nok 1\nR_DEADLINE\nR_DEADLINE\nR_DEADLINE",
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn an_item_that_only_computes_is_stopped_at_its_deadline_too() {
+    let source = format!(
+        "import \"std:process\"\n\nfn spin(count: Int) -> Int:\n    var i = 0\n    while i < count:\n        set i = i + 1\n    return i\n\n{SUMMARY}\nfn main() -> Int:\n    let results = try_parallel_map([10, 4000000000, 20], spin, Workers(3, 400, 0))\n    return show(results)\n"
+    );
+    let started = Instant::now();
+    let output = run_project(
+        "compute",
+        "[package]\nname = \"c\"\nversion = \"0.1.0\"\n[runtime]\ninstruction_limit = 100000000000\n",
+        &[],
+        &source,
+    );
+    assert_eq!(
+        stdout(&output),
+        "ok 10\nR_DEADLINE\nok 20",
+        "{}",
+        stderr(&output)
+    );
+    assert!(started.elapsed() < Duration::from_secs(8));
+}
+
+#[test]
+fn a_fault_in_one_item_is_that_items_error_and_siblings_carry_on() {
+    let source = format!(
+        "import \"std:process\"\n\nfn pick(n: Int) -> Int:\n    let items = [10, 20, 30]\n    return items[n]\n\n{SUMMARY}\nfn main() -> Int:\n    let results = try_parallel_map([0, 7, 2, 1], pick, Workers(2, 0, 0))\n    return show(results)\n"
+    );
+    let output = run_project("fault", "", &[], &source);
+    let text = stdout(&output);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 4, "{text}{}", stderr(&output));
+    assert_eq!(lines[0], "ok 10");
+    assert!(lines[1].starts_with("R_"), "{text}");
+    assert_eq!(lines[2], "ok 30");
+    assert_eq!(lines[3], "ok 20");
+}
+
+#[test]
+fn workers_above_the_ceiling_get_the_same_fix_it_error() {
+    let source = format!(
+        "import \"std:process\"\n\nfn id(n: Int) -> Int:\n    return n\n\n{SUMMARY}\nfn main() -> Int:\n    return show(try_parallel_map([1], id, Workers(200, 0, 0)))\n"
+    );
+    let output = run_project("try-ceiling", "", &[], &source);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("[runtime] max_parallelism = 200"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_recorded_deadline_replays_with_the_same_item_timing_out_and_nothing_granted() {
+    let server = slow_server(Duration::from_millis(10));
+    let dir = std::env::temp_dir().join(format!("guion-conc-replay-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("main.gu"),
+        try_source(
+            &server.address,
+            &["/a", "/hang", "/b", "/hang"],
+            "Workers(2, 600, 0)",
+        ),
+    )
+    .unwrap();
+    let guion = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(args)
+            .current_dir(&dir)
+            .env("GUION_NO_PROMPT", "1")
+            .output()
+            .expect("guion starts")
+    };
+    let recorded = guion(&[
+        "run",
+        "--allow-http-host",
+        "127.0.0.1",
+        "--record",
+        "t.tape",
+        "main.gu",
+    ]);
+    assert_eq!(
+        stdout(&recorded),
+        "ok 1\nR_DEADLINE\nok 1\nR_DEADLINE",
+        "{}",
+        stderr(&recorded)
+    );
+    for _ in 0..20 {
+        let replayed = guion(&["run", "--replay", "t.tape", "main.gu"]);
+        assert_eq!(
+            stdout(&replayed),
+            "ok 1\nR_DEADLINE\nok 1\nR_DEADLINE",
+            "{}",
+            stderr(&replayed)
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

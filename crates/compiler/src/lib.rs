@@ -4415,6 +4415,63 @@ impl<'a> FnCompiler<'a> {
                         Box::new(Type::TaskError),
                     ));
                 }
+                if name == "try_parallel_map" {
+                    if args.len() != 3 {
+                        return Err(diagnostic("E_CALL_ARITY", "try_parallel_map expects a list, a unary function name, and Workers limits", *s));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "try_parallel_map first argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    self.reject_capturing_literal(&args[1], "try_parallel_map")?;
+                    let worker = self.function_argument(
+                        &args[1],
+                        (
+                            "E_TYPE_ARGUMENT",
+                            "try_parallel_map worker must be a named function or a function value",
+                        ),
+                        "worker function",
+                    )?;
+                    let worker_span = worker.span();
+                    let (worker_params, worker_result) = worker.signature();
+                    if worker_params.iter().any(type_contains_native_resource)
+                        || type_contains_native_resource(&worker_result)
+                    {
+                        return Err(diagnostic(
+                            "E_PARALLEL_RESOURCE",
+                            "parallel workers cannot accept or return native resources",
+                            worker_span,
+                        ));
+                    }
+                    if worker_params != vec![item_type] {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "try_parallel_map worker must accept one item of the list's item type",
+                            worker_span,
+                        ));
+                    }
+                    if let Some(index) = worker.index() {
+                        self.emit(Op::MakeFn(index), worker_span);
+                    }
+                    if self.expr(&args[2])? != Type::Record("Workers".into()) {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "try_parallel_map limits must be Workers(at_once, each_ms, all_ms) from std:process",
+                            args[2].span(),
+                        ));
+                    }
+                    self.emit(Op::HigherOrder(HigherOrderKind::TryParallelMap), *s);
+                    return Ok(Type::List(Box::new(Type::Result(
+                        Box::new(worker_result),
+                        Box::new(Type::TaskError),
+                    ))));
+                }
                 if name == "sort_by" {
                     if args.len() != 2 {
                         return Err(diagnostic(

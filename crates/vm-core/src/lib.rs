@@ -6574,7 +6574,7 @@ impl VmHost for PortableHost {
         let span = context.instruction.span;
         // `parallel_map` needs threads, which this host does not have.
         match op {
-            Op::HigherOrder(Kind::ParallelMap) | Op::ParallelMap(_) => {}
+            Op::HigherOrder(Kind::ParallelMap | Kind::TryParallelMap) | Op::ParallelMap(_) => {}
             Op::HigherOrder(kind) => return self.portable_higher_order(kind, context),
             Op::SortNatural => return self.portable_sort_natural(context),
             Op::SortByKey(target) => return self.portable_sort_keyed(target, false, context),
