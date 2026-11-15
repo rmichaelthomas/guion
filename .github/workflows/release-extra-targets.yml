@@ -60,18 +60,28 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist stage
+          BIN=target/${{ matrix.triple }}/release/guion
+          if [ "${{ matrix.target }}" = "windows-x86_64" ]; then BIN="$BIN.exe"; fi
+          sh scripts/stage-binary-package.sh ${{ matrix.target }} "$BIN" stage
           if [ "${{ matrix.target }}" = "windows-x86_64" ]; then
-            cp target/${{ matrix.triple }}/release/guion.exe stage/
-            powershell -Command "Compress-Archive -Path stage/* -DestinationPath dist/guion-${{ matrix.target }}.zip"
+            powershell -Command "Compress-Archive -Path stage/guion-${{ matrix.target }} -DestinationPath dist/guion-${{ matrix.target }}.zip"
           else
-            cp target/${{ matrix.triple }}/release/guion stage/
-            tar -C stage -czf dist/guion-${{ matrix.target }}.tar.gz guion
+            tar -C stage -czf dist/guion-${{ matrix.target }}.tar.gz guion-${{ matrix.target }}
           fi
           cd dist
           for f in *; do
             if command -v sha256sum >/dev/null; then sha256sum "$f" > "$f.sha256"; else shasum -a 256 "$f" > "$f.sha256"; fi
             cat "$f.sha256"
           done
+
+      - name: Smoke test the packaged standard library
+        run: |
+          printf 'import "std:text"\n\nfn main() -> Unit:\n    print("std ok")\n' > std_smoke.gu
+          BIN=stage/guion-${{ matrix.target }}/bin/guion
+          if [ "${{ matrix.target }}" = "windows-x86_64" ]; then BIN="$BIN.exe"; fi
+          OUT=$("$BIN" run std_smoke.gu | tr -d '\r')
+          echo "output: $OUT"
+          test "$OUT" = "std ok"
 
       - name: Retain the package
         uses: actions/upload-artifact@v7.0.2

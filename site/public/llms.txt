@@ -1,6 +1,6 @@
 # Guion
 
-> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.4.0 is out for Linux and macOS (Apple Silicon): https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0
+> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.5.0 is out for Linux and macOS (Apple Silicon): https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0
 
 Site: https://rmichaelthomas.github.io/guion/
 Machine-readable copy of everything below: https://rmichaelthomas.github.io/guion/agents.json
