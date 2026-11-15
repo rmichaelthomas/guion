@@ -1,13 +1,24 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:e50354f9431c7e244d093a0a2ad94fa897b91b8eb1793338d9dfce94fe38ce10",
-    "compiler_seed": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
-    "compiler_seed_manifest": "sha256:6fa10cb874c55367f61039604c791af8b3622b149673e90219aeafc64615f6de",
-    "runtime": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
-    "stdlib": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600"
+    "artifact_schema": "sha256:501095a025c90b1511446725087b2916b9f01da4cdba2c86ef3faa06614f8707",
+    "compiler_seed": "sha256:d2861e7e1bf409761d7e4e33d81e4c9cbda85163c3aa020ca795df85c73e6e3e",
+    "compiler_seed_manifest": "sha256:12825c76b3cc99c2ea7bbfeb3e90552424b2ac5d43742067933c0a697b4a4c5f",
+    "runtime": "sha256:447c6e76b5c3106cf84e0a763893709c4460bc8db54501fe4fa11bee8089fbaa",
+    "stdlib": "sha256:d91d56baaefeff9cef8d5d28d2122f3a7f171e86ac95485d2eaa47023b250f82"
   },
-  "changed_path_count": 4717,
+  "changed_path_count": 0,
   "checks": [
+    {
+      "command": [
+        "cargo",
+        "xtask",
+        "artifact-format-audit"
+      ],
+      "exit_status": 0,
+      "id": "artifact-format-test-audit",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (74)",
+      "status": "passed"
+    },
     {
       "command": [
         "cargo",
@@ -16,15 +27,14 @@
         "--offline",
         "--release",
         "-p",
-        "veritas-cli",
+        "guion-cli",
         "--bin",
-        "veritas"
+        "guion"
       ],
       "exit_status": 0,
       "id": "release-binary-build",
-      "output": "built /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/release/veritas (0.1.0-macos-aarch64-38147dcadf3c)",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "built /Users/rmichaelthomas/guion/target/release-pgo/guion (0.1.0-macos-aarch64-a7e5eede488b)",
+      "status": "passed"
     },
     {
       "command": [
@@ -32,9 +42,8 @@
       ],
       "exit_status": 0,
       "id": "release-package-contents",
-      "output": "compiler seed, standard library, docs, native component manifest, installer, 169 dependency license sets; archive has 487 safe members",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "compiler seed, standard library, docs, native component manifest, installer, 181 dependency license sets; archive has 569 safe members",
+      "status": "passed"
     },
     {
       "command": [
@@ -42,9 +51,17 @@
       ],
       "exit_status": 0,
       "id": "release-archive-audit",
-      "output": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/veritas-macos-aarch64.tar.gz (5414452 bytes, sha256 286da47c8cdbbb8eaf29bb0710ad60e130e58dfd0df852136c48e471a3e5db37)",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/guion-macos-aarch64.tar.gz (7047542 bytes, sha256 8e064347996bce8c5e78e515faba6e23fdb85011f965360b9999615569ca6cfc)",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "codesign + notarytool"
+      ],
+      "exit_status": 0,
+      "id": "release-macos-signing",
+      "output": "signed with Developer ID and the hardened runtime; notarized by Apple (submission 5d146aed-fac2-4e7f-8352-8ea512cffa22)",
+      "status": "passed"
     },
     {
       "command": [
@@ -53,8 +70,7 @@
       "exit_status": 0,
       "id": "release-tamper-rejected",
       "output": "modified compiler seed rejected by SHA-256 manifest verification",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "status": "passed"
     },
     {
       "command": [
@@ -63,67 +79,61 @@
       "exit_status": 0,
       "id": "release-dependency-target-mismatch",
       "output": "package built for a different target (aarch64-unknown-linux-gnu) rejected",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "status": "passed"
     },
     {
       "command": [
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas",
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
         "--version"
       ],
       "exit_status": 0,
       "id": "source-free-readonly-relocation",
-      "output": "PATH=/nonexistent; package tree read-only; cwd=/var/folders/r9/60ct76ks20z0_j2dznkytq940000gn/T/; veritas 0.1.0 (artifact format 39)\n",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "PATH=/nonexistent; package tree read-only; cwd=/var/folders/r9/60ct76ks20z0_j2dznkytq940000gn/T/; guion 0.5.0 (artifact format 74, timezone data 2026c)\n",
+      "status": "passed"
     },
     {
       "command": [
         "sh",
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/current/install.sh",
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/install-prefix ✓"
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/current/install.sh",
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/install-prefix ✓"
       ],
       "exit_status": 0,
       "id": "release-installer-clean-room",
-      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Veritas current\nCommand: /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/install-prefix ✓/bin/veritas\nAdd /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/install-prefix ✓/bin to PATH to invoke `veritas` from any directory.\nveritas 0.1.0 (artifact format 39)\n",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Guion current\nCommand: /Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/install-prefix ✓/bin/guion\nAdd /Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/install-prefix ✓/bin to PATH to invoke `guion` from any directory.\nguion 0.5.0 (artifact format 74, timezone data 2026c)\n",
+      "status": "passed"
     },
     {
       "command": [
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas",
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
         "new",
         "example app"
       ],
       "exit_status": 0,
       "id": "readonly-install-writable-caller-data",
-      "output": "read-only install; writable project created at /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.vr; created example app\n",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "read-only install; writable project created at /Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu; created example app\n",
+      "status": "passed"
     },
     {
       "command": [
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas",
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion",
         "check",
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.vr"
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu"
       ],
       "exit_status": 0,
       "id": "bundled-stdlib-from-relocated-install",
-      "output": "checked /Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.vr (2 functions)\n",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "checked /Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/caller-data ✓/example app/src/main.gu (2 functions)\n",
+      "status": "passed"
     },
     {
       "command": [
         "otool",
         "-L",
-        "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas"
+        "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion"
       ],
       "exit_status": 0,
       "id": "dynamic-library-audit",
-      "output": "/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/target/completion/releases/macos-aarch64/relocated ✓ package/bin/veritas:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n",
-      "status": "passed",
-      "target": "macos-aarch64"
+      "output": "/Users/rmichaelthomas/guion/target/completion/releases/macos-aarch64/relocated ✓ package/bin/guion:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.40.3)\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n",
+      "status": "passed"
     },
     {
       "command": [
@@ -132,161 +142,30 @@
       "exit_status": 0,
       "id": "release-hashes-stable-after-execution",
       "output": "immutable current package hashes remain unchanged after relocation and launches",
-      "status": "passed",
-      "target": "macos-aarch64"
-    },
-    {
-      "command": [
-        "cargo",
-        "build",
-        "--locked",
-        "--offline",
-        "--release",
-        "--target",
-        "aarch64-unknown-linux-gnu",
-        "-p",
-        "veritas-cli",
-        "--bin",
-        "veritas"
-      ],
-      "exit_status": 0,
-      "id": "release-binary-build",
-      "output": "built /tmp/veritas-linux-target/aarch64-unknown-linux-gnu/release/veritas (0.1.0-debian-aarch64-ea7a8ebfffe2)",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "cargo xtask release"
-      ],
-      "exit_status": 0,
-      "id": "release-package-contents",
-      "output": "compiler seed, standard library, docs, native component manifest, installer, 168 dependency license sets; archive has 483 safe members",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "Rust path/type audit + tar listing"
-      ],
-      "exit_status": 0,
-      "id": "release-archive-audit",
-      "output": "/workspace/target/completion/releases/debian-aarch64/veritas-debian-aarch64.tar.gz (5869757 bytes, sha256 75c47c105ec240f7635658b768f35888e3b98af8796658f2795d6f3ec2571f1f)",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "Rust release manifest verification"
-      ],
-      "exit_status": 0,
-      "id": "release-tamper-rejected",
-      "output": "modified compiler seed rejected by SHA-256 manifest verification",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "Rust release target verification"
-      ],
-      "exit_status": 0,
-      "id": "release-dependency-target-mismatch",
-      "output": "package built for a different target (aarch64-apple-darwin) rejected",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "/workspace/target/completion/releases/debian-aarch64/relocated ✓ package/bin/veritas",
-        "--version"
-      ],
-      "exit_status": 0,
-      "id": "source-free-readonly-relocation",
-      "output": "PATH=/nonexistent; package tree read-only; cwd=/tmp; veritas 0.1.0 (artifact format 39)\n",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "sh",
-        "/workspace/target/completion/releases/debian-aarch64/current/install.sh",
-        "/workspace/target/completion/releases/debian-aarch64/install-prefix ✓"
-      ],
-      "exit_status": 0,
-      "id": "release-installer-clean-room",
-      "output": "installer and installed command use PATH=/usr/bin:/bin (no Python/uv path); Installed Veritas current\nCommand: /workspace/target/completion/releases/debian-aarch64/install-prefix ✓/bin/veritas\nAdd /workspace/target/completion/releases/debian-aarch64/install-prefix ✓/bin to PATH to invoke `veritas` from any directory.\nveritas 0.1.0 (artifact format 39)\n",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "/workspace/target/completion/releases/debian-aarch64/relocated ✓ package/bin/veritas",
-        "new",
-        "example app"
-      ],
-      "exit_status": 0,
-      "id": "readonly-install-writable-caller-data",
-      "output": "read-only install; writable project created at /workspace/target/completion/releases/debian-aarch64/caller-data ✓/example app/src/main.vr; created example app\n",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "/workspace/target/completion/releases/debian-aarch64/relocated ✓ package/bin/veritas",
-        "check",
-        "/workspace/target/completion/releases/debian-aarch64/caller-data ✓/example app/src/main.vr"
-      ],
-      "exit_status": 0,
-      "id": "bundled-stdlib-from-relocated-install",
-      "output": "checked /workspace/target/completion/releases/debian-aarch64/caller-data ✓/example app/src/main.vr (2 functions)\n",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "ldd",
-        "/workspace/target/completion/releases/debian-aarch64/relocated ✓ package/bin/veritas"
-      ],
-      "exit_status": 0,
-      "id": "dynamic-library-audit",
-      "output": "\tlinux-vdso.so.1 (0x0000e2509a63f000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e25099a90000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e25099a50000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e250998a0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e2509a5f0000)\n",
-      "status": "passed",
-      "target": "debian-aarch64"
-    },
-    {
-      "command": [
-        "Rust release manifest verification"
-      ],
-      "exit_status": 0,
-      "id": "release-hashes-stable-after-execution",
-      "output": "immutable current package hashes remain unchanged after relocation and launches",
-      "status": "passed",
-      "target": "debian-aarch64"
+      "status": "passed"
     }
   ],
   "command": "release",
   "completed_targets": [
-    "macos-aarch64",
-    "debian-aarch64"
+    "macos-aarch64"
   ],
-  "exact_command": "cargo xtask release --target both",
+  "exact_command": "cargo xtask release --target macos-aarch64",
   "exit_status": 0,
   "message": null,
   "missing_checks": [],
   "missing_evidence": [],
   "report": "release",
   "required_targets": [
-    "macos-aarch64",
-    "debian-aarch64"
+    "macos-aarch64"
   ],
-  "runtime_hash": "sha256:2f43071c84548aa37dac0ced5f0b993cb7abf3b3352c5dbd2b038e3de10598a3",
+  "runtime_hash": "sha256:447c6e76b5c3106cf84e0a763893709c4460bc8db54501fe4fa11bee8089fbaa",
   "schema_version": 1,
-  "seed_hash": "sha256:86aa851606f499999af2ad5a30daf708b62b1ecc571904b62896dd2613ed8c20",
+  "seed_hash": "sha256:d2861e7e1bf409761d7e4e33d81e4c9cbda85163c3aa020ca795df85c73e6e3e",
   "skipped_targets": [],
-  "source_revision": "cb5587b1f4d48a72b955ad2e6e666cdef28f5373",
+  "source_revision": "1c30c7ddb7b658b4afc4369515b02a05bedfa81e",
   "status": "passed",
-  "stdlib_hash": "sha256:19b745d51f8124fb98e7aec01ae9a2980e14f7fe8a8f8592395d63b807317600",
-  "target": "both",
+  "stdlib_hash": "sha256:d91d56baaefeff9cef8d5d28d2122f3a7f171e86ac95485d2eaa47023b250f82",
+  "target": "macos-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:4d515d48ba1912119df9cb800cc73d6c1a8ddf02ca25a66de4589b51c9258066"
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }
