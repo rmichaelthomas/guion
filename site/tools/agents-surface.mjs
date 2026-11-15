@@ -42,7 +42,7 @@ export function renderLlmsTxt({ claims, gaps }) {
   const lines = [
     '# Guion',
     '',
-    '> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.5.0 is out for Linux and macOS (Apple Silicon): https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0',
+    '> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.5.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0',
     '',
     `Site: ${SITE_URL}`,
     `Machine-readable copy of everything below: ${SITE_URL}agents.json`,
