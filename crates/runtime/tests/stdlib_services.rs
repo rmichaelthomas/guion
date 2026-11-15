@@ -777,8 +777,11 @@ fn sqlite_reader_on_begin_fails_at_the_published_deadline_while_the_lock_is_held
     let error = reader.begin(reader_db).unwrap_err();
     let elapsed = started.elapsed().as_millis() as u64;
     assert_eq!(error.code, "E_SQLITE_BEGIN");
+    // Failing early would break the published deadline, so the lower bound is tight. The upper
+    // bound only catches a wait that never ends: a loaded shared macOS runner took 3,954 ms
+    // against the 2,000 ms deadline while other SQLite tests ran in parallel.
     let low = SQLITE_BUSY_DEADLINE_MS * 75 / 100;
-    let high = SQLITE_BUSY_DEADLINE_MS * 125 / 100;
+    let high = SQLITE_BUSY_DEADLINE_MS * 3;
     assert!(
         (low..=high).contains(&elapsed),
         "begin failed after {elapsed} ms, published deadline {SQLITE_BUSY_DEADLINE_MS} ms"

@@ -8,7 +8,7 @@
 <div class="receipts-top">
 <figure class="ratio-figure" data-ahi="ahi.relationships-diagrams.comparison-bridge">
 {{ratio-chart}}
-<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise.</span></figcaption>
+<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot. Each receipt names the build it measured; several are from early November builds, not the current release, and have not been re-measured on 0.5.0.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise. Receipts name their artifact format (61 to 73); 0.5.0 is format 74 and has not been re-measured.</span></figcaption>
 </figure>
 </div>
 <div class="filters" role="group" aria-label="Show receipts about">
