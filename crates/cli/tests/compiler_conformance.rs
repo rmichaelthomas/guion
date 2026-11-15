@@ -325,7 +325,7 @@ fn rejects_the_current_type_and_control_flow_failures_with_stable_codes() {
         ),
         (
             "generic key type",
-            "fn main() -> Int:\n    let values: Map[Int, Text] = {}\n    return 0\n",
+            "fn main() -> Int:\n    let values: Map[Bool, Text] = {}\n    return 0\n",
             "E_TYPE_MAP_KEY",
         ),
         (

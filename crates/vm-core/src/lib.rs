@@ -3994,7 +3994,8 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 // size only.
                 let shallow = matches!(
                     (&result, &f.result),
-                    (Value::List(_), Type::List(_)) | (Value::Map(_), Type::Map(_))
+                    (Value::List(_), Type::List(_))
+                        | (Value::Map(_), Type::Map(_) | Type::IntMap(_))
                 );
                 if shallow {
                     if let Some(error) = collection_size_error(&result, limits, instruction.span) {
@@ -6183,7 +6184,7 @@ pub fn value_matches(value: &Value, ty: &Type, records: &[guion_model::RecordDef
             .iter()
             .all(|item| value_matches(item, item_ty, records)),
         (Value::Float64List(_), Type::List(item_ty)) => **item_ty == Type::Float64,
-        (Value::Map(items), Type::Map(item_ty)) => items
+        (Value::Map(items), Type::Map(item_ty) | Type::IntMap(item_ty)) => items
             .iter_unordered()
             .all(|(_, item)| value_matches(item, item_ty, records)),
         (Value::OptionNone, Type::Option(_)) => true,

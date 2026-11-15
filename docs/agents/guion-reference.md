@@ -990,6 +990,7 @@ E_FIELD_UNKNOWN
 E_FILE
 E_FLOAT_LITERAL
 E_FLOAT_PARSE
+E_FN_CLOSURE
 E_FN_COMPARE
 E_FN_NOT_SERIALIZABLE
 E_FN_NO_CLOSURES
@@ -1629,4 +1630,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:2334cad772d1cdeea0b4b283cc33f6c3f6409993e62315b76d6afa408b188fc5. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:27dc908ed25048b247b5da396ff5bd3663f9f25e406c98d8893d9d2f11fcb8ef. Validated by `cargo xtask agent-reference --check`. -->

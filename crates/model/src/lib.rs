@@ -3446,6 +3446,7 @@ pub enum Type {
     Text,
     List(Box<Type>),
     Map(Box<Type>),
+    IntMap(Box<Type>),
     Option(Box<Type>),
     Result(Box<Type>, Box<Type>),
     TaskError,
@@ -3465,10 +3466,44 @@ pub enum Type {
 /// call and pass function values. A function value captures nothing.
 impl Type {
     /// Whether this type is, or holds, a function value.
+    /// This type with every `Map[Int, T]` replaced by `Map[Text, T]`: the two share a runtime
+    /// representation, so the verifier checks the erased form.
+    pub fn without_int_map(&self) -> Type {
+        match self {
+            Type::IntMap(item) | Type::Map(item) => Type::Map(Box::new(item.without_int_map())),
+            Type::List(item) => Type::List(Box::new(item.without_int_map())),
+            Type::Option(item) => Type::Option(Box::new(item.without_int_map())),
+            Type::Result(ok, err) => Type::Result(
+                Box::new(ok.without_int_map()),
+                Box::new(err.without_int_map()),
+            ),
+            Type::Fn(parameters, result) => Type::Fn(
+                parameters.iter().map(Type::without_int_map).collect(),
+                Box::new(result.without_int_map()),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    /// Whether this type is, or holds, a `Map[Int, T]` (artifact format 75).
+    pub fn contains_int_map(&self) -> bool {
+        match self {
+            Type::IntMap(_) => true,
+            Type::List(item) | Type::Map(item) | Type::Option(item) => item.contains_int_map(),
+            Type::Result(ok, err) => ok.contains_int_map() || err.contains_int_map(),
+            Type::Fn(parameters, result) => {
+                parameters.iter().any(Type::contains_int_map) || result.contains_int_map()
+            }
+            _ => false,
+        }
+    }
+
     pub fn contains_fn(&self) -> bool {
         match self {
             Type::Fn(_, _) => true,
-            Type::List(item) | Type::Map(item) | Type::Option(item) => item.contains_fn(),
+            Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+                item.contains_fn()
+            }
             Type::Result(ok, err) => ok.contains_fn() || err.contains_fn(),
             _ => false,
         }
@@ -4441,7 +4476,45 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub const CURRENT_VERSION: u32 = 74;
+    /// A copy with `Map[Int, T]` erased to `Map[Text, T]` everywhere a type is written; the
+    /// verifier checks this form, since both maps are one runtime value.
+    pub fn without_int_maps(&self) -> Artifact {
+        let mut erased = self.clone();
+        for record in &mut erased.records {
+            for field in &mut record.fields {
+                field.ty = field.ty.without_int_map();
+            }
+        }
+        for external in &mut erased.externals {
+            external.parameters = external
+                .parameters
+                .iter()
+                .map(Type::without_int_map)
+                .collect();
+            external.result = external.result.without_int_map();
+        }
+        for function in &mut erased.functions {
+            function.parameters = function
+                .parameters
+                .iter()
+                .map(Type::without_int_map)
+                .collect();
+            function.result = function.result.without_int_map();
+            for instruction in &mut function.code {
+                if let Op::MakeTypedList(ty) | Op::MakeTypedMap(ty) = &mut instruction.op {
+                    *ty = ty.without_int_map();
+                }
+            }
+        }
+        erased
+    }
+
+    /// Whether any written type is or holds a `Map[Int, T]`.
+    pub fn uses_int_map(&self) -> bool {
+        artifact_uses_int_map(self)
+    }
+
+    pub const CURRENT_VERSION: u32 = 75;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4747,6 +4820,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "function values require artifact format 66",
+            ));
+        }
+        if self.format_version < 75 && artifact_uses_int_map(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "Map[Int, T] requires artifact format 75",
             ));
         }
         if self.format_version < 74 && artifact_uses_closures(self) {
@@ -6240,7 +6319,9 @@ fn artifact_uses_bytes(artifact: &Artifact) -> bool {
     fn ty_has_bytes(ty: &Type) -> bool {
         match ty {
             Type::Bytes => true,
-            Type::List(item) | Type::Map(item) | Type::Option(item) => ty_has_bytes(item),
+            Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+                ty_has_bytes(item)
+            }
             Type::Result(ok, err) => ty_has_bytes(ok) || ty_has_bytes(err),
             _ => false,
         }
@@ -6394,7 +6475,9 @@ fn artifact_uses_math_and_conversions(artifact: &Artifact) -> bool {
 fn type_mentions_array(ty: &Type) -> bool {
     match ty {
         Type::Array(_) => true,
-        Type::List(item) | Type::Map(item) | Type::Option(item) => type_mentions_array(item),
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+            type_mentions_array(item)
+        }
         Type::Result(ok, err) => type_mentions_array(ok) || type_mentions_array(err),
         _ => false,
     }
@@ -6516,6 +6599,24 @@ fn artifact_uses_sha256(artifact: &Artifact) -> bool {
             )
         })
     })
+}
+
+fn artifact_uses_int_map(artifact: &Artifact) -> bool {
+    artifact
+        .records
+        .iter()
+        .any(|record| record.fields.iter().any(|field| field.ty.contains_int_map()))
+        || artifact.externals.iter().any(|external| {
+            external.parameters.iter().any(Type::contains_int_map)
+                || external.result.contains_int_map()
+        })
+        || artifact.functions.iter().any(|function| {
+            function.parameters.iter().any(Type::contains_int_map)
+                || function.result.contains_int_map()
+                || function.code.iter().any(|instruction| {
+                    matches!(&instruction.op, Op::MakeTypedMap(ty) | Op::MakeTypedList(ty) if ty.contains_int_map())
+                })
+        })
 }
 
 fn artifact_uses_closures(artifact: &Artifact) -> bool {
@@ -6897,7 +6998,9 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
     fn has_resource_type(ty: &Type) -> bool {
         match ty {
             Type::NativeResource(_) => true,
-            Type::List(item) | Type::Map(item) | Type::Option(item) => has_resource_type(item),
+            Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+                has_resource_type(item)
+            }
             Type::Result(ok, err) => has_resource_type(ok) || has_resource_type(err),
             _ => false,
         }
@@ -7048,7 +7151,9 @@ fn artifact_uses_args_from(artifact: &Artifact) -> bool {
 fn type_has_http_error(ty: &Type) -> bool {
     match ty {
         Type::HttpError => true,
-        Type::List(item) | Type::Map(item) | Type::Option(item) => type_has_http_error(item),
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+            type_has_http_error(item)
+        }
         Type::Result(ok, err) => type_has_http_error(ok) || type_has_http_error(err),
         _ => false,
     }
@@ -7154,6 +7259,10 @@ impl Writer {
             }
             Type::Map(item) => {
                 self.u8(11);
+                self.ty(item)?;
+            }
+            Type::IntMap(item) => {
+                self.u8(20);
                 self.ty(item)?;
             }
             Type::Float64 => self.u8(12),
@@ -7442,6 +7551,7 @@ impl<'a> Reader<'a> {
                         )
                     })
             }
+            20 => Ok(Type::IntMap(Box::new(self.ty_at(depth + 1)?))),
             19 => {
                 let count = self.count()?;
                 if count > 255 {

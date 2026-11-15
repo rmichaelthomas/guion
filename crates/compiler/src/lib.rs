@@ -972,14 +972,15 @@ impl Parser {
                 self.expect(",")?;
                 let item = self.ty()?;
                 self.expect("]")?;
-                if key != Type::Text {
-                    return Err(diagnostic(
+                match key {
+                    Type::Text => Ok(Type::Map(Box::new(item))),
+                    Type::Int => Ok(Type::IntMap(Box::new(item))),
+                    _ => Err(diagnostic(
                         "E_TYPE_MAP_KEY",
-                        "Map keys must have type Text",
+                        "Map keys must have type Text or Int",
                         t.span,
-                    ));
+                    )),
                 }
-                Ok(Type::Map(Box::new(item)))
             }
             "Option" => {
                 self.expect("[")?;
@@ -2477,6 +2478,7 @@ fn substitute_type(ty: &Type, bindings: &HashMap<String, Type>) -> Type {
         Type::Record(name) => bindings.get(name).cloned().unwrap_or_else(|| ty.clone()),
         Type::List(item) => Type::List(Box::new(substitute_type(item, bindings))),
         Type::Map(item) => Type::Map(Box::new(substitute_type(item, bindings))),
+        Type::IntMap(item) => Type::IntMap(Box::new(substitute_type(item, bindings))),
         Type::Option(item) => Type::Option(Box::new(substitute_type(item, bindings))),
         Type::Result(ok, err) => Type::Result(
             Box::new(substitute_type(ok, bindings)),
@@ -2533,6 +2535,7 @@ fn unify_type(
         },
         (Type::List(left), Type::List(right))
         | (Type::Map(left), Type::Map(right))
+        | (Type::IntMap(left), Type::IntMap(right))
         | (Type::Option(left), Type::Option(right)) => {
             unify_type(left, right, parameters, bindings)
         }
@@ -2843,6 +2846,113 @@ impl<'a> FnCompiler<'a> {
     /// Resolve the function argument of a higher-order builtin. A bare name that is not a local
     /// is a named function and emits nothing (the operation carries its index); anything else
     /// must have a function type, and its value is left on the stack.
+    /// Check that `key` is an `Int` and leave its canonical decimal text, the key a
+    /// `Map[Int, T]` stores it under, on the stack.
+    fn int_map_key(&mut self, key: &Expr, code: &str, message: &str) -> Result<(), Diagnostic> {
+        let mark = self.code.len();
+        if self.expr_with_expected(key, Some(&Type::Int))? != Type::Int {
+            return Err(diagnostic(code, message, key.span()));
+        }
+        self.code.truncate(mark);
+        let converted = Expr::Call(
+            "int_to_text".to_owned(),
+            vec![key.clone()],
+            Vec::new(),
+            key.span(),
+        );
+        self.expr(&converted)?;
+        Ok(())
+    }
+
+    /// A `Map[Int, T]` literal: every key is an `Int` expression, every value has one type.
+    fn int_map_literal(
+        &mut self,
+        values: &[(Expr, Expr)],
+        expected_item: Option<&Type>,
+        span: Span,
+    ) -> Result<Type, Diagnostic> {
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut item_type: Option<Type> = None;
+        for (key, value) in values {
+            if let Expr::Int(number, key_span) = key {
+                if !seen.insert(number.to_string()) {
+                    return Err(diagnostic(
+                        "E_MAP_DUPLICATE_KEY",
+                        format!("duplicate map key `{number}`"),
+                        *key_span,
+                    ));
+                }
+            }
+            self.int_map_key(key, "E_TYPE_MAP_KEY", "map literal keys must be Int")?;
+            let actual = self.expr_with_expected(value, expected_item)?;
+            if item_type.as_ref().is_some_and(|first| first != &actual) {
+                return Err(diagnostic(
+                    "E_TYPE_MAP_VALUE",
+                    "all map values must have the same type",
+                    value.span(),
+                ));
+            }
+            item_type = Some(actual);
+        }
+        self.emit(Op::MakeMap(values.len()), span);
+        Ok(Type::IntMap(Box::new(
+            item_type.expect("a non-empty literal"),
+        )))
+    }
+
+    /// With a `Map[Int, T]` on the stack, leave its keys as a `List[Int]` in ascending order.
+    /// The map stores decimal text, so this reads the sorted-by-text keys, parses each and
+    /// sorts the integers; no operation beyond the existing ones is needed.
+    fn int_map_keys(&mut self, span: Span) -> Result<(), Diagnostic> {
+        self.emit(Op::MapKeys, span);
+        let slot = self.next_local;
+        self.next_local += 1;
+        let hidden = format!("\u{0}int-map-keys{slot}");
+        self.emit(Op::Store(slot), span);
+        self.locals.insert(
+            hidden.clone(),
+            Local {
+                slot,
+                ty: Type::List(Box::new(Type::Text)),
+                mutable: false,
+                split: None,
+            },
+        );
+        let parse = Expr::Lambda(
+            vec![("k".to_owned(), Type::Text, span)],
+            Type::Int,
+            vec![Stmt::Return(
+                Expr::Call(
+                    "unwrap".to_owned(),
+                    vec![Expr::Call(
+                        "text_parse_int".to_owned(),
+                        vec![Expr::Name("k".to_owned(), span)],
+                        Vec::new(),
+                        span,
+                    )],
+                    Vec::new(),
+                    span,
+                ),
+                span,
+            )],
+            span,
+        );
+        let sorted = Expr::Call(
+            "sort".to_owned(),
+            vec![Expr::Call(
+                "map_list".to_owned(),
+                vec![Expr::Name(hidden.clone(), span), parse],
+                Vec::new(),
+                span,
+            )],
+            Vec::new(),
+            span,
+        );
+        self.expr(&sorted)?;
+        self.locals.remove(&hidden);
+        Ok(())
+    }
+
     /// `sort_by`, `sort_by_key`, `sort_by_int_key`, `merge_sorted_by_int_key` and `parallel_map`
     /// take a named function or a function value that captures nothing. A function literal
     /// written in the argument that uses a local variable is visible in the source, so it is
@@ -3091,7 +3201,7 @@ impl<'a> FnCompiler<'a> {
         fn walk(ty: &Type, records: &[RecordAst], seen: &mut Vec<String>) -> bool {
             match ty {
                 Type::Fn(_, _) => true,
-                Type::List(item) | Type::Map(item) | Type::Option(item) => {
+                Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
                     walk(item, records, seen)
                 }
                 Type::Result(ok, err) => walk(ok, records, seen) || walk(err, records, seen),
@@ -3196,20 +3306,33 @@ impl<'a> FnCompiler<'a> {
                 Ok(Type::List(Box::new(item_type)))
             }
             Expr::Map(values, span) => {
+                let int_keys = match expected {
+                    Some(Type::IntMap(_)) => true,
+                    Some(Type::Map(_)) => false,
+                    _ => matches!(values.first(), Some((Expr::Int(..), _)))
+                        || matches!(values.first(), Some((Expr::Unary(op, inner, _), _)) if op == "-" && matches!(**inner, Expr::Int(..))),
+                };
                 let expected_item = match expected {
-                    Some(Type::Map(item)) => Some(item.as_ref()),
+                    Some(Type::Map(item)) | Some(Type::IntMap(item)) => Some(item.as_ref()),
                     _ => None,
                 };
                 if values.is_empty() {
                     let Some(item_type) = expected_item else {
                         return Err(diagnostic(
                             "E_TYPE_MAP_EMPTY",
-                            "an empty map needs an explicit Map[Text, T] type",
+                            "an empty map needs an explicit Map[Text, T] or Map[Int, T] type",
                             *span,
                         ));
                     };
                     self.emit(Op::MakeTypedMap(item_type.clone()), *span);
-                    return Ok(Type::Map(Box::new(item_type.clone())));
+                    return Ok(if int_keys {
+                        Type::IntMap(Box::new(item_type.clone()))
+                    } else {
+                        Type::Map(Box::new(item_type.clone()))
+                    });
+                }
+                if int_keys {
+                    return self.int_map_literal(values, expected_item, *span);
                 }
                 let mut seen_keys = std::collections::HashSet::new();
                 let mut item_type = None;
@@ -3290,6 +3413,10 @@ impl<'a> FnCompiler<'a> {
                                 index.span(),
                             ));
                         }
+                        *item
+                    }
+                    Type::IntMap(item) => {
+                        self.int_map_key(index, "E_TYPE_INDEX", "map index must be Int")?;
                         *item
                     }
                     Type::Text => {
@@ -4216,6 +4343,11 @@ impl<'a> FnCompiler<'a> {
                     let item = match (&collection, name.as_str()) {
                         (Type::List(item), "list_get") => item.as_ref().clone(),
                         (Type::Map(item), "map_get") => item.as_ref().clone(),
+                        (Type::IntMap(item), "map_get") => {
+                            self.int_map_key(&args[1], "E_TYPE_ARGUMENT", "map_get key must be Int")?;
+                            self.emit(Op::MapGetOption, *s);
+                            return Ok(Type::Option(item.clone()));
+                        }
                         (Type::List(_), "map_get") => {
                             return Err(diagnostic(
                                 "E_TYPE_ARGUMENT",
@@ -4299,7 +4431,7 @@ impl<'a> FnCompiler<'a> {
                     }
                     if !matches!(
                         self.expr(&args[0])?,
-                        Type::List(_) | Type::Map(_) | Type::Bytes | Type::Text
+                        Type::List(_) | Type::Map(_) | Type::IntMap(_) | Type::Bytes | Type::Text
                     ) {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
@@ -4319,6 +4451,18 @@ impl<'a> FnCompiler<'a> {
                         ));
                     }
                     let map_type = self.expr(&args[0])?;
+                    if let Type::IntMap(item) = map_type {
+                        self.int_map_key(&args[1], "E_TYPE_ARGUMENT", "map_set key must be Int")?;
+                        if self.expr_with_expected(&args[2], Some(item.as_ref()))? != *item {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "map_set value must match the Map value type",
+                                args[2].span(),
+                            ));
+                        }
+                        self.emit(Op::MapSet, *s);
+                        return Ok(Type::IntMap(item));
+                    }
                     let Type::Map(item) = map_type else {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
@@ -4521,7 +4665,13 @@ impl<'a> FnCompiler<'a> {
                             *s,
                         ));
                     }
-                    if !matches!(self.expr(&args[0])?, Type::Map(_)) {
+                    let has_type = self.expr(&args[0])?;
+                    if matches!(has_type, Type::IntMap(_)) {
+                        self.int_map_key(&args[1], "E_TYPE_ARGUMENT", "map_has key must be Int")?;
+                        self.emit(Op::MapHas, *s);
+                        return Ok(Type::Bool);
+                    }
+                    if !matches!(has_type, Type::Map(_)) {
                         return Err(diagnostic(
                             "E_TYPE_ARGUMENT",
                             "map_has first argument must be a Map",
@@ -5348,6 +5498,10 @@ impl<'a> FnCompiler<'a> {
                         Type::Map(_) => {
                             self.emit(Op::MapKeys, values.span());
                             Type::Text
+                        }
+                        Type::IntMap(_) => {
+                            self.int_map_keys(values.span())?;
+                            Type::Int
                         }
                         _ => {
                             return Err(diagnostic(
@@ -6293,7 +6447,10 @@ fn std_import_hint(error: Diagnostic, stdlib_root: Option<&Path>) -> Diagnostic 
                 })
             })
         })
-        .filter_map(|path| path.file_stem().map(|stem| stem.to_string_lossy().into_owned()))
+        .filter_map(|path| {
+            path.file_stem()
+                .map(|stem| stem.to_string_lossy().into_owned())
+        })
         .collect();
     modules.sort();
     let Some(module) = modules.first() else {
@@ -6301,7 +6458,9 @@ fn std_import_hint(error: Diagnostic, stdlib_root: Option<&Path>) -> Diagnostic 
     };
     let mut hinted = Diagnostic::new(
         error.code.clone(),
-        format!("unknown function `{name}`; it is in `std:{module}`, add `import \"std:{module}\"`"),
+        format!(
+            "unknown function `{name}`; it is in `std:{module}`, add `import \"std:{module}\"`"
+        ),
         error.span,
     );
     hinted.source_name = error.source_name.clone();
@@ -6789,7 +6948,9 @@ fn type_is_known(ty: &Type, records: &std::collections::HashSet<String>) -> bool
             name.as_str(),
             "FileReader" | "Db" | "Transaction" | "TomlDocument"
         ),
-        Type::List(item) | Type::Map(item) | Type::Option(item) => type_is_known(item, records),
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+            type_is_known(item, records)
+        }
         Type::Result(ok, err) => type_is_known(ok, records) && type_is_known(err, records),
         Type::Fn(parameters, result) => {
             parameters
@@ -6808,7 +6969,9 @@ fn type_is_visible(ty: &Type, records: &HashSet<String>) -> bool {
             name.as_str(),
             "FileReader" | "Db" | "Transaction" | "TomlDocument"
         ),
-        Type::List(item) | Type::Map(item) | Type::Option(item) => type_is_visible(item, records),
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+            type_is_visible(item, records)
+        }
         Type::Result(ok, err) => type_is_visible(ok, records) && type_is_visible(err, records),
         Type::Fn(parameters, result) => {
             parameters
@@ -6832,7 +6995,7 @@ fn python_bridge_type(ty: &Type) -> bool {
         Type::List(item) => python_bridge_type(item),
         Type::Map(item) => python_bridge_type(item),
         Type::Record(_) => false,
-        Type::NativeResource(_) | Type::Array(_) | Type::Fn(_, _) => false,
+        Type::NativeResource(_) | Type::Array(_) | Type::Fn(_, _) | Type::IntMap(_) => false,
         Type::Option(_)
         | Type::Result(_, _)
         | Type::TaskError
@@ -6845,7 +7008,7 @@ fn python_bridge_type(ty: &Type) -> bool {
 fn type_contains_native_resource(ty: &Type) -> bool {
     match ty {
         Type::NativeResource(_) => true,
-        Type::List(item) | Type::Map(item) | Type::Option(item) => {
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
             type_contains_native_resource(item)
         }
         Type::Result(ok, err) => {

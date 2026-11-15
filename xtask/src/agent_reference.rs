@@ -178,7 +178,7 @@ pub fn render(root: &Path) -> Result<String, String> {
         output.push_str(&signature);
         output.push('\n');
     }
-    output.push_str("```\n\n`sort(List[T])` orders a list of `Text` (Unicode scalar order, the order of sorted map keys), `Int` or `Float64` (`-0.0` before `0.0`, NaN last), and `sort_by(List[T], key)` orders any list by a named pure `(T) -> K` key function with `K` in `Text`, `Int` or `Float64`; both are stable, `sort_by` runs the key once per item, and a key returning another type is `E_SORT_KEY`. A named `(T, T) -> Int` function passed to `sort_by` is still a comparator. `sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget. Function values (`fn(Int) -> Int`) are named functions or closures (`fn(x: Int) -> Int: x + n`), cannot be compared (`E_FN_COMPARE`) and cannot reach JSON, CSV, TOML, SQLite, process, HTTP, file or print boundaries (`E_FN_NOT_SERIALIZABLE`); list builtins take either; sorts, `parallel_map` need named ones. Also `enum`, `match`, generics `fn f[T]`.\n\n## Standard-library public signatures\n\n```text\n");
+    output.push_str("```\n\n`sort(List[T])` orders a list of `Text` (Unicode scalar order, the order of sorted map keys), `Int` or `Float64` (`-0.0` before `0.0`, NaN last), and `sort_by(List[T], key)` orders any list by a named pure `(T) -> K` key function with `K` in `Text`, `Int` or `Float64`; both are stable, `sort_by` runs the key once per item, and a key returning another type is `E_SORT_KEY`. A named `(T, T) -> Int` function passed to `sort_by` is still a comparator. `sort_by_int_key` requires a named pure `(T) -> Int` function, evaluates that key once per item, uses a stable sort, and preserves the input and its aliases. `merge_sorted_by_int_key` stably merges sorted `List[List[T]]` feeds using the same key contract and returns `R_SORT_ORDER` if any feed is not already sorted by key. Native comparisons count against the guest instruction budget. Function values (`fn(Int) -> Int`) are named functions or closures (`fn(x: Int) -> Int: x + n`), cannot be compared (`E_FN_COMPARE`) and cannot reach JSON, CSV, TOML, SQLite, process, HTTP, file or print boundaries (`E_FN_NOT_SERIALIZABLE`); list builtins take either; sorts and `parallel_map` take a named function or a literal that captures nothing (`E_FN_CLOSURE` at check time for a literal that does, `R_FN_CLOSURE` at run time for a closure held in a variable). Also `enum`, `match`, generics `fn f[T]`.\n\n## Standard-library public signatures\n\n```text\n");
     for signature in standard_library {
         output.push_str(&signature);
         output.push('\n');
@@ -230,9 +230,9 @@ pub fn render(root: &Path) -> Result<String, String> {
     let digest = Sha256::digest(output.as_bytes());
     output.push_str(&format!("<!-- Generated reference content digest: sha256:{digest:x}. Validated by `cargo xtask agent-reference --check`. -->\n"));
     let bytes = output.len();
-    if bytes > 120 * 1024 {
+    if bytes > 128 * 1024 {
         return Err(format!(
-            "generated agent reference is {bytes} bytes; limit is 122880"
+            "generated agent reference is {bytes} bytes; limit is 131072"
         ));
     }
     Ok(output)

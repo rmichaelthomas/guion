@@ -30,6 +30,7 @@ This compatibility is a migration aid, not a guarantee that old names will remai
 
 Nothing is removed or renamed. New words are `enum`, `match` over enum variants and the generic-call forms; a 0.4.0 program that used any of them as a name needs renaming (the compiler says which).
 
+- **Artifact format 75.** The runtime reads formats 14 through 75 and writes 75. A program that uses `Map[Int, T]` needs a runtime that reads format 75 and is refused by an older one with `E_ARTIFACT_VERSION`.
 - **Artifact format 74.** The runtime reads formats 14 through 74 and writes 74. A program that uses a closure needs a runtime that reads format 74 and is refused by an older one with `E_ARTIFACT_VERSION`.
 - **New built-ins and commands.** `try_map_list`, `guion lsp`, `guion repl`, and `--record`, `--replay` and `--replay-changed` for `guion run` and `guion test`.
 - **Builds for Intel Macs and Windows.** Added alongside Linux and Apple Silicon; see Getting started. A Homebrew tap and a one-line installer script are new.

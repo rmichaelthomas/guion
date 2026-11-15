@@ -3,6 +3,13 @@
 use super::*;
 
 pub fn verify(artifact: &Artifact) -> Result<(), RuntimeError> {
+    if artifact.uses_int_map() {
+        return verify_erased(&artifact.without_int_maps());
+    }
+    verify_erased(artifact)
+}
+
+fn verify_erased(artifact: &Artifact) -> Result<(), RuntimeError> {
     let fail = |msg: String| RuntimeError::new("R_ARTIFACT_INVALID", msg, Span::default());
     if !(14..=Artifact::CURRENT_VERSION).contains(&artifact.format_version) {
         return Err(RuntimeError::new(
@@ -285,7 +292,7 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
             name.as_str(),
             "FileReader" | "Db" | "Transaction" | "TomlDocument"
         ),
-        Type::List(item) | Type::Map(item) | Type::Option(item) => {
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
             artifact_type_known(item, record_names)
         }
         Type::Result(ok, err) => {
@@ -315,7 +322,7 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
 fn type_contains_native_resource(ty: &Type) -> bool {
     match ty {
         Type::NativeResource(_) => true,
-        Type::List(item) | Type::Map(item) | Type::Option(item) => {
+        Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
             type_contains_native_resource(item)
         }
         Type::Result(ok, err) => {
