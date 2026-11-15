@@ -216,6 +216,10 @@ fn slug(request: Request) -> Result[Response, HttpFailure]:
 fn boom(request: Request) -> Result[Response, HttpFailure]:
     return Err(HttpFailure(404, "DB_SECRET", "database password hunter2"))
 
+fn fault(request: Request) -> Result[Response, HttpFailure]:
+    let items = [1, 2]
+    return Ok(response_text(200, "item " + int_to_text(items[len(request.path) + 10])))
+
 fn cookies(request: Request) -> Result[Response, HttpFailure]:
     let first = response_add_header(response_text(200, "ok"), "Set-Cookie", "a=1")?
     let second = response_add_header(first, "Set-Cookie", "b=2")?
@@ -240,7 +244,7 @@ fn main() -> Int:
     let arguments = args()
     let port = parse_or(arguments[0], 8099)
     let workers = parse_or(arguments[1], 1)
-    let table = unwrap(router([route("GET", "/users/{id:int}", user), route("GET", "/files/{slug}", slug), route("GET", "/boom", boom), route("GET", "/cookies", cookies), route("GET", "/slow", slow)]))
+    let table = unwrap(router([route("GET", "/users/{id:int}", user), route("GET", "/files/{slug}", slug), route("GET", "/boom", boom), route("GET", "/fault", fault), route("GET", "/cookies", cookies), route("GET", "/slow", slow)]))
     let application = wrap(app(table), middleware_after(stamp))
     match serve_for("127.0.0.1", port, application, workers, 1500):
         Ok(done):
@@ -329,6 +333,27 @@ fn exchange(port: u16, request: &str) -> String {
     let mut answer = Vec::new();
     let _ = stream.read_to_end(&mut answer);
     String::from_utf8_lossy(&answer).into_owned()
+}
+
+#[test]
+fn a_runtime_fault_in_a_handler_answers_500_and_the_server_keeps_serving() {
+    let server = start("fault", 1);
+    let port = server.port;
+    for _ in 0..3 {
+        let fault = get(port, "/fault");
+        assert!(fault.starts_with("HTTP/1.1 500"), "{fault}");
+        assert!(fault.ends_with("Internal Server Error"), "{fault}");
+        assert!(
+            !fault.contains("R_INDEX") && !fault.contains("index"),
+            "{fault}"
+        );
+        let after = get(port, "/users/42");
+        assert!(
+            after.starts_with("HTTP/1.1 200 OK"),
+            "one worker kept serving: {after}"
+        );
+        assert!(after.ends_with("user 42"), "{after}");
+    }
 }
 
 fn get(port: u16, path: &str) -> String {
@@ -831,8 +856,8 @@ fn the_user_guide_is_indexed_and_carries_the_honest_limits() {
     assert_eq!(index["documents"]["web"], "docs/web.md");
     let page = guide();
     for limit in [
-        "No closures",
-        "A runtime fault in a handler stops the server",
+        "the package has not been rewritten to use closures",
+        "A runtime fault in a handler is contained per request",
         "reports the session database as file access",
         "no `Origin` or `Referer` check",
         "Templates are `Text` and records only",

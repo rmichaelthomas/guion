@@ -28,7 +28,7 @@
     }
   ],
   "cli": {
-    "version": "guion 0.4.0 (artifact format 73, timezone data 2026c)",
+    "version": "guion 0.4.0 (artifact format 74, timezone data 2026c)",
     "commands": [
       "new",
       "check",
@@ -49,6 +49,8 @@
       "publish",
       "yank",
       "token",
+      "lsp",
+      "repl",
       "cache"
     ]
   },

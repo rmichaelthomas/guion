@@ -1750,16 +1750,6 @@ fn function_value_cases() -> Vec<SortCase> {
             expected: Ok("[2, 4, 6]\n[3, 4]\n16\ntrue\nfalse\n[8]\n"),
         },
         SortCase {
-            name: "fn-value-lambda-is-no-closure",
-            source: leak("fn main() -> Unit:\n    let f = fn(x: Int) -> Int: x + 1\n    print(f(1))\n"),
-            expected: Err(("E_FN_NO_CLOSURES", 5, 13)),
-        },
-        SortCase {
-            name: "fn-value-nested-fn-is-no-closure",
-            source: "fn main() -> Unit:\n    fn inner(x: Int) -> Int:\n        return x\n    print(1)\n",
-            expected: Err(("E_FN_NO_CLOSURES", 2, 5)),
-        },
-        SortCase {
             name: "fn-value-compare-is-rejected",
             source: leak("fn main() -> Unit:\n    let f = double\n    let g = double\n    print(f == g)\n"),
             expected: Err(("E_FN_COMPARE", 7, 13)),

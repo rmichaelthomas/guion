@@ -14,6 +14,8 @@ pub struct Check {
 pub fn run_performance(root: &Path) -> Vec<Check> {
     let (slug, target) = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => ("macos-aarch64", "aarch64-apple-darwin"),
+        ("macos", "x86_64") => ("macos-x86_64", "x86_64-apple-darwin"),
+        ("linux", "x86_64") => ("debian-x86_64", "x86_64-unknown-linux-gnu"),
         ("linux", "aarch64") => ("debian-aarch64", "aarch64-unknown-linux-gnu"),
         _ => {
             return vec![Check {

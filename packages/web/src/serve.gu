@@ -9,10 +9,10 @@
 # answered with 413 by std:http_server before any handler runs).
 #
 # Faults: a handler that returns Err gets a 500 with a fixed body and the failure is logged
-# (app_respond). A runtime fault inside a handler (an index out of range, say) is NOT contained:
-# `parallel_map` stops every worker and `serve` returns Err with the fault's code. Handlers must
-# return Err, not fault. A client that disconnects before the response is written makes the send
-# fail; the worker logs that and takes the next connection.
+# (app_respond). A runtime fault inside a handler (an index out of range, say) is contained per
+# request too: the request is answered with the same 500, the fault's code is logged, and the
+# worker takes the next connection. A client that disconnects before the response is written makes
+# the send fail; the worker logs that and takes the next connection.
 
 import "std:types"
 import "std:net"
@@ -49,7 +49,13 @@ fn sv_answer(app: App, request: HttpServerRequest) -> Unit:
     var response = response_text(400, "Bad Request")
     match http_request_value(request):
         Ok(value):
-            set response = app_respond(app, value)
+            let guarded = try_map_list([value], fn(inner: Request) -> Response: app_respond(app, inner))
+            match guarded[0]:
+                Ok(answer):
+                    set response = answer
+                Err(fault):
+                    set response = response_text(500, "Internal Server Error")
+                    let noted = sv_note(app, "handler fault: " + task_code(fault))
         Err(failure):
             set response = response_text(400, "Bad Request")
     match http_server_send_response(request, response):

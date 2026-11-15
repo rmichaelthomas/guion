@@ -2323,6 +2323,15 @@
       "operation": "MapList"
     },
     {
+      "name": "try_map_list",
+      "parameters": [
+        "List[$T]",
+        "fn($T) -> $U"
+      ],
+      "result": "List[Result[$U, TaskError]]",
+      "operation": "TryMapList"
+    },
+    {
       "name": "filter_list",
       "parameters": [
         "List[$T]",

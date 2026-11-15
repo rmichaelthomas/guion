@@ -1,5 +1,5 @@
 {
-  "version": "guion 0.4.0 (artifact format 73, timezone data 2026c)",
+  "version": "guion 0.4.0 (artifact format 74, timezone data 2026c)",
   "artifactFormat": 61,
   "commands": [
     {
@@ -133,6 +133,20 @@
       "args": "rotate | revoke",
       "plain": "Replace or withdraw your registry publishing token.",
       "dev": "rotate issues a new token for the publisher in GUION_REGISTRY_TOKEN, prints it once and revokes the old one; revoke withdraws the token outright.",
+      "report": null
+    },
+    {
+      "name": "lsp",
+      "args": "",
+      "plain": "Let an editor underline mistakes, show types on hover, jump to definitions and tidy code as you type.",
+      "dev": "Language server over stdio: diagnostics from the compiler, hover, go-to-definition, completion and formatting. A VS Code extension folder is in editors/vscode.",
+      "report": null
+    },
+    {
+      "name": "repl",
+      "args": "[run flags]",
+      "plain": "Type an expression and see its value and type, or try a few statements one at a time.",
+      "dev": "Each entry runs through guion check and guion run in a child process, so permission flags mean what they mean for run. let, fn, record, enum and import entries are kept.",
       "report": null
     },
     {

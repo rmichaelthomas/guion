@@ -10,6 +10,7 @@ mod bytecode_ir;
 mod compiler_driver;
 #[cfg(feature = "python-interop")]
 mod dependencies;
+mod lsp;
 mod native_dependencies;
 mod native_packages;
 mod package_capabilities;
@@ -17,6 +18,7 @@ mod package_name;
 mod package_version;
 mod pool_alloc;
 mod registry;
+mod repl;
 mod source_run_cache;
 mod templates;
 
@@ -39,7 +41,7 @@ fn main() -> ExitCode {
     }
 }
 
-const USAGE: &str = "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token|cache> [path]";
+const USAGE: &str = "usage: guion <new|check|fmt|lint|test|run|build|package|verify-package|add|sync|update|inspect|doc|doctor|install|publish|yank|token|lsp|repl|cache> [path]";
 
 const HELP: &str = "\
 new        create a project (guion new <dir>, or --lib for a library)
@@ -48,13 +50,16 @@ fmt        format source (--check reports unformatted files)
 lint       report unused imports and locals and unreachable statements
 test       run the test_* functions of a file or project
 run        run a source file, artifact or project; permissions such as --file-root,
-           --allow-http-host and --allow-clock are granted with flags
+           --allow-http-host and --allow-clock are granted with flags; --record
+           and --replay save and rerun from a tape
 build      compile to an artifact
 package    produce a distributable package; verify-package checks one
 add        add a dependency; sync and update resolve and refresh them
 inspect    print artifact and function metadata and the effects a program can have
 doc        print function, record and external signatures; `doc std:NAME` prints a standard-library module, `doc --all --json` all of them
 doctor     report the current host and enabled profile
+lsp        language server for editors, over standard input and output
+repl       interactive prompt; takes the same permission flags as run
 install    install a library package
 publish    publish a package to a registry; yank withdraws a version; token manages publisher tokens
 cache      guion cache clean [project] removes the compiled-source cache
@@ -66,6 +71,32 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     if args.first().is_some_and(|command| command == "cache") {
         return execute_cache_command(&args);
     }
+    if args.first().is_some_and(|command| command == "lsp") {
+        lsp::run_stdio();
+        return Ok(ExitCode::SUCCESS);
+    }
+    if args.first().is_some_and(|command| command == "repl") {
+        return repl::run(&args[1..]);
+    }
+    // `guion test --record DIR` / `--replay DIR`: one tape per test in DIR.
+    let mut test_tape: Option<(bool, std::path::PathBuf)> = None;
+    let args = if args.first().is_some_and(|command| command == "test") {
+        let mut kept = Vec::with_capacity(args.len());
+        let mut remaining = args.into_iter();
+        while let Some(argument) = remaining.next() {
+            if argument == "--record" || argument == "--replay" {
+                let Some(directory) = remaining.next() else {
+                    return Err(format!("usage: guion test [{argument} DIRECTORY] [path]"));
+                };
+                test_tape = Some((argument == "--replay", std::path::PathBuf::from(directory)));
+            } else {
+                kept.push(argument);
+            }
+        }
+        kept
+    } else {
+        args
+    };
     let phase_timings_enabled = env::var_os("GUION_PHASE_TIMINGS").is_some();
     let cli_started = phase_timings_enabled.then(Instant::now);
     let runtime_profile_setting = env::var_os("GUION_RUNTIME_PROFILE");
@@ -131,7 +162,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -630,6 +661,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let mut clock_override = false;
     let mut command_overrides = Vec::new();
     let mut socket_overrides: Vec<String> = Vec::new();
+    let mut tape_record: Option<String> = None;
+    let mut tape_replay: Option<String> = None;
+    let mut tape_replay_changed = false;
     let json_inspect = command == "inspect" && args.iter().any(|argument| argument == "--json");
     let json_doc = command == "doc" && args.get(1).is_some_and(|arg| arg == "--json");
     let json_build = command == "build" && args.get(1).is_some_and(|arg| arg == "--json");
@@ -673,6 +707,18 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     socket_overrides.push(format!("{}={entry}", &argument[8..]));
                     index += 2;
                 }
+                "--record" | "--replay" | "--replay-changed" => {
+                    let Some(file) = args.get(index + 1) else {
+                        return Err(format!("usage: guion run [{argument} TAPE] <source|artifact|project> [ARGS...]"));
+                    };
+                    if argument == "--record" {
+                        tape_record = Some(file.clone());
+                    } else {
+                        tape_replay = Some(file.clone());
+                        tape_replay_changed = argument == "--replay-changed";
+                    }
+                    index += 2;
+                }
                 "--allow-command" => {
                     let Some(name) = args.get(index + 1) else {
                         return Err("usage: guion run [--allow-command NAME] <source|artifact|project> [ARGS...]".into());
@@ -682,6 +728,15 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 _ => break,
             }
+        }
+        index
+    } else if command == "inspect" {
+        let mut index = 1;
+        while matches!(
+            args.get(index).map(String::as_str),
+            Some("--json") | Some("--speed")
+        ) {
+            index += 1;
         }
         index
     } else if (command == "fmt" && args.get(1).is_some_and(|arg| arg == "--check"))
@@ -924,7 +979,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
         }
         "test" => {
             let json_report = args.iter().any(|argument| argument == "--json");
-            if !run_tests(&path, &artifact, &project_root, json_report)? {
+            if !run_tests(
+                &path,
+                &artifact,
+                &project_root,
+                json_report,
+                test_tape.as_ref(),
+            )? {
                 return Ok(ExitCode::from(1));
             }
         }
@@ -972,6 +1033,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     artifact.format_version
                 );
             }
+        }
+        "inspect" if args.iter().any(|argument| argument == "--speed") => {
+            return speed_report(&artifact, json_inspect);
         }
         "inspect" => {
             if json_inspect {
@@ -1104,10 +1168,29 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 Runtime::new()
             }
             .with_whole_program_entry();
+            if tape_record.is_some() && tape_replay.is_some() {
+                return Err("--record and --replay cannot be used together".into());
+            }
+            let runtime = match (&tape_record, &tape_replay) {
+                (Some(file), _) => runtime
+                    .with_tape(guion_runtime::TapeMode::Record(file.into()))
+                    .with_tape_redactions(tape_redactions(&project_root)),
+                (_, Some(file)) if tape_replay_changed => {
+                    runtime.with_tape(guion_runtime::TapeMode::ReplayChanged(file.into()))
+                }
+                (_, Some(file)) => runtime.with_tape(guion_runtime::TapeMode::Replay(file.into())),
+                _ => runtime,
+            };
             let program_args = args.iter().skip(path_index + 1).cloned().collect();
-            let mut policy = runtime_policy(&project_root)?
-                .with_file_access(project_root.clone(), true, true)
-                .with_arguments(program_args);
+            let mut policy = if tape_replay.is_some() {
+                // A replay is fed from the tape: it gets no file, network, clock, command or
+                // socket access, whatever the command line says.
+                runtime_policy(&project_root)?
+            } else {
+                runtime_policy(&project_root)?
+                    .with_file_access(project_root.clone(), true, true)
+                    .with_arguments(program_args)
+            };
             for host in http_host_overrides {
                 policy
                     .allowed_http_hosts
@@ -1161,6 +1244,12 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             let runtime_load_ns = runtime_load_started.map(|started| started.elapsed().as_nanos());
             let program_started = phase_timings_enabled.then(Instant::now);
             let result = instance.invoke("main", vec![]);
+            let tape_result = instance.finish_tape();
+            let result = match (result, tape_result) {
+                (Ok(value), Ok(())) => Ok(value),
+                (Ok(_), Err(error)) => Err(error),
+                (Err(error), _) => Err(error),
+            };
             let program_execute_ns = program_started.map(|started| started.elapsed().as_nanos());
             let program_stdout = instance.take_output();
             let program_stderr = instance.take_program_stderr();
@@ -2572,6 +2661,96 @@ fn dependency_lock_digest(root: &std::path::Path) -> Result<Option<String>, Stri
     Ok(found.then(|| format!("{:x}", digest.finalize())))
 }
 
+/// A plain-English line for a native-compile rejection code.
+fn speed_advice(code: &str, reason: &str) -> String {
+    match code {
+        "recursive_function" => format!(
+            "{reason}. Raise nothing: recursion is fast at the default call depth limit of 128; a limit above 256 keeps it in the interpreter."
+        ),
+        "text_append_to_local" => "this function appends to a text variable; the interpreter does that in place, so it is left there on purpose.".to_owned(),
+        "callee_requires_vm" => format!("{reason}. A function is only compiled when everything it calls is."),
+        "native_loop_value_arena_retention" => "a loop here builds text, JSON or file values; the interpreter frees them as the loop goes, so it is left there on purpose.".to_owned(),
+        "unsupported_types_or_control_flow" => "the machine-code path cannot prove this function's types, or it passes a list, map or text on to be updated in place, which the interpreter does faster. The program still runs; it just has no machine code here.".to_owned(),
+        _ => reason.to_owned(),
+    }
+}
+
+/// `guion inspect --speed`: for each function, whether it runs as machine code or in the
+/// interpreter, and when it is in the interpreter, why and where.
+fn speed_report(artifact: &Artifact, json: bool) -> Result<ExitCode, String> {
+    let call_depth_limit = artifact
+        .build_metadata
+        .as_ref()
+        .map(|metadata| metadata.resource_limits.call_depth_limit)
+        .unwrap_or_else(|| HostPolicy::default().call_depth_limit);
+    let policy = HostPolicy {
+        call_depth_limit,
+        ..HostPolicy::default()
+    };
+    let instance = Runtime::new()
+        .load(artifact.clone(), policy)
+        .map_err(|error| format!("cannot load the program: {error:?}"))?;
+    let profile = instance.native_compile_profile();
+    let rejected: std::collections::HashMap<String, serde_json::Value> = profile
+        ["rejected_functions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| Some((entry["name"].as_str()?.to_owned(), entry.clone())))
+        .collect();
+    let mut rows = Vec::new();
+    for function in &artifact.functions {
+        // Functions from the standard library and packages are listed too, but only a
+        // function written in this project has a line worth reporting.
+        let line = function
+            .code
+            .first()
+            .map_or(0, |instruction| instruction.span.line);
+        let entry = rejected.get(&function.name);
+        let blocking_line = entry
+            .and_then(|entry| entry["blocking_instruction"].as_str())
+            .and_then(|text| {
+                text.split(|c: char| !c.is_ascii_digit())
+                    .find(|part| !part.is_empty())
+                    .and_then(|digits| digits.parse::<usize>().ok())
+            })
+            .and_then(|ip| function.code.get(ip))
+            .map(|instruction| instruction.span.line);
+        rows.push(serde_json::json!({
+            "function": function.name,
+            "line": line,
+            "runs_as": if entry.is_some() { "interpreter" } else { "machine code" },
+            "reason_code": entry.map(|entry| entry["reason_code"].clone()),
+            "reason": entry.map(|entry| entry["reason"].clone()),
+            "blocking_line": blocking_line,
+        }));
+    }
+    if json {
+        println!("{}", serde_json::json!({ "functions": rows }));
+        return Ok(ExitCode::SUCCESS);
+    }
+    println!(
+        "how each function runs (machine code is the fast path; the interpreter is the fallback):"
+    );
+    for row in &rows {
+        let name = row["function"].as_str().unwrap_or("?");
+        if row["runs_as"] == "machine code" {
+            println!("  {name}: machine code");
+        } else {
+            let at = row["blocking_line"]
+                .as_u64()
+                .map(|line| format!(" (blocked near line {line})"))
+                .unwrap_or_default();
+            let code = row["reason_code"].as_str().unwrap_or("?");
+            println!(
+                "  {name}: interpreter, {code}{at}\n    {}",
+                speed_advice(code, row["reason"].as_str().unwrap_or(""))
+            );
+        }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
 fn display_type(ty: &guion_model::Type) -> String {
     use guion_model::Type;
     match ty {
@@ -2709,7 +2888,7 @@ fn inspection_report(
             match &instruction.op {
                 // A function value takes on its function's effects where it is formed;
                 // calling through it adds nothing further.
-                Op::Call(target, _) | Op::MakeFn(target) => {
+                Op::Call(target, _) | Op::MakeFn(target) | Op::MakeClosure(target, _) => {
                     calls[function_index].insert(*target);
                 }
                 Op::HigherOrder(guion_model::HigherOrderKind::ParallelMap) => {
@@ -3067,7 +3246,8 @@ fn api_report(source: &str, project_root: &Path, artifact: &Artifact) -> serde_j
         .map(|(identity, text)| (identity.clone(), function_deprecations(text)))
         .collect::<BTreeMap<_, _>>();
     let inspected = inspection_report(source, artifact, project_root, false);
-    let functions = artifact.functions.iter().map(|function| {
+    // Hidden functions the compiler lifts closures into are not part of a program's API.
+    let functions = artifact.functions.iter().filter(|function| !function.name.contains("lambda@")).map(|function| {
         let (module_id, base_name) = if let Some(rest) = function.name.strip_prefix("@module/") {
             let (module_id, name) = rest.split_once('/').unwrap_or(("", rest));
             (module_id.parse::<usize>().ok(), name)
@@ -3703,6 +3883,27 @@ fn format_source_line(line: &str) -> String {
             {
                 cursor += 1;
             }
+            // `f"..."` is one token: the prefix touches the quote.
+            if cursor - start == 1
+                && characters[start] == 'f'
+                && characters.get(cursor) == Some(&'"')
+            {
+                cursor += 1;
+                let mut escaped = false;
+                while cursor < characters.len() {
+                    let current = characters[cursor];
+                    cursor += 1;
+                    if escaped {
+                        escaped = false;
+                    } else if current == '\\' {
+                        escaped = true;
+                    } else if current == '"' {
+                        break;
+                    }
+                }
+                tokens.push((characters[start..cursor].iter().collect(), 2));
+                continue;
+            }
             let text = characters[start..cursor].iter().collect::<String>();
             let kind = if matches!(text.as_str(), "and" | "or" | "not") {
                 3
@@ -3743,7 +3944,16 @@ fn format_source_line(line: &str) -> String {
         } else {
             String::new()
         };
-        if matches!(two.as_str(), "->" | "==" | "!=" | "<=" | ">=" | "//") {
+        let compound = characters
+            .get(cursor..cursor + 3)
+            .is_some_and(|window| window == ['/', '/', '=']);
+        if compound {
+            tokens.push(("//=".to_owned(), 3));
+            cursor += 3;
+        } else if matches!(
+            two.as_str(),
+            "->" | "==" | "!=" | "<=" | ">=" | "//" | "+=" | "-=" | "*=" | "/=" | "%="
+        ) {
             tokens.push((two, 3));
             cursor += 2;
         } else {
@@ -4596,18 +4806,49 @@ fn project_identity(root: &Path) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({"name": name, "id": safe_application_id(name), "version": version}))
 }
 
+/// `[record] redact = ["host-or-path", ...]` in guion.toml: calls that mention one of these keep
+/// their place on a recorded tape but not their results.
+fn tape_redactions(project_root: &Path) -> Vec<String> {
+    fs::read_to_string(project_root.join("guion.toml"))
+        .ok()
+        .and_then(|text| toml::from_str::<toml::Value>(&text).ok())
+        .and_then(|manifest| {
+            manifest
+                .get("record")?
+                .get("redact")?
+                .as_array()
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(|item| item.as_str().map(str::to_owned))
+                        .collect()
+                })
+        })
+        .unwrap_or_default()
+}
+
 fn run_tests(
     path: &str,
     artifact: &Artifact,
     project_root: &std::path::Path,
     json_report: bool,
+    tape: Option<&(bool, std::path::PathBuf)>,
 ) -> Result<bool, String> {
+    if let Some((false, directory)) = tape {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("cannot create {}: {error}", directory.display()))?;
+    }
     let tests = artifact
         .functions
         .iter()
         .filter(|function| function.name.starts_with("test_"))
         .collect::<Vec<_>>();
-    let base_policy = runtime_policy(project_root)?.with_file_access(project_root, true, true);
+    let base_policy = if tape.is_some_and(|(replay, _)| *replay) {
+        // A replayed test is fed from its tape and gets no access to anything.
+        runtime_policy(project_root)?
+    } else {
+        runtime_policy(project_root)?.with_file_access(project_root, true, true)
+    };
     let mut failures = 0usize;
     let mut results = Vec::with_capacity(tests.len());
     for test in &tests {
@@ -4636,10 +4877,30 @@ fn run_tests(
         if let Some(interpreter) = env::var_os("GUION_PYTHON") {
             policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
         }
-        let mut instance = Runtime::new()
+        let runtime = match tape {
+            Some((replay, directory)) => {
+                let file = directory.join(format!("{}.tape", test.name));
+                if *replay {
+                    Runtime::new().with_tape(guion_runtime::TapeMode::Replay(file))
+                } else {
+                    Runtime::new()
+                        .with_tape(guion_runtime::TapeMode::Record(file))
+                        .with_tape_redactions(tape_redactions(project_root))
+                }
+            }
+            None => Runtime::new(),
+        };
+        let mut instance = runtime
             .load(artifact.clone(), policy)
             .map_err(|error| render_runtime(path, artifact, &error))?;
-        match instance.invoke(&test.name, vec![]) {
+        let outcome = instance.invoke(&test.name, vec![]);
+        let tape_outcome = instance.finish_tape();
+        let outcome = match (outcome, tape_outcome) {
+            (Ok(value), Ok(())) => Ok(value),
+            (Ok(_), Err(error)) => Err(error),
+            (Err(error), _) => Err(error),
+        };
+        match outcome {
             Ok(_) => {
                 if !json_report {
                     println!("ok {}", test.name);

@@ -5495,7 +5495,9 @@ fn nested_calls_keep_exact_instruction_budget_parity_across_vm_jit_and_fallback(
         .native_function_names()
         .iter()
         .any(|name| name == "twice"));
-    assert!(!jit_exact
+    // At the default call depth limit a recursive function is native too; the budget outcome
+    // must still equal the VM's.
+    assert!(jit_exact
         .native_function_names()
         .iter()
         .any(|name| name == "descend"));
@@ -8138,5 +8140,84 @@ fn step_limit_message_names_ceiling_and_key() {
             error.message
         );
         assert_eq!(error.step_usage, Some((500, 500)), "vm_only={vm_only}");
+    }
+}
+
+#[test]
+fn native_recursion_runs_natively_and_matches_the_expected_values() {
+    let source = "fn fib(n: Int) -> Int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nfn is_even(n: Int) -> Bool:\n    if n == 0:\n        return true\n    return is_odd(n - 1)\n\nfn is_odd(n: Int) -> Bool:\n    if n == 0:\n        return false\n    return is_even(n - 1)\n\nfn main() -> Int:\n    if is_even(40) and is_odd(41) and not is_even(7):\n        return fib(20)\n    return -1\n";
+    let artifact = compile("native-recursion.gu", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+    let result = instance.invoke("main", vec![]).expect("recursion runs");
+    assert_eq!(result, Value::Int(BigInt::from_i64(6765)));
+    let native = instance.native_function_names();
+    for name in ["fib", "is_even", "is_odd"] {
+        assert!(native.contains(&name.to_owned()), "{name} should be native");
+    }
+}
+
+#[test]
+fn native_runaway_recursion_stops_at_the_call_depth_limit() {
+    let source = "fn forever(n: Int) -> Int:\n    return forever(n + 1) + 1\n\nfn main() -> Int:\n    return forever(0)\n";
+    let artifact = compile("native-runaway.gu", source).expect("source compiles");
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("artifact loads");
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("runaway recursion is stopped");
+    assert_eq!(error.code, "R_CALL_DEPTH");
+    assert!(instance
+        .native_function_names()
+        .contains(&"forever".to_owned()));
+    assert!(error.trace.len() >= 128);
+}
+
+#[test]
+fn native_recursion_respects_the_instruction_limit() {
+    let source = "fn fib(n: Int) -> Int:\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nfn main() -> Int:\n    return fib(35)\n";
+    let artifact = compile("native-fib-limit.gu", source).expect("source compiles");
+    let policy = HostPolicy {
+        instruction_limit: 10_000,
+        ..HostPolicy::default()
+    };
+    let mut instance = Runtime::new()
+        .load(artifact, policy)
+        .expect("artifact loads");
+    let error = instance
+        .invoke("main", vec![])
+        .expect_err("the step limit stops the recursion");
+    assert_eq!(error.code, "R_STEP_LIMIT");
+}
+
+#[test]
+fn native_recursion_needs_exactly_the_instruction_budget_the_vm_needs() {
+    for n in [0, 1, 2, 3, 6, 12] {
+        let source = format!("fn descend(remaining: Int) -> Int:\n    if remaining <= 0:\n        return 0\n    return descend(remaining - 1) + 1\n\nfn main() -> Int:\n    return descend({n})\n");
+        let artifact = compile("recursion-budget.gu", &source).unwrap();
+        let minimal = |vm: bool| {
+            (1..4000u64)
+                .find(|budget| {
+                    let runtime = if vm {
+                        Runtime::vm_only()
+                    } else {
+                        Runtime::new()
+                    };
+                    let mut instance = runtime
+                        .load(
+                            artifact.clone(),
+                            HostPolicy {
+                                instruction_limit: *budget,
+                                ..HostPolicy::default()
+                            },
+                        )
+                        .unwrap();
+                    instance.invoke("main", vec![]).is_ok()
+                })
+                .expect("some budget is enough")
+        };
+        assert_eq!(minimal(false), minimal(true), "descend({n})");
     }
 }

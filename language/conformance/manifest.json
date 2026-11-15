@@ -8576,6 +8576,64 @@
       "declared_status": "implemented_current_cli"
     },
     {
+      "id": "cli-command-lsp",
+      "kind": "cli_command",
+      "name": "lsp",
+      "owner_task": 7,
+      "source": "crates/cli/src/main.rs::usage-and-dispatch",
+      "compiler_status": {
+        "bootstrap": "not_applicable",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "cli-command-lsp.positive",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "negative": {
+          "case_id": "cli-command-lsp.negative",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "interaction": {
+          "case_id": "cli-command-lsp.interaction",
+          "state": "implemented",
+          "owner_task": 7
+        }
+      },
+      "declared_status": "implemented_current_cli"
+    },
+    {
+      "id": "cli-command-repl",
+      "kind": "cli_command",
+      "name": "repl",
+      "owner_task": 7,
+      "source": "crates/cli/src/main.rs::usage-and-dispatch",
+      "compiler_status": {
+        "bootstrap": "not_applicable",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "cli-command-repl.positive",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "negative": {
+          "case_id": "cli-command-repl.negative",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "interaction": {
+          "case_id": "cli-command-repl.interaction",
+          "state": "implemented",
+          "owner_task": 7
+        }
+      },
+      "declared_status": "implemented_current_cli"
+    },
+    {
       "id": "cli-command-update",
       "kind": "cli_command",
       "name": "update",
@@ -10474,6 +10532,34 @@
         },
         "interaction": {
           "case_id": "opcode-make-fn.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-make-closure",
+      "kind": "opcode",
+      "name": "MakeClosure",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "partial"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-make-closure.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-make-closure.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-make-closure.interaction",
           "state": "implemented",
           "owner_task": 6
         }

@@ -28,8 +28,8 @@ Run it with `guion run main.gu`. To listen, end `main` with `serve("127.0.0.1", 
 
 - `fn(Request) -> Result[Response, HttpFailure]`. Guion has no type aliases, so the type is written out. `HttpFailure(status, code, message)` comes from `std:http_response`.
 - `Ok(response)` is sent as it is, whatever its status. `Err(failure)` becomes a `500` with the fixed body `Internal Server Error` (`internal_error_body()`); the failure's status, code and message never reach the client, and are logged through `std:log` when `app_log(app, logger)` set a logger, to standard error otherwise.
-- A runtime fault inside a handler (an index out of range, say) is not recoverable per request: `parallel_map` stops every worker and `serve` returns an `Err`. Handlers return `Err`; they do not fault.
-- Handlers capture nothing, because function values capture nothing. State a handler needs (a database path, a policy) is a constant or a `config` map.
+- A runtime fault inside a handler (an index out of range, say) answers that request with the same `500` and the fixed body, logs the fault's code, and the server keeps serving. Handlers should still return `Err` for expected failures. A fault caused by the shared instruction limit running out is contained the same way, and so is every request after it.
+- A handler is a named function, so state it needs (a database path, a policy) is a constant or a `config` map.
 
 ## Routing
 
@@ -152,8 +152,8 @@ The package's `[capabilities]` are `files = ["read", "write"]` (sessions databas
 
 ## What `web` does not do
 
-- No closures: middleware is a record of named functions plus a `config` map, not a function that wraps a handler.
-- A runtime fault in a handler stops the server; only `Err` is contained.
+- Middleware is a record of named functions plus a `config` map; the package has not been rewritten to use closures, although the language has them now.
+- A runtime fault in a handler is contained per request (a 500 and a log line); an `Err` is contained the same way.
 - `guion doc` reports the session database as file access (`filesystem.read` and `filesystem.write`), so the `files` capability and `--file-root` cover it.
 - CSRF is the token check only: no `Origin` or `Referer` check, and no defence against a script already running in your page.
 - Templates are `Text` and records only; there is no filter, flag or argument that turns escaping off.

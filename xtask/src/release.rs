@@ -17,6 +17,11 @@ use std::{
 const LINUX_TARGET: &str = "aarch64-unknown-linux-gnu";
 const LINUX_X86_64_TARGET: &str = "x86_64-unknown-linux-gnu";
 const MAC_TARGET: &str = "aarch64-apple-darwin";
+const MAC_X86_64_TARGET: &str = "x86_64-apple-darwin";
+
+fn is_mac(target: &str) -> bool {
+    target == MAC_TARGET || target == MAC_X86_64_TARGET
+}
 const LLVM_EXCEPTION_LICENSE: &str = "distribution/licenses/Apache-2.0_WITH_LLVM-exception.txt";
 const RELEASE_DOCS: &[&str] = &[
     "getting-started.md",
@@ -365,7 +370,7 @@ fn verify_package_manifest(package: &Path, expected_target: &str) -> Result<(), 
 
 fn os_floor(root: &Path, target: &str, binary: &Path) -> Result<String, String> {
     let path = binary.to_str().ok_or("release binary path is not UTF-8")?;
-    if target == MAC_TARGET {
+    if is_mac(target) {
         let output = run(root, "otool", &["-l", path])?;
         if !output.status.success() {
             return Err(format!(
@@ -433,6 +438,7 @@ fn target_info() -> (&'static str, &'static str) {
 fn target_info_for(os: &str, arch: &str) -> (&'static str, &'static str) {
     match (os, arch) {
         ("macos", "aarch64") => (MAC_TARGET, "macos-aarch64"),
+        ("macos", "x86_64") => (MAC_X86_64_TARGET, "macos-x86_64"),
         ("linux", "aarch64") => (LINUX_TARGET, "debian-aarch64"),
         ("linux", "x86_64") => (LINUX_X86_64_TARGET, "debian-x86_64"),
         _ => ("unsupported", "unsupported"),
@@ -539,7 +545,7 @@ fn release_binary_path(
     cargo_target_directory: Option<&Path>,
 ) -> PathBuf {
     let target_root = target_root(root, cargo_target_directory);
-    if target == MAC_TARGET {
+    if is_mac(target) {
         target_root.join("release/guion")
     } else {
         target_root.join(target).join("release/guion")
@@ -662,7 +668,7 @@ fn sign_macos_binary(root: &Path, binary: &Path) -> Result<Option<String>, Strin
 
 fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, String> {
     let cargo_target_directory = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
-    let build_args = if target == MAC_TARGET {
+    let build_args = if is_mac(target) {
         vec![
             "build",
             "--locked",
@@ -752,7 +758,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     let result = (|| {
         fs::copy(&binary, stage.join("bin/guion"))
             .map_err(|error| format!("copy release binary: {error}"))?;
-        if target == MAC_TARGET {
+        if is_mac(target) {
             signing_note = sign_macos_binary(root, &stage.join("bin/guion"))?;
         }
         let share = stage.join("share/guion");
@@ -952,7 +958,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     if !tamper_rejected {
         return Ok(checks);
     }
-    let other_target = if target == MAC_TARGET {
+    let other_target = if is_mac(target) {
         LINUX_TARGET
     } else {
         MAC_TARGET
@@ -1106,8 +1112,8 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     if !build_check.status.success() {
         return Ok(checks);
     }
-    let inspect_program = if target == MAC_TARGET { "otool" } else { "ldd" };
-    let inspect_args = if target == MAC_TARGET {
+    let inspect_program = if is_mac(target) { "otool" } else { "ldd" };
+    let inspect_args = if is_mac(target) {
         vec!["-L".into(), candidate_bin.display().to_string()]
     } else {
         vec![candidate_bin.display().to_string()]
@@ -1167,7 +1173,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
 }
 
 fn target_architecture(target: &str) -> &'static str {
-    if target == LINUX_X86_64_TARGET {
+    if target == LINUX_X86_64_TARGET || target == MAC_X86_64_TARGET {
         "x86_64"
     } else {
         "aarch64"
@@ -1183,7 +1189,7 @@ pub fn run_release(root: &Path, _args: &[String]) -> Vec<Check> {
             vec!["cargo xtask release".into()],
             None,
             format!(
-                "release packages support {MAC_TARGET}, {LINUX_TARGET}, and {LINUX_X86_64_TARGET}, host is {}-{}",
+                "release packages support {MAC_TARGET}, {MAC_X86_64_TARGET}, {LINUX_TARGET}, and {LINUX_X86_64_TARGET}, host is {}-{}",
                 std::env::consts::OS,
                 std::env::consts::ARCH
             ),

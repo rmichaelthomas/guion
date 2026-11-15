@@ -30,6 +30,7 @@ This compatibility is a migration aid, not a guarantee that old names will remai
 
 Nothing is removed or renamed, and no word is newly reserved: a 0.3.0 program compiles and runs unchanged. The one re-signing is the `std:sqlite` effect change below. `language/surface-0.4.0.json` records the 0.4.0 public surface, and `cargo xtask surface-diff --allow-resign std:sqlite.` against `surface-0.3.0.json` shows additions plus that one change.
 
+- **Artifact format 74.** The runtime reads formats 14 through 74 and writes 74. A program that uses a closure needs a runtime that reads format 74 and is refused by an older one with `E_ARTIFACT_VERSION`.
 - **Artifact format 73.** The runtime reads formats 14 through 73 and writes 73. An artifact built by 0.3.0 (format 72 or lower) still loads and runs. A program that uses `std:http_static` needs a 0.4.0 runtime and is refused by an older one with `E_ARTIFACT_VERSION`.
 - **New modules.** `std:http_response`, `std:cookie`, `std:http_body` and `std:http_static`, and two functions in `std:http_server` (`http_request_value`, `http_server_send_response`). A program of your own that defines a function with one of these names and does not import the module is unaffected.
 - **Content types with a line break.** `http_server_respond`, `http_server_reply` and `http_server_send` now return `E_HTTP_HEADER_INVALID` for a content type containing CR or LF, where 0.3.0 wrote it into the response head. Remove the line break; a correct program is unaffected.

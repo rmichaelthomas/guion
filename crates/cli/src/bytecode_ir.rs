@@ -301,6 +301,19 @@ fn parse_instruction(
                 .ok_or_else(|| format!("MakeFn.function references unknown function `{name}`"))?;
             Op::MakeFn(index)
         }
+        "MakeClosure" => {
+            let name = required_str(object.get("function"), "MakeClosure.function")?;
+            let index = functions
+                .iter()
+                .position(|function| function == name)
+                .ok_or_else(|| {
+                    format!("MakeClosure.function references unknown function `{name}`")
+                })?;
+            Op::MakeClosure(
+                index,
+                required_usize(object.get("captured"), "MakeClosure.captured")?,
+            )
+        }
         "CallFn" => Op::CallFn(required_usize(object.get("argc"), "CallFn.argc")?),
         "HigherOrder" => {
             let kind = required_str(object.get("kind"), "HigherOrder.kind")?;
