@@ -991,7 +991,9 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                             .stack
                             .push(Type::Result(Box::new(texts.clone()), Box::new(texts)));
                     }
-                    guion_model::ProcessFunction::Pid => state.stack.push(Type::Int),
+                    guion_model::ProcessFunction::Pid | guion_model::ProcessFunction::CoreCount => {
+                        state.stack.push(Type::Int)
+                    }
                     guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
                 }
             }

@@ -4,7 +4,9 @@ Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview
 
 ## Unreleased
 
-Additions only; no artifact format change.
+Additions only, plus the artifact format going from 75 to 76 (older artifacts still load; a program that calls `core_count` needs this runtime).
+
+- Fan-out is no longer capped by cores. The `parallel_map` worker limit defaults to 64 on every machine and `[runtime] max_parallelism` can raise it to 1024; going over says which line to change: `error[R_PARALLEL_LIMIT]: worker limit 200 is above this project's limit of 64` and `raise it in guion.toml:   [runtime] max_parallelism = 200`. `std:process` gains `core_count()` for work that keeps the processor busy, and the HTTP client's internal thread pool follows the limit (up to 64) instead of stopping at 8.
 
 - Denials say how to fix themselves. A denied clock, environment variable, command, HTTP host or socket names the `guion.toml` line and the run flag that would allow it. `guion run --json` carries `diagnostic.grant` (`table`, `key`, `value`, `flag`) on the error and a `denials` array that also lists denials a program handled itself. Error codes are unchanged.
 - `guion inspect --grants [--json]` compares the hosts, commands, sockets, environment names and clock use the code can reach with what `guion.toml` grants, and lists each missing grant as a manifest entry and a flag. Targets computed while running are reported as such.

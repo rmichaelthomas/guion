@@ -3989,13 +3989,16 @@ pub enum ProcessFunction {
     Run,
     Pid,
     SignalPoll,
+    /// The number of processor cores the program may use (format 76). Pure; no grant.
+    CoreCount,
 }
 
 impl ProcessFunction {
-    const ALL: [ProcessFunction; 3] = [
+    const ALL: [ProcessFunction; 4] = [
         ProcessFunction::Run,
         ProcessFunction::Pid,
         ProcessFunction::SignalPoll,
+        ProcessFunction::CoreCount,
     ];
 
     pub fn code(self) -> u8 {
@@ -4015,6 +4018,7 @@ impl ProcessFunction {
             ProcessFunction::Run => "ProcessRun",
             ProcessFunction::Pid => "ProcessPid",
             ProcessFunction::SignalPoll => "ProcessSignalPoll",
+            ProcessFunction::CoreCount => "ProcessCoreCount",
         }
     }
 
@@ -4029,7 +4033,7 @@ impl ProcessFunction {
     pub fn arity(self) -> usize {
         match self {
             ProcessFunction::Run => 3,
-            ProcessFunction::Pid | ProcessFunction::SignalPoll => 0,
+            ProcessFunction::Pid | ProcessFunction::SignalPoll | ProcessFunction::CoreCount => 0,
         }
     }
 }
@@ -4515,7 +4519,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 75;
+    pub const CURRENT_VERSION: u32 = 76;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4869,6 +4873,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "random bytes require artifact format 68",
+            ));
+        }
+        if self.format_version < 76 && artifact_uses_core_count(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "core_count requires artifact format 76",
             ));
         }
         if self.format_version < 67 && artifact_uses_sha256(self) {
@@ -5628,6 +5638,12 @@ impl Artifact {
                     }
                     185 if format_version >= 56 => {
                         let code = r.u8()?;
+                        if code >= 3 && format_version < 76 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "core_count requires artifact format 76",
+                            ));
+                        }
                         Op::Process(ProcessFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -6588,6 +6604,15 @@ fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::RandomBytes))
+    })
+}
+
+fn artifact_uses_core_count(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Process(ProcessFunction::CoreCount)))
     })
 }
 

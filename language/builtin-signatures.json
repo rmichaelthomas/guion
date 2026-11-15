@@ -3215,6 +3215,12 @@
       "operation": "ProcessSignalPoll"
     },
     {
+      "name": "native_process_core_count",
+      "parameters": [],
+      "result": "Int",
+      "operation": "ProcessCoreCount"
+    },
+    {
       "name": "native_net_tcp_connect",
       "parameters": [
         "Text",

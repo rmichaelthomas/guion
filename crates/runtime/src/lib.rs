@@ -229,6 +229,11 @@ mod native_inline_arena_tests {
 const MAX_EFFECT_REPORT_ENTRIES: usize = 1024;
 const MAX_EFFECT_TARGET_CHARS: usize = 256;
 const DEFAULT_ALLOCATION_LIMIT_BYTES: usize = 256 * 1024 * 1024;
+/// How many `parallel_map` workers a project gets unless it raises the limit. Independent of the
+/// core count: a worker waiting on the network does not use a core.
+pub const DEFAULT_WORKER_CEILING: usize = 64;
+/// The most `[runtime] max_parallelism` may ask for.
+pub const MAX_WORKER_CEILING: usize = 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EffectKind {
@@ -317,6 +322,9 @@ pub struct HostPolicy {
     /// Optional route to put one plain question to a person when an effect lacks a grant.
     /// `None` for tests, replays and agents: a missing grant is then simply a denial.
     pub broker: Option<std::sync::Arc<GrantBroker>>,
+    /// The moment a `try_parallel_map` item must stop by, if it has a deadline. Set only on the
+    /// copy of the policy a worker uses; every blocking host call waits no longer than what is left.
+    pub deadline: Option<std::time::Instant>,
     /// Denied effects, shared by every copy of this policy (including parallel workers).
     pub denials: std::sync::Arc<std::sync::Mutex<Vec<DenialRecord>>>,
     /// Grants a person gave at a question, kept so a recording can name where they came from.
@@ -332,10 +340,8 @@ impl Default for HostPolicy {
             max_integer_digits: 4096,
             max_text_bytes: 16 * 1024 * 1024,
             max_collection_items: 1_000_000,
-            max_parallelism: thread::available_parallelism()
-                .map(usize::from)
-                .unwrap_or(1)
-                .min(64),
+            deadline: None,
+            max_parallelism: DEFAULT_WORKER_CEILING,
             file_root: None,
             additional_file_roots: Vec::new(),
             file_root_aliases: HashMap::new(),
@@ -1043,6 +1049,7 @@ impl VmHost for Instance {
         self.cancelled
             .as_ref()
             .is_some_and(|flag| flag.load(Ordering::Acquire))
+            || self.policy.deadline_passed()
     }
 
     fn program_output_bytes(&self) -> usize {
@@ -1477,7 +1484,7 @@ impl Instance {
                     return Err(RuntimeError::new(
                         "R_PARALLEL_LIMIT",
                         format!(
-                            "worker limit {limit} exceeds host limit {}",
+                            "worker limit {limit} is above this project's limit of {}\n  raise it in guion.toml:   [runtime] max_parallelism = {limit}",
                             self.policy.max_parallelism
                         ),
                         instruction.span,
@@ -2011,9 +2018,9 @@ impl Instance {
                             .to_usize()
                             .and_then(|value| u64::try_from(value).ok())
                         {
-                            Some(value) if value > 0 => {
-                                self.policy.http_timeout.min(Duration::from_millis(value))
-                            }
+                            Some(value) if value > 0 => self
+                                .policy
+                                .cap(self.policy.http_timeout.min(Duration::from_millis(value))),
                             _ => {
                                 let mut error = http_error(
                                     "R_HTTP_TIMEOUT",
@@ -2035,7 +2042,7 @@ impl Instance {
                         }
                     }
                 } else {
-                    self.policy.http_timeout
+                    self.policy.cap(self.policy.http_timeout)
                 };
                 let body = match pop!() {
                     Value::Text(body) if !byte_response => body.as_bytes().to_vec(),
@@ -3132,6 +3139,10 @@ impl Instance {
                     }
                     guion_model::ProcessFunction::SignalPoll => {
                         Value::Text(SharedText::from(process_ops::signal_poll()))
+                    }
+                    guion_model::ProcessFunction::CoreCount => {
+                        let cores = thread::available_parallelism().map_or(1, |count| count.get());
+                        Value::Int(BigInt::from_i64(cores as i64))
                     }
                 };
                 charge_allocation(

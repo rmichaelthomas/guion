@@ -16,7 +16,7 @@ impl HostHttpClient {
             .build()
             .map_err(|error| error.to_string())?;
         let executor = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(max_parallelism.clamp(1, 8))
+            .worker_threads(max_parallelism.clamp(1, 64))
             .enable_all()
             .build()
             .map_err(|error| error.to_string())?;

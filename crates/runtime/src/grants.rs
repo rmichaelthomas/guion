@@ -230,6 +230,27 @@ impl HostPolicy {
     }
 }
 
+impl HostPolicy {
+    /// The longest a blocking host call may wait: `wanted`, or less when the item running it has
+    /// a deadline that is nearer. At least one millisecond, so a call made at the deadline fails
+    /// quickly instead of being given no time at all.
+    pub(crate) fn cap(&self, wanted: std::time::Duration) -> std::time::Duration {
+        match self.deadline {
+            Some(deadline) => wanted.min(
+                deadline
+                    .saturating_duration_since(std::time::Instant::now())
+                    .max(std::time::Duration::from_millis(1)),
+            ),
+            None => wanted,
+        }
+    }
+
+    pub(crate) fn deadline_passed(&self) -> bool {
+        self.deadline
+            .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

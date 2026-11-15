@@ -152,6 +152,7 @@ pub(crate) fn run(policy: &HostPolicy, command: &str, arguments: &[String], stdi
         });
     }
     let started = Instant::now();
+    let allowed_time = policy.cap(policy.process_timeout);
     let mut failure_value = None;
     let status = loop {
         match child.try_wait() {
@@ -169,12 +170,12 @@ pub(crate) fn run(policy: &HostPolicy, command: &str, arguments: &[String], stdi
             ));
             break None;
         }
-        if started.elapsed() >= policy.process_timeout {
+        if started.elapsed() >= allowed_time {
             failure_value = Some(failure(
                 "E_PROCESS_TIMEOUT",
                 format!(
                     "`{command}` ran longer than {} ms",
-                    policy.process_timeout.as_millis()
+                    allowed_time.as_millis()
                 ),
             ));
             break None;

@@ -376,6 +376,7 @@ native_net_udp_recv_from(Int, Int, Int) -> Result[List[Bytes], List[Text]]
 native_net_udp_send_to(Int, Text, Int, Bytes) -> Result[Int, List[Text]]
 native_percent_decode(Text) -> Option[Text]
 native_percent_encode(Text) -> Text
+native_process_core_count() -> Int
 native_process_pid() -> Int
 native_process_run(Text, List[Text], Text) -> Result[List[Text], List[Text]]
 native_process_signal_poll() -> Text
@@ -652,6 +653,7 @@ std:path — pub fn path_components(path: Text) -> List[Text]
 std:process — pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]
 std:process — pub fn process_pid() -> Int
 std:process — pub fn process_signal_poll() -> Text
+std:process — pub fn core_count() -> Int
 std:random — pub fn random_new(seed: Int) -> Rng
 std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
 std:random — pub fn random_next_i64(rng: Rng) -> RandomInt
@@ -1304,6 +1306,7 @@ R_CALL_DEPTH
 R_CALL_TARGET
 R_CALL_TYPE
 R_CANCELLED
+R_CEILING
 R_CLOCK_DENIED
 R_CLOCK_RANGE
 R_CLOCK_UNAVAILABLE
@@ -1633,4 +1636,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:e625204e294828d0af3a410f552d761e6919e4edd25088419caaa28d38c167e1. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:818c96077e1cb1b40ffc45f60cfa142aa7352dedddc1a78b4ead1a9ebaa80e44. Validated by `cargo xtask agent-reference --check`. -->

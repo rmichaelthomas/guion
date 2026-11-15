@@ -3083,7 +3083,8 @@ fn inspection_report(
                     guion_model::ProcessFunction::SignalPoll => {
                         direct_effects[function_index].insert("process.signals".into());
                     }
-                    guion_model::ProcessFunction::Pid => {}
+                    guion_model::ProcessFunction::Pid | guion_model::ProcessFunction::CoreCount => {
+                    }
                 },
                 Op::Args | Op::ArgsFrom => {
                     direct_effects[function_index].insert("process.arguments".into());
@@ -4551,6 +4552,12 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
         policy.max_collection_items =
             runtime_usize(runtime, "max_collection_items", policy.max_collection_items)?;
         policy.max_parallelism = runtime_usize(runtime, "max_parallelism", policy.max_parallelism)?;
+        if policy.max_parallelism > guion_runtime::MAX_WORKER_CEILING {
+            return Err(format!(
+                "guion.toml [runtime].max_parallelism must be at most {}",
+                guion_runtime::MAX_WORKER_CEILING
+            ));
+        }
         policy.max_file_bytes = runtime_usize(runtime, "max_file_bytes", policy.max_file_bytes)?;
         policy.decompress_limit_bytes = runtime_usize(
             runtime,

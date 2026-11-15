@@ -116,6 +116,8 @@ instruction_limit = 2000000
 max_parallelism = 8
 ```
 
+`max_parallelism` is the most workers `parallel_map` may be given. It defaults to 64 on every machine, whatever the core count, and can be raised to 1024. A worker waiting on the network does not use a core; for work that keeps the processor busy, `core_count()` (from `std:process`) says how many cores there are.
+
 When a program exhausts `instruction_limit` the run fails with `R_STEP_LIMIT`: `instruction budget exhausted: N instructions used of M allowed; raise `instruction_limit` under `[runtime]` in guion.toml`, and the JSON diagnostic carries `used` and `limit`. `decompress_limit_bytes` (default 1073741824) bounds every gzip, zlib and tar inflate, and `[log] level` sets the default `std:log` level.
 
 The current types are `Int`, `Float64`, `Bool`, `Text`, `Bytes`, `Json`, `JsonError`, `FileError`, `HttpError`, `Unit`, `TaskError`, `List[T]`, `Map[Text, T]`, `Map[Int, T]`, `Option[T]`, and `Result[T, E]`. `Int` uses decimal arbitrary-precision storage subject to a configurable digit limit. Integer `/` truncates toward zero, `//` rounds down, and `%` follows the divisor's sign, satisfying `a == (a // b) * b + (a % b)`; division by zero raises `R_DIV_ZERO`. `Float64` is finite IEEE 754 binary64; `+ - * /`, unary negation, equality and ordered comparisons require Float64 operands. `sqrt(Float64)` returns a finite square root, reporting `R_MATH_DOMAIN` for negative input and `R_FLOAT_NONFINITE` for a non-finite result. No implicit conversion occurs between `Int` and `Float64`. Non-finite literals and operation results fail; float division by zero raises `R_DIV_ZERO`.
