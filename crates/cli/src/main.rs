@@ -12,12 +12,14 @@ mod compiler_driver;
 mod dependencies;
 mod grants;
 mod lsp;
+mod manifest_edit;
 mod native_dependencies;
 mod native_packages;
 mod package_capabilities;
 mod package_name;
 mod package_version;
 mod pool_alloc;
+mod prompt;
 mod registry;
 mod repl;
 mod source_run_cache;
@@ -163,7 +165,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--no-prompt] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -657,6 +659,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     }
     let mut json_run = false;
     let mut no_source_cache = false;
+    let mut no_prompt = false;
     let mut file_root_overrides = Vec::new();
     let mut http_host_overrides = Vec::new();
     let mut clock_override = false;
@@ -680,6 +683,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 "--no-cache" => {
                     no_source_cache = true;
+                    index += 1;
+                }
+                "--no-prompt" => {
+                    no_prompt = true;
                     index += 1;
                 }
                 "--file-root" => {
@@ -1231,6 +1238,37 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
             } else if let Some(interpreter) = env::var_os("GUION_PYTHON") {
                 policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
+            }
+            // One plain question before any Guion code runs, only when a person is present. It
+            // never runs for replays, JSON reports or without a terminal; see `prompt::present`.
+            if !json_run && tape_replay.is_none() {
+                if let Some(mut tty) = prompt::present(no_prompt) {
+                    let inspected =
+                        inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
+                    let missing = grants::needs(&artifact, &inspected)
+                        .into_iter()
+                        .filter(|need| need.hint().is_some() && !need.is_granted(&policy))
+                        .collect::<Vec<_>>();
+                    let manifest = project_manifest_path(&project_root);
+                    let can_save = manifest.is_file();
+                    if !missing.is_empty() {
+                        let program = source_path
+                            .file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| path.clone());
+                        let answer = prompt::ask_before_run(&mut tty, &program, &missing, can_save);
+                        if answer != guion_runtime::GrantAnswer::No {
+                            for need in &missing {
+                                if answer == guion_runtime::GrantAnswer::Always {
+                                    if let Some(hint) = need.hint() {
+                                        prompt::save_grant(&mut tty, &manifest, &hint);
+                                    }
+                                }
+                                need.grant_for_run(&mut policy);
+                            }
+                        }
+                    }
+                }
             }
             let runtime_load_started = phase_timings_enabled.then(Instant::now);
             let mut instance = match runtime.load(artifact.clone(), policy) {

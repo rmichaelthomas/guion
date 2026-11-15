@@ -305,3 +305,189 @@ fn a_program_that_reaches_nothing_needs_no_grants() {
         stdout(&output)
     );
 }
+
+// ---- Part 3: one question before the run ----
+//
+// These run guion inside a pseudo-terminal made by `script`, the only way to give it a real
+// terminal from a test. Unix only.
+
+#[cfg(unix)]
+mod terminal {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    /// Run `guion run` (or another subcommand) with a controlling terminal. `answer` is typed once
+    /// the question `Allow?` appears; `None` closes the terminal's input at once (end of input).
+    pub fn in_terminal(
+        project: &Project,
+        args: &[&str],
+        env: &[(&str, &str)],
+        answer: Option<&str>,
+    ) -> (String, bool) {
+        let binary = env!("CARGO_BIN_EXE_guion");
+        let mut command = Command::new("script");
+        if cfg!(target_os = "macos") {
+            command.args(["-q", "/dev/null", binary]).args(args);
+        } else {
+            let line = format!("{binary} {}", args.join(" "));
+            command.args(["-qec", &line, "/dev/null"]);
+        }
+        command
+            .current_dir(project.path())
+            .env_remove("CI")
+            .env_remove("GUION_NO_PROMPT")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+        for (name, value) in env {
+            command.env(name, value);
+        }
+        let mut child = command.spawn().expect("script starts");
+        let mut stdin = child.stdin.take().unwrap();
+        let mut stdout = child.stdout.take().unwrap();
+        let captured = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let sink = Arc::clone(&captured);
+        let reader = std::thread::spawn(move || {
+            let mut chunk = [0u8; 4096];
+            while let Ok(count) = stdout.read(&mut chunk) {
+                if count == 0 {
+                    break;
+                }
+                sink.lock().unwrap().extend_from_slice(&chunk[..count]);
+            }
+        });
+        match answer {
+            Some(answer) => {
+                let deadline = Instant::now() + Duration::from_secs(30);
+                loop {
+                    let seen = String::from_utf8_lossy(&captured.lock().unwrap()).into_owned();
+                    if seen.contains("Allow?") {
+                        break;
+                    }
+                    assert!(Instant::now() < deadline, "no question appeared: {seen}");
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                stdin.write_all(answer.as_bytes()).unwrap();
+                stdin.flush().unwrap();
+                let status = child.wait().unwrap();
+                drop(stdin);
+                reader.join().unwrap();
+                (text(&captured), status.success())
+            }
+            None => {
+                drop(stdin);
+                let status = child.wait().unwrap();
+                reader.join().unwrap();
+                (text(&captured), status.success())
+            }
+        }
+    }
+
+    fn text(captured: &Arc<Mutex<Vec<u8>>>) -> String {
+        String::from_utf8_lossy(&captured.lock().unwrap()).replace('\r', "")
+    }
+
+    #[test]
+    fn yes_grants_this_run_only_and_a_project_less_file_is_not_offered_always() {
+        let project = Project::new("ask-yes", CLOCK_SOURCE, "");
+        let (out, ok) = in_terminal(&project, &["run", "main.gu"], &[], Some("y\n"));
+        assert!(ok, "{out}");
+        assert!(
+            out.contains("main.gu wants to:\n  · read the clock"),
+            "{out}"
+        );
+        assert!(
+            out.contains("Allow? [y] this run  [N] no"),
+            "no [a] without a guion.toml: {out}"
+        );
+        assert!(out.contains("ran"), "{out}");
+        assert!(!project.path().join("guion.toml").exists());
+    }
+
+    #[test]
+    fn enter_means_no_and_the_program_fails_at_the_first_denied_effect() {
+        let project = Project::new("ask-no", CLOCK_SOURCE, "");
+        let (out, ok) = in_terminal(&project, &["run", "main.gu"], &[], Some("\n"));
+        assert!(!ok, "{out}");
+        assert!(out.contains("running without them"), "{out}");
+        assert!(out.contains("R_CLOCK_DENIED"), "{out}");
+    }
+
+    #[test]
+    fn always_writes_a_minimal_diff_to_guion_toml_and_keeps_comments() {
+        let before = "# my project\n[process]\n# only git\ncommands = [\"git\"] # keep\n";
+        let project = Project::new("ask-always", CLOCK_SOURCE, before);
+        let (out, ok) = in_terminal(&project, &["run", "main.gu"], &[], Some("a\n"));
+        assert!(ok, "{out}");
+        assert!(out.contains("(saves to guion.toml)"), "{out}");
+        let after = std::fs::read_to_string(project.path().join("guion.toml")).unwrap();
+        assert!(
+            after.starts_with(before),
+            "existing text must be untouched:\n{after}"
+        );
+        assert!(after.contains("[clock]\nenabled = true"), "{after}");
+        // The saved grant now applies without a question.
+        let again = project.run(&[]);
+        assert_eq!(stdout(&again), "ran\n", "{}", stderr(&again));
+    }
+
+    #[test]
+    fn ci_the_no_prompt_variable_and_the_flag_each_stop_the_question() {
+        for (name, env, flag) in [
+            ("ci", vec![("CI", "1")], None),
+            ("env", vec![("GUION_NO_PROMPT", "1")], None),
+            ("flag", vec![], Some("--no-prompt")),
+        ] {
+            let project = Project::new(&format!("ask-off-{name}"), CLOCK_SOURCE, "");
+            let mut args = vec!["run"];
+            args.extend(flag);
+            args.push("main.gu");
+            let (out, ok) = in_terminal(&project, &args, &env, None);
+            assert!(!out.contains("wants to"), "{name}: {out}");
+            assert!(!ok && out.contains("R_CLOCK_DENIED"), "{name}: {out}");
+        }
+    }
+
+    #[test]
+    fn json_runs_and_replays_never_ask() {
+        let project = Project::new("ask-never", CLOCK_SOURCE, "");
+        let (out, _) = in_terminal(&project, &["run", "--json", "main.gu"], &[], None);
+        assert!(!out.contains("wants to"), "{out}");
+        let recorded = project.run(&["--allow-clock", "--record", "t.tape"]);
+        assert!(recorded.status.success(), "{}", stderr(&recorded));
+        let (out, _) = in_terminal(
+            &project,
+            &["run", "--replay", "t.tape", "main.gu"],
+            &[],
+            None,
+        );
+        assert!(!out.contains("wants to"), "{out}");
+    }
+}
+
+#[test]
+fn piped_input_cannot_answer_the_question() {
+    let project = Project::new("ask-piped", CLOCK_SOURCE, "");
+    let mut child = project
+        .guion()
+        .env_remove("GUION_NO_PROMPT")
+        .args(["run", "main.gu"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        use std::io::Write;
+        let mut stdin = child.stdin.take().unwrap();
+        // The child may exit before reading; a closed pipe here is fine.
+        let _ = stdin.write_all(&b"y\n".repeat(64));
+    }
+    let output = child.wait_with_output().unwrap();
+    assert!(!output.status.success());
+    assert!(!stdout(&output).contains("ran"));
+    assert!(!stderr(&output).contains("wants to"), "{}", stderr(&output));
+    assert!(stderr(&output).contains("R_CLOCK_DENIED"));
+}

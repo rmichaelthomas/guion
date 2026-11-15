@@ -76,6 +76,9 @@ impl Need {
     }
 
     pub fn is_granted(&self, policy: &HostPolicy) -> bool {
+        if self.kind == NeedKind::Clock {
+            return policy.allow_clock;
+        }
         let Some(target) = self.target.as_deref() else {
             return false;
         };
@@ -86,6 +89,34 @@ impl Need {
             NeedKind::Environment => policy.allowed_environment_variables.contains(target),
             NeedKind::Connect => socket_granted(&policy.allowed_connect, target),
             NeedKind::Listen => socket_granted(&policy.allowed_bind, target),
+        }
+    }
+
+    /// Allow this need for the rest of the run by adding it to the policy's fixed sets.
+    pub fn grant_for_run(&self, policy: &mut HostPolicy) {
+        let Some(target) = self.target.clone() else {
+            if self.kind == NeedKind::Clock {
+                policy.allow_clock = true;
+            }
+            return;
+        };
+        match self.kind {
+            NeedKind::Clock => policy.allow_clock = true,
+            NeedKind::Fetch => {
+                policy.allowed_http_hosts.insert(target);
+            }
+            NeedKind::Run => {
+                policy.allowed_commands.insert(target);
+            }
+            NeedKind::Environment => {
+                policy.allowed_environment_variables.insert(target);
+            }
+            NeedKind::Connect => {
+                policy.allowed_connect.insert(target);
+            }
+            NeedKind::Listen => {
+                policy.allowed_bind.insert(target);
+            }
         }
     }
 
