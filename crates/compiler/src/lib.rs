@@ -2843,6 +2843,33 @@ impl<'a> FnCompiler<'a> {
     /// Resolve the function argument of a higher-order builtin. A bare name that is not a local
     /// is a named function and emits nothing (the operation carries its index); anything else
     /// must have a function type, and its value is left on the stack.
+    /// `sort_by`, `sort_by_key`, `sort_by_int_key`, `merge_sorted_by_int_key` and `parallel_map`
+    /// take a named function or a function value that captures nothing. A function literal
+    /// written in the argument that uses a local variable is visible in the source, so it is
+    /// refused here at check time instead of as `R_FN_CLOSURE` when the call runs.
+    fn reject_capturing_literal(&self, arg: &Expr, operation: &str) -> Result<(), Diagnostic> {
+        let Expr::Lambda(params, _, body, span) = arg else {
+            return Ok(());
+        };
+        let mut mentioned = Vec::new();
+        let mut bound: Vec<String> = params.iter().map(|(name, _, _)| name.clone()).collect();
+        mentioned_in_block(body, &mut mentioned, &mut bound);
+        let captured: Vec<&String> = mentioned
+            .iter()
+            .filter(|name| !bound.contains(name) && self.locals.contains_key(*name))
+            .collect();
+        if let Some(name) = captured.first() {
+            return Err(diagnostic(
+                "E_FN_CLOSURE",
+                format!(
+                    "{operation} takes a named function or a function literal that uses no outside variables; this one uses `{name}`"
+                ),
+                *span,
+            ));
+        }
+        Ok(())
+    }
+
     fn function_argument(
         &mut self,
         arg: &Expr,
@@ -3860,6 +3887,7 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
+                    self.reject_capturing_literal(&args[1], "parallel_map")?;
                     let worker = self.function_argument(
                         &args[1],
                         (
@@ -3920,6 +3948,7 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
+                    self.reject_capturing_literal(&args[1], "sort_by")?;
                     let comparator = self.function_argument(
                         &args[1],
                         (
@@ -4100,6 +4129,7 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
+                    self.reject_capturing_literal(&args[1], "sort_by_int_key")?;
                     let key = self.function_argument(
                         &args[1],
                         (
@@ -4148,6 +4178,7 @@ impl<'a> FnCompiler<'a> {
                             ))
                         }
                     };
+                    self.reject_capturing_literal(&args[1], "merge_sorted_by_int_key")?;
                     let key = self.function_argument(
                         &args[1],
                         (
@@ -6212,6 +6243,7 @@ fn compile_project_with_roots_inner(
                 .get(error.span.source_id as usize)
                 .cloned()
                 .unwrap_or_else(|| sources[0].clone());
+            let error = std_import_hint(error, stdlib_root.as_deref());
             error.with_source_name(name)
         })?;
     let compile_program_ns = compile_program_started
@@ -6225,6 +6257,55 @@ fn compile_project_with_roots_inner(
             compile_program_ns,
         },
     ))
+}
+
+/// An unknown call whose name a standard-library module exports is a missing import, not a
+/// typo: say which module to import and drop the lexical near-misses, which would point at an
+/// unrelated name (`text_join` is two edits from `text_find`, but it lives in `std:text`).
+fn std_import_hint(error: Diagnostic, stdlib_root: Option<&Path>) -> Diagnostic {
+    let Some(root) = stdlib_root else {
+        return error;
+    };
+    if error.code != "E_NAME_UNKNOWN" {
+        return error;
+    }
+    let Some(name) = error
+        .message
+        .strip_prefix("unknown function `")
+        .and_then(|rest| rest.strip_suffix('`'))
+        .map(str::to_owned)
+    else {
+        return error;
+    };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return error;
+    };
+    let mut modules: Vec<String> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "gu"))
+        .filter(|path| {
+            std::fs::read_to_string(path).is_ok_and(|text| {
+                text.lines().any(|line| {
+                    line.strip_prefix("pub fn ")
+                        .and_then(|rest| rest.strip_prefix(name.as_str()))
+                        .is_some_and(|rest| rest.starts_with('(') || rest.starts_with('['))
+                })
+            })
+        })
+        .filter_map(|path| path.file_stem().map(|stem| stem.to_string_lossy().into_owned()))
+        .collect();
+    modules.sort();
+    let Some(module) = modules.first() else {
+        return error;
+    };
+    let mut hinted = Diagnostic::new(
+        error.code.clone(),
+        format!("unknown function `{name}`; it is in `std:{module}`, add `import \"std:{module}\"`"),
+        error.span,
+    );
+    hinted.source_name = error.source_name.clone();
+    hinted
 }
 
 fn digest_sources(mut sources: Vec<(String, &str)>) -> String {

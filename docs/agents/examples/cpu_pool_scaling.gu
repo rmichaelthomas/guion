@@ -1,6 +1,6 @@
 # Four CPU-bound jobs through parallel_map, with the worker limit as a parameter.
-# Compare `LIMIT=1` with `LIMIT=4`: the worker count is a ceiling for waiting,
-# not a multiplier for computing; see docs/concurrency.md.
+# Compare `LIMIT=1` with `LIMIT=4`: CPU-bound jobs finish sooner with more
+# workers, up to the machine's cores; see docs/concurrency.md.
 #
 # Run: guion run --allow-clock cpu_pool_scaling.gu LIMIT [ITERATIONS]
 

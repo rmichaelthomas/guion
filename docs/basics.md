@@ -22,7 +22,7 @@ Functions in the `std:` modules need `import "std:MODULE"`; the built-in functio
 | Maths | `math_abs`, `math_pow`, `math_floor`, `math_round`, `math_log`, `math_sin`, `sqrt` | |
 | Lists and maps | `list_push`, `list_get`, `list_set`, `map_get`, `map_set`, `map_has` | |
 | Sorting | `sort`, `sort_by`, `sort_by_int_key` | |
-| Pass a function to a function | `map_list`, `filter_list`, `fold_list`, `any_list`, `all_list` | Pass a named function or write one in place, `fn(x: Int) -> Int: x + offset`, which keeps the values it uses. `sort_by` and `parallel_map` take a named function. |
+| Pass a function to a function | `map_list`, `filter_list`, `fold_list`, `any_list`, `all_list` | Pass a named function or write one in place, `fn(x: Int) -> Int: x + offset`, which keeps the values it uses. The sorts and `parallel_map` take a named function or a function written in place that uses no outside variable (`fn(x: Int) -> Int: 0 - x`); one that uses an outside variable is `E_FN_CLOSURE` at check time. |
 | Handle a value that may be missing or fail | `Ok`, `Err`, `Some`, `is_ok`, `is_some`, `unwrap` | |
 | Regular expressions | `regex_is_match`, `regex_find`, `regex_find_all`, `regex_replace`, `regex_split`, `regex_escape` | Linear-time syntax; no backreferences or lookaround. |
 | JSON | `json_parse`, `json_stringify`, `json_get`, `json_index`, `json_object`, `json_array` | |
