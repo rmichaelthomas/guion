@@ -22,6 +22,7 @@ mod pool_alloc;
 mod prompt;
 mod registry;
 mod repl;
+mod scratch;
 mod source_run_cache;
 mod templates;
 
@@ -165,7 +166,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--no-prompt] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--no-prompt] [--sealed] [--keep-temp] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -660,6 +661,8 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let mut json_run = false;
     let mut no_source_cache = false;
     let mut no_prompt = false;
+    let mut sealed = false;
+    let mut keep_temp = false;
     let mut file_root_overrides = Vec::new();
     let mut http_host_overrides = Vec::new();
     let mut clock_override = false;
@@ -687,6 +690,14 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 }
                 "--no-prompt" => {
                     no_prompt = true;
+                    index += 1;
+                }
+                "--sealed" => {
+                    sealed = true;
+                    index += 1;
+                }
+                "--keep-temp" => {
+                    keep_temp = true;
                     index += 1;
                 }
                 "--file-root" => {
@@ -1202,15 +1213,47 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 _ => runtime,
             };
             let program_args = args.iter().skip(path_index + 1).cloned().collect();
+            if sealed
+                && (!http_host_overrides.is_empty()
+                    || clock_override
+                    || !command_overrides.is_empty()
+                    || !socket_overrides.is_empty()
+                    || !runtime_file_roots.is_empty())
+            {
+                return Err("--sealed grants nothing, so it cannot be combined with --allow-http-host, --allow-clock, --allow-command, --allow-connect, --allow-bind or --file-root".into());
+            }
+            // The private `temp:` folder: fresh for this run, removed when it ends.
+            let mut scratch = None;
             let mut policy = if tape_replay.is_some() {
                 // A replay is fed from the tape: it gets no file, network, clock, command or
                 // socket access, whatever the command line says.
                 runtime_policy(&project_root)?
+            } else if sealed {
+                // Sealed runs code you have not read: no files, and none of the grants the
+                // project file would give either.
+                let mut policy = runtime_policy(&project_root)?.with_arguments(program_args);
+                policy.allowed_http_hosts.clear();
+                policy.allowed_commands.clear();
+                policy.allowed_environment_variables.clear();
+                policy.allowed_connect.clear();
+                policy.allowed_bind.clear();
+                policy.allow_clock = false;
+                policy
             } else {
-                runtime_policy(&project_root)?
+                let folder = scratch::ScratchDir::create()?;
+                let policy = runtime_policy(&project_root)?
                     .with_file_access(project_root.clone(), true, true)
-                    .with_arguments(program_args)
+                    .with_file_root_alias("temp:", folder.path())
+                    .with_arguments(program_args);
+                scratch = Some(folder);
+                policy
             };
+            if keep_temp {
+                if let Some(folder) = scratch.as_mut() {
+                    folder.keep();
+                    eprintln!("keeping temp folder: {}", folder.path().display());
+                }
+            }
             for host in http_host_overrides {
                 policy
                     .allowed_http_hosts
@@ -1241,7 +1284,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             }
             // One plain question before any Guion code runs, only when a person is present. It
             // never runs for replays, JSON reports or without a terminal; see `prompt::present`.
-            if !json_run && tape_replay.is_none() {
+            if !json_run && tape_replay.is_none() && !sealed {
                 if let Some(mut tty) = prompt::present(no_prompt) {
                     let inspected =
                         inspection_report(&path, &artifact, &project_root, path.ends_with(".gub"));
@@ -4941,10 +4984,21 @@ fn run_tests(
             failures += 1;
             continue;
         }
+        // Each test gets its own private `temp:` folder, removed when the test ends. A replayed
+        // test gets no file access at all.
+        let replaying = tape.is_some_and(|(replay, _)| *replay);
+        let scratch = if replaying {
+            None
+        } else {
+            Some(scratch::ScratchDir::create()?)
+        };
         #[cfg(feature = "python-interop")]
         let mut policy = base_policy.clone();
         #[cfg(not(feature = "python-interop"))]
-        let policy = base_policy.clone();
+        let mut policy = base_policy.clone();
+        if let Some(folder) = &scratch {
+            policy = policy.with_file_root_alias("temp:", folder.path());
+        }
         #[cfg(feature = "python-interop")]
         if let Some(interpreter) = env::var_os("GUION_PYTHON") {
             policy = policy.with_python(interpreter, std::time::Duration::from_secs(15));
@@ -5006,14 +5060,18 @@ fn run_tests(
                         })
                     })
                     .collect::<Vec<_>>();
+                let mut diagnostic = serde_json::json!({
+                    "code": error.code,
+                    "message": error.message,
+                    "trace": trace
+                });
+                if let Some(grant) = &error.grant {
+                    diagnostic["grant"] = grant_json(grant);
+                }
                 results.push(serde_json::json!({
                     "name": test.name,
                     "status": "failed",
-                    "diagnostic": {
-                        "code": error.code,
-                        "message": error.message,
-                        "trace": trace
-                    }
+                    "diagnostic": diagnostic
                 }));
                 failures += 1;
             }

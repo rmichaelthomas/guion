@@ -9077,6 +9077,18 @@ fn host_file_entry_path(
     requested: &str,
     span: Span,
 ) -> Result<PathBuf, RuntimeError> {
+    let requested = &*with_alias_separator(policy, requested);
+    if policy
+        .file_root_aliases
+        .keys()
+        .any(|alias| alias.ends_with(':') && requested.trim_end_matches('/') == alias)
+    {
+        return Err(RuntimeError::new(
+            "R_HOST_DENIED",
+            "a granted file area itself cannot be removed, renamed or replaced",
+            span,
+        ));
+    }
     let path = Path::new(requested);
     let Some(std::path::Component::Normal(name)) = path.components().next_back() else {
         return Err(RuntimeError::new(
@@ -9095,6 +9107,21 @@ fn host_file_entry_path(
         format!("{parent}/.")
     };
     Ok(host_file_path(policy, &parent, true, span)?.join(name))
+}
+
+/// A prefix such as `temp:` is written `temp:name.txt` or `temp:/name.txt`; this returns the
+/// second spelling so every later step sees one form. Other paths are returned unchanged.
+fn with_alias_separator<'a>(policy: &HostPolicy, requested: &'a str) -> std::borrow::Cow<'a, str> {
+    for alias in policy.file_root_aliases.keys() {
+        if alias.ends_with(':') {
+            if let Some(rest) = requested.strip_prefix(alias.as_str()) {
+                if !rest.starts_with('/') {
+                    return std::borrow::Cow::Owned(format!("{alias}/{rest}"));
+                }
+            }
+        }
+    }
+    std::borrow::Cow::Borrowed(requested)
 }
 
 fn host_file_path_no_follow(
@@ -9128,6 +9155,7 @@ fn host_file_path_with_walk_root(
             span,
         ));
     }
+    let requested = &*with_alias_separator(policy, requested);
     let alias = policy
         .file_root_aliases
         .iter()

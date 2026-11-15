@@ -491,3 +491,176 @@ fn piped_input_cannot_answer_the_question() {
     assert!(!stderr(&output).contains("wants to"), "{}", stderr(&output));
     assert!(stderr(&output).contains("R_CLOCK_DENIED"));
 }
+
+// ---- Part 1: the private `temp:` folder and `--sealed` ----
+
+const TEMP_SOURCE: &str = r#"fn main() -> Int:
+    match write_text("temp:notes.txt", "hello"):
+        Ok(_):
+            print("wrote")
+        Err(problem):
+            print(file_error_code(problem))
+    print(unwrap(read_text("temp:/notes.txt")))
+    if is_ok(read_text("temp:main.gu")):
+        print("LEAK")
+    else:
+        print("not in temp")
+    print(unwrap(read_text("main.gu")) != "")
+    let escape = read_text("temp:/../main.gu")
+    print(file_error_code(error(escape)))
+    return 0
+"#;
+
+/// A scratch directory standing in for `TMPDIR`, removed when dropped.
+struct TempBase(PathBuf);
+
+impl TempBase {
+    fn new(name: &str) -> Self {
+        let path =
+            std::env::temp_dir().join(format!("guion-tmpbase-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        Self(path.canonicalize().unwrap())
+    }
+
+    fn entries(&self) -> Vec<PathBuf> {
+        std::fs::read_dir(&self.0)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect()
+    }
+}
+
+impl Drop for TempBase {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn temp_is_a_private_folder_that_never_reaches_the_project() {
+    let base = TempBase::new("private");
+    let project = Project::new("temp-private", TEMP_SOURCE, "");
+    let output = project
+        .guion()
+        .env("TMPDIR", &base.0)
+        .args(["run", "main.gu"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}{}",
+        stdout(&output),
+        stderr(&output)
+    );
+    assert_eq!(
+        stdout(&output),
+        "wrote\nhello\nnot in temp\ntrue\nR_HOST_DENIED\n"
+    );
+    // Nothing was written into the project, and the run's folder is gone.
+    assert!(!project.path().join("notes.txt").exists());
+    assert!(base.entries().is_empty(), "{:?}", base.entries());
+}
+
+#[test]
+fn temp_is_removed_after_a_failed_run_and_kept_on_request() {
+    let source = "fn main() -> Int:\n    unwrap(write_text(\"temp:left.txt\", \"x\"))\n    assert(1 == 2)\n    return 0\n";
+    let base = TempBase::new("failed");
+    let project = Project::new("temp-failed", source, "");
+    let output = project
+        .guion()
+        .env("TMPDIR", &base.0)
+        .args(["run", "main.gu"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(base.entries().is_empty(), "{:?}", base.entries());
+
+    let output = project
+        .guion()
+        .env("TMPDIR", &base.0)
+        .args(["run", "--keep-temp", "main.gu"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let kept = base.entries();
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    assert_eq!(
+        std::fs::read_to_string(kept[0].join("left.txt")).unwrap(),
+        "x"
+    );
+    assert!(stderr(&output).contains(&format!("keeping temp folder: {}", kept[0].display())));
+}
+
+#[test]
+fn each_run_gets_its_own_temp_folder() {
+    let source = "fn main() -> Int:\n    assert(not is_ok(read_text(\"temp:marker.txt\")))\n    unwrap(write_text(\"temp:marker.txt\", \"x\"))\n    return 0\n";
+    let project = Project::new("temp-fresh", source, "");
+    for _ in 0..2 {
+        let output = project.run(&[]);
+        assert!(
+            output.status.success(),
+            "{}{}",
+            stdout(&output),
+            stderr(&output)
+        );
+    }
+}
+
+#[test]
+fn sealed_runs_with_no_files_and_none_of_the_project_grants() {
+    let reads_file = "fn main() -> Int:\n    match read_text(\"main.gu\"):\n        Ok(_):\n            print(\"read\")\n        Err(problem):\n            print(file_error_code(problem))\n    match write_text(\"temp:x.txt\", \"x\"):\n        Ok(_):\n            print(\"wrote\")\n        Err(problem):\n            print(file_error_code(problem))\n    return 0\n";
+    let project = Project::new("sealed-files", reads_file, "");
+    let output = project.run(&["--sealed"]);
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "R_HOST_DENIED\nR_HOST_DENIED\n");
+
+    // A project grant does not reach a sealed run.
+    let project = Project::new("sealed-clock", CLOCK_SOURCE, "[clock]\nenabled = true\n");
+    assert_eq!(stdout(&project.run(&[])), "ran\n");
+    let output = project.run(&["--sealed"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("R_CLOCK_DENIED"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn sealed_cannot_be_combined_with_a_grant_flag() {
+    let project = Project::new("sealed-flags", CLOCK_SOURCE, "");
+    let output = project.run(&["--sealed", "--allow-clock"]);
+    assert!(!output.status.success());
+    assert!(
+        stderr(&output).contains("--sealed grants nothing"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn guion_test_gives_each_test_its_own_temp_folder_and_never_asks() {
+    let source = "fn test_first() -> Unit:\n    assert(not is_ok(read_text(\"temp:marker.txt\")))\n    unwrap(write_text(\"temp:marker.txt\", \"x\"))\n\nfn test_second() -> Unit:\n    assert(not is_ok(read_text(\"temp:marker.txt\")))\n    unwrap(write_text(\"temp:marker.txt\", \"x\"))\n\nfn test_clock() -> Unit:\n    assert(today_local().year > 1970)\n";
+    let base = TempBase::new("tests");
+    let project = Project::new(
+        "temp-tests",
+        &format!("import \"std:time\"\n\nfn main() -> Int:\n    return 0\n\n{source}"),
+        "",
+    );
+    let output = project
+        .guion()
+        .env("TMPDIR", &base.0)
+        .args(["test", "main.gu"])
+        .output()
+        .unwrap();
+    let text = format!("{}{}", stdout(&output), stderr(&output));
+    assert!(
+        text.contains("ok test_first") && text.contains("ok test_second"),
+        "{text}"
+    );
+    // The clock test fails with the usual denial, not a question.
+    assert!(text.contains("R_CLOCK_DENIED"), "{text}");
+    assert!(!text.contains("wants to"), "{text}");
+    assert!(base.entries().is_empty(), "{:?}", base.entries());
+}
