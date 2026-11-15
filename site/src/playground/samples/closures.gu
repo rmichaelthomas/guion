@@ -1,0 +1,9 @@
+fn main() -> Int:
+    let bonus = 5
+
+    fn add_bonus(score: Int) -> Int:
+        return score + bonus
+
+    print(add_bonus(10))
+    print(add_bonus(37))
+    return 0
