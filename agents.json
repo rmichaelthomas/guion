@@ -160,9 +160,9 @@
       "id": "targets",
       "title": "Where it has been tested",
       "group": "reach",
-      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.",
+      "say": "An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64. Guion 0.5.0 also has builds for Intel Macs and Windows x86_64, which were built and given a short smoke test on GitHub runners; they have not been through the full test suite.",
       "holdsWhen": "For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.",
-      "doesntTell": "Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.",
+      "doesntTell": "Support for other Linux distributions, other CPU architectures or other C libraries. The Intel Mac and Windows builds have had a build and a short smoke test only, and the Windows build is not signed. A target that did not run is reported as incomplete.",
       "evidence": [
         "evidence/status.md",
         "evidence/2026-10-27-current-main-outcome-checkpoint.md",

@@ -1307,7 +1307,7 @@ hosts = [&quot;api.example.test&quot;]
 <text class="value" x="830.29" y="525">0.954×</text>
 </g>
 </svg>
-<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise.</span></figcaption>
+<figcaption class="caption"><span class="v-plain">Each dot is how long Guion took divided by how long the comparison took. Left of the dashed line is faster. The line through each dot is its 95% interval. Different machines, programs and Python versions would move every dot. Each receipt names the build it measured; several are from early November builds, not the current release, and have not been re-measured on 0.5.0.</span><span class="v-dev">Log scale, 0.1× to 1.6×. Comparison and sample counts are on each receipt. Hosts: GitHub's x86_64 and ARM64 Linux runners for the rows marked server, against the uv standalone CPython 3.14.7; one Apple Silicon Mac, macOS 27, with CPython 3.14.7 for the rest unless a receipt says otherwise. Receipts name their artifact format (61 to 73); 0.5.0 is format 74 and has not been re-measured.</span></figcaption>
 </figure>
 </div>
 <div class="filters" role="group" aria-label="Show receipts about">
@@ -1431,13 +1431,13 @@ hosts = [&quot;api.example.test&quot;]
 <article class="claim" id="claim-targets" data-claim="targets" data-group="reach" data-case="09">
 <h3>Where it has been tested</h3>
 <dl class="receipt">
-<div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64.</dd></div>
+<div><dt>Claim</dt><dd>An earlier cohort passed on macOS ARM64 and Debian 12 GNU/Linux on ARM64 and x86_64, all with glibc: 54 of 54 application reports. The latest speed gate ran on Linux on x86_64 and ARM64. Guion 0.5.0 also has builds for Intel Macs and Windows x86_64, which were built and given a short smoke test on GitHub runners; they have not been through the full test suite.</dd></div>
 <div><dt>Holds when</dt><dd>For the earlier cohort: nine retained applications, initial and follow-up variants, on each of the three targets.</dd></div>
-<div><dt>Doesn't tell you</dt><dd>Support for Windows, other Linux distributions, other CPU architectures or other C libraries. A target that did not run is reported as incomplete.</dd></div>
+<div><dt>Doesn't tell you</dt><dd>Support for other Linux distributions, other CPU architectures or other C libraries. The Intel Mac and Windows builds have had a build and a short smoke test only, and the Windows build is not signed. A target that did not run is reported as incomplete.</dd></div>
 <div><dt>Check it</dt><dd><a href="evidence/status.md">status.md</a> · <a href="evidence/2026-10-27-current-main-outcome-checkpoint.md">2026-10-27-current-main-outcome-checkpoint.md</a> · <a href="evidence/2026-11-03-server-speed-gate.md">2026-11-03-server-speed-gate.md</a></dd></div>
 <div><dt>Say it's wrong</dt><dd><a href="mailto:rmichael@rmichaelthomas.com?subject=Guion%20claim%3A%20Where%20it%20has%20been%20tested">rmichael@rmichaelthomas.com</a></dd></div>
 </dl>
-<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Earlier cohort</th><td>54 of 54 application reports passed</td></tr><tr><th scope="row">Targets</th><td>macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)</td></tr><tr><th scope="row">Latest speed gate</th><td>Linux x86_64 and ARM64 (GitHub runners)</td></tr></tbody></table></div>
+<div class="v-dev"><table class="claim-table"><tbody><tr><th scope="row">Earlier cohort</th><td>54 of 54 application reports passed</td></tr><tr><th scope="row">Targets</th><td>macOS ARM64 · Debian 12 ARM64 · Debian 12 x86_64 (glibc)</td></tr><tr><th scope="row">Latest speed gate</th><td>Linux x86_64 and ARM64 (GitHub runners)</td></tr><tr><th scope="row">0.5.0 builds</th><td>macOS x86_64 (signed, notarized) · Windows x86_64 (unsigned): built and smoke-tested on GitHub runners, not the full suite</td></tr></tbody></table></div>
 </article>
 </div>
 </div>
