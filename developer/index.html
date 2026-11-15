@@ -724,7 +724,7 @@
 <div class="ahi"><section id="slot-hero-headline" class="instrument family-typography-reading renderer-kinetic-headline interaction-progressive-css" data-ahi="ahi.typography-reading.kinetic-headline" data-ahi-renderer="kinetic-headline" data-ahi-element="section" data-ahi-version="1"><section class="instrument-semantic instrument-semantic-section" data-ahi-semantic="section"><header class="kinetic-headline"><h2>A language for the work ahead.</h2><p class="headline-deck">Programming, re-examined</p><p>A general-purpose programming language and toolchain built around one challenge: make useful software easier to write, understand, run, and deliver.</p></header></section></section></div>
 <div class="v-dev hero-specs">
 <dl class="specs">
-<div><dt>Version</dt><dd><code>guion 0.4.0 (artifact format 74, timezone data 2026c)</code></dd></div>
+<div><dt>Version</dt><dd><code>guion 0.5.0 (artifact format 74, timezone data 2026c)</code></dd></div>
 <div><dt>Files</dt><dd><code>.gu</code> source · <code>.gub</code> artifact · <code>guion.toml</code> · <code>guion.lock</code> · <code>.guion/</code></dd></div>
 <div><dt>Compiler</dt><dd>self-hosted, written in Guion; normal source runs use the in-process Rust compiler</dd></div>
 <div><dt>Runtime</dt><dd>Rust, with explicit host permissions</dd></div>
@@ -735,10 +735,10 @@
 <div class="cta-row">
 <a class="btn btn-primary" href="#try">Run a program <span aria-hidden="true">↓</span></a>
 <a class="btn btn-light" href="#receipts">See how we know <span aria-hidden="true">↓</span></a>
-<a class="btn btn-light" href="https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0" rel="noopener">Download 0.4.0</a>
+<a class="btn btn-light" href="https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0" rel="noopener">Download 0.5.0</a>
 <a class="btn btn-light" href="https://github.com/rmichaelthomas/guion" rel="noopener">GitHub</a>
 </div>
-<p class="fineprint">Guion 0.4.0 is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon). It is still pre-1.0. The Mac build is signed and notarized by Apple. You can also run programs on this page and read the evidence behind every claim.</p>
+<p class="fineprint">Guion 0.5.0 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64). It is still pre-1.0. The Mac builds are signed and notarized by Apple; the Windows build is not signed. You can also run programs on this page and read the evidence behind every claim.</p>
 </div>
 <figure class="hero-art" data-ahi="ahi.visual-art-media.svg-illustration" aria-label="A four-line Guion program and the 342-byte artifact the compiler turns it into">
 <svg viewBox="0 0 640 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" class="orbit">
@@ -783,20 +783,24 @@
 <div class="sectionhead">
 <div><p class="overline">Get started</p><h2 id="start-title">Install it.<br><span class="serif">Run your first program.</span></h2></div>
 <p class="v-plain">Four steps. You need a terminal and nothing else: no Rust and no Python.</p>
-<p class="v-dev">Download, unpack, <code>sh install.sh</code>, add <code>~/.local/bin</code> to <code>PATH</code>. No Rust or Python needed.</p>
+<p class="v-dev"><code>brew install rmichaelthomas/guion/guion</code>, the one-line installer, or an archive and <code>sh install.sh</code>; add <code>~/.local/bin</code> to <code>PATH</code> for the last two. No Rust or Python needed.</p>
 </div>
 <ol class="start-steps">
 <li>
-<h3>1. Download and install</h3>
-<p>Get the archive for your machine from the <a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0" rel="noopener">v0.4.0 release page</a>: <code>guion-macos-aarch64.tar.gz</code> for a Mac with Apple silicon, <code>guion-debian-x86_64.tar.gz</code> or <code>guion-debian-aarch64.tar.gz</code> for Linux. Then, in a terminal:</p>
+<h3>1. Install</h3>
+<p>On a Mac or Linux with Homebrew:</p>
+<pre class="code"><code>brew install rmichaelthomas/guion/guion</code></pre>
+<p>Or with the one-line installer, which checks the download's checksum and puts <code>guion</code> under <code>~/.local</code>:</p>
+<pre class="code"><code>curl -fsSL https://raw.githubusercontent.com/rmichaelthomas/guion/main/distribution/get-guion.sh | sh</code></pre>
+<p>Or download an archive from the <a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0" rel="noopener">v0.5.0 release page</a>: <code>guion-macos-aarch64.tar.gz</code> (Apple silicon), <code>guion-macos-x86_64.tar.gz</code> (Intel Mac), <code>guion-debian-x86_64.tar.gz</code> or <code>guion-debian-aarch64.tar.gz</code> (Linux), or <code>guion-windows-x86_64.zip</code> (Windows; unzip it and add its <code>bin</code> folder to your <code>PATH</code>). Then, on a Mac or Linux:</p>
 <pre class="code"><code>tar -xzf guion-macos-aarch64.tar.gz
 cd guion-macos-aarch64
 sh install.sh</code></pre>
-<p class="fineprint">Use the matching name for a Linux archive. The installer puts <code>guion</code> under <code>~/.local</code>; give it a path to choose another place.</p>
+<p class="fineprint">Use the matching name for another archive. Homebrew and the one-line installer need no further step. The archive installer puts <code>guion</code> under <code>~/.local</code>; give it a path to choose another place. The Windows build is not signed.</p>
 </li>
 <li>
 <h3>2. Let your terminal find it</h3>
-<p>Add the install folder to your <code>PATH</code> (put this line in your shell's startup file to keep it), then check it works:</p>
+<p>Homebrew does this for you. After the installer script or an archive, add the install folder to your <code>PATH</code> (put this line in your shell's startup file to keep it), then check it works:</p>
 <pre class="code"><code>export PATH="$HOME/.local/bin:$PATH"
 guion --version</code></pre>
 </li>
@@ -1109,7 +1113,7 @@ entry = &quot;main.gu&quot;
 [network]
 hosts = [&quot;api.example.test&quot;]
 </code></pre></div>
-<div><p class="mono muted">report (schema_version 1, captured with guion 0.4.0 (artifact format 74, timezone data 2026c))</p><pre class="code light"><code>{
+<div><p class="mono muted">report (schema_version 1, captured with guion 0.5.0 (artifact format 74, timezone data 2026c))</p><pre class="code light"><code>{
   <span class="k">&quot;analysis_scope&quot;</span>: &quot;reachable direct calls and parallel_map worker functions; host effects are categorized from bytecode operations&quot;,
   <span class="k">&quot;artifact_format&quot;</span>: 74,
   <span class="k">&quot;capability_claim&quot;</span>: &quot;static_bytecode_reachability_not_sandbox&quot;,
@@ -1490,7 +1494,7 @@ hosts = [&quot;api.example.test&quot;]
 <p class="smallcaps">agents.json</p>
 <pre class="code"><code>{
   <span class="k">"product"</span>: "Guion",
-  <span class="k">"status"</span>: "Pre-1.0. Release 0.4.0 is out for Linux (Debian 12, ARM64 and x86_64) and macOS (Apple Silicon).",
+  <span class="k">"status"</span>: "Pre-1.0. Release 0.5.0 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64).",
   <span class="k">"claims"</span>: [
     { <span class="k">"id"</span>, <span class="k">"title"</span>, <span class="k">"say"</span>,
       <span class="k">"holdsWhen"</span>, <span class="k">"doesntTell"</span>,
@@ -1552,7 +1556,7 @@ hosts = [&quot;api.example.test&quot;]
 <li><time datetime="2026-11-05">5 Nov 2026</time><h3>A second preview, with macOS.</h3><p class="v-plain">The second preview build is out for Linux and for Macs with Apple silicon. The Mac build is signed and notarized by Apple.</p><p class="v-dev">Release <code>v0.1.0-preview.2</code>. GitHub built the Linux archives; the macOS archive was built, signed and notarized on a Mac with <code>cargo xtask release</code>. Each archive has a SHA-256 file.</p></li>
 <li><time datetime="2026-11-12">12 Nov 2026</time><h3>Guion 0.2.0, the first release that is not a preview.</h3><p class="v-plain">Guion 0.2.0 is out for Linux and for Macs with Apple silicon. It has a written policy for what stays compatible between releases, and the package registry now holds its first package, a data-frame library called frames. Guion also has native arrays now. Both are young: in the project's own reports on one Apple M1 Pro, frames finishes five tested CSV workloads before pandas end to end, mostly because pandas takes about 0.26 s to load, but on compute alone reading a large CSV is still about 3 times pandas and array maths is about 1.4 to 2.3 times NumPy's. The Mac build is signed and notarized by Apple.</p><p class="v-dev">Release <code>v0.2.0</code>, artifact formats 14 through 64. Stability policy in <code>docs/stability-policy.md</code>; <code>frames</code> 0.1.0 installs with <code>guion add frames</code>. Linux archives for Debian 12 on ARM64 and x86_64, and a signed, notarized macOS archive, each with a SHA-256 file. Previous previews stay on the release page as history.</p></li>
 <li><time datetime="2026-11-14">14 Nov 2026</time><h3>Guion 0.4.0.</h3><p class="v-plain">Guion 0.4.0 is out for Linux and for Macs with Apple silicon. It adds functions you can pass around, more of the standard library (logging, compression, tar archives, YAML, SHA-256 and random bytes), and a <code>web</code> package for building web applications, with sessions, protection against forged requests and templates that escape their output. The Mac build is signed and notarized by Apple.</p><p class="v-dev">Release <code>v0.4.0</code> (it includes 0.3.0), artifact formats 14 through 73. <code>web</code> 0.1.0 installs with <code>guion add web --approve-capabilities</code>. Two deliberate breaks from 0.2.0 are listed in the changelog: SQLite is reported as file access, and a project approves no package capabilities until it says so. Linux archives for Debian 12 on ARM64 and x86_64, and a signed, notarized macOS archive, each with a SHA-256 file.</p></li>
-<li><time datetime="2026-11-14">14 Nov 2026</time><h3>Closures, enums, generics and an editor.</h3><p class="v-plain">Functions can now carry values from the code around them, a choice can be one of several named variants that the compiler checks you handled, and one function can work for several types. There is an editor server and an interactive prompt, and a program can be recorded once and replayed later without touching files or the network. A web handler that crashes now gets an error answer and the server keeps going. A naive recursive Fibonacci(32) took a median of 49 ms in Guion and 269 ms in Python on one Apple Silicon Mac, over five runs; that is one small program, not general speed.</p><p class="v-dev">On main, not yet in a numbered release (artifact format 74). <code>try_map_list</code> is a per-item fault boundary; <code>guion run --record/--replay</code> keeps credential headers off tapes. Intel Mac and Windows builds are in a new workflow and unverified until it runs.</p></li>
+<li><time datetime="2026-11-14">14 Nov 2026</time><h3>Guion 0.5.0: closures, enums, generics, an editor, and two more platforms.</h3><p class="v-plain">Functions can now carry values from the code around them, a choice can be one of several named variants that the compiler checks you handled, and one function can work for several types. There is an editor server and an interactive prompt, and a program can be recorded once and replayed later without touching files or the network. A web handler that crashes now gets an error answer and the server keeps going. A naive recursive Fibonacci(32) took a median of 49 ms in Guion and 269 ms in Python on one Apple Silicon Mac, over five runs; that is one small program, not general speed.</p><p class="v-dev">Release <code>v0.5.0</code>, artifact format 74. <code>try_map_list</code> is a per-item fault boundary; <code>guion run --record/--replay</code> keeps credential headers off tapes. Intel Mac (signed, notarized) and Windows (unsigned) archives were built and smoke-tested on GitHub runners, not run through the full test suite. <code>brew install rmichaelthomas/guion/guion</code> and a one-line installer script are new. <code>web</code> 0.1.1 is on the registry.</p></li>
 </ol>
 </div>
 </section>
@@ -1562,13 +1566,13 @@ hosts = [&quot;api.example.test&quot;]
 <div class="shell footer-grid">
 <div class="footer-brand">
 <a class="wordmark" href="#top"><span class="brandmark" aria-hidden="true">g</span>guion</a>
-<p>Pre-1.0. Release 0.4.0 is out for Linux and macOS (Apple Silicon).</p>
+<p>Pre-1.0. Release 0.5.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows.</p>
 <p class="made">Made with AllHereHTML</p>
 </div>
 <nav class="footer-links" aria-label="Project">
 <p class="smallcaps">The project</p>
 <a href="https://github.com/rmichaelthomas/guion" rel="noopener">Source on GitHub</a>
-<a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.4.0" rel="noopener">Download v0.4.0</a>
+<a href="https://github.com/rmichaelthomas/guion/releases/tag/v0.5.0" rel="noopener">Download v0.5.0</a>
 <a href="https://github.com/rmichaelthomas/guion/issues" rel="noopener">Report an issue</a>
 </nav>
 <nav class="footer-links" aria-label="Files and views">
