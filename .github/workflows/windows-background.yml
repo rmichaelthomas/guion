@@ -30,4 +30,5 @@ jobs:
 
       - name: Test background commands on Windows
         shell: bash
-        run: cargo test --locked -p guion-cli --test concurrency -- windows:: --nocapture
+        run: |
+          cargo test --locked -p guion-cli --test concurrency -- windows:: --nocapture
