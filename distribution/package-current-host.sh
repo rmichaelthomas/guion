@@ -95,7 +95,7 @@ fi
 TEMP=$(mktemp -d "$OUT/.$NAME.staging.XXXXXX")
 trap 'rm -rf "$TEMP"' EXIT HUP INT TERM
 STAGING="$TEMP/$NAME"
-mkdir -p "$STAGING/distribution" "$STAGING/docs" "$STAGING/language/examples" "$STAGING/toolchains" "$STAGING/licenses" "$STAGING/evaluation/development/famous_benchmarks/upstream/pyperformance-1.14.0" "$STAGING/evaluation/bin" "$STAGING/evaluation/briefs" "$STAGING/evaluation/results" "$STAGING/evaluation/tests" "$STAGING/examples/python_interop/.guion/python-bridge" "$STAGING/examples/feed_digest/.guion/python-bridge" "$STAGING/examples/task_ledger/src" "$STAGING/examples/task_graph" "$STAGING/examples/feed_inbox/.guion/python-bridge" "$STAGING/examples/feed_inbox/src" "$STAGING/examples/feed_inbox/examples" "$STAGING/examples/inventory_reconcile/src" "$STAGING/examples/api_sync/src" "$STAGING/examples/package_analysis/.guion/python-bridge"
+mkdir -p "$STAGING/distribution" "$STAGING/docs" "$STAGING/language/examples" "$STAGING/toolchains" "$STAGING/licenses" "$STAGING/evaluation/development/famous_benchmarks/upstream/pyperformance-1.14.0" "$STAGING/evaluation/bin" "$STAGING/evaluation/briefs" "$STAGING/evaluation/results" "$STAGING/evaluation/tests" "$STAGING/examples/python_interop/.guion/python-bridge" "$STAGING/examples/task_ledger/src" "$STAGING/examples/task_graph" "$STAGING/examples/feed_inbox/.guion/python-bridge" "$STAGING/examples/feed_inbox/src" "$STAGING/examples/feed_inbox/examples" "$STAGING/examples/inventory_reconcile/src" "$STAGING/examples/api_sync/src" "$STAGING/examples/package_analysis/.guion/python-bridge"
 mkdir -p "$STAGING/evaluation/protocol" "$STAGING/evaluation/fixtures" "$STAGING/evaluation/review/independent-v1/product-information" "$STAGING/evaluation/protocol/prompts" "$STAGING/evaluation/sandbox"
 mkdir -p "$STAGING/evaluation/calibration/python-reference" "$STAGING/evaluation/calibration/results"
 python3 "$ROOT/distribution/collect-rust-licenses.py" "$STAGING/licenses/rust" "$RUST_TARGET"
@@ -159,18 +159,16 @@ cp "$ROOT/crates/runtime/examples/runtime_lifecycle_stress.rs" "$STAGING/evaluat
 cp "$BUILD_DIR/release/examples/runtime_lifecycle_stress" "$STAGING/evaluation/bin/"
 cp "$ROOT/language/spec.md" "$ROOT/language/host-api.md" "$ROOT/language/python-abi.md" "$STAGING/language/"
 cp "$ROOT/language/examples/"*.gu "$ROOT/language/examples/input.txt" "$STAGING/language/examples/"
-cp "$ROOT/evaluation/development/python_interop/README.md" "$ROOT/evaluation/development/python_interop/main.vr" "$ROOT/evaluation/development/python_interop/veritas.toml" "$ROOT/evaluation/development/python_interop/veritas.lock" "$STAGING/examples/python_interop/"
-cp "$ROOT/evaluation/development/python_interop/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/python_interop/.veritas/python-bridge/uv.lock" "$STAGING/examples/python_interop/.guion/python-bridge/"
-cp "$ROOT/evaluation/development/feed_digest/README.md" "$ROOT/evaluation/development/feed_digest/main.vr" "$ROOT/evaluation/development/feed_digest/veritas_feed.py" "$ROOT/evaluation/development/feed_digest/python_baseline.py" "$ROOT/evaluation/development/feed_digest/veritas.toml" "$ROOT/evaluation/development/feed_digest/veritas.lock" "$STAGING/examples/feed_digest/"
-cp "$ROOT/evaluation/development/feed_digest/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_digest/.veritas/python-bridge/uv.lock" "$STAGING/examples/feed_digest/.guion/python-bridge/"
-cp "$ROOT/evaluation/development/task_ledger/README.md" "$ROOT/evaluation/development/task_ledger/.gitignore" "$ROOT/evaluation/development/task_ledger/main.vr" "$ROOT/evaluation/development/task_ledger/veritas.toml" "$STAGING/examples/task_ledger/"
+cp "$ROOT/evaluation/development/python_interop/README.md" "$ROOT/evaluation/development/python_interop/main.gu" "$ROOT/evaluation/development/python_interop/guion.toml" "$ROOT/evaluation/development/python_interop/guion.lock" "$STAGING/examples/python_interop/"
+cp "$ROOT/evaluation/development/python_interop/.guion/python-bridge/pyproject.toml" "$ROOT/evaluation/development/python_interop/.guion/python-bridge/uv.lock" "$STAGING/examples/python_interop/.guion/python-bridge/"
+cp "$ROOT/evaluation/development/task_ledger/README.md" "$ROOT/evaluation/development/task_ledger/.gitignore" "$ROOT/evaluation/development/task_ledger/main.gu" "$ROOT/evaluation/development/task_ledger/guion.toml" "$STAGING/examples/task_ledger/"
 cp "$ROOT/evaluation/development/task_ledger/python_baseline.py" "$STAGING/examples/task_ledger/"
-cp "$ROOT/evaluation/development/task_ledger/src/"*.vr "$STAGING/examples/task_ledger/src/"
-cp "$ROOT/evaluation/development/task_graph/README.md" "$ROOT/evaluation/development/task_graph/main.vr" "$ROOT/evaluation/development/task_graph/reference.py" "$ROOT/evaluation/development/task_graph/veritas.toml" "$STAGING/examples/task_graph/"
-cp "$ROOT/evaluation/development/inventory_reconcile/README.md" "$ROOT/evaluation/development/inventory_reconcile/main.vr" "$ROOT/evaluation/development/inventory_reconcile/reference.py" "$ROOT/evaluation/development/inventory_reconcile/veritas.toml" "$STAGING/examples/inventory_reconcile/"
-cp "$ROOT/evaluation/development/inventory_reconcile/src/"*.vr "$STAGING/examples/inventory_reconcile/src/"
-cp "$ROOT/evaluation/development/api_sync/README.md" "$ROOT/evaluation/development/api_sync/main.vr" "$ROOT/evaluation/development/api_sync/reference.py" "$ROOT/evaluation/development/api_sync/veritas.toml" "$STAGING/examples/api_sync/"
-cp "$ROOT/evaluation/development/api_sync/src/"*.vr "$STAGING/examples/api_sync/src/"
+cp "$ROOT/evaluation/development/task_ledger/src/"*.gu "$STAGING/examples/task_ledger/src/"
+cp "$ROOT/evaluation/development/task_graph/README.md" "$ROOT/evaluation/development/task_graph/main.gu" "$ROOT/evaluation/development/task_graph/reference.py" "$ROOT/evaluation/development/task_graph/guion.toml" "$STAGING/examples/task_graph/"
+cp "$ROOT/evaluation/development/inventory_reconcile/README.md" "$ROOT/evaluation/development/inventory_reconcile/main.gu" "$ROOT/evaluation/development/inventory_reconcile/reference.py" "$ROOT/evaluation/development/inventory_reconcile/guion.toml" "$STAGING/examples/inventory_reconcile/"
+cp "$ROOT/evaluation/development/inventory_reconcile/src/"*.gu "$STAGING/examples/inventory_reconcile/src/"
+cp "$ROOT/evaluation/development/api_sync/README.md" "$ROOT/evaluation/development/api_sync/main.gu" "$ROOT/evaluation/development/api_sync/reference.py" "$ROOT/evaluation/development/api_sync/guion.toml" "$STAGING/examples/api_sync/"
+cp "$ROOT/evaluation/development/api_sync/src/"*.gu "$STAGING/examples/api_sync/src/"
 cp "$ROOT/evaluation/development/package_analysis/README.md" "$ROOT/evaluation/development/package_analysis/main.vr" "$ROOT/evaluation/development/package_analysis/analysis.py" "$ROOT/evaluation/development/package_analysis/reference.py" "$ROOT/evaluation/development/package_analysis/dataset.json" "$ROOT/evaluation/development/package_analysis/veritas.toml" "$ROOT/evaluation/development/package_analysis/veritas.lock" "$STAGING/examples/package_analysis/"
 cp "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/package_analysis/.veritas/python-bridge/uv.lock" "$STAGING/examples/package_analysis/.guion/python-bridge/"
 rename_legacy_examples() {
@@ -255,9 +253,9 @@ rename_legacy_examples
   GUION_UV="$STAGING/toolchains/uv" ./guion package examples/package_analysis --output examples/package_analysis_bundle
   GUION_UV="$STAGING/toolchains/uv" ./guion verify-package examples/package_analysis_bundle
 )
-cp "$ROOT/evaluation/development/feed_inbox/README.md" "$ROOT/evaluation/development/feed_inbox/feed_inbox.py" "$ROOT/evaluation/development/feed_inbox/python_baseline.py" "$ROOT/evaluation/development/feed_inbox/main.vr" "$ROOT/evaluation/development/feed_inbox/veritas.toml" "$ROOT/evaluation/development/feed_inbox/veritas.lock" "$STAGING/examples/feed_inbox/"
-cp "$ROOT/evaluation/development/feed_inbox/.veritas/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_inbox/.veritas/python-bridge/uv.lock" "$STAGING/examples/feed_inbox/.guion/python-bridge/"
-cp "$ROOT/evaluation/development/feed_inbox/src/"*.vr "$STAGING/examples/feed_inbox/src/"
+cp "$ROOT/evaluation/development/feed_inbox/README.md" "$ROOT/evaluation/development/feed_inbox/feed_inbox.py" "$ROOT/evaluation/development/feed_inbox/python_baseline.py" "$ROOT/evaluation/development/feed_inbox/main.gu" "$ROOT/evaluation/development/feed_inbox/guion.toml" "$ROOT/evaluation/development/feed_inbox/guion.lock" "$STAGING/examples/feed_inbox/"
+cp "$ROOT/evaluation/development/feed_inbox/.guion/python-bridge/pyproject.toml" "$ROOT/evaluation/development/feed_inbox/.guion/python-bridge/uv.lock" "$STAGING/examples/feed_inbox/.guion/python-bridge/"
+cp "$ROOT/evaluation/development/feed_inbox/src/"*.gu "$STAGING/examples/feed_inbox/src/"
 cp "$ROOT/evaluation/development/feed_inbox/examples/"*.xml "$STAGING/examples/feed_inbox/examples/"
 rename_legacy_examples
 (
@@ -338,7 +336,7 @@ rm "$INSTALLED_ROOT/examples/package_analysis_bundle/.acceptance-report.json"
     evaluation.tests.test_task_graph \
     evaluation.tests.test_package_analysis \
     evaluation.tests.test_famous_benchmark_sources \
-    evaluation.tests.test_richards_veritas)
+    evaluation.tests.test_richards)
 COPYFILE_DISABLE=1 tar -czf "$TEMP/$NAME.tar.gz" -C "$OUT" "$NAME"
 python3 "$ROOT/distribution/verify_release_archive.py" "$TEMP/$NAME.tar.gz" "$NAME"
 if command -v shasum >/dev/null 2>&1; then

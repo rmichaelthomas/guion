@@ -1,10 +1,10 @@
 [project]
 name = "api-sync"
 version = "0.1.0"
-entry = "main.vr"
+entry = "main.gu"
 
 [environment]
-variables = ["VERITAS_API_TOKEN"]
+variables = ["GUION_API_TOKEN"]
 
 [network]
 hosts = ["127.0.0.1"]

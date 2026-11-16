@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROJECT = ROOT / "evaluation/development/task_ledger"
 if not DEFAULT_PROJECT.is_dir():
     DEFAULT_PROJECT = ROOT / "examples/task_ledger"
-PROJECT = Path(os.environ.get("VERITAS_TASK_LEDGER_PROJECT", DEFAULT_PROJECT))
-VERITAS = Path(os.environ.get("VERITAS_BINARY", ROOT / "target/debug/veritas"))
+PROJECT = Path(os.environ.get("GUION_TASK_LEDGER_PROJECT", DEFAULT_PROJECT))
+GUION = Path(os.environ.get("GUION_BINARY", ROOT / "target/debug/guion"))
 
 
 class TaskLedgerAcceptance(unittest.TestCase):
@@ -22,9 +22,9 @@ class TaskLedgerAcceptance(unittest.TestCase):
         copytree(PROJECT, project)
         return project
 
-    def run_veritas(self, project, *args):
+    def run_guion(self, project, *args):
         return subprocess.run(
-            [str(VERITAS), "run", str(project), *args],
+            [str(GUION), "run", str(project), *args],
             cwd=project.parent,
             text=True,
             capture_output=True,
@@ -41,26 +41,26 @@ class TaskLedgerAcceptance(unittest.TestCase):
         )
 
     def compare(self, commands, missing_initial_state=False):
-        with tempfile.TemporaryDirectory(prefix="veritas-task-ledger-") as directory:
+        with tempfile.TemporaryDirectory(prefix="guion-task-ledger-") as directory:
             root = Path(directory)
-            (root / "veritas").mkdir()
+            (root / "guion").mkdir()
             (root / "python").mkdir()
-            veritas_project = self.make_project(root / "veritas")
+            guion_project = self.make_project(root / "guion")
             python_project = self.make_project(root / "python")
             if missing_initial_state:
-                (veritas_project / "tasks.json").unlink(missing_ok=True)
+                (guion_project / "tasks.json").unlink(missing_ok=True)
                 (python_project / "tasks.json").unlink(missing_ok=True)
             for arguments in commands:
-                veritas = self.run_veritas(veritas_project, *arguments)
+                guion = self.run_guion(guion_project, *arguments)
                 python = self.run_python(python_project, *arguments)
-                self.assertEqual(veritas.returncode, python.returncode, arguments)
-                self.assertEqual(veritas.stdout, python.stdout, arguments)
-                self.assertEqual(veritas.stderr, python.stderr, arguments)
-                veritas_state = veritas_project / "tasks.json"
+                self.assertEqual(guion.returncode, python.returncode, arguments)
+                self.assertEqual(guion.stdout, python.stdout, arguments)
+                self.assertEqual(guion.stderr, python.stderr, arguments)
+                guion_state = guion_project / "tasks.json"
                 python_state = python_project / "tasks.json"
-                self.assertEqual(veritas_state.exists(), python_state.exists(), arguments)
-                if veritas_state.exists():
-                    self.assertEqual(veritas_state.read_bytes(), python_state.read_bytes(), arguments)
+                self.assertEqual(guion_state.exists(), python_state.exists(), arguments)
+                if guion_state.exists():
+                    self.assertEqual(guion_state.read_bytes(), python_state.read_bytes(), arguments)
 
     def test_persistence_and_all_mutations_match_python(self):
         self.compare(
@@ -97,23 +97,23 @@ class TaskLedgerAcceptance(unittest.TestCase):
         )
 
     def test_current_artifact_runs_without_source_and_keeps_state(self):
-        with tempfile.TemporaryDirectory(prefix="veritas-task-ledger-artifact-") as directory:
+        with tempfile.TemporaryDirectory(prefix="guion-task-ledger-artifact-") as directory:
             root = Path(directory)
-            (root / "veritas").mkdir()
+            (root / "guion").mkdir()
             (root / "python").mkdir()
-            veritas_project = self.make_project(root / "veritas")
+            guion_project = self.make_project(root / "guion")
             python_project = self.make_project(root / "python")
             built = subprocess.run(
-                [str(VERITAS), "build", str(veritas_project)],
-                cwd=root / "veritas",
+                [str(GUION), "build", str(guion_project)],
+                cwd=root / "guion",
                 text=True,
                 capture_output=True,
                 timeout=30,
             )
             self.assertEqual(built.returncode, 0, built.stderr)
             self.assertRegex(built.stdout, r"artifact format \d+")
-            (veritas_project / "main.vr").unlink()
-            rmtree(veritas_project / "src")
+            (guion_project / "main.gu").unlink()
+            rmtree(guion_project / "src")
 
             for arguments in [
                 ("add", "Built artifact", "No source files needed"),
@@ -122,19 +122,19 @@ class TaskLedgerAcceptance(unittest.TestCase):
                 ("summary",),
                 ("remove", "Built artifact"),
             ]:
-                veritas = subprocess.run(
-                    [str(VERITAS), "run", str(veritas_project / "main.vrb"), *arguments],
-                    cwd=root / "veritas",
+                guion = subprocess.run(
+                    [str(GUION), "run", str(guion_project / "main.gub"), *arguments],
+                    cwd=root / "guion",
                     text=True,
                     capture_output=True,
                     timeout=30,
                 )
                 python = self.run_python(python_project, *arguments)
-                self.assertEqual(veritas.returncode, python.returncode, arguments)
-                self.assertEqual(veritas.stdout, python.stdout, arguments)
-                self.assertEqual(veritas.stderr, python.stderr, arguments)
+                self.assertEqual(guion.returncode, python.returncode, arguments)
+                self.assertEqual(guion.stdout, python.stdout, arguments)
+                self.assertEqual(guion.stderr, python.stderr, arguments)
                 self.assertEqual(
-                    (veritas_project / "tasks.json").read_bytes(),
+                    (guion_project / "tasks.json").read_bytes(),
                     (python_project / "tasks.json").read_bytes(),
                     arguments,
                 )

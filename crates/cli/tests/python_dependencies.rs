@@ -71,13 +71,13 @@ fn locked_python_dependencies_sync_and_run_through_managed_interpreter() {
     let _ = fs::remove_dir_all(&root);
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../evaluation/development/python_interop");
-    fs::create_dir_all(root.join(".veritas/python-bridge")).unwrap();
+    fs::create_dir_all(root.join(".guion/python-bridge")).unwrap();
     for relative in [
-        "veritas.toml",
-        "main.vr",
-        "veritas.lock",
-        ".veritas/python-bridge/pyproject.toml",
-        ".veritas/python-bridge/uv.lock",
+        "guion.toml",
+        "main.gu",
+        "guion.lock",
+        ".guion/python-bridge/pyproject.toml",
+        ".guion/python-bridge/uv.lock",
     ] {
         fs::copy(fixture.join(relative), root.join(relative)).unwrap();
     }
@@ -104,9 +104,9 @@ fn locked_python_dependencies_sync_and_run_through_managed_interpreter() {
         sync_report["bridge_lock_sha256"].as_str().unwrap().len(),
         64
     );
-    assert!(root.join("veritas.lock").is_file());
-    assert!(root.join(".veritas/python-bridge/uv.lock").is_file());
-    let lock_before_run = fs::read(root.join(".veritas/python-bridge/uv.lock")).unwrap();
+    assert!(root.join("guion.lock").is_file());
+    assert!(root.join(".guion/python-bridge/uv.lock").is_file());
+    let lock_before_run = fs::read(root.join(".guion/python-bridge/uv.lock")).unwrap();
 
     let run = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["run", root.to_str().unwrap()])
@@ -124,7 +124,7 @@ fn locked_python_dependencies_sync_and_run_through_managed_interpreter() {
         "15\n9007199254741000\n3\npython-requests/2.32.5\n"
     );
     assert_eq!(
-        fs::read(root.join(".veritas/python-bridge/uv.lock")).unwrap(),
+        fs::read(root.join(".guion/python-bridge/uv.lock")).unwrap(),
         lock_before_run,
         "locked run must not rewrite uv.lock"
     );

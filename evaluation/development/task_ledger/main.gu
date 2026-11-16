@@ -1,10 +1,10 @@
-import "src/task_ops.vr"
-import "src/task_view.vr"
+import "src/task_ops.gu"
+import "src/task_view.gu"
 
 fn main() -> Int:
     let arguments = args()
     if len(arguments) == 0:
-        print("Usage: veritas run . <list|summary|add TITLE NOTE|done TITLE|remove TITLE>")
+        print("Usage: guion run . <list|summary|add TITLE NOTE|done TITLE|remove TITLE>")
         return 2
 
     let stored = read_text("tasks.json")

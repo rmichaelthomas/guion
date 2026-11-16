@@ -17,7 +17,7 @@ The output stores quantities in a SKU-keyed object and keeps each adjustment in 
 Run it with:
 
 ```sh
-veritas run . inventory.json adjustments.json reconciled.json
+guion run . inventory.json adjustments.json reconciled.json
 ```
 
 `reference.py` is an independent Python standard-library implementation. The acceptance test compares output, status, and exact persisted bytes for generated and invalid inputs. This is a known workload for implementation and repair checks, not an independent assistant evaluation.

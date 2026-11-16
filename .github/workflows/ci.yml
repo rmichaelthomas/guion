@@ -72,6 +72,19 @@ jobs:
           python3 evaluation/completion/test_text_scaling.py --binary target/debug/guion
           python3 evaluation/completion/check_allherehtml.py --binary target/debug/guion
 
+      - name: Run the Python acceptance and evidence tests
+        if: github.event_name != 'pull_request'
+        run: |
+          # test_independent_kit checks frozen evidence against committed history.
+          if [ -f .git/shallow ]; then git fetch --quiet --unshallow; fi
+          curl -LsSf https://astral.sh/uv/0.13.4/install.sh | sh
+          export GUION_UV="$HOME/.local/bin/uv"
+          "$GUION_UV" python install 3.14.8
+          # The proof programs use the managed Python bridge, so build with it.
+          cargo build --locked -p guion-cli --features python-interop
+          export GUION_BINARY="$PWD/target/debug/guion"
+          python3 -m unittest $(ls evaluation/tests/test_*.py | sed 's#/#.#g; s#\.py$##')
+
       - name: Build the shared VM for WebAssembly
         if: github.event_name != 'pull_request'
         run: |

@@ -1,12 +1,12 @@
 fn main() -> Int:
     let arguments = args()
     if len(arguments) != 2 and len(arguments) != 3:
-        print("Usage: veritas run . INPUT.json OUTPUT.json [--priority]")
+        print("Usage: guion run . INPUT.json OUTPUT.json [--priority]")
         return 2
 
     let priority_mode = len(arguments) == 3
     if priority_mode and arguments[2] != "--priority":
-        print("Usage: veritas run . INPUT.json OUTPUT.json [--priority]")
+        print("Usage: guion run . INPUT.json OUTPUT.json [--priority]")
         return 2
 
     let loaded = read_text(arguments[0])

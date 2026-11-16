@@ -188,7 +188,7 @@ class FeedDigestAcceptance(unittest.TestCase):
 
     def test_ungranted_hostname_is_denied(self):
         digest = self.compare(["http://localhost:1/not-contacted", f"{self.base}/a.xml"])
-        self.assertIn("R_NETWORK_DENIED: network access to this host is not granted", digest)
+        self.assertIn("R_NETWORK_DENIED: fetching localhost is not granted", digest)
 
     def test_guion_and_python_fetch_independent_feeds_concurrently(self):
         urls = [f"{self.base}/slow-a.xml", f"{self.base}/slow-b.xml"]

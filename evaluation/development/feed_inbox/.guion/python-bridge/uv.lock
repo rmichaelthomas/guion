@@ -24,7 +24,7 @@ wheels = [
 ]
 
 [[package]]
-name = "veritas-python-bridge"
+name = "guion-python-bridge"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [

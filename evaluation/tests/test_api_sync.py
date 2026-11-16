@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "evaluation/development/api_sync"
 if not PROJECT.is_dir():
     PROJECT = ROOT / "examples/api_sync"
-DEFAULT_VERITAS = ROOT / "veritas" if (ROOT / "veritas").is_file() else ROOT / "target/debug/veritas"
-VERITAS = Path(os.environ.get("VERITAS_BINARY", DEFAULT_VERITAS))
+DEFAULT_GUION = ROOT / "guion" if (ROOT / "guion").is_file() else ROOT / "target/debug/guion"
+GUION = Path(os.environ.get("GUION_BINARY", DEFAULT_GUION))
 TOKEN = "test-only-secret-value"
 
 
@@ -78,9 +78,9 @@ class ApiHandler(BaseHTTPRequestHandler):
 
 class ApiSyncAcceptance(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="veritas-api-sync-")
+        self.temp = tempfile.TemporaryDirectory(prefix="guion-api-sync-")
         self.root = Path(self.temp.name)
-        self.veritas_project = self._copy("veritas")
+        self.guion_project = self._copy("guion")
         self.python_project = self._copy("python")
 
     def tearDown(self):
@@ -102,10 +102,10 @@ class ApiSyncAcceptance(unittest.TestCase):
         thread.start()
         return server, thread, f"http://127.0.0.1:{server.server_port}"
 
-    def _run_veritas(self, base_url, start_page=None):
+    def _run_guion(self, base_url, start_page=None):
         environment = os.environ.copy()
-        environment["VERITAS_API_TOKEN"] = TOKEN
-        arguments = [str(VERITAS), "run", str(self.veritas_project), base_url]
+        environment["GUION_API_TOKEN"] = TOKEN
+        arguments = [str(GUION), "run", str(self.guion_project), base_url]
         if start_page is not None:
             arguments.append(start_page)
         return subprocess.run(
@@ -118,7 +118,7 @@ class ApiSyncAcceptance(unittest.TestCase):
         )
     def _run_python(self, base_url, start_page=None):
         environment = os.environ.copy()
-        environment["VERITAS_API_TOKEN"] = TOKEN
+        environment["GUION_API_TOKEN"] = TOKEN
         arguments = ["python3", str(self.python_project / "reference.py"), base_url]
         if start_page is not None:
             arguments.append(start_page)
@@ -131,13 +131,13 @@ class ApiSyncAcceptance(unittest.TestCase):
             timeout=30,
         )
 
-    def _assert_pair(self, veritas, python):
-        self.assertEqual(veritas.returncode, python.returncode, veritas.stderr)
-        self.assertEqual(veritas.stdout, python.stdout)
-        self.assertEqual(veritas.stderr, python.stderr)
-        self.assertNotIn(TOKEN, veritas.stdout + veritas.stderr)
+    def _assert_pair(self, guion, python):
+        self.assertEqual(guion.returncode, python.returncode, guion.stderr)
+        self.assertEqual(guion.stdout, python.stdout)
+        self.assertEqual(guion.stderr, python.stderr)
+        self.assertNotIn(TOKEN, guion.stdout + guion.stderr)
         self.assertNotIn(TOKEN, python.stdout + python.stderr)
-        state_v = self.veritas_project / "sync-state.json"
+        state_v = self.guion_project / "sync-state.json"
         state_py = self.python_project / "sync-state.json"
         self.assertEqual(state_v.exists(), state_py.exists())
         if state_v.exists():
@@ -146,11 +146,11 @@ class ApiSyncAcceptance(unittest.TestCase):
     def test_paginates_retries_transient_status_and_resumes_without_refetching(self):
         server, thread, base_url = self._server()
         try:
-            first = self._run_veritas(base_url)
+            first = self._run_guion(base_url)
             reference = self._run_python(base_url)
             self._assert_pair(first, reference)
             self.assertEqual(first.returncode, 0, first.stderr)
-            state = json.loads((self.veritas_project / "sync-state.json").read_text())
+            state = json.loads((self.guion_project / "sync-state.json").read_text())
             self.assertEqual(state, {
                 "next_page": None,
                 "records": {"A": {"id": "A", "value": "café"}, "B": {"id": "B", "value": 42}},
@@ -164,7 +164,7 @@ class ApiSyncAcceptance(unittest.TestCase):
 
             # A second process starts from the persisted terminal cursor and only retries the idempotent ack.
             before = len(ApiHandler.requests)
-            second = self._run_veritas(base_url)
+            second = self._run_guion(base_url)
             second_reference = self._run_python(base_url)
             self._assert_pair(second, second_reference)
             self.assertEqual(second.returncode, 0, second.stderr)
@@ -177,11 +177,11 @@ class ApiSyncAcceptance(unittest.TestCase):
     def test_operator_can_start_at_a_selected_page(self):
         server, thread, base_url = self._server()
         try:
-            result = self._run_veritas(base_url, "2")
+            result = self._run_guion(base_url, "2")
             reference = self._run_python(base_url, "2")
             self._assert_pair(result, reference)
             self.assertEqual(result.returncode, 0, result.stderr)
-            state = json.loads((self.veritas_project / "sync-state.json").read_text())
+            state = json.loads((self.guion_project / "sync-state.json").read_text())
             self.assertEqual(state, {
                 "next_page": None,
                 "records": {"B": {"id": "B", "value": 42}},
@@ -196,9 +196,9 @@ class ApiSyncAcceptance(unittest.TestCase):
     def test_permanent_page_failure_keeps_completed_page_for_later_resume(self):
         server, thread, base_url = self._server(page_two_failures=1, page_two_failure_status=400)
         try:
-            first = self._run_veritas(base_url)
+            first = self._run_guion(base_url)
             self.assertEqual(first.returncode, 1)
-            state = json.loads((self.veritas_project / "sync-state.json").read_text())
+            state = json.loads((self.guion_project / "sync-state.json").read_text())
             self.assertEqual(state["next_page"], 2)
             self.assertEqual(list(state["records"]), ["A"])
             self.assertEqual(state, {
@@ -209,12 +209,12 @@ class ApiSyncAcceptance(unittest.TestCase):
                 json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
                 encoding="utf-8",
             )
-            second = self._run_veritas(base_url, "1")
+            second = self._run_guion(base_url, "1")
             second_reference = self._run_python(base_url, "1")
             self._assert_pair(second, second_reference)
             self.assertEqual(second.returncode, 0, second.stderr)
             self.assertEqual(sum(item["path"].startswith("/records?page=1") for item in ApiHandler.requests), 1)
-            state = json.loads((self.veritas_project / "sync-state.json").read_text())
+            state = json.loads((self.guion_project / "sync-state.json").read_text())
             self.assertEqual(set(state["records"]), {"A", "B"})
         finally:
             server.shutdown()
@@ -224,7 +224,7 @@ class ApiSyncAcceptance(unittest.TestCase):
     def test_transient_server_failures_are_retried_with_runtime_auth_and_post_body(self):
         server, thread, base_url = self._server(page_two_failures=1, acknowledgement_failures=1)
         try:
-            result = self._run_veritas(base_url)
+            result = self._run_guion(base_url)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertNotIn(TOKEN, result.stdout + result.stderr)
             self.assertEqual(sum(item["path"] == "/records?page=2" for item in ApiHandler.requests), 2)
@@ -241,25 +241,25 @@ class ApiSyncAcceptance(unittest.TestCase):
         server, thread, base_url = self._server()
         try:
             built = subprocess.run(
-                [str(VERITAS), "build", str(self.veritas_project)],
+                [str(GUION), "build", str(self.guion_project)],
                 cwd=self.root,
                 text=True,
                 capture_output=True,
                 timeout=30,
             )
             self.assertEqual(built.returncode, 0, built.stderr)
-            (self.veritas_project / "main.vr").unlink()
-            rmtree(self.veritas_project / "src")
+            (self.guion_project / "main.gu").unlink()
+            rmtree(self.guion_project / "src")
             run = subprocess.run(
-                [str(VERITAS), "run", str(self.veritas_project / "main.vrb"), base_url],
+                [str(GUION), "run", str(self.guion_project / "main.gub"), base_url],
                 cwd=self.root,
-                env={**os.environ, "VERITAS_API_TOKEN": TOKEN},
+                env={**os.environ, "GUION_API_TOKEN": TOKEN},
                 text=True,
                 capture_output=True,
                 timeout=30,
             )
             self.assertEqual(run.returncode, 0, run.stderr)
-            self.assertEqual(json.loads((self.veritas_project / "sync-state.json").read_text())["next_page"], None)
+            self.assertEqual(json.loads((self.guion_project / "sync-state.json").read_text())["next_page"], None)
         finally:
             server.shutdown()
             thread.join(timeout=2)

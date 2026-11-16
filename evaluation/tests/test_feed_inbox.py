@@ -18,11 +18,11 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROJECT = ROOT / "evaluation/development/feed_inbox"
 if not DEFAULT_PROJECT.is_dir():
     DEFAULT_PROJECT = ROOT / "examples/feed_inbox"
-PROJECT = Path(os.environ.get("VERITAS_FEED_INBOX_PROJECT", DEFAULT_PROJECT))
-VERITAS = Path(os.environ.get("VERITAS_BINARY", ROOT / "target/debug/veritas"))
-UV = Path(os.environ.get("VERITAS_UV", "/private/tmp/veritas-foundation-rc35-verify/veritas-0.1.0-darwin-arm64/toolchains/uv"))
-UV_CACHE = Path(os.environ.get("UV_CACHE_DIR", "/private/tmp/veritas-uv-interop-rc34"))
-PYTHON_INSTALL = Path(os.environ.get("UV_PYTHON_INSTALL_DIR", "/private/tmp/veritas-python-cold-rc33"))
+PROJECT = Path(os.environ.get("GUION_FEED_INBOX_PROJECT", DEFAULT_PROJECT))
+GUION = Path(os.environ.get("GUION_BINARY", ROOT / "target/debug/guion"))
+UV = Path(os.environ.get("GUION_UV", "/private/tmp/guion-foundation-rc35-verify/guion-0.1.0-darwin-arm64/toolchains/uv"))
+UV_CACHE = Path(os.environ.get("UV_CACHE_DIR", "/private/tmp/guion-uv-interop-rc34"))
+PYTHON_INSTALL = Path(os.environ.get("UV_PYTHON_INSTALL_DIR", "/private/tmp/guion-python-cold-rc33"))
 FEED = """<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0"><channel><title>Fixture</title><link>http://example.test/</link><description>fixture</description>
 <item><title>A Refreshed Café</title><link>https://example.test/a</link><pubDate>Wed, 21 Oct 2026 07:28:00 GMT</pubDate></item>
@@ -57,11 +57,11 @@ class SlowFeedHandler(BaseHTTPRequestHandler):
 
 class FeedInboxAcceptance(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="veritas-feed-inbox-")
+        self.temp = tempfile.TemporaryDirectory(prefix="guion-feed-inbox-")
         self.root = Path(self.temp.name)
-        self.veritas_project = self.root / "veritas"
+        self.guion_project = self.root / "guion"
         self.python_project = self.root / "python"
-        copytree(PROJECT, self.veritas_project, ignore=ignore_patterns(".venv", "__pycache__"))
+        copytree(PROJECT, self.guion_project, ignore=ignore_patterns(".venv", "__pycache__"))
         copytree(PROJECT, self.python_project, ignore=ignore_patterns(".venv", "__pycache__"))
         self.fixture = {"entries": [
             {"link": "https://example.test/a", "title": "Café Tokyo", "published": "2026-10-21", "read": False},
@@ -69,16 +69,16 @@ class FeedInboxAcceptance(unittest.TestCase):
             {"link": "https://example.test/c", "title": "Latest item", "published": "2026-10-22", "read": False},
         ]}
         payload = json.dumps(self.fixture, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        (self.veritas_project / "inbox.json").write_text(payload + "\n", encoding="utf-8")
+        (self.guion_project / "inbox.json").write_text(payload + "\n", encoding="utf-8")
         (self.python_project / "inbox.json").write_text(payload + "\n", encoding="utf-8")
 
     def tearDown(self):
         self.temp.cleanup()
 
-    def run_veritas(self, *args, offline=True):
+    def run_guion(self, *args, offline=True):
         environment = os.environ.copy()
         environment.update({
-            "VERITAS_UV": str(UV),
+            "GUION_UV": str(UV),
             "UV_CACHE_DIR": str(UV_CACHE),
             "UV_PYTHON_INSTALL_DIR": str(PYTHON_INSTALL),
         })
@@ -87,7 +87,7 @@ class FeedInboxAcceptance(unittest.TestCase):
         else:
             environment.pop("UV_OFFLINE", None)
             synced = subprocess.run(
-                [str(VERITAS), "sync", str(self.veritas_project)],
+                [str(GUION), "sync", str(self.guion_project)],
                 cwd=self.root,
                 env=environment,
                 text=True,
@@ -97,7 +97,7 @@ class FeedInboxAcceptance(unittest.TestCase):
             self.assertEqual(synced.returncode, 0, synced.stderr)
             environment["UV_OFFLINE"] = "1"
         return subprocess.run(
-            [str(VERITAS), "run", str(self.veritas_project), *args],
+            [str(GUION), "run", str(self.guion_project), *args],
             cwd=self.root,
             env=environment,
             text=True,
@@ -106,15 +106,15 @@ class FeedInboxAcceptance(unittest.TestCase):
         )
 
     def run_python(self, *args, offline=True):
-        interpreter = self.python_project / ".veritas/python-bridge/.venv/bin/python3"
+        interpreter = self.python_project / ".guion/python-bridge/.venv/bin/python3"
         if not interpreter.exists():
             environment = os.environ.copy()
-            environment.update({"VERITAS_UV": str(UV), "UV_CACHE_DIR": str(UV_CACHE), "UV_PYTHON_INSTALL_DIR": str(PYTHON_INSTALL)})
+            environment.update({"GUION_UV": str(UV), "UV_CACHE_DIR": str(UV_CACHE), "UV_PYTHON_INSTALL_DIR": str(PYTHON_INSTALL)})
             if offline:
                 environment["UV_OFFLINE"] = "1"
             else:
                 environment.pop("UV_OFFLINE", None)
-            synced = subprocess.run([str(VERITAS), "sync", str(self.python_project)], cwd=self.root, env=environment, text=True, capture_output=True, timeout=60)
+            synced = subprocess.run([str(GUION), "sync", str(self.python_project)], cwd=self.root, env=environment, text=True, capture_output=True, timeout=60)
             self.assertEqual(synced.returncode, 0, synced.stderr)
         return subprocess.run(
             [str(interpreter), str(self.python_project / "python_baseline.py"), *args],
@@ -125,15 +125,15 @@ class FeedInboxAcceptance(unittest.TestCase):
         )
 
     def compare(self, args, expected_stdout, expected_status=0):
-        veritas = self.run_veritas(*args)
+        guion = self.run_guion(*args)
         python = self.run_python(*args)
-        self.assertEqual(veritas.returncode, expected_status, veritas.stderr)
+        self.assertEqual(guion.returncode, expected_status, guion.stderr)
         self.assertEqual(python.returncode, expected_status, python.stderr)
-        self.assertEqual(veritas.stdout, expected_stdout)
+        self.assertEqual(guion.stdout, expected_stdout)
         self.assertEqual(python.stdout, expected_stdout)
-        self.assertEqual(veritas.stderr, python.stderr)
-        self.assertEqual((self.veritas_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
-        return veritas
+        self.assertEqual(guion.stderr, python.stderr)
+        self.assertEqual((self.guion_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
+        return guion
 
     def test_list_filter_summary_and_read_follow_up_match_python(self):
         self.compare(("list",), "[new] Café Tokyo — 2026-10-21 — https://example.test/a\n[read] Already read — 2026-10-20 — https://example.test/b\n[new] Latest item — 2026-10-22 — https://example.test/c\n")
@@ -151,12 +151,12 @@ class FeedInboxAcceptance(unittest.TestCase):
     def test_ungranted_refresh_host_reports_same_failure_as_python(self):
         self.compare(
             ("refresh", "http://localhost:1/not-contacted", "http://localhost:2/also-not-contacted"),
-            "New items:\n0\nTotal items:\n3\nFeed errors:\nhttp://localhost:1/not-contacted — R_NETWORK_DENIED: network access to this host is not granted\nhttp://localhost:2/also-not-contacted — R_NETWORK_DENIED: network access to this host is not granted\n\n",
+            "New items:\n0\nTotal items:\n3\nFeed errors:\nhttp://localhost:1/not-contacted — R_NETWORK_DENIED: fetching localhost is not granted; add `[network] hosts = [\"localhost\"]` to guion.toml or pass --allow-http-host localhost\nhttp://localhost:2/also-not-contacted — R_NETWORK_DENIED: fetching localhost is not granted; add `[network] hosts = [\"localhost\"]` to guion.toml or pass --allow-http-host localhost\n\n",
             1,
         )
 
     def test_refresh_fetches_multiple_feeds_concurrently_with_python_parity(self):
-        for project in (self.veritas_project, self.python_project):
+        for project in (self.guion_project, self.python_project):
             state_path = project / "inbox.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["entries"][0]["read"] = True
@@ -172,11 +172,11 @@ class FeedInboxAcceptance(unittest.TestCase):
             expected = "New items:\n1\nTotal items:\n4\n"
             with SlowFeedHandler.stats_lock:
                 SlowFeedHandler.peak_active = 0
-            veritas = self.run_veritas("refresh", *urls, offline=False)
-            veritas_peak = SlowFeedHandler.peak_active
-            self.assertEqual(veritas.returncode, 0, veritas.stderr)
-            self.assertEqual(veritas.stdout, expected)
-            self.assertGreaterEqual(veritas_peak, 2, f"Veritas requests were serial (peak={veritas_peak})")
+            guion = self.run_guion("refresh", *urls, offline=False)
+            guion_peak = SlowFeedHandler.peak_active
+            self.assertEqual(guion.returncode, 0, guion.stderr)
+            self.assertEqual(guion.stdout, expected)
+            self.assertGreaterEqual(guion_peak, 2, f"Guion requests were serial (peak={guion_peak})")
 
             with SlowFeedHandler.stats_lock:
                 SlowFeedHandler.peak_active = 0
@@ -185,9 +185,9 @@ class FeedInboxAcceptance(unittest.TestCase):
             self.assertEqual(python.returncode, 0, python.stderr)
             self.assertEqual(python.stdout, expected)
             self.assertGreaterEqual(python_peak, 2, f"Python baseline requests were serial (peak={python_peak})")
-            self.assertEqual(veritas.stderr, python.stderr)
-            self.assertEqual((self.veritas_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
-            state = json.loads((self.veritas_project / "inbox.json").read_text(encoding="utf-8"))
+            self.assertEqual(guion.stderr, python.stderr)
+            self.assertEqual((self.guion_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
+            state = json.loads((self.guion_project / "inbox.json").read_text(encoding="utf-8"))
             by_link = {entry["link"]: entry for entry in state["entries"]}
             self.assertEqual(by_link["https://example.test/a"]["title"], "A Refreshed Café")
             self.assertTrue(by_link["https://example.test/a"]["read"])
@@ -198,45 +198,45 @@ class FeedInboxAcceptance(unittest.TestCase):
             server_thread.join(timeout=2)
 
     def test_feed_import_uses_managed_parser_and_preserves_read_state(self):
-        for project in (self.veritas_project, self.python_project):
+        for project in (self.guion_project, self.python_project):
             (project / "feed.xml").write_text(FEED, encoding="utf-8")
             state_path = project / "inbox.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["entries"][0]["read"] = True
             state_path.write_text(json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
-        veritas = self.run_veritas("import-feed", "feed.xml")
+        guion = self.run_guion("import-feed", "feed.xml")
         python = self.run_python("import-feed", "feed.xml")
         expected = "New items:\n1\nTotal items:\n4\n"
-        self.assertEqual(veritas.returncode, 0, veritas.stderr)
+        self.assertEqual(guion.returncode, 0, guion.stderr)
         self.assertEqual(python.returncode, 0, python.stderr)
-        self.assertEqual(veritas.stdout, expected)
+        self.assertEqual(guion.stdout, expected)
         self.assertEqual(python.stdout, expected)
-        self.assertEqual(veritas.stderr, python.stderr)
-        self.assertEqual((self.veritas_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
-        stored = json.loads((self.veritas_project / "inbox.json").read_text(encoding="utf-8"))
+        self.assertEqual(guion.stderr, python.stderr)
+        self.assertEqual((self.guion_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
+        stored = json.loads((self.guion_project / "inbox.json").read_text(encoding="utf-8"))
         by_link = {entry["link"]: entry for entry in stored["entries"]}
         self.assertEqual(by_link["https://example.test/a"]["title"], "A Refreshed Café")
         self.assertTrue(by_link["https://example.test/a"]["read"])
         self.assertFalse(by_link["https://example.test/d"]["read"])
 
     def test_built_artifact_runs_after_source_is_removed(self):
-        for project in (self.veritas_project, self.python_project):
+        for project in (self.guion_project, self.python_project):
             (project / "feed.xml").write_text(FEED, encoding="utf-8")
         environment = os.environ.copy()
-        environment.update({"VERITAS_UV": str(UV), "UV_CACHE_DIR": str(UV_CACHE), "UV_PYTHON_INSTALL_DIR": str(PYTHON_INSTALL), "UV_OFFLINE": "1"})
-        built = subprocess.run([str(VERITAS), "build", str(self.veritas_project)], cwd=self.root, env=environment, text=True, capture_output=True, timeout=60)
+        environment.update({"GUION_UV": str(UV), "UV_CACHE_DIR": str(UV_CACHE), "UV_PYTHON_INSTALL_DIR": str(PYTHON_INSTALL), "UV_OFFLINE": "1"})
+        built = subprocess.run([str(GUION), "build", str(self.guion_project)], cwd=self.root, env=environment, text=True, capture_output=True, timeout=60)
         self.assertEqual(built.returncode, 0, built.stderr)
         self.assertRegex(built.stdout, r"artifact format \d+")
-        (self.veritas_project / "main.vr").unlink()
-        rmtree(self.veritas_project / "src")
+        (self.guion_project / "main.gu").unlink()
+        rmtree(self.guion_project / "src")
 
-        veritas = subprocess.run([str(VERITAS), "run", str(self.veritas_project / "main.vrb"), "import-feed", "feed.xml"], cwd=self.veritas_project, env=environment, text=True, capture_output=True, timeout=60)
+        guion = subprocess.run([str(GUION), "run", str(self.guion_project / "main.gub"), "import-feed", "feed.xml"], cwd=self.guion_project, env=environment, text=True, capture_output=True, timeout=60)
         python = self.run_python("import-feed", "feed.xml")
-        self.assertEqual(veritas.returncode, 0, veritas.stderr)
+        self.assertEqual(guion.returncode, 0, guion.stderr)
         self.assertEqual(python.returncode, 0, python.stderr)
-        self.assertEqual(veritas.stdout, python.stdout)
-        self.assertEqual(veritas.stderr, python.stderr)
-        self.assertEqual((self.veritas_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
+        self.assertEqual(guion.stdout, python.stdout)
+        self.assertEqual(guion.stderr, python.stderr)
+        self.assertEqual((self.guion_project / "inbox.json").read_bytes(), (self.python_project / "inbox.json").read_bytes())
 
 
 if __name__ == "__main__":
