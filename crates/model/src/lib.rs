@@ -4381,8 +4381,8 @@ pub enum Op {
     ChannelSend,
     ChannelReceive,
     ChannelClose,
-    FirstReady,
-    FirstValue,
+    FirstReady(usize),
+    FirstValue(usize),
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -5300,8 +5300,14 @@ impl Artifact {
                     Op::ChannelSend => w.u8(216),
                     Op::ChannelReceive => w.u8(217),
                     Op::ChannelClose => w.u8(218),
-                    Op::FirstReady => w.u8(219),
-                    Op::FirstValue => w.u8(220),
+                    Op::FirstReady(record) => {
+                        w.u8(219);
+                        w.count(*record)?;
+                    }
+                    Op::FirstValue(record) => {
+                        w.u8(220);
+                        w.count(*record)?;
+                    }
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -5888,8 +5894,8 @@ impl Artifact {
                     216 => Op::ChannelSend,
                     217 => Op::ChannelReceive,
                     218 => Op::ChannelClose,
-                    219 => Op::FirstReady,
-                    220 => Op::FirstValue,
+                    219 => Op::FirstReady(r.count()?),
+                    220 => Op::FirstValue(r.count()?),
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -6725,8 +6731,8 @@ fn artifact_uses_core_count(artifact: &Artifact) -> bool {
                     | Op::ChannelSend
                     | Op::ChannelReceive
                     | Op::ChannelClose
-                    | Op::FirstReady
-                    | Op::FirstValue
+                    | Op::FirstReady(_)
+                    | Op::FirstValue(_)
             )
         }) || function.parameters.iter().any(Type::contains_channel)
             || function.result.contains_channel()

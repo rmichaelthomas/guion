@@ -3538,6 +3538,17 @@ impl<'a> FnCompiler<'a> {
                     Type::List(item) => matches!(**item, Type::Channel(_)),
                     _ => false,
                 };
+                if !(self.record_generics.contains_key("Ready")
+                    && self.visible_records.contains("Ready"))
+                {
+                    return Err(diagnostic(
+                        "E_IMPORT_REQUIRED",
+                        format!(
+                            "{name} gives a `Ready` record from std:process; add `import \"std:process\"`"
+                        ),
+                        span,
+                    ));
+                }
                 let listed = self.expr(&args[0])?;
                 if !matches_kind(&listed) {
                     return Err(diagnostic(
@@ -3561,19 +3572,29 @@ impl<'a> FnCompiler<'a> {
                 } else {
                     self.emit(Op::Const(Value::Int(BigInt::from_i64(-1))), span);
                 }
+                let Type::List(item) = listed else {
+                    unreachable!("checked above to be a list")
+                };
+                let payload = match *item {
+                    Type::Task(result) => Type::Result(result, Box::new(Type::TaskError)),
+                    Type::Channel(value) => Type::Option(value),
+                    _ => unreachable!("checked above to be tasks or channels"),
+                };
+                let (instance, record) = self.generic_record_instance("Ready", vec![payload]);
                 self.emit(
                     if tasks {
-                        Op::FirstReady
+                        Op::FirstReady(record)
                     } else {
-                        Op::FirstValue
+                        Op::FirstValue(record)
                     },
                     span,
                 );
+                let ready = Type::Record(instance);
                 if within {
-                    Ok(Type::Option(Box::new(Type::Int)))
+                    Ok(Type::Option(Box::new(ready)))
                 } else {
                     self.emit(Op::Unwrap, span);
-                    Ok(Type::Int)
+                    Ok(ready)
                 }
             }
         }
@@ -5890,9 +5911,17 @@ impl<'a> FnCompiler<'a> {
             };
             types.push(ty.clone());
         }
+        let (instance, index) = self.generic_record_instance(name, types);
+        self.emit(Op::MakeRecord(index, ordered.len()), span);
+        Ok(Type::Record(instance))
+    }
+
+    /// The name of `Name[types]` and its record index, or index 0 while the instance is still to be
+    /// made: the pass that finds it missing reports it and the compile runs again.
+    fn generic_record_instance(&self, name: &str, types: Vec<Type>) -> (String, usize) {
         let instance = record_instance_name(name, &types);
-        match self.record_index_of(&instance) {
-            Some(index) => self.emit(Op::MakeRecord(index, ordered.len()), span),
+        let index = match self.record_index_of(&instance) {
+            Some(index) => index,
             None => {
                 let mut pending = self.pending_records.borrow_mut();
                 if !pending.iter().any(|(base, arguments)| {
@@ -5900,10 +5929,10 @@ impl<'a> FnCompiler<'a> {
                 }) {
                     pending.push((name.to_owned(), types));
                 }
-                self.emit(Op::MakeRecord(0, ordered.len()), span)
+                0
             }
         };
-        Ok(Type::Record(instance))
+        (instance, index)
     }
 
     fn stmts(&mut self, body: &[Stmt]) -> Result<(), Diagnostic> {

@@ -5147,8 +5147,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::ChannelSend => "ChannelSend",
         Op::ChannelReceive => "ChannelReceive",
         Op::ChannelClose => "ChannelClose",
-        Op::FirstReady => "FirstReady",
-        Op::FirstValue => "FirstValue",
+        Op::FirstReady(_) => "FirstReady",
+        Op::FirstValue(_) => "FirstValue",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -6604,8 +6604,8 @@ impl VmHost for PortableHost {
                 | Op::ChannelSend
                 | Op::ChannelReceive
                 | Op::ChannelClose
-                | Op::FirstReady
-                | Op::FirstValue
+                | Op::FirstReady(_)
+                | Op::FirstValue(_)
                 | Op::HigherOrder(Kind::StartTask | Kind::TryParallelMap)
         ) {
             return Err(RuntimeError::new(

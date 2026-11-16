@@ -290,11 +290,10 @@ the build differs from the design:
 - **`Workers` takes its numbers by name.** Record constructors now accept `field=value` in any
   order (`=`, as every other keyword argument in Guion, not `:`), so it is
   `Workers(at_once=50, each_ms=5000, all_ms=30000)`. Positional still works.
-- **`first_ready` and `first_value` give a position, not `Ready(index, result)`.** A generic
-  `Ready[T]` record would need compiler support that does not exist yet. `first_ready(tasks)` gives
-  the position of the first finished task and `wait(tasks[i])` gives its result at once;
-  `first_value(channels)` gives the position of the first channel that has a value or is closed,
-  and `receive` takes the value. The `_within` forms give `Option[Int]`.
+- **`Ready[T]` comes from `std:process`.** `first_ready` and `first_value` give `Ready(index,
+  value)` as the design says, so they need `import "std:process"` (the error says so). For a task
+  `value` is the `wait` result; for a channel it is the `receive` result, taken in the same step
+  under the channel's lock. The `_within` forms give `Option[Ready[T]]`.
 - **`start_process` gives `Result[Process, StdError]`, not a bare `Process`.** A command that is not
   granted or cannot start is an ordinary outcome, with the same error codes and fix-it text as
   `process_run`. `process_wait` gives `Result[ProcessResult, StdError]` (StdError is the existing

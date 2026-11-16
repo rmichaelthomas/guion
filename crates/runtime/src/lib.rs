@@ -1119,6 +1119,10 @@ impl VmHost for Instance {
             let waited_task = matches!(instruction.op, Op::TaskWaitWithin)
                 .then(|| stack.len().checked_sub(2).map(|at| stack[at].clone()))
                 .flatten();
+            // A replayed first_ready settles the task it named, as `wait` would have.
+            let raced_tasks = matches!(instruction.op, Op::FirstReady(_))
+                .then(|| stack.len().checked_sub(2).map(|at| stack[at].clone()))
+                .flatten();
             return match tape.replay(
                 &self.tape_lane,
                 operation,
@@ -1134,6 +1138,21 @@ impl VmHost for Instance {
                                 if matches!(error.as_ref(), Value::TaskError(fault) if fault.code == "R_DEADLINE")
                         );
                         self.task_settle_replayed_wait(&task, timed_out, budget, instruction.span)?;
+                    }
+                    if let Some(Value::List(tasks)) = raced_tasks {
+                        let winner = match values.first() {
+                            Some(Value::OptionSome(ready)) => match ready.as_ref() {
+                                Value::Record(_, fields) => match fields.first() {
+                                    Some(Value::Int(position)) => position.to_usize(),
+                                    _ => None,
+                                },
+                                _ => None,
+                            },
+                            _ => None,
+                        };
+                        if let Some(task) = winner.and_then(|position| tasks.get(position)) {
+                            self.task_settle_replayed_wait(task, false, budget, instruction.span)?;
+                        }
                     }
                     stack.truncate(kept);
                     stack.extend(values);
@@ -1390,15 +1409,28 @@ impl Instance {
                 self.channel_close(&channel, instruction.span)?;
                 push_stack!(Value::Unit);
             }
-            Op::FirstReady | Op::FirstValue => {
+            Op::FirstReady(record) | Op::FirstValue(record) => {
                 let milliseconds = match pop!() {
                     Value::Int(value) => value.to_i64().filter(|value| *value >= 0),
                     _ => None,
                 };
                 let items = pop!();
+                let name = self
+                    .artifact
+                    .records
+                    .get(record)
+                    .map(|record| record.name.clone())
+                    .ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_ARTIFACT_INVALID",
+                            "first_ready references a missing record definition",
+                            instruction.span,
+                        )
+                    })?;
                 let result = self.first_of(
                     &items,
-                    matches!(instruction.op, Op::FirstReady),
+                    matches!(instruction.op, Op::FirstReady(_)),
+                    name,
                     milliseconds.map(|value| Duration::from_millis(value as u64)),
                     budget,
                     instruction.span,

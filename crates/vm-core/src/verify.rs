@@ -1593,23 +1593,34 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Unit);
             }
-            Op::FirstReady | Op::FirstValue => {
+            Op::FirstReady(record_index) | Op::FirstValue(record_index) => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {
                     return Err(format!("time limit must be Int at instruction {pc}"));
                 }
                 let Type::List(item) = pop_type(&mut state.stack, pc)? else {
                     return Err(format!("a list is needed at instruction {pc}"));
                 };
-                let fits = match &instruction.op {
-                    Op::FirstReady => matches!(*item, Type::Task(_)),
-                    _ => matches!(*item, Type::Channel(_)),
+                let payload = match (&instruction.op, *item) {
+                    (Op::FirstReady(_), Type::Task(result)) => {
+                        Some(Type::Result(result, Box::new(Type::TaskError)))
+                    }
+                    (Op::FirstValue(_), Type::Channel(value)) => Some(Type::Option(value)),
+                    _ => None,
                 };
-                if !fits {
+                let record = artifact.records.get(*record_index).ok_or_else(|| {
+                    format!("first_ready or first_value references a missing record at instruction {pc}")
+                })?;
+                let shaped = record.fields.len() == 2
+                    && record.fields[0].ty == Type::Int
+                    && payload.as_ref() == Some(&record.fields[1].ty);
+                if !shaped {
                     return Err(format!(
-                        "first_ready needs tasks and first_value needs channels at instruction {pc}"
+                        "first_ready needs tasks and first_value needs channels, and a Ready record of their result, at instruction {pc}"
                     ));
                 }
-                state.stack.push(Type::Option(Box::new(Type::Int)));
+                state.stack.push(Type::Option(Box::new(Type::Record(
+                    record.name.to_string(),
+                ))));
             }
             Op::TaskWait => {
                 let Type::Task(item) = pop_type(&mut state.stack, pc)? else {

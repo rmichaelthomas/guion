@@ -12,6 +12,13 @@ pub record Workers:
     each_ms: Int
     all_ms: Int
 
+# What `first_ready` and `first_value` give back: the position of the one that was ready, and its
+# result, taken in the same step. For tasks the result is what `wait` gives; for channels it is
+# what `receive` gives (`None` when the channel was closed and empty).
+pub record Ready[T]:
+    index: Int
+    value: T
+
 pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]:
     match native_process_run(command, arguments, stdin):
         Ok(fields):

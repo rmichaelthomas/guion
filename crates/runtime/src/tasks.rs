@@ -676,13 +676,16 @@ impl Instance {
         Ok(())
     }
 
-    /// `first_ready` and `first_value`: the position of the first listed task that is finished (or
-    /// channel that has a value or is closed), waiting up to `limit`; `None` when time runs out.
-    /// When several are ready the earliest in the list wins.
+    /// `first_ready` and `first_value`: `Some(Ready(position, result))` for the first listed task
+    /// that is finished, or channel that has a value or is closed, waiting up to `limit`; `None`
+    /// when time runs out. The result is the task's `wait` result, or what `receive` took from the
+    /// channel (`None` for one closed and empty), taken in the same step so no other consumer can
+    /// slip in between. When several are ready the earliest in the list wins.
     pub(super) fn first_of(
         &mut self,
         items: &Value,
         tasks: bool,
+        name: guion_model::RecordName,
         limit: Option<Duration>,
         budget: &Arc<Budget>,
         span: Span,
@@ -701,18 +704,31 @@ impl Instance {
         let started = Instant::now();
         loop {
             for (position, item) in items.iter().enumerate() {
-                let ready = if tasks {
+                let payload = if tasks {
                     let index = self.task_slot(item, span)?;
-                    self.task_poll(index)
+                    if self.task_poll(index) {
+                        Some(self.task_wait(item, None, budget, span)?)
+                    } else {
+                        None
+                    }
                 } else {
                     let channel = self.channel_of(item, span)?;
-                    let state = channel.lock();
-                    !state.queue.is_empty() || state.closed
+                    let mut state = channel.lock();
+                    if let Some(value) = state.queue.pop_front() {
+                        drop(state);
+                        channel.changed.notify_all();
+                        Some(Value::OptionSome(Box::new(value)))
+                    } else if state.closed {
+                        Some(Value::OptionNone)
+                    } else {
+                        None
+                    }
                 };
-                if ready {
-                    return Ok(Value::OptionSome(Box::new(Value::Int(BigInt::from_usize(
-                        position,
-                    )))));
+                if let Some(payload) = payload {
+                    return Ok(Value::OptionSome(Box::new(Value::Record(
+                        name,
+                        Shared::new(vec![Value::Int(BigInt::from_usize(position)), payload]),
+                    ))));
                 }
             }
             self.wait_cancelled(budget, span)?;

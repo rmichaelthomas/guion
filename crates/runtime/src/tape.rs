@@ -141,7 +141,14 @@ pub(crate) fn encode_value(value: &Value) -> Result<Json, String> {
 pub(crate) fn decode_value(value: &Json) -> Result<Value, String> {
     let bad = || format!("tape holds a value it cannot read: {value}");
     let object = value.as_object().ok_or_else(bad)?;
-    let (tag, body) = object.iter().next().ok_or_else(bad)?;
+    // A record has two keys, and the map may list them in either order.
+    let (tag, body) = match object.get("record") {
+        Some(name) => ("record", name),
+        None => {
+            let (tag, body) = object.iter().next().ok_or_else(bad)?;
+            (tag.as_str(), body)
+        }
+    };
     let decode_list = |body: &Json| -> Result<Vec<Value>, String> {
         body.as_array()
             .ok_or_else(bad)?
@@ -149,7 +156,7 @@ pub(crate) fn decode_value(value: &Json) -> Result<Value, String> {
             .map(decode_value)
             .collect()
     };
-    Ok(match tag.as_str() {
+    Ok(match tag {
         "int" => Value::Int(BigInt::parse(body.as_str().ok_or_else(bad)?).map_err(|_| bad())?),
         "float" => {
             let bits: u64 = body.as_str().ok_or_else(bad)?.parse().map_err(|_| bad())?;
@@ -793,8 +800,8 @@ pub(crate) fn is_world_operation(op: &guion_model::Op) -> bool {
             | Op::TaskWaitWithin
             | Op::ChannelSend
             | Op::ChannelReceive
-            | Op::FirstReady
-            | Op::FirstValue
+            | Op::FirstReady(_)
+            | Op::FirstValue(_)
             | Op::Args
             | Op::ArgsFrom
             | Op::Environment

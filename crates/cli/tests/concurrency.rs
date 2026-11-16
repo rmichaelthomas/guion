@@ -533,11 +533,11 @@ fn a_full_channel_blocks_its_sender() {
 fn first_ready_names_the_task_that_finished_first_and_first_value_the_channel() {
     let server = slow_server(Duration::from_millis(10));
     let source = format!(
-        "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn say(out: Channel[Int]) -> Int:\n    let sent = send(out, 7)\n    return 0\n\nfn main() -> Int:\n    together:\n        let slow = start(fetch, \"http://{0}/hang\")\n        let fast = start(fetch, \"http://{0}/a\")\n        print(first_ready([slow, fast]))\n        let still = first_ready_within([slow], 300)\n        print(is_some(still))\n        let quiet: Channel[Int] = channel(1)\n        let loud: Channel[Int] = channel(1)\n        let speaker = start(say, loud)\n        print(first_value([quiet, loud]))\n    return 0\n",
+        "import \"std:process\"\n\nfn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn say(out: Channel[Int]) -> Int:\n    let sent = send(out, 7)\n    return 0\n\nfn main() -> Int:\n    together:\n        let slow = start(fetch, \"http://{0}/hang\")\n        let fast = start(fetch, \"http://{0}/a\")\n        let won = first_ready([slow, fast])\n        print(won.index)\n        print(unwrap(won.value))\n        let still = first_ready_within([slow], 300)\n        print(is_some(still))\n        let quiet: Channel[Int] = channel(1)\n        let loud: Channel[Int] = channel(1)\n        let speaker = start(say, loud)\n        let heard = first_value([quiet, loud])\n        print(heard.index)\n        print(unwrap(heard.value))\n    return 0\n",
         server.address
     );
     let output = run_project("ch-first", "", &["--allow-http-host", "127.0.0.1"], &source);
-    assert_eq!(stdout(&output), "1\nfalse\n1", "{}", stderr(&output));
+    assert_eq!(stdout(&output), "1\n1\nfalse\n1\n7", "{}", stderr(&output));
 }
 
 #[test]
@@ -578,7 +578,7 @@ fn a_recorded_race_replays_with_the_same_winner_every_time() {
     std::fs::write(
         dir.join("main.gu"),
         format!(
-            "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn report(job: Text, out: Channel[Text]) -> Int:\n    let n = fetch(job)\n    let sent = send(out, job)\n    return n\n\nfn first(job: Text) -> Int:\n    return fetch(job)\n\nfn main() -> Int:\n    together:\n        let slow = start(first, \"http://{0}/slow\")\n        let fast = start(first, \"http://{0}/a\")\n        print(first_ready([slow, fast]))\n        let arrivals: Channel[Int] = channel(4)\n        let one = start(deliver_slow, arrivals)\n        let two = start(deliver_fast, arrivals)\n        let a = receive(arrivals)\n        let b = receive(arrivals)\n        print(unwrap(a))\n        print(unwrap(b))\n    return 0\n\nfn deliver_slow(out: Channel[Int]) -> Int:\n    let n = first(\"http://{0}/slow\")\n    let sent = send(out, 1)\n    return n\n\nfn deliver_fast(out: Channel[Int]) -> Int:\n    let n = first(\"http://{0}/a\")\n    let sent = send(out, 2)\n    return n\n",
+            "import \"std:process\"\n\nfn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn report(job: Text, out: Channel[Text]) -> Int:\n    let n = fetch(job)\n    let sent = send(out, job)\n    return n\n\nfn first(job: Text) -> Int:\n    return fetch(job)\n\nfn main() -> Int:\n    together:\n        let slow = start(first, \"http://{0}/slow\")\n        let fast = start(first, \"http://{0}/a\")\n        let won = first_ready([slow, fast])\n        print(won.index)\n        let arrivals: Channel[Int] = channel(4)\n        let one = start(deliver_slow, arrivals)\n        let two = start(deliver_fast, arrivals)\n        let a = receive(arrivals)\n        let b = receive(arrivals)\n        print(unwrap(a))\n        print(unwrap(b))\n    return 0\n\nfn deliver_slow(out: Channel[Int]) -> Int:\n    let n = first(\"http://{0}/slow\")\n    let sent = send(out, 1)\n    return n\n\nfn deliver_fast(out: Channel[Int]) -> Int:\n    let n = first(\"http://{0}/a\")\n    let sent = send(out, 2)\n    return n\n",
             server.address
         ),
     )
@@ -808,4 +808,27 @@ fn record_argument_mistakes_are_named() {
         let text = stderr(&output);
         assert!(text.contains(code) && text.contains(words), "{body}: {text}");
     }
+}
+
+#[test]
+fn first_value_takes_the_value_itself_and_a_closed_channel_gives_none() {
+    let source = "import \"std:process\"\n\nfn main() -> Int:\n    together:\n        let a: Channel[Int] = channel(2)\n        let b: Channel[Int] = channel(2)\n        let sent = send(b, 41)\n        let first = first_value([a, b])\n        print(first.index)\n        print(unwrap(first.value))\n        close(a)\n        let closed = first_value([a])\n        print(closed.index)\n        print(is_some(closed.value))\n    return 0\n";
+    let output = run_project("ready-value", "", &[], source);
+    assert_eq!(stdout(&output), "1\n41\n0\nfalse", "{}", stderr(&output));
+}
+
+#[test]
+fn first_ready_needs_std_process_for_the_ready_record() {
+    let text = project_failure(
+        "ready-import",
+        "fn id(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    together:\n        let t = start(id, 1)\n        let won = first_ready([t])\n    return 0\n",
+    );
+    assert!(text.contains("E_IMPORT_REQUIRED") && text.contains("std:process"), "{text}");
+}
+
+#[test]
+fn two_consumers_sharing_a_channel_never_lose_or_double_a_value() {
+    let source = "import \"std:process\"\n\nfn drain(c: Channel[Int]) -> Int:\n    var total = 0\n    var open = true\n    while open:\n        let got = first_value([c])\n        match got.value:\n            Some(n):\n                set total = total + n\n            None:\n                set open = false\n    return total\n\nfn main() -> Int:\n    together:\n        let c: Channel[Int] = channel(4)\n        let one = start(drain, c)\n        let two = start(drain, c)\n        var i = 1\n        while i <= 200:\n            let sent = send(c, i)\n            set i = i + 1\n        close(c)\n        let a = wait(one)\n        let b = wait(two)\n        print(unwrap(a) + unwrap(b))\n    return 0\n";
+    let output = run_project("ready-two", "", &[], source);
+    assert_eq!(stdout(&output), "20100", "{}", stderr(&output));
 }
