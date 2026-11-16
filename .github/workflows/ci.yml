@@ -72,6 +72,13 @@ jobs:
           python3 evaluation/completion/test_text_scaling.py --binary target/debug/guion
           python3 evaluation/completion/check_allherehtml.py --binary target/debug/guion
 
+      - name: Build and test the optional Python bridge
+        if: github.event_name != 'pull_request'
+        run: |
+          cargo build --locked -p guion-cli --features python-interop
+          cargo test --locked -p guion-runtime --features python-interop --test python_bridge
+          cargo test --locked -p guion-cli --features python-interop --test concurrency python
+
       - name: Build the shared VM for WebAssembly
         if: github.event_name != 'pull_request'
         run: |
