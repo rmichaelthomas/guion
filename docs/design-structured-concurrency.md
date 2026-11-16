@@ -325,9 +325,10 @@ the build differs from the design:
   own process group and `INT`, `TERM` and `HUP` stop every group before `guion` exits. On Windows
   each command is put in a job object that kills everything in it when the block ends, the
   program ends, or `guion` dies for any reason. A grandchild started in the instant before the
-  command is assigned to the job is not covered. The Windows code compiles for
-  `x86_64-pc-windows-gnu` (checked on macOS with mingw-w64) but has **not been run on Windows**,
-  so the "no orphans" guarantee is tested on Unix only. A program that polls for signals with
+  command is assigned to the job is not covered. One test runs on a GitHub-hosted Windows runner
+  (`.github/workflows/windows-background.yml`): `cmd` starts `ping`, the program reads two lines
+  of its output, the block ends, and no `ping` is left. It passes. Ctrl-C on Windows and the rest
+  of the suite are not run there. A program that polls for signals with
   `process_signal_poll` handles `INT`, `TERM` and `HUP` itself; the commands are then stopped
   when its block or the program ends.
 - **The browser playground** reports that `together:` and `try_parallel_map` need threads.
