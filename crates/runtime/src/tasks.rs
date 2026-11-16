@@ -29,6 +29,8 @@ struct TaskSlot {
     lane: String,
     /// Its position among the tasks of its block, which is what `TaskError.index` reports.
     ordinal: usize,
+    /// A report that `first_ready` saw arrive and `wait` has not yet taken.
+    arrived: Option<TaskReport>,
     /// Set once the program has its result (or has given up on it).
     outcome: Option<Outcome>,
     /// The task ended by itself, with a result the program collected, so its recorded lane is whole.
@@ -42,6 +44,8 @@ struct Scope {
     /// The parent's budget, to give back what the tasks did not use.
     parent: Arc<Budget>,
     call_number: u32,
+    /// Channels made in this block, closed when it ends.
+    channels: Vec<usize>,
 }
 
 /// The `together:` blocks an instance is inside, innermost last, and the tasks they started.
@@ -102,6 +106,7 @@ struct TaskParts {
     policy: HostPolicy,
     http: Option<Arc<HostHttpClient>>,
     sockets: net_ops::SocketTable,
+    channels: Arc<ChannelTable>,
 }
 
 impl TaskParts {
@@ -159,6 +164,7 @@ impl TaskParts {
             python_native_image_observation: "not_used".into(),
             python_native_images: Vec::new(),
             together: Together::default(),
+            channels: self.channels,
         }
     }
 }
@@ -208,6 +214,7 @@ impl Instance {
             budget: scope_budget,
             parent: budget.clone(),
             call_number,
+            channels: Vec::new(),
         });
     }
 
@@ -258,6 +265,7 @@ impl Instance {
             policy: self.policy.clone(),
             http: self.http.clone(),
             sockets: self.sockets.share(),
+            channels: Arc::clone(&self.channels),
         };
         let (sender, reports) = mpsc::channel();
         let thread_lane = lane.clone();
@@ -281,6 +289,7 @@ impl Instance {
             handle: Some(handle),
             lane,
             ordinal,
+            arrived: None,
             outcome: None,
             complete: false,
         });
@@ -328,6 +337,9 @@ impl Instance {
                     }
                     None => Duration::from_millis(5),
                 };
+                if let Some(report) = self.together.tasks[index].arrived.take() {
+                    break Some(report);
+                }
                 match self.together.tasks[index].reports.recv_timeout(slice) {
                     Ok(report) => break Some(report),
                     Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -426,6 +438,11 @@ impl Instance {
             flag.store(true, Ordering::Release);
         }
         self.together.stop_from(scope.first_task);
+        for index in &scope.channels {
+            if let Some(channel) = self.channels.get(*index) {
+                channel.close();
+            }
+        }
         if let Some(tape) = &self.tape {
             // A task the program did not see through has a shorter lane than a full run; a replay
             // of it may stop where the recording did.
@@ -449,5 +466,267 @@ impl Instance {
             ));
         }
         Ok(())
+    }
+}
+
+/// One bounded queue shared by the tasks of a block. A full queue makes `send` wait, so a fast
+/// producer cannot get ahead of a slow consumer by more than the capacity.
+struct Channel {
+    state: std::sync::Mutex<ChannelState>,
+    changed: std::sync::Condvar,
+}
+
+struct ChannelState {
+    queue: std::collections::VecDeque<Value>,
+    capacity: usize,
+    closed: bool,
+}
+
+impl Channel {
+    fn lock(&self) -> std::sync::MutexGuard<'_, ChannelState> {
+        match self.state.lock() {
+            Ok(state) => state,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    pub(crate) fn close(&self) {
+        self.lock().closed = true;
+        self.changed.notify_all();
+    }
+}
+
+/// Every channel of an instance and the tasks it started; a channel is its index here.
+#[derive(Default)]
+pub(crate) struct ChannelTable {
+    channels: std::sync::Mutex<Vec<Arc<Channel>>>,
+}
+
+impl std::fmt::Debug for ChannelTable {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ChannelTable")
+    }
+}
+
+impl ChannelTable {
+    fn get(&self, index: usize) -> Option<Arc<Channel>> {
+        match self.channels.lock() {
+            Ok(channels) => channels.get(index).cloned(),
+            Err(poisoned) => poisoned.into_inner().get(index).cloned(),
+        }
+    }
+
+    fn add(&self, channel: Channel) -> usize {
+        let mut channels = match self.channels.lock() {
+            Ok(channels) => channels,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        channels.push(Arc::new(channel));
+        channels.len() - 1
+    }
+}
+
+const MAX_CHANNEL_CAPACITY: usize = 65_536;
+
+impl Instance {
+    fn channel_of(&self, value: &Value, span: Span) -> Result<Arc<Channel>, RuntimeError> {
+        match value {
+            Value::Channel(index) => self.channels.get(*index),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            RuntimeError::new(
+                "R_TASK_INVALID",
+                "that channel does not belong to a together: block that is still running",
+                span,
+            )
+        })
+    }
+
+    fn wait_cancelled(&self, budget: &Arc<Budget>, span: Span) -> Result<(), RuntimeError> {
+        if budget.is_cancelled() || self.externally_cancelled() {
+            return Err(RuntimeError::new(
+                "R_CANCELLED",
+                "the program was cancelled while waiting on a channel",
+                span,
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn channel_new(
+        &mut self,
+        capacity: &Value,
+        span: Span,
+    ) -> Result<Value, RuntimeError> {
+        let capacity = match capacity {
+            Value::Int(value) => value.to_usize(),
+            _ => None,
+        }
+        .filter(|capacity| (1..=MAX_CHANNEL_CAPACITY).contains(capacity))
+        .ok_or_else(|| {
+            RuntimeError::new(
+                "R_CHANNEL_CAPACITY",
+                format!("a channel holds 1 to {MAX_CHANNEL_CAPACITY} values"),
+                span,
+            )
+        })?;
+        let Some(scope) = self.together.scopes.last_mut() else {
+            return Err(RuntimeError::new(
+                "R_TASK_INVALID",
+                "a channel was made outside a together: block",
+                span,
+            ));
+        };
+        let index = self.channels.add(Channel {
+            state: std::sync::Mutex::new(ChannelState {
+                queue: std::collections::VecDeque::new(),
+                capacity,
+                closed: false,
+            }),
+            changed: std::sync::Condvar::new(),
+        });
+        scope.channels.push(index);
+        Ok(Value::Channel(index))
+    }
+
+    /// `send`: wait while the channel is full; `Err(R_CHANNEL_CLOSED)` when it is closed.
+    pub(super) fn channel_send(
+        &mut self,
+        channel: &Value,
+        value: Value,
+        budget: &Arc<Budget>,
+        span: Span,
+    ) -> Result<Value, RuntimeError> {
+        let channel = self.channel_of(channel, span)?;
+        value.share_across_threads();
+        let mut state = channel.lock();
+        loop {
+            if state.closed {
+                return Ok(Value::ResultErr(Box::new(Value::TaskError(Box::new(
+                    TaskErrorValue {
+                        index: BigInt::from_usize(0),
+                        code: "R_CHANNEL_CLOSED".into(),
+                        message: "the channel was closed".into(),
+                        trace: vec![span],
+                    },
+                )))));
+            }
+            if state.queue.len() < state.capacity {
+                state.queue.push_back(value);
+                drop(state);
+                channel.changed.notify_all();
+                return Ok(Value::ResultOk(Box::new(Value::Unit)));
+            }
+            self.wait_cancelled(budget, span)?;
+            state = match channel
+                .changed
+                .wait_timeout(state, Duration::from_millis(5))
+            {
+                Ok((state, _)) => state,
+                Err(poisoned) => poisoned.into_inner().0,
+            };
+        }
+    }
+
+    /// `receive`: the next value, waiting for one; `None` once the channel is closed and empty.
+    pub(super) fn channel_receive(
+        &mut self,
+        channel: &Value,
+        budget: &Arc<Budget>,
+        span: Span,
+    ) -> Result<Value, RuntimeError> {
+        let channel = self.channel_of(channel, span)?;
+        let mut state = channel.lock();
+        loop {
+            if let Some(value) = state.queue.pop_front() {
+                drop(state);
+                channel.changed.notify_all();
+                return Ok(Value::OptionSome(Box::new(value)));
+            }
+            if state.closed {
+                return Ok(Value::OptionNone);
+            }
+            self.wait_cancelled(budget, span)?;
+            state = match channel
+                .changed
+                .wait_timeout(state, Duration::from_millis(5))
+            {
+                Ok((state, _)) => state,
+                Err(poisoned) => poisoned.into_inner().0,
+            };
+        }
+    }
+
+    pub(super) fn channel_close(
+        &mut self,
+        channel: &Value,
+        span: Span,
+    ) -> Result<(), RuntimeError> {
+        self.channel_of(channel, span)?.close();
+        Ok(())
+    }
+
+    /// `first_ready` and `first_value`: the position of the first listed task that is finished (or
+    /// channel that has a value or is closed), waiting up to `limit`; `None` when time runs out.
+    /// When several are ready the earliest in the list wins.
+    pub(super) fn first_of(
+        &mut self,
+        items: &Value,
+        tasks: bool,
+        limit: Option<Duration>,
+        budget: &Arc<Budget>,
+        span: Span,
+    ) -> Result<Value, RuntimeError> {
+        let items: Vec<Value> = match items {
+            Value::List(values) => values.as_ref().clone(),
+            _ => Vec::new(),
+        };
+        if items.is_empty() {
+            return Err(RuntimeError::new(
+                "R_TASK_INVALID",
+                "there is nothing to wait for in an empty list",
+                span,
+            ));
+        }
+        let started = Instant::now();
+        loop {
+            for (position, item) in items.iter().enumerate() {
+                let ready = if tasks {
+                    let index = self.task_slot(item, span)?;
+                    self.task_poll(index)
+                } else {
+                    let channel = self.channel_of(item, span)?;
+                    let state = channel.lock();
+                    !state.queue.is_empty() || state.closed
+                };
+                if ready {
+                    return Ok(Value::OptionSome(Box::new(Value::Int(BigInt::from_usize(
+                        position,
+                    )))));
+                }
+            }
+            self.wait_cancelled(budget, span)?;
+            if limit.is_some_and(|limit| started.elapsed() >= limit) {
+                return Ok(Value::OptionNone);
+            }
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// Whether a task has finished, without taking its result.
+    fn task_poll(&mut self, index: usize) -> bool {
+        let slot = &mut self.together.tasks[index];
+        if slot.outcome.is_some() || slot.arrived.is_some() {
+            return true;
+        }
+        match slot.reports.try_recv() {
+            Ok(report) => {
+                slot.arrived = Some(report);
+                true
+            }
+            Err(mpsc::TryRecvError::Empty) => false,
+            Err(mpsc::TryRecvError::Disconnected) => true,
+        }
     }
 }

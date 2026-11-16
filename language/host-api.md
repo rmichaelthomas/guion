@@ -100,6 +100,8 @@ The default is no hosts, a 15-second total request timeout, a 1 MiB request limi
 
 The current API rejects a zero or over-policy worker count. Worker count reports OS worker IDs observed, not guaranteed CPU speedup. A future async I/O API must have separate documented scheduling and cancellation semantics; this operation is not presented as a general async runtime.
 
+`try_parallel_map` returns one result per item and takes `Workers(at_once, each_ms, all_ms)`: an item past `each_ms`, or running or unstarted when `all_ms` passes, is `R_DEADLINE`, and a blocking host call inside an item waits no longer than the time left. A `together:` block runs tasks that end with the block; tasks have exactly the parent's grants, share its budgets, and have their choices (`wait_within`, `first_ready`, `first_value`, `send`, `receive`) recorded so a replay repeats them.
+
 ## Durable storage and interoperability services
 
 The `std:types` module exports `StdError`, `SqlValue`, `SqlRow`, `CalendarEvent`, and their typed constructors. `StdError` and `HttpResponse` come from a small shared type module that `std:http` also re-exports. The `std:sqlite`, `std:toml`, `std:crypto`, `std:text`, and `std:calendar` modules expose the service operations below. Native resources are invocation-owned, opaque, non-serializable, and cannot cross `parallel_map` worker boundaries. The runtime closes outstanding handles at invocation completion, rolls back open SQLite transactions, and rejects stale or foreign handles with typed errors.

@@ -5143,6 +5143,12 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TogetherExit => "TogetherExit",
         Op::TaskWait => "TaskWait",
         Op::TaskWaitWithin => "TaskWaitWithin",
+        Op::ChannelNew(_) => "ChannelNew",
+        Op::ChannelSend => "ChannelSend",
+        Op::ChannelReceive => "ChannelReceive",
+        Op::ChannelClose => "ChannelClose",
+        Op::FirstReady => "FirstReady",
+        Op::FirstValue => "FirstValue",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -6594,6 +6600,12 @@ impl VmHost for PortableHost {
                 | Op::TogetherExit
                 | Op::TaskWait
                 | Op::TaskWaitWithin
+                | Op::ChannelNew(_)
+                | Op::ChannelSend
+                | Op::ChannelReceive
+                | Op::ChannelClose
+                | Op::FirstReady
+                | Op::FirstValue
                 | Op::HigherOrder(Kind::StartTask | Kind::TryParallelMap)
         ) {
             return Err(RuntimeError::new(

@@ -310,6 +310,7 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::HttpError
         | Type::Array(_)
         | Type::Unit => true,
+        Type::Channel(item) => artifact_type_known(item, record_names),
         Type::RecordApp(_, _) | Type::Task(_) => false,
         Type::Fn(parameters, result) => {
             parameters
@@ -356,7 +357,7 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::Bytes(_) => Type::Bytes,
         Value::Array(array) => Type::Array(array.element()),
         Value::Unit => Type::Unit,
-        Value::Task(_) => return None,
+        Value::Task(_) | Value::Channel(_) => return None,
         Value::List(items) => {
             let first = items.first()?;
             let item_type = value_type(first)?;
@@ -1504,6 +1505,60 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 state.stack.push(external.result.clone());
             }
             Op::TogetherEnter | Op::TogetherExit => {}
+            Op::ChannelNew(item) => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("channel capacity must be Int at instruction {pc}"));
+                }
+                if item.contains_channel() {
+                    return Err(format!(
+                        "a channel cannot carry a channel at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Channel(Box::new(item.clone())));
+            }
+            Op::ChannelSend => {
+                let value = pop_type(&mut state.stack, pc)?;
+                let Type::Channel(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("send needs a channel at instruction {pc}"));
+                };
+                if value != *item {
+                    return Err(format!("send value type mismatch at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::TaskError),
+                ));
+            }
+            Op::ChannelReceive => {
+                let Type::Channel(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("receive needs a channel at instruction {pc}"));
+                };
+                state.stack.push(Type::Option(item));
+            }
+            Op::ChannelClose => {
+                if !matches!(pop_type(&mut state.stack, pc)?, Type::Channel(_)) {
+                    return Err(format!("close needs a channel at instruction {pc}"));
+                }
+                state.stack.push(Type::Unit);
+            }
+            Op::FirstReady | Op::FirstValue => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("time limit must be Int at instruction {pc}"));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("a list is needed at instruction {pc}"));
+                };
+                let fits = match &instruction.op {
+                    Op::FirstReady => matches!(*item, Type::Task(_)),
+                    _ => matches!(*item, Type::Channel(_)),
+                };
+                if !fits {
+                    return Err(format!(
+                        "first_ready needs tasks and first_value needs channels at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Option(Box::new(Type::Int)));
+            }
             Op::TaskWait => {
                 let Type::Task(item) = pop_type(&mut state.stack, pc)? else {
                     return Err(format!("wait needs a task at instruction {pc}"));

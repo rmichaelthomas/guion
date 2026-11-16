@@ -2916,6 +2916,7 @@ fn display_type(ty: &guion_model::Type) -> String {
                 .join(", ")
         ),
         Type::Task(item) => format!("Task[{}]", display_type(item)),
+        Type::Channel(item) => format!("Channel[{}]", display_type(item)),
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
         Type::Fn(parameters, result) => format!(

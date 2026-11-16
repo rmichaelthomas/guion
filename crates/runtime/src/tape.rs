@@ -134,7 +134,7 @@ pub(crate) fn encode_value(value: &Value) -> Result<Json, String> {
         }
         Value::Array(_) => return Err(unsupported("typed array")),
         Value::Function(_) | Value::Closure(..) => return Err(unsupported("function value")),
-        Value::Task(_) => return Err(unsupported("task")),
+        Value::Task(_) | Value::Channel(_) => return Err(unsupported("task or channel")),
     })
 }
 
@@ -791,6 +791,10 @@ pub(crate) fn is_world_operation(op: &guion_model::Op) -> bool {
             | Op::Tls(_)
             | Op::Process(_)
             | Op::TaskWaitWithin
+            | Op::ChannelSend
+            | Op::ChannelReceive
+            | Op::FirstReady
+            | Op::FirstValue
             | Op::Args
             | Op::ArgsFrom
             | Op::Environment

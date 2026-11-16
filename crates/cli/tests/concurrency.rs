@@ -61,6 +61,9 @@ fn slow_server(delay: Duration) -> SlowServer {
                     // A server that takes the request and never answers.
                     std::thread::sleep(Duration::from_secs(25));
                 }
+                if String::from_utf8_lossy(&buffer[..read]).starts_with("GET /slow") {
+                    std::thread::sleep(Duration::from_millis(700));
+                }
                 std::thread::sleep(delay);
                 let _ = stream.write_all(
                     b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
@@ -496,6 +499,110 @@ fn a_recorded_wait_within_replays_the_same_way_with_nothing_granted() {
     for _ in 0..10 {
         let replayed = guion(&["run", "--replay", "t.tape", "main.gu"]);
         assert_eq!(stdout(&replayed), expected, "{}", stderr(&replayed));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- Part 4: channels and whichever comes first ----
+
+const PRODUCER: &str = "fn produce(out: Channel[Int]) -> Int:\n    var i = 1\n    while i <= LIMIT:\n        let sent = send(out, i)\n        set i = i + 1\n    close(out)\n    return LIMIT\n\n";
+
+#[test]
+fn a_producer_and_a_consumer_pass_every_value_in_order_through_a_small_channel() {
+    let source = format!(
+        "{}fn main() -> Int:\n    var total = 0\n    var count = 0\n    together:\n        let results: Channel[Int] = channel(2)\n        let producer = start(produce, results)\n        var more = true\n        while more:\n            match receive(results):\n                Some(value):\n                    set total = total + value\n                    set count = count + 1\n                None:\n                    set more = false\n        let done = wait(producer)\n    print(count)\n    print(total)\n    return 0\n",
+        PRODUCER.replace("LIMIT", "200")
+    );
+    let output = run_project("ch-pass", "", &[], &source);
+    assert_eq!(stdout(&output), "200\n20100", "{}", stderr(&output));
+}
+
+#[test]
+fn a_full_channel_blocks_its_sender() {
+    // Ten values into a channel of three, with nobody receiving: the producer cannot finish, and
+    // when it is given up on it has put in only what the channel holds.
+    let source = format!(
+        "{}fn main() -> Int:\n    together:\n        let results: Channel[Int] = channel(3)\n        let producer = start(produce, results)\n        let early = wait_within(producer, 400)\n        print(is_ok(early))\n        var taken = 0\n        while taken < 3:\n            match receive(results):\n                Some(value):\n                    print(value)\n                    set taken = taken + 1\n                None:\n                    set taken = 99\n    return 0\n",
+        PRODUCER.replace("LIMIT", "10")
+    );
+    let output = run_project("ch-full", "", &[], &source);
+    assert_eq!(stdout(&output), "false\n1\n2\n3", "{}", stderr(&output));
+}
+
+#[test]
+fn first_ready_names_the_task_that_finished_first_and_first_value_the_channel() {
+    let server = slow_server(Duration::from_millis(10));
+    let source = format!(
+        "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn say(out: Channel[Int]) -> Int:\n    let sent = send(out, 7)\n    return 0\n\nfn main() -> Int:\n    together:\n        let slow = start(fetch, \"http://{0}/hang\")\n        let fast = start(fetch, \"http://{0}/a\")\n        print(first_ready([slow, fast]))\n        let still = first_ready_within([slow], 300)\n        print(is_some(still))\n        let quiet: Channel[Int] = channel(1)\n        let loud: Channel[Int] = channel(1)\n        let speaker = start(say, loud)\n        print(first_value([quiet, loud]))\n    return 0\n",
+        server.address
+    );
+    let output = run_project("ch-first", "", &["--allow-http-host", "127.0.0.1"], &source);
+    assert_eq!(stdout(&output), "1\nfalse\n1", "{}", stderr(&output));
+}
+
+#[test]
+fn channels_and_tasks_cannot_leave_their_block_and_a_channel_needs_its_type() {
+    let returned = project_failure(
+        "ch-return",
+        "fn make() -> Channel[Int]:\n    together:\n        let c: Channel[Int] = channel(1)\n    return 0\n\nfn main() -> Int:\n    return 0\n",
+    );
+    assert!(returned.contains("E_SCOPE_ESCAPE"), "{returned}");
+    let printed = project_failure(
+        "ch-print",
+        "fn main() -> Int:\n    together:\n        let c: Channel[Int] = channel(1)\n        print(c)\n    return 0\n",
+    );
+    assert!(printed.contains("E_SCOPE_ESCAPE"), "{printed}");
+    let untyped = project_failure(
+        "ch-untyped",
+        "fn main() -> Int:\n    together:\n        let c = channel(1)\n    return 0\n",
+    );
+    assert!(untyped.contains("element type"), "{untyped}");
+    let wrong = project_failure(
+        "ch-wrong",
+        "fn main() -> Int:\n    together:\n        let c: Channel[Int] = channel(1)\n        let r = send(c, \"text\")\n    return 0\n",
+    );
+    assert!(wrong.contains("E_TYPE_ARGUMENT"), "{wrong}");
+    let outside = project_failure(
+        "ch-outside",
+        "fn main() -> Int:\n    let c: Channel[Int] = channel(1)\n    return 0\n",
+    );
+    assert!(outside.contains("E_CHANNEL_OUTSIDE_TOGETHER"), "{outside}");
+}
+
+#[test]
+fn a_recorded_race_replays_with_the_same_winner_every_time() {
+    let server = slow_server(Duration::from_millis(10));
+    let dir = std::env::temp_dir().join(format!("guion-conc-race-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("main.gu"),
+        format!(
+            "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn report(job: Text, out: Channel[Text]) -> Int:\n    let n = fetch(job)\n    let sent = send(out, job)\n    return n\n\nfn first(job: Text) -> Int:\n    return fetch(job)\n\nfn main() -> Int:\n    together:\n        let slow = start(first, \"http://{0}/slow\")\n        let fast = start(first, \"http://{0}/a\")\n        print(first_ready([slow, fast]))\n        let arrivals: Channel[Int] = channel(4)\n        let one = start(deliver_slow, arrivals)\n        let two = start(deliver_fast, arrivals)\n        let a = receive(arrivals)\n        let b = receive(arrivals)\n        print(unwrap(a))\n        print(unwrap(b))\n    return 0\n\nfn deliver_slow(out: Channel[Int]) -> Int:\n    let n = first(\"http://{0}/slow\")\n    let sent = send(out, 1)\n    return n\n\nfn deliver_fast(out: Channel[Int]) -> Int:\n    let n = first(\"http://{0}/a\")\n    let sent = send(out, 2)\n    return n\n",
+            server.address
+        ),
+    )
+    .unwrap();
+    let guion = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(args)
+            .current_dir(&dir)
+            .env("GUION_NO_PROMPT", "1")
+            .output()
+            .expect("guion starts")
+    };
+    let recorded = guion(&[
+        "run",
+        "--allow-http-host",
+        "127.0.0.1",
+        "--record",
+        "race.tape",
+        "main.gu",
+    ]);
+    assert_eq!(stdout(&recorded), "1\n2\n1", "{}", stderr(&recorded));
+    for _ in 0..30 {
+        let replayed = guion(&["run", "--replay", "race.tape", "main.gu"]);
+        assert_eq!(stdout(&replayed), "1\n2\n1", "{}", stderr(&replayed));
     }
     let _ = std::fs::remove_dir_all(&dir);
 }

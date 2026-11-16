@@ -669,6 +669,7 @@ impl Runtime {
             python_native_image_observation: "not_used".into(),
             python_native_images: Vec::new(),
             together: tasks::Together::default(),
+            channels: Arc::new(tasks::ChannelTable::default()),
         })
     }
 }
@@ -717,6 +718,8 @@ pub struct Instance {
     python_native_images: Vec<String>,
     /// The `together:` blocks this instance is inside and the tasks they started.
     together: tasks::Together,
+    /// The channels of the program and its tasks.
+    channels: Arc<tasks::ChannelTable>,
 }
 
 impl HostPolicy {
@@ -1362,6 +1365,42 @@ impl Instance {
                 push_stack!(task);
             }
             Op::TogetherEnter => self.together_enter(budget),
+            Op::ChannelNew(_) => {
+                let capacity = pop!();
+                let channel = self.channel_new(&capacity, instruction.span)?;
+                push_stack!(channel);
+            }
+            Op::ChannelSend => {
+                let value = pop!();
+                let channel = pop!();
+                let result = self.channel_send(&channel, value, budget, instruction.span)?;
+                push_stack!(result);
+            }
+            Op::ChannelReceive => {
+                let channel = pop!();
+                let result = self.channel_receive(&channel, budget, instruction.span)?;
+                push_stack!(result);
+            }
+            Op::ChannelClose => {
+                let channel = pop!();
+                self.channel_close(&channel, instruction.span)?;
+                push_stack!(Value::Unit);
+            }
+            Op::FirstReady | Op::FirstValue => {
+                let milliseconds = match pop!() {
+                    Value::Int(value) => value.to_i64().filter(|value| *value >= 0),
+                    _ => None,
+                };
+                let items = pop!();
+                let result = self.first_of(
+                    &items,
+                    matches!(instruction.op, Op::FirstReady),
+                    milliseconds.map(|value| Duration::from_millis(value as u64)),
+                    budget,
+                    instruction.span,
+                )?;
+                push_stack!(result);
+            }
             Op::TogetherExit => self.together_exit(instruction.span)?,
             Op::TaskWait => {
                 let task = pop!();
@@ -7423,6 +7462,7 @@ impl Instance {
         let native_code = self.native_code.clone();
         let values = Arc::new(values);
         let tape = self.tape.clone();
+        let channels = Arc::clone(&self.channels);
         let call_number = self.parallel_calls;
         self.parallel_calls += 1;
         let parent_lane = self.tape_lane.clone();
@@ -7464,6 +7504,7 @@ impl Instance {
             let native_compilations = native_compilations.clone();
             let native_code = native_code.clone();
             let http = self.http.clone();
+            let channels = Arc::clone(&channels);
             let sockets = self.sockets.share();
             let sender = sender.clone();
             handles.push(thread::spawn(move || {
@@ -7566,6 +7607,7 @@ impl Instance {
                         python_native_image_observation: "not_used".into(),
                         python_native_images: Vec::new(),
                         together: tasks::Together::default(),
+                        channels: Arc::clone(&channels),
                     };
                     let result = worker.invoke_inner(
                         function,
@@ -8837,7 +8879,7 @@ fn input_value_allocation(value: &Value) -> usize {
                 .fold(0usize, usize::saturating_add),
         ),
         Value::Json(_) => 0,
-        Value::Task(_) => size_of::<Value>(),
+        Value::Task(_) | Value::Channel(_) => size_of::<Value>(),
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
             size_of::<Value>().saturating_add(input_value_allocation(value))
         }

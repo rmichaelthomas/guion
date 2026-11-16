@@ -50,6 +50,7 @@ Types are a one-byte tag followed by the indicated payload. Nested types use the
 | 18 | `Array` | element code (`u8`; format 62): 0 `i8`, 1 `i16`, 2 `i32`, 3 `i64`, 4 `u8`, 5 `u16`, 6 `u32`, 7 `u64`, 8 `f32`, 9 `f64`, 10 `bool`. Arrays are runtime values only and cannot appear as constants |
 | 19 | function type | parameter count (`u32`, at most 255), each parameter type, then the result type (format 66). A function type names a function signature; function values are runtime values only and cannot appear as constants |
 | 20 | `Map[Int, T]` | encoded value type `T` (format 75). Stored and run exactly as `Map[Text, T]`: each key is the canonical decimal text of the `Int` (`-3`, `0`, `10`), which the compiler produces with `int_to_text` at every access. The verifier checks the erased form, so tag 20 and tag 11 types are interchangeable at run time; the tag exists so the compiler can tell the two key types apart |
+| 21 | `Channel[T]` | encoded element type `T` (format 76). A channel is a handle to a bounded queue shared by the tasks of a `together:` block; it can be a parameter type but never a result type, and never a constant. |
 
 ## Constant values
 
@@ -296,6 +297,12 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 212 | `TogetherExit` | — (format 76: ends the innermost block; every task not waited for is stopped and its background work ends) |
 | 213 | `TaskWait` | — (format 76: pops a task handle and pushes `Result[T, TaskError]`) |
 | 214 | `TaskWaitWithin` | — (format 76: pops milliseconds and a task handle and pushes `Result[T, TaskError]`; a task not done in time is stopped and is `Err` with `R_DEADLINE`) |
+| 215 | `ChannelNew` | type (format 76: pops a capacity from 1 to 65,536 and pushes a `Channel[T]` for the operand's `T`; the block that makes it closes it when it ends) |
+| 216 | `ChannelSend` | — (format 76: pops a value and a channel and pushes `Result[Unit, TaskError]`; waits while the channel is full; `R_CHANNEL_CLOSED` on a closed channel) |
+| 217 | `ChannelReceive` | — (format 76: pops a channel and pushes `Option[T]`; waits for a value; `None` once the channel is closed and empty) |
+| 218 | `ChannelClose` | — (format 76: pops a channel, closes it and pushes `Unit`) |
+| 219 | `FirstReady` | — (format 76: pops a time limit in milliseconds (negative for none) and a `List[Task[T]]` and pushes `Option[Int]`: the position of the first task that is finished, earliest in the list when several are, or `None` when time runs out) |
+| 220 | `FirstValue` | — (format 76: as `FirstReady` for a `List[Channel[T]]`; a channel is ready when it holds a value or is closed) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -341,7 +348,7 @@ Format 75 adds type tag 20, `Map[Int, T]`. It needs no new instruction: `MakeMap
 
 Format 73 adds `Fs` function codes 18 (`read_range`) and 19 (`confined_path`) for `std:http_static`. An artifact below format 73 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 72 remain readable.
 
-Format 76 adds `Process` function code 3 (`core_count`), `HigherOrder` kinds 11 (`TryParallelMap`) and 12 (`StartTask`) and instruction tags 211 to 214 for `together:` blocks. No new instruction tag is used. An artifact below format 76 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 75 remain readable.
+Format 76 adds `Process` function code 3 (`core_count`), `HigherOrder` kinds 11 (`TryParallelMap`) and 12 (`StartTask`) and instruction tags 211 to 220 for `together:` blocks and channels, and type tag 21 (`Channel[T]`). No new instruction tag is used. An artifact below format 76 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 75 remain readable.
 
 ## Build metadata and reproducibility
 

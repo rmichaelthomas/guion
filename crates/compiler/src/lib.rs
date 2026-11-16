@@ -992,6 +992,12 @@ impl Parser {
                 self.expect("]")?;
                 Ok(Type::Option(Box::new(item)))
             }
+            "Channel" => {
+                self.expect("[")?;
+                let item = self.ty()?;
+                self.expect("]")?;
+                Ok(Type::Channel(Box::new(item)))
+            }
             "Result" => {
                 self.expect("[")?;
                 let ok = self.ty()?;
@@ -2643,6 +2649,7 @@ fn type_label(ty: &Type) -> String {
         Type::HttpError => "HttpError".into(),
         Type::TaskError => "TaskError".into(),
         Type::Task(item) => format!("Task[{}]", type_label(item)),
+        Type::Channel(item) => format!("Channel[{}]", type_label(item)),
         Type::Record(name) | Type::NativeResource(name) => name.clone(),
         Type::Array(element) => format!("Array[{}]", element.name()),
         Type::List(item) => format!("List[{}]", type_label(item)),
@@ -2811,6 +2818,7 @@ impl RecordResolver<'_> {
             Type::Map(item) => Type::Map(Box::new(self.ty(item, span))),
             Type::IntMap(item) => Type::IntMap(Box::new(self.ty(item, span))),
             Type::Option(item) => Type::Option(Box::new(self.ty(item, span))),
+            Type::Channel(item) => Type::Channel(Box::new(self.ty(item, span))),
             Type::Result(ok, err) => {
                 Type::Result(Box::new(self.ty(ok, span)), Box::new(self.ty(err, span)))
             }
@@ -3367,6 +3375,135 @@ impl<'a> FnCompiler<'a> {
         Ok(())
     }
 
+    /// `channel`, `send`, `receive`, `close`, `first_ready` and `first_value` (and their `_within`
+    /// forms), which work on the tasks and channels of a `together:` block.
+    fn channel_builtin(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> Result<Type, Diagnostic> {
+        match name {
+            "channel" => {
+                if self.together_floors.is_empty() {
+                    return Err(diagnostic(
+                        "E_CHANNEL_OUTSIDE_TOGETHER",
+                        "channel can only be made inside a `together:` block, which closes it",
+                        span,
+                    ));
+                }
+                let Some(Type::Channel(item)) = expected else {
+                    return Err(diagnostic(
+                        "E_TYPE_ANNOTATION",
+                        "a channel needs its element type from context: write `let results: Channel[Int] = channel(8)`",
+                        span,
+                    ));
+                };
+                let item = (**item).clone();
+                if self.type_has_task(&item) {
+                    return Err(diagnostic(
+                        "E_SCOPE_ESCAPE",
+                        "a channel cannot carry a task or another channel",
+                        span,
+                    ));
+                }
+                if self.expr(&args[0])? != Type::Int {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        "channel capacity must be Int",
+                        args[0].span(),
+                    ));
+                }
+                self.emit(Op::ChannelNew(item.clone()), span);
+                Ok(Type::Channel(Box::new(item)))
+            }
+            "send" => {
+                let Type::Channel(item) = self.expr(&args[0])? else {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        "send needs a channel and a value for it",
+                        args[0].span(),
+                    ));
+                };
+                if self.expr_with_expected(&args[1], Some(&item))? != *item {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        format!("send value must have type {item:?}"),
+                        args[1].span(),
+                    ));
+                }
+                self.emit(Op::ChannelSend, span);
+                Ok(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::TaskError),
+                ))
+            }
+            "receive" | "close" => {
+                let Type::Channel(item) = self.expr(&args[0])? else {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        format!("{name} needs a channel"),
+                        args[0].span(),
+                    ));
+                };
+                if name == "receive" {
+                    self.emit(Op::ChannelReceive, span);
+                    Ok(Type::Option(item))
+                } else {
+                    self.emit(Op::ChannelClose, span);
+                    Ok(Type::Unit)
+                }
+            }
+            _ => {
+                let tasks = name.starts_with("first_ready");
+                let within = name.ends_with("_within");
+                let matches_kind = |ty: &Type| match ty {
+                    Type::List(item) if tasks => matches!(**item, Type::Task(_)),
+                    Type::List(item) => matches!(**item, Type::Channel(_)),
+                    _ => false,
+                };
+                let listed = self.expr(&args[0])?;
+                if !matches_kind(&listed) {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        if tasks {
+                            "first_ready needs a list of tasks"
+                        } else {
+                            "first_value needs a list of channels"
+                        },
+                        args[0].span(),
+                    ));
+                }
+                if within {
+                    if self.expr(&args[1])? != Type::Int {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "the time limit must be Int milliseconds",
+                            args[1].span(),
+                        ));
+                    }
+                } else {
+                    self.emit(Op::Const(Value::Int(BigInt::from_i64(-1))), span);
+                }
+                self.emit(
+                    if tasks {
+                        Op::FirstReady
+                    } else {
+                        Op::FirstValue
+                    },
+                    span,
+                );
+                if within {
+                    Ok(Type::Option(Box::new(Type::Int)))
+                } else {
+                    self.emit(Op::Unwrap, span);
+                    Ok(Type::Int)
+                }
+            }
+        }
+    }
+
     fn function_argument(
         &mut self,
         arg: &Expr,
@@ -3587,7 +3724,7 @@ impl<'a> FnCompiler<'a> {
     fn type_has_task(&self, ty: &Type) -> bool {
         fn walk(ty: &Type, records: &[RecordAst], seen: &mut Vec<String>) -> bool {
             match ty {
-                Type::Task(_) => true,
+                Type::Task(_) | Type::Channel(_) => true,
                 Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
                     walk(item, records, seen)
                 }
@@ -4489,6 +4626,39 @@ impl<'a> FnCompiler<'a> {
                         Box::new(Type::List(Box::new(worker_result))),
                         Box::new(Type::TaskError),
                     ));
+                }
+                if matches!(
+                    name.as_str(),
+                    "channel"
+                        | "send"
+                        | "receive"
+                        | "close"
+                        | "first_ready"
+                        | "first_ready_within"
+                        | "first_value"
+                        | "first_value_within"
+                ) && !self.visible_functions.contains_key(name)
+                    && !self.locals.contains_key(name)
+                {
+                    if !keywords.is_empty() {
+                        return Err(diagnostic(
+                            "E_CALL_KEYWORD",
+                            format!("{name} accepts positional arguments only"),
+                            keywords[0].2,
+                        ));
+                    }
+                    let arity = match name.as_str() {
+                        "channel" | "receive" | "close" | "first_ready" | "first_value" => 1,
+                        _ => 2,
+                    };
+                    if args.len() != arity {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            format!("{name} expects {arity} argument(s)"),
+                            *s,
+                        ));
+                    }
+                    return self.channel_builtin(name, args, expected, *s);
                 }
                 if matches!(name.as_str(), "start" | "wait" | "wait_within")
                     && !self.visible_functions.contains_key(name)
@@ -7703,6 +7873,13 @@ fn compile_program_pass(
                 ));
             }
         }
+        if compiler.type_has_task(&f.result) {
+            return Err(diagnostic(
+                "E_SCOPE_ESCAPE",
+                "a function cannot return a task or a channel: they belong to their `together:` block",
+                f.span,
+            ));
+        }
         compiler.stmts(&f.body)?;
         if f.result == Type::Unit {
             compiler.emit(Op::Const(Value::Unit), f.span);
@@ -7864,6 +8041,7 @@ fn python_bridge_type(ty: &Type) -> bool {
         | Type::Array(_)
         | Type::Fn(_, _)
         | Type::Task(_)
+        | Type::Channel(_)
         | Type::IntMap(_)
         | Type::RecordApp(_, _) => false,
         Type::Option(_)

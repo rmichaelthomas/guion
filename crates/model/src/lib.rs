@@ -2687,6 +2687,7 @@ impl ShareAcrossThreads for Value {
             | Value::NativeResource(_)
             | Value::Function(_)
             | Value::Task(_)
+            | Value::Channel(_)
             | Value::Unit => {}
         }
     }
@@ -3225,6 +3226,8 @@ pub enum Value {
     Function(usize),
     /// A background task of a `together:` block: its index in the instance's task table (format 76).
     Task(usize),
+    /// A channel of a `together:` block: its index in the shared channel table (format 76).
+    Channel(usize),
     /// A function value with captured values (artifact format 74): the function index and
     /// the values it was created with, passed before its own arguments.
     Closure(usize, Shared<Vec<Value>>),
@@ -3306,6 +3309,7 @@ impl PartialEq for Value {
             (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
             (Value::Function(left), Value::Function(right)) => left == right,
             (Value::Task(left), Value::Task(right)) => left == right,
+            (Value::Channel(left), Value::Channel(right)) => left == right,
             (Value::Closure(left, left_captured), Value::Closure(right, right_captured)) => {
                 left == right && left_captured == right_captured
             }
@@ -3435,6 +3439,7 @@ impl fmt::Display for Value {
             Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
             Value::Function(index) => write!(f, "<function {index}>"),
             Value::Task(index) => write!(f, "<task {index}>"),
+            Value::Channel(index) => write!(f, "<channel {index}>"),
             Value::Closure(index, _) => write!(f, "<function {index}>"),
             Value::Unit => f.write_str("()"),
         }
@@ -3464,6 +3469,7 @@ pub enum Type {
     Array(ElementType),
     Fn(Vec<Type>, Box<Type>),
     Task(Box<Type>),
+    Channel(Box<Type>),
     Unit,
 }
 
@@ -3500,6 +3506,21 @@ impl Type {
             Type::Result(ok, err) => ok.contains_int_map() || err.contains_int_map(),
             Type::Fn(parameters, result) => {
                 parameters.iter().any(Type::contains_int_map) || result.contains_int_map()
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether this type is, or holds, a channel.
+    pub fn contains_channel(&self) -> bool {
+        match self {
+            Type::Channel(_) => true,
+            Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+                item.contains_channel()
+            }
+            Type::Result(ok, err) => ok.contains_channel() || err.contains_channel(),
+            Type::Fn(parameters, result) => {
+                parameters.iter().any(Type::contains_channel) || result.contains_channel()
             }
             _ => false,
         }
@@ -4334,6 +4355,12 @@ pub enum Op {
     TogetherExit,
     TaskWait,
     TaskWaitWithin,
+    ChannelNew(Type),
+    ChannelSend,
+    ChannelReceive,
+    ChannelClose,
+    FirstReady,
+    FirstValue,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -5244,6 +5271,15 @@ impl Artifact {
                     Op::TogetherExit => w.u8(212),
                     Op::TaskWait => w.u8(213),
                     Op::TaskWaitWithin => w.u8(214),
+                    Op::ChannelNew(item) => {
+                        w.u8(215);
+                        w.ty(item)?;
+                    }
+                    Op::ChannelSend => w.u8(216),
+                    Op::ChannelReceive => w.u8(217),
+                    Op::ChannelClose => w.u8(218),
+                    Op::FirstReady => w.u8(219),
+                    Op::FirstValue => w.u8(220),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -5816,7 +5852,7 @@ impl Artifact {
                             "general sort and sort_by with a key require artifact format 65",
                         ));
                     }
-                    211..=214 if format_version < 76 => {
+                    211..=220 if format_version < 76 => {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "together blocks require artifact format 76",
@@ -5826,6 +5862,12 @@ impl Artifact {
                     212 => Op::TogetherExit,
                     213 => Op::TaskWait,
                     214 => Op::TaskWaitWithin,
+                    215 => Op::ChannelNew(r.ty()?),
+                    216 => Op::ChannelSend,
+                    217 => Op::ChannelReceive,
+                    218 => Op::ChannelClose,
+                    219 => Op::FirstReady,
+                    220 => Op::FirstValue,
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -6657,8 +6699,15 @@ fn artifact_uses_core_count(artifact: &Artifact) -> bool {
                     | Op::TogetherExit
                     | Op::TaskWait
                     | Op::TaskWaitWithin
+                    | Op::ChannelNew(_)
+                    | Op::ChannelSend
+                    | Op::ChannelReceive
+                    | Op::ChannelClose
+                    | Op::FirstReady
+                    | Op::FirstValue
             )
-        })
+        }) || function.parameters.iter().any(Type::contains_channel)
+            || function.result.contains_channel()
     })
 }
 
@@ -7364,6 +7413,10 @@ impl Writer {
                     "a task type cannot be written into an artifact; tasks stay inside their together: block",
                 ));
             }
+            Type::Channel(item) => {
+                self.u8(21);
+                self.ty(item)?;
+            }
             Type::Json => self.u8(7),
             Type::JsonError => self.u8(8),
             Type::FileError => self.u8(9),
@@ -7534,10 +7587,10 @@ impl Writer {
                     "function values cannot be serialized as constants",
                 ));
             }
-            Value::Task(_) => {
+            Value::Task(_) | Value::Channel(_) => {
                 return Err(ArtifactError::new(
                     "E_ARTIFACT_VALUE",
-                    "tasks cannot be serialized as constants",
+                    "tasks and channels cannot be serialized as constants",
                 ));
             }
         }
@@ -7645,6 +7698,7 @@ impl<'a> Reader<'a> {
                     })
             }
             20 => Ok(Type::IntMap(Box::new(self.ty_at(depth + 1)?))),
+            21 => Ok(Type::Channel(Box::new(self.ty_at(depth + 1)?))),
             19 => {
                 let count = self.count()?;
                 if count > 255 {
