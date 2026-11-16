@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from shutil import copytree, ignore_patterns, rmtree
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import shutil
 import subprocess
 import tempfile
 from threading import Lock
@@ -20,9 +21,9 @@ if not DEFAULT_PROJECT.is_dir():
     DEFAULT_PROJECT = ROOT / "examples/feed_inbox"
 PROJECT = Path(os.environ.get("GUION_FEED_INBOX_PROJECT", DEFAULT_PROJECT))
 GUION = Path(os.environ.get("GUION_BINARY", ROOT / "target/debug/guion"))
-UV = Path(os.environ.get("GUION_UV", "/private/tmp/guion-foundation-rc35-verify/guion-0.1.0-darwin-arm64/toolchains/uv"))
-UV_CACHE = Path(os.environ.get("UV_CACHE_DIR", "/private/tmp/guion-uv-interop-rc34"))
-PYTHON_INSTALL = Path(os.environ.get("UV_PYTHON_INSTALL_DIR", "/private/tmp/guion-python-cold-rc33"))
+UV = Path(os.environ.get("GUION_UV") or shutil.which("uv") or "uv")
+UV_CACHE = Path(os.environ.get("UV_CACHE_DIR") or Path(tempfile.gettempdir()) / "guion-test-uv-cache")
+PYTHON_INSTALL = Path(os.environ.get("UV_PYTHON_INSTALL_DIR") or Path(tempfile.gettempdir()) / "guion-test-python")
 FEED = """<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0"><channel><title>Fixture</title><link>http://example.test/</link><description>fixture</description>
 <item><title>A Refreshed Café</title><link>https://example.test/a</link><pubDate>Wed, 21 Oct 2026 07:28:00 GMT</pubDate></item>
