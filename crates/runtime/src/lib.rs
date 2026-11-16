@@ -54,6 +54,7 @@ mod yaml;
 
 mod entropy;
 mod tape;
+mod tasks;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
@@ -667,6 +668,7 @@ impl Runtime {
             omitted_effects: 0,
             python_native_image_observation: "not_used".into(),
             python_native_images: Vec::new(),
+            together: tasks::Together::default(),
         })
     }
 }
@@ -713,6 +715,8 @@ pub struct Instance {
     omitted_effects: usize,
     python_native_image_observation: String,
     python_native_images: Vec<String>,
+    /// The `together:` blocks this instance is inside and the tasks they started.
+    together: tasks::Together,
 }
 
 impl HostPolicy {
@@ -1104,6 +1108,10 @@ impl VmHost for Instance {
         } = context;
         let operation = opcode_profile_name(&instruction.op);
         if tape.is_replay() {
+            // A replayed wait_within makes the live task match what the recording saw.
+            let waited_task = matches!(instruction.op, Op::TaskWaitWithin)
+                .then(|| stack.len().checked_sub(2).map(|at| stack[at].clone()))
+                .flatten();
             return match tape.replay(
                 &self.tape_lane,
                 operation,
@@ -1112,6 +1120,14 @@ impl VmHost for Instance {
                 stack.as_slice(),
             )? {
                 Ok((kept, values)) => {
+                    if let Some(task) = waited_task {
+                        let timed_out = matches!(
+                            values.first(),
+                            Some(Value::ResultErr(error))
+                                if matches!(error.as_ref(), Value::TaskError(fault) if fault.code == "R_DEADLINE")
+                        );
+                        self.task_settle_replayed_wait(&task, timed_out, budget, instruction.span)?;
+                    }
                     stack.truncate(kept);
                     stack.extend(values);
                     Ok(())
@@ -1322,6 +1338,49 @@ impl Instance {
                 if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
                     return Err(error);
                 }
+            }
+            Op::HigherOrder(HigherOrderKind::StartTask) => {
+                let function = match pop!() {
+                    Value::Function(index) => index,
+                    Value::Closure(..) => {
+                        return Err(RuntimeError::new(
+                            "R_FN_CLOSURE",
+                            "start takes a named function, not a function that captures values",
+                            instruction.span,
+                        ));
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let argument = pop!();
+                let task = self.task_start(function, argument, depth + 1, instruction.span)?;
+                push_stack!(task);
+            }
+            Op::TogetherEnter => self.together_enter(budget),
+            Op::TogetherExit => self.together_exit(instruction.span)?,
+            Op::TaskWait => {
+                let task = pop!();
+                let result = self.task_wait(&task, None, budget, instruction.span)?;
+                push_stack!(result);
+            }
+            Op::TaskWaitWithin => {
+                let milliseconds = match pop!() {
+                    Value::Int(value) => value.to_i64().unwrap_or(0).max(0) as u64,
+                    _ => 0,
+                };
+                let task = pop!();
+                let result = self.task_wait(
+                    &task,
+                    Some(Duration::from_millis(milliseconds)),
+                    budget,
+                    instruction.span,
+                )?;
+                push_stack!(result);
             }
             Op::HigherOrder(HigherOrderKind::TryParallelMap) => {
                 let span = instruction.span;
@@ -7506,6 +7565,7 @@ impl Instance {
                         omitted_effects: 0,
                         python_native_image_observation: "not_used".into(),
                         python_native_images: Vec::new(),
+                        together: tasks::Together::default(),
                     };
                     let result = worker.invoke_inner(
                         function,
@@ -8777,6 +8837,7 @@ fn input_value_allocation(value: &Value) -> usize {
                 .fold(0usize, usize::saturating_add),
         ),
         Value::Json(_) => 0,
+        Value::Task(_) => size_of::<Value>(),
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
             size_of::<Value>().saturating_add(input_value_allocation(value))
         }

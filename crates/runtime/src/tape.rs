@@ -134,6 +134,7 @@ pub(crate) fn encode_value(value: &Value) -> Result<Json, String> {
         }
         Value::Array(_) => return Err(unsupported("typed array")),
         Value::Function(_) | Value::Closure(..) => return Err(unsupported("function value")),
+        Value::Task(_) => return Err(unsupported("task")),
     })
 }
 
@@ -789,6 +790,7 @@ pub(crate) fn is_world_operation(op: &guion_model::Op) -> bool {
             | Op::Net(_)
             | Op::Tls(_)
             | Op::Process(_)
+            | Op::TaskWaitWithin
             | Op::Args
             | Op::ArgsFrom
             | Op::Environment

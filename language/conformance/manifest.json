@@ -10622,6 +10622,146 @@
       }
     },
     {
+      "id": "opcode-together-enter",
+      "kind": "opcode",
+      "name": "TogetherEnter",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-together-enter.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-together-enter.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-together-enter.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-together-exit",
+      "kind": "opcode",
+      "name": "TogetherExit",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-together-exit.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-together-exit.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-together-exit.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-task-wait",
+      "kind": "opcode",
+      "name": "TaskWait",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-task-wait.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-task-wait.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-task-wait.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-task-wait-within",
+      "kind": "opcode",
+      "name": "TaskWaitWithin",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-task-wait-within.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-task-wait-within.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-task-wait-within.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "type-task",
+      "kind": "type",
+      "name": "Task",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Type",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "type.task.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "type.task.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "type.task.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
       "id": "opcode-call-fn",
       "kind": "opcode",
       "name": "CallFn",

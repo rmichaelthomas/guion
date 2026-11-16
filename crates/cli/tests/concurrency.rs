@@ -316,3 +316,186 @@ fn a_recorded_deadline_replays_with_the_same_item_timing_out_and_nothing_granted
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- Part 3: together:, start, wait, wait_within ----
+
+fn project_failure(name: &str, source: &str) -> String {
+    let output = run_project(name, "", &[], source);
+    assert!(!output.status.success(), "{}", stdout(&output));
+    stderr(&output)
+}
+
+#[test]
+fn tasks_run_in_the_background_and_wait_gives_their_results() {
+    let output = run_project(
+        "tg-basic",
+        "",
+        &[],
+        "fn double(n: Int) -> Int:\n    return n * 2\n\nfn triple(n: Int) -> Int:\n    return n * 3\n\nfn main() -> Int:\n    var total = 0\n    together:\n        let a = start(double, 21)\n        let b = start(triple, 5)\n        let x = wait(a)\n        let y = wait(b)\n        if is_ok(x) and is_ok(y):\n            set total = unwrap(x) + unwrap(y)\n    print(total)\n    return 0\n",
+    );
+    assert_eq!(stdout(&output), "57", "{}", stderr(&output));
+}
+
+#[test]
+fn a_fault_in_a_task_is_its_own_err_and_siblings_are_untouched() {
+    let output = run_project(
+        "tg-fault",
+        "",
+        &[],
+        "fn pick(n: Int) -> Int:\n    let items = [10, 20]\n    return items[n]\n\nfn main() -> Int:\n    together:\n        let a = start(pick, 1)\n        let b = start(pick, 9)\n        let c = start(pick, 0)\n        let x = wait(a)\n        let y = wait(b)\n        let z = wait(c)\n        print(is_ok(x))\n        print(is_ok(y))\n        print(is_ok(z))\n    return 0\n",
+    );
+    assert_eq!(stdout(&output), "true\nfalse\ntrue", "{}", stderr(&output));
+}
+
+#[test]
+fn a_task_not_waited_for_is_stopped_when_its_block_ends() {
+    // The task would spin for far longer than the test allows.
+    let started = Instant::now();
+    let output = run_project(
+        "tg-unwaited",
+        "[package]\nname = \"c\"\nversion = \"0.1.0\"\n[runtime]\ninstruction_limit = 100000000000\n",
+        &[],
+        "fn spin(n: Int) -> Int:\n    var i = 0\n    while i < n:\n        set i = i + 1\n    return i\n\nfn main() -> Int:\n    together:\n        let watcher = start(spin, 4000000000)\n        print(\"working\")\n    print(\"done\")\n    return 0\n",
+    );
+    assert_eq!(stdout(&output), "working\ndone", "{}", stderr(&output));
+    assert!(
+        started.elapsed() < Duration::from_secs(8),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn wait_within_gives_up_with_r_deadline_and_the_block_still_ends_promptly() {
+    let server = slow_server(Duration::from_millis(10));
+    let started = Instant::now();
+    let output = run_project(
+        "tg-within",
+        "",
+        &["--allow-http-host", "127.0.0.1"],
+        &format!(
+            "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn main() -> Int:\n    together:\n        let fast = start(fetch, \"http://{0}/a\")\n        let slow = start(fetch, \"http://{0}/hang\")\n        let first = wait_within(fast, 3000)\n        let second = wait_within(slow, 400)\n        print(is_ok(first))\n        if is_ok(second):\n            print(\"slow finished\")\n        else:\n            print(task_code(error(second)))\n    return 0\n",
+            server.address
+        ),
+    );
+    assert_eq!(stdout(&output), "true\nR_DEADLINE", "{}", stderr(&output));
+    assert!(
+        started.elapsed() < Duration::from_secs(6),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn a_task_has_the_parents_grants_and_no_others() {
+    let server = slow_server(Duration::from_millis(10));
+    let source = format!(
+        "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn main() -> Int:\n    together:\n        let t = start(fetch, \"http://{}/a\")\n        let r = wait(t)\n        print(unwrap(r))\n    return 0\n",
+        server.address
+    );
+    let denied = run_project("tg-grant-no", "", &[], &source);
+    assert_eq!(stdout(&denied), "0", "{}", stderr(&denied));
+    let allowed = run_project(
+        "tg-grant-yes",
+        "",
+        &["--allow-http-host", "127.0.0.1"],
+        &source,
+    );
+    assert_eq!(stdout(&allowed), "1", "{}", stderr(&allowed));
+}
+
+#[test]
+fn start_outside_a_block_and_leaving_a_block_early_are_refused_when_the_code_is_checked() {
+    let outside = project_failure(
+        "tg-outside",
+        "fn one(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    let t = start(one, 1)\n    return 0\n",
+    );
+    assert!(outside.contains("E_START_OUTSIDE_TOGETHER"), "{outside}");
+
+    let early = project_failure(
+        "tg-return",
+        "fn one(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    together:\n        let t = start(one, 1)\n        return 0\n    return 0\n",
+    );
+    assert!(early.contains("E_TOGETHER_EXIT"), "{early}");
+}
+
+#[test]
+fn a_task_cannot_leave_its_block() {
+    let printed = project_failure(
+        "tg-print",
+        "fn one(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    together:\n        let t = start(one, 1)\n        print(t)\n    return 0\n",
+    );
+    assert!(printed.contains("E_SCOPE_ESCAPE"), "{printed}");
+
+    let outer = project_failure(
+        "tg-outer",
+        "fn one(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    together:\n        var held = start(one, 1)\n        together:\n            set held = start(one, 2)\n    return 0\n",
+    );
+    assert!(outer.contains("E_SCOPE_ESCAPE"), "{outer}");
+
+    let after = project_failure(
+        "tg-after",
+        "fn one(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    together:\n        let t = start(one, 1)\n    let r = wait(t)\n    return 0\n",
+    );
+    assert!(after.contains("E_NAME_UNKNOWN"), "{after}");
+}
+
+#[test]
+fn an_error_that_unwinds_past_a_block_still_stops_its_tasks() {
+    let server = slow_server(Duration::from_millis(10));
+    let started = Instant::now();
+    let output = run_project(
+        "tg-unwind",
+        "",
+        &["--allow-http-host", "127.0.0.1"],
+        &format!(
+            "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        return 1\n    return 0\n\nfn main() -> Int:\n    together:\n        let slow = start(fetch, \"http://{}/hang\")\n        let items = [1]\n        print(items[5])\n    return 0\n",
+            server.address
+        ),
+    );
+    assert!(!output.status.success());
+    assert!(
+        started.elapsed() < Duration::from_secs(8),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn a_recorded_wait_within_replays_the_same_way_with_nothing_granted() {
+    let server = slow_server(Duration::from_millis(10));
+    let dir = std::env::temp_dir().join(format!("guion-conc-tg-replay-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("main.gu"),
+        format!(
+            "fn fetch(url: Text) -> Int:\n    if is_ok(http_get(url)):\n        print(\"fetched\")\n        return 1\n    return 0\n\nfn main() -> Int:\n    together:\n        let fast = start(fetch, \"http://{0}/a\")\n        let slow = start(fetch, \"http://{0}/hang\")\n        let first = wait_within(fast, 3000)\n        let second = wait_within(slow, 400)\n        print(is_ok(first))\n        print(is_ok(second))\n    return 0\n",
+            server.address
+        ),
+    )
+    .unwrap();
+    let guion = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(args)
+            .current_dir(&dir)
+            .env("GUION_NO_PROMPT", "1")
+            .output()
+            .expect("guion starts")
+    };
+    let recorded = guion(&[
+        "run",
+        "--allow-http-host",
+        "127.0.0.1",
+        "--record",
+        "t.tape",
+        "main.gu",
+    ]);
+    let expected = "fetched\ntrue\nfalse";
+    assert_eq!(stdout(&recorded), expected, "{}", stderr(&recorded));
+    for _ in 0..10 {
+        let replayed = guion(&["run", "--replay", "t.tape", "main.gu"]);
+        assert_eq!(stdout(&replayed), expected, "{}", stderr(&replayed));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

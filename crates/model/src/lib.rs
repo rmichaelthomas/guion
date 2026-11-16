@@ -2686,6 +2686,7 @@ impl ShareAcrossThreads for Value {
             | Value::HttpError(_)
             | Value::NativeResource(_)
             | Value::Function(_)
+            | Value::Task(_)
             | Value::Unit => {}
         }
     }
@@ -3222,6 +3223,8 @@ pub enum Value {
     HttpError(Box<HttpErrorValue>),
     NativeResource(Box<NativeResourceValue>),
     Function(usize),
+    /// A background task of a `together:` block: its index in the instance's task table (format 76).
+    Task(usize),
     /// A function value with captured values (artifact format 74): the function index and
     /// the values it was created with, passed before its own arguments.
     Closure(usize, Shared<Vec<Value>>),
@@ -3302,6 +3305,7 @@ impl PartialEq for Value {
             (Value::HttpError(left), Value::HttpError(right)) => left == right,
             (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
             (Value::Function(left), Value::Function(right)) => left == right,
+            (Value::Task(left), Value::Task(right)) => left == right,
             (Value::Closure(left, left_captured), Value::Closure(right, right_captured)) => {
                 left == right && left_captured == right_captured
             }
@@ -3430,6 +3434,7 @@ impl fmt::Display for Value {
             Value::HttpError(error) => write!(f, "HttpError({}, {})", error.code, error.message),
             Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
             Value::Function(index) => write!(f, "<function {index}>"),
+            Value::Task(index) => write!(f, "<task {index}>"),
             Value::Closure(index, _) => write!(f, "<function {index}>"),
             Value::Unit => f.write_str("()"),
         }
@@ -3458,6 +3463,7 @@ pub enum Type {
     NativeResource(String),
     Array(ElementType),
     Fn(Vec<Type>, Box<Type>),
+    Task(Box<Type>),
     Unit,
 }
 
@@ -3529,10 +3535,12 @@ pub enum HigherOrderKind {
     /// `try_parallel_map(list, f, Workers(...))` (format 76): workers with per-item results and
     /// deadlines.
     TryParallelMap,
+    /// `start(f, argument)` inside a `together:` block (format 76).
+    StartTask,
 }
 
 impl HigherOrderKind {
-    pub const ALL: [HigherOrderKind; 12] = [
+    pub const ALL: [HigherOrderKind; 13] = [
         HigherOrderKind::SortBy,
         HigherOrderKind::SortByKey,
         HigherOrderKind::SortByIntKey,
@@ -3545,6 +3553,7 @@ impl HigherOrderKind {
         HigherOrderKind::AllList,
         HigherOrderKind::TryMapList,
         HigherOrderKind::TryParallelMap,
+        HigherOrderKind::StartTask,
     ];
 
     pub fn code(self) -> u8 {
@@ -3572,6 +3581,7 @@ impl HigherOrderKind {
             HigherOrderKind::AllList => "AllList",
             HigherOrderKind::TryMapList => "TryMapList",
             HigherOrderKind::TryParallelMap => "TryParallelMap",
+            HigherOrderKind::StartTask => "StartTask",
         }
     }
 
@@ -4320,6 +4330,10 @@ pub enum Op {
     MakeClosure(usize, usize),
     CallFn(usize),
     HigherOrder(HigherOrderKind),
+    TogetherEnter,
+    TogetherExit,
+    TaskWait,
+    TaskWaitWithin,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -5226,6 +5240,10 @@ impl Artifact {
                         w.count(*target)?;
                         w.count(*captured)?;
                     }
+                    Op::TogetherEnter => w.u8(211),
+                    Op::TogetherExit => w.u8(212),
+                    Op::TaskWait => w.u8(213),
+                    Op::TaskWaitWithin => w.u8(214),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -5798,6 +5816,16 @@ impl Artifact {
                             "general sort and sort_by with a key require artifact format 65",
                         ));
                     }
+                    211..=214 if format_version < 76 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "together blocks require artifact format 76",
+                        ));
+                    }
+                    211 => Op::TogetherEnter,
+                    212 => Op::TogetherExit,
+                    213 => Op::TaskWait,
+                    214 => Op::TaskWaitWithin,
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -5812,7 +5840,7 @@ impl Artifact {
                     199 if format_version >= 66 => Op::CallFn(r.count()?),
                     200 if format_version >= 66 => {
                         let code = r.u8()?;
-                        if code == HigherOrderKind::TryParallelMap.code() && format_version < 76 {
+                        if code >= HigherOrderKind::TryParallelMap.code() && format_version < 76 {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "try_parallel_map requires artifact format 76",
@@ -6624,7 +6652,11 @@ fn artifact_uses_core_count(artifact: &Artifact) -> bool {
             matches!(
                 instruction.op,
                 Op::Process(ProcessFunction::CoreCount)
-                    | Op::HigherOrder(HigherOrderKind::TryParallelMap)
+                    | Op::HigherOrder(HigherOrderKind::TryParallelMap | HigherOrderKind::StartTask)
+                    | Op::TogetherEnter
+                    | Op::TogetherExit
+                    | Op::TaskWait
+                    | Op::TaskWaitWithin
             )
         })
     })
@@ -7326,6 +7358,12 @@ impl Writer {
                 self.ty(err)?;
             }
             Type::TaskError => self.u8(6),
+            Type::Task(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_TYPE",
+                    "a task type cannot be written into an artifact; tasks stay inside their together: block",
+                ));
+            }
             Type::Json => self.u8(7),
             Type::JsonError => self.u8(8),
             Type::FileError => self.u8(9),
@@ -7494,6 +7532,12 @@ impl Writer {
                 return Err(ArtifactError::new(
                     "E_ARTIFACT_VALUE",
                     "function values cannot be serialized as constants",
+                ));
+            }
+            Value::Task(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_VALUE",
+                    "tasks cannot be serialized as constants",
                 ));
             }
         }
