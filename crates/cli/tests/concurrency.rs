@@ -791,14 +791,23 @@ mod background {
 fn record_arguments_can_be_named_in_any_order() {
     let source = "record Box:\n    width: Int\n    height: Int\n    label: Text\n\nfn line(b: Box) -> Text:\n    return int_to_text(b.width) + \" \" + int_to_text(b.height) + \" \" + b.label\n\nfn main() -> Int:\n    print(line(Box(1, 2, \"a\")))\n    print(line(Box(label=\"b\", height=20, width=10)))\n    print(line(Box(5, label=\"c\", height=6)))\n    return 0\n";
     let output = run_project("named-ok", "", &[], source);
-    assert_eq!(stdout(&output), "1 2 a\n10 20 b\n5 6 c", "{}", stderr(&output));
+    assert_eq!(
+        stdout(&output),
+        "1 2 a\n10 20 b\n5 6 c",
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
 fn record_argument_mistakes_are_named() {
     let base = "record Box:\n    width: Int\n    height: Int\n\nfn main() -> Int:\n    let b = BODY\n    return b.width\n";
     for (body, code, words) in [
-        ("Box(width=1, depth=2)", "E_CALL_KEYWORD", "no field `depth`"),
+        (
+            "Box(width=1, depth=2)",
+            "E_CALL_KEYWORD",
+            "no field `depth`",
+        ),
         ("Box(1, width=2)", "E_CALL_KEYWORD", "given twice"),
         ("Box(1, 2, 3, height=4)", "E_CALL_ARITY", "positional"),
         ("Box(width=1)", "E_CALL_ARITY", "missing height"),
@@ -806,7 +815,10 @@ fn record_argument_mistakes_are_named() {
         let output = run_project("named-bad", "", &[], &base.replace("BODY", body));
         assert!(!output.status.success(), "{body}");
         let text = stderr(&output);
-        assert!(text.contains(code) && text.contains(words), "{body}: {text}");
+        assert!(
+            text.contains(code) && text.contains(words),
+            "{body}: {text}"
+        );
     }
 }
 
@@ -823,7 +835,10 @@ fn first_ready_needs_std_process_for_the_ready_record() {
         "ready-import",
         "fn id(n: Int) -> Int:\n    return n\n\nfn main() -> Int:\n    together:\n        let t = start(id, 1)\n        let won = first_ready([t])\n    return 0\n",
     );
-    assert!(text.contains("E_IMPORT_REQUIRED") && text.contains("std:process"), "{text}");
+    assert!(
+        text.contains("E_IMPORT_REQUIRED") && text.contains("std:process"),
+        "{text}"
+    );
 }
 
 #[test]
