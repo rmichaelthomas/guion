@@ -26,6 +26,17 @@ The rename is a pre-1.0 transition. The current CLI retains read compatibility f
 
 This compatibility is a migration aid, not a guarantee that old names will remain supported through 1.0. New projects and new outputs use Guion names. A Guion project may continue to contain a legacy-named manifest while it is being migrated; avoid creating both old and new manifest or lock files in the same project, because that makes project identity ambiguous.
 
+## Moving from 0.6.0 to 0.7.0
+
+Nothing is removed, renamed or re-signed, and no word is newly reserved: a 0.6.0 program compiles and runs unchanged. `together`, `start`, `wait`, `send`, `close` and the other new names still work as your own function, variable and record names.
+
+- **Artifact format 76.** The runtime reads formats 14 through 76 and writes 76. A program that uses `together:`, channels, `try_parallel_map` or background commands needs a runtime that reads format 76 and is refused by an older one with `E_ARTIFACT_VERSION`.
+- **Worker limit.** `parallel_map` now allows 64 workers on every machine, not one per core. `[runtime] max_parallelism` can raise it to 1024.
+- **`std:process` has three new records.** `Workers`, `Process` and `Ready` come with `import "std:process"`; a program that imports it and declares a record with one of those names needs it renamed.
+- **Named record arguments.** `Box(height=2, width=1)` is accepted for any record; positional calls are unchanged.
+- **Unix and Windows.** Background commands run in their own process group on Unix and in a job object on Windows. Only the Unix behaviour is covered by the full test suite; see [the design notes](design-structured-concurrency.md).
+- **Browser.** `together:` and `try_parallel_map` need threads and report that in the browser playground.
+
 ## Moving from 0.5.0 to 0.6.0
 
 Nothing is removed, renamed or re-signed, and no word is newly reserved: a 0.5.0 program compiles and runs unchanged.

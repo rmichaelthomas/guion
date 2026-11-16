@@ -28,7 +28,7 @@ site/qa/           browser results and screenshots (not deployed)
 
 ## Rules that are easy to break
 
-- **Download and GitHub links.** The page names release 0.6.0, v0.6.0 (Linux, macOS and Windows), and links the GitHub release page and the repository from the hero, the navigation and the footer. Downloads themselves live on the release page.
+- **Download and GitHub links.** The page names release 0.7.0, v0.7.0 (Linux, macOS and Windows), and links the GitHub release page and the repository from the hero, the navigation and the footer. Downloads themselves live on the release page.
 - **No figure without a source.** A number goes in `site/src/claims.json` with the report that states it, never a bare number in a section file. The tests fail if the report does not say it.
 - **Plain English and Developer are two authored views**, not one view with parts hidden. Both live side by side in each section (`.v-plain`, `.v-dev`).
 - **No JavaScript except `playground/loader.mjs`**, and it does nothing until the visitor presses Run. No remote request of any kind, no remote fonts.

@@ -2,9 +2,9 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
-## Unreleased
+## 0.7.0 — 2026-11-15
 
-Additions only, plus the artifact format going from 75 to 76 (older artifacts still load; a program that calls `core_count` needs this runtime).
+Additions only, plus the artifact format going from 75 to 76 (older artifacts still load; a program that uses `together:`, channels, background commands, `try_parallel_map` or `core_count` needs this runtime). Nothing is removed or re-signed.
 
 - Record constructors take fields by name: `Box(height=2, width=1)`, or a mix with positional first, `Box(1, height=2)`. An unknown or repeated field, too many positional arguments or a missing field is an error that names it. `Workers(at_once=50, each_ms=5000, all_ms=30000)` uses it.
 - Python calls inside a timed `try_parallel_map` item stop at the item's deadline (`R_DEADLINE`) instead of running to the bridge's own 15 s limit. The `python-interop` feature builds again: it had stopped compiling after values moved to shared pointers, and its tests are updated.
