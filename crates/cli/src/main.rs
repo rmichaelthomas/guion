@@ -3082,14 +3082,18 @@ fn inspection_report(
                     direct_effects[function_index].insert("network.socket".into());
                 }
                 Op::Process(function) => match function {
-                    guion_model::ProcessFunction::Run => {
+                    guion_model::ProcessFunction::Run | guion_model::ProcessFunction::Start => {
                         direct_effects[function_index].insert("process.spawn".into());
                     }
                     guion_model::ProcessFunction::SignalPoll => {
                         direct_effects[function_index].insert("process.signals".into());
                     }
-                    guion_model::ProcessFunction::Pid | guion_model::ProcessFunction::CoreCount => {
-                    }
+                    guion_model::ProcessFunction::Pid
+                    | guion_model::ProcessFunction::CoreCount
+                    | guion_model::ProcessFunction::Line
+                    | guion_model::ProcessFunction::Write
+                    | guion_model::ProcessFunction::CloseInput
+                    | guion_model::ProcessFunction::Wait => {}
                 },
                 Op::Args | Op::ArgsFrom => {
                     direct_effects[function_index].insert("process.arguments".into());

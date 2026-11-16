@@ -606,3 +606,183 @@ fn a_recorded_race_replays_with_the_same_winner_every_time() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- Part 5: commands in the background ----
+
+#[cfg(unix)]
+mod background {
+    use super::*;
+
+    fn pid_alive(pid: &str) -> bool {
+        Command::new("kill")
+            .args(["-0", pid])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
+    fn wait_until(limit: Duration, mut done: impl FnMut() -> bool) -> bool {
+        let started = Instant::now();
+        while started.elapsed() < limit {
+            if done() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        done()
+    }
+
+    #[test]
+    fn a_started_command_is_read_a_line_at_a_time_and_waited_for() {
+        let output = run_project(
+            "bg-lines",
+            "",
+            &["--allow-command", "sh"],
+            "import \"std:process\"\nimport \"std:types\"\n\nfn main() -> Int:\n    together:\n        match start_process(\"sh\", [\"-c\", \"echo one; echo two; exit 3\"]):\n            Ok(p):\n                var more = true\n                while more:\n                    match process_line(p):\n                        Some(line):\n                            print(line)\n                        None:\n                            set more = false\n                match process_wait(p):\n                    Ok(done):\n                        print(done.exit_code)\n                    Err(problem):\n                        print(problem.code)\n            Err(problem):\n                print(problem.code)\n    return 0\n",
+        );
+        assert_eq!(stdout(&output), "one\ntwo\n3", "{}", stderr(&output));
+    }
+
+    #[test]
+    fn input_can_be_written_and_closed() {
+        let output = run_project(
+            "bg-input",
+            "",
+            &["--allow-command", "cat"],
+            "import \"std:process\"\nimport \"std:types\"\n\nfn main() -> Int:\n    together:\n        match start_process(\"cat\", []):\n            Ok(p):\n                let wrote = process_write(p, \"hello\\nthere\\n\")\n                let closed = process_close_input(p)\n                match process_line(p):\n                    Some(line):\n                        print(line)\n                    None:\n                        print(\"none\")\n                match process_wait(p):\n                    Ok(done):\n                        print(done.stdout)\n                    Err(problem):\n                        print(problem.code)\n            Err(problem):\n                print(problem.code)\n    return 0\n",
+        );
+        assert_eq!(stdout(&output), "hello\nthere", "{}", stderr(&output));
+    }
+
+    #[test]
+    fn a_command_without_a_grant_is_refused_with_the_usual_fix() {
+        let output = run_project(
+            "bg-denied",
+            "",
+            &[],
+            "import \"std:process\"\nimport \"std:types\"\n\nfn main() -> Int:\n    together:\n        match start_process(\"sh\", [\"-c\", \"true\"]):\n            Ok(p):\n                print(\"started\")\n            Err(problem):\n                print(problem.code)\n                print(problem.message)\n    return 0\n",
+        );
+        let text = stdout(&output);
+        assert!(
+            text.starts_with("E_PROCESS_DENIED"),
+            "{text}{}",
+            stderr(&output)
+        );
+        assert!(text.contains("--allow-command sh"), "{text}");
+    }
+
+    #[test]
+    fn a_command_not_waited_for_is_gone_with_everything_it_started_when_the_block_ends() {
+        let dir = std::env::temp_dir().join(format!("guion-conc-bg-group-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("main.gu"),
+            "import \"std:process\"\nimport \"std:types\"\n\nfn main() -> Int:\n    together:\n        match start_process(\"sh\", [\"-c\", \"sleep 300 & echo $! > child.pid; echo ready; wait\"]):\n            Ok(p):\n                print(process_line(p))\n            Err(problem):\n                print(problem.code)\n    print(\"block ended\")\n    return 0\n",
+        )
+        .unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", "--allow-command", "sh", "main.gu"])
+            .current_dir(&dir)
+            .env("GUION_NO_PROMPT", "1")
+            .output()
+            .unwrap();
+        assert!(
+            stdout(&output).ends_with("block ended"),
+            "{}{}",
+            stdout(&output),
+            stderr(&output)
+        );
+        let pid = std::fs::read_to_string(dir.join("child.pid"))
+            .unwrap()
+            .trim()
+            .to_owned();
+        assert!(!pid.is_empty());
+        assert!(
+            wait_until(Duration::from_secs(5), || !pid_alive(&pid)),
+            "the command's own child {pid} was left running"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_interrupt_leaves_no_child_processes() {
+        let dir = std::env::temp_dir().join(format!("guion-conc-bg-int-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("main.gu"),
+            "import \"std:process\"\nimport \"std:types\"\n\nfn main() -> Int:\n    together:\n        match start_process(\"sh\", [\"-c\", \"sleep 300 & echo $! > child.pid; wait\"]):\n            Ok(p):\n                match process_wait(p):\n                    Ok(done):\n                        print(done.exit_code)\n                    Err(problem):\n                        print(problem.code)\n            Err(problem):\n                print(problem.code)\n    return 0\n",
+        )
+        .unwrap();
+        let mut guion = Command::new(env!("CARGO_BIN_EXE_guion"))
+            .args(["run", "--allow-command", "sh", "main.gu"])
+            .current_dir(&dir)
+            .env("GUION_NO_PROMPT", "1")
+            .spawn()
+            .unwrap();
+        let pid_file = dir.join("child.pid");
+        assert!(wait_until(Duration::from_secs(15), || {
+            std::fs::read_to_string(&pid_file)
+                .map(|text| !text.trim().is_empty())
+                .unwrap_or(false)
+        }));
+        let child_pid = std::fs::read_to_string(&pid_file)
+            .unwrap()
+            .trim()
+            .to_owned();
+        assert!(pid_alive(&child_pid));
+        Command::new("kill")
+            .args(["-INT", &guion.id().to_string()])
+            .status()
+            .unwrap();
+        let status = guion.wait().unwrap();
+        assert_eq!(status.code(), Some(130), "{status:?}");
+        assert!(
+            wait_until(Duration::from_secs(5), || !pid_alive(&child_pid)),
+            "the command's child {child_pid} survived the interrupt"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_process_cannot_leave_its_block() {
+        let returned = project_failure(
+            "bg-return",
+            "import \"std:process\"\nimport \"std:types\"\n\nfn make() -> Process:\n    return Process(0)\n\nfn main() -> Int:\n    return 0\n",
+        );
+        assert!(returned.contains("E_SCOPE_ESCAPE"), "{returned}");
+    }
+
+    #[test]
+    fn a_recorded_session_with_a_command_replays_with_nothing_granted() {
+        let dir = std::env::temp_dir().join(format!("guion-conc-bg-replay-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("main.gu"),
+            "import \"std:process\"\nimport \"std:types\"\n\nfn main() -> Int:\n    together:\n        match start_process(\"sh\", [\"-c\", \"echo alpha; echo beta\"]):\n            Ok(p):\n                var more = true\n                while more:\n                    match process_line(p):\n                        Some(line):\n                            print(line)\n                        None:\n                            set more = false\n                match process_wait(p):\n                    Ok(done):\n                        print(done.exit_code)\n                    Err(problem):\n                        print(problem.code)\n            Err(problem):\n                print(problem.code)\n    return 0\n",
+        )
+        .unwrap();
+        let guion = |args: &[&str]| {
+            Command::new(env!("CARGO_BIN_EXE_guion"))
+                .args(args)
+                .current_dir(&dir)
+                .env("GUION_NO_PROMPT", "1")
+                .output()
+                .unwrap()
+        };
+        let recorded = guion(&[
+            "run",
+            "--allow-command",
+            "sh",
+            "--record",
+            "t.tape",
+            "main.gu",
+        ]);
+        assert_eq!(stdout(&recorded), "alpha\nbeta\n0", "{}", stderr(&recorded));
+        let replayed = guion(&["run", "--replay", "t.tape", "main.gu"]);
+        assert_eq!(stdout(&replayed), "alpha\nbeta\n0", "{}", stderr(&replayed));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

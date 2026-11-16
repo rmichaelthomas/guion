@@ -4027,14 +4027,29 @@ pub enum ProcessFunction {
     SignalPoll,
     /// The number of processor cores the program may use (format 76). Pure; no grant.
     CoreCount,
+    /// Starts a granted command without waiting for it (format 76).
+    Start,
+    /// Reads the next line of a started command's output (format 76).
+    Line,
+    /// Writes text to a started command's input (format 76).
+    Write,
+    /// Closes a started command's input (format 76).
+    CloseInput,
+    /// Waits for a started command to exit (format 76).
+    Wait,
 }
 
 impl ProcessFunction {
-    const ALL: [ProcessFunction; 4] = [
+    const ALL: [ProcessFunction; 9] = [
         ProcessFunction::Run,
         ProcessFunction::Pid,
         ProcessFunction::SignalPoll,
         ProcessFunction::CoreCount,
+        ProcessFunction::Start,
+        ProcessFunction::Line,
+        ProcessFunction::Write,
+        ProcessFunction::CloseInput,
+        ProcessFunction::Wait,
     ];
 
     pub fn code(self) -> u8 {
@@ -4055,6 +4070,11 @@ impl ProcessFunction {
             ProcessFunction::Pid => "ProcessPid",
             ProcessFunction::SignalPoll => "ProcessSignalPoll",
             ProcessFunction::CoreCount => "ProcessCoreCount",
+            ProcessFunction::Start => "ProcessStart",
+            ProcessFunction::Line => "ProcessLine",
+            ProcessFunction::Write => "ProcessWrite",
+            ProcessFunction::CloseInput => "ProcessCloseInput",
+            ProcessFunction::Wait => "ProcessWait",
         }
     }
 
@@ -4069,6 +4089,8 @@ impl ProcessFunction {
     pub fn arity(self) -> usize {
         match self {
             ProcessFunction::Run => 3,
+            ProcessFunction::Start | ProcessFunction::Write => 2,
+            ProcessFunction::Line | ProcessFunction::CloseInput | ProcessFunction::Wait => 1,
             ProcessFunction::Pid | ProcessFunction::SignalPoll | ProcessFunction::CoreCount => 0,
         }
     }

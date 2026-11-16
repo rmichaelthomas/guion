@@ -997,6 +997,58 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                         state.stack.push(Type::Int)
                     }
                     guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
+                    guion_model::ProcessFunction::Start => {
+                        let arguments = pop_type(&mut state.stack, pc)?;
+                        let command = pop_type(&mut state.stack, pc)?;
+                        if arguments != texts || command != Type::Text {
+                            return Err(format!(
+                                "start_process requires Text and List[Text] operands at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(Type::Int), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::Line => {
+                        if pop_type(&mut state.stack, pc)? != Type::Int {
+                            return Err(format!(
+                                "process_line requires an Int handle at instruction {pc}"
+                            ));
+                        }
+                        state.stack.push(Type::Option(Box::new(Type::Text)));
+                    }
+                    guion_model::ProcessFunction::Write => {
+                        let text = pop_type(&mut state.stack, pc)?;
+                        let handle = pop_type(&mut state.stack, pc)?;
+                        if text != Type::Text || handle != Type::Int {
+                            return Err(format!(
+                                "process_write requires an Int handle and Text at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(Type::Unit), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::CloseInput => {
+                        if pop_type(&mut state.stack, pc)? != Type::Int {
+                            return Err(format!(
+                                "process_close_input requires an Int handle at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(Type::Unit), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::Wait => {
+                        if pop_type(&mut state.stack, pc)? != Type::Int {
+                            return Err(format!(
+                                "process_wait requires an Int handle at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(texts.clone()), Box::new(texts)));
+                    }
                 }
             }
             Op::Regex(function) => {

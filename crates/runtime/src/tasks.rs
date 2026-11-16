@@ -46,6 +46,8 @@ struct Scope {
     call_number: u32,
     /// Channels made in this block, closed when it ends.
     channels: Vec<usize>,
+    /// Commands started before this block began: the ones from here on are the block's.
+    first_process: usize,
 }
 
 /// The `together:` blocks an instance is inside, innermost last, and the tasks they started.
@@ -165,6 +167,7 @@ impl TaskParts {
             python_native_images: Vec::new(),
             together: Together::default(),
             channels: self.channels,
+            processes: background::ProcessTable::default(),
         }
     }
 }
@@ -215,6 +218,7 @@ impl Instance {
             parent: budget.clone(),
             call_number,
             channels: Vec::new(),
+            first_process: self.processes.len(),
         });
     }
 
@@ -438,6 +442,7 @@ impl Instance {
             flag.store(true, Ordering::Release);
         }
         self.together.stop_from(scope.first_task);
+        self.processes.stop_from(scope.first_process);
         for index in &scope.channels {
             if let Some(channel) = self.channels.get(*index) {
                 channel.close();
@@ -543,7 +548,11 @@ impl Instance {
         })
     }
 
-    fn wait_cancelled(&self, budget: &Arc<Budget>, span: Span) -> Result<(), RuntimeError> {
+    pub(super) fn wait_cancelled(
+        &self,
+        budget: &Arc<Budget>,
+        span: Span,
+    ) -> Result<(), RuntimeError> {
         if budget.is_cancelled() || self.externally_cancelled() {
             return Err(RuntimeError::new(
                 "R_CANCELLED",

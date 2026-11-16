@@ -242,7 +242,7 @@ pub fn needs(artifact: &Artifact, inspected: &serde_json::Value) -> Vec<Need> {
                             .and_then(|arguments| arguments.get(position).cloned().flatten())
                     };
                     match short_name(&callee.name) {
-                        "process_run" => {
+                        "process_run" | "start_process" => {
                             found.insert(Need {
                                 kind: NeedKind::Run,
                                 target: argument(0),

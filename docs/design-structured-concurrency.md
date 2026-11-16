@@ -1,6 +1,6 @@
 # Design: structured concurrency for waiting work
 
-Status: design, not built. Nothing here is implemented yet.
+Status: built, in artifact format 76. See "Notes from the build" at the end for where the build differs from the text above.
 
 ## The idea in one paragraph
 
@@ -281,3 +281,53 @@ Each step gets tests:
    all-or-nothing for code that wants it.
 5. **Deadlines need no clock grant.** The program never sees the time, only
    whether it ran out, and that outcome is recorded on the tape.
+
+## Notes from the build
+
+All five steps are built, in the order above, and one artifact format (76) carries them. Where
+the build differs from the design:
+
+- **`Workers` takes its three numbers by position.** Guion has no named constructor arguments, so
+  it is `Workers(50, 5000, 30000)`; the fields are still `at_once`, `each_ms` and `all_ms`, and the
+  record comes from `std:process`.
+- **`first_ready` and `first_value` give a position, not `Ready(index, result)`.** A generic
+  `Ready[T]` record would need compiler support that does not exist yet. `first_ready(tasks)` gives
+  the position of the first finished task and `wait(tasks[i])` gives its result at once;
+  `first_value(channels)` gives the position of the first channel that has a value or is closed,
+  and `receive` takes the value. The `_within` forms give `Option[Int]`.
+- **`start_process` gives `Result[Process, StdError]`, not a bare `Process`.** A command that is not
+  granted or cannot start is an ordinary outcome, with the same error codes and fix-it text as
+  `process_run`. `process_wait` gives `Result[ProcessResult, StdError]` (StdError is the existing
+  error type).
+- **A deadline on the tape is a cut-short lane, not a new `deadline` entry.** A recording marks the
+  lane of an item that ran out of time as incomplete (the marker sibling-cancelled items already
+  use), and a replay turns that item into `R_DEADLINE` whatever its speed. An item that ran out
+  of time contributes no output, in the recording and in the replay, so both print the same lines.
+  A `wait_within`, `first_ready`, `first_value`, `send` and `receive` are recorded as the operations
+  they are; a replay returns what was recorded and, for a `wait_within`, still waits for or stops
+  the live task to match.
+- **Items with a deadline run on the interpreter, not machine code,** because machine code does
+  not look at a deadline. A blocking HTTP, command or socket call inside such an item waits no
+  longer than the time left; a call into Python is bounded by its own timeout and by the next
+  check after it returns.
+- **A task's output is shown when the task is waited for,** in the order of the waits, so a
+  recording and its replay print the same lines. A task that is stopped shows none.
+- **Budgets.** A `together:` block takes three quarters of the instruction budget that is left, as
+  `parallel_map` does, and gives back what its tasks did not use when it ends. Tasks share the
+  memory budget.
+- **`return`, `break`, `continue` and `?` cannot leave a `together:` block** (`E_TOGETHER_EXIT`).
+  The design said nothing outlives its scope; making leaving early a compile error keeps that
+  true without a cleanup path on every exit. An error that unwinds past a block still stops its
+  tasks, when the instance is dropped.
+- **`Channel[T]` is a parameter type, never a result type,** so a started function can be handed
+  a channel. `Task` and `Process` cannot be written in a signature at all. A channel is made with
+  an annotation (`let c: Channel[Int] = channel(8)`).
+- **Process groups and signals are Unix.** On Windows a background command is started and
+  stopped, but not in a process group, and nothing handles Ctrl-C for it. This has not been
+  compiled or run on Windows. A program that polls for signals with `process_signal_poll`
+  handles `INT`, `TERM` and `HUP` itself; the groups are then stopped when its block or the
+  program ends.
+- **The browser playground** reports that `together:` and `try_parallel_map` need threads.
+- **The self-hosted compiler is frozen at format 74** and does not know any of this; only its
+  builtin catalog lists the new native names, because a conformance test reads it.
+

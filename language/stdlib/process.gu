@@ -31,3 +31,43 @@ pub fn process_signal_poll() -> Text:
 
 pub fn core_count() -> Int:
     return native_process_core_count()
+
+# A command started with `start_process`, which runs in the background until the `together:` block
+# that started it ends. It cannot be returned from that block.
+pub record Process:
+    handle: Int
+
+pub fn start_process(command: Text, arguments: List[Text]) -> Result[Process, StdError]:
+    match native_process_start(command, arguments):
+        Ok(handle):
+            return Ok(Process(handle))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn process_line(process: Process) -> Option[Text]:
+    return native_process_line(process.handle)
+
+pub fn process_write(process: Process, input: Text) -> Result[Unit, StdError]:
+    match native_process_write(process.handle, input):
+        Ok(done):
+            return Ok(done)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn process_close_input(process: Process) -> Result[Unit, StdError]:
+    match native_process_close_input(process.handle):
+        Ok(done):
+            return Ok(done)
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+pub fn process_wait(process: Process) -> Result[ProcessResult, StdError]:
+    match native_process_wait(process.handle):
+        Ok(fields):
+            match text_parse_int(fields[0]):
+                Ok(code):
+                    return Ok(ProcessResult(code, fields[1], fields[2]))
+                Err(problem):
+                    return Err(std_error("E_PROCESS_RESULT", "child exit status was not a number"))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))

@@ -3722,13 +3722,27 @@ impl<'a> FnCompiler<'a> {
 
     /// Whether a type is, or holds, a task of a `together:` block, looking through record fields.
     fn type_has_task(&self, ty: &Type) -> bool {
-        fn walk(ty: &Type, records: &[RecordAst], seen: &mut Vec<String>) -> bool {
+        // The standard library builds and hands out `Process` values itself; programs may not
+        // let one leave the block that started it.
+        let process_is_scoped = !self
+            .standard_functions
+            .contains(&function_symbol(self.ast.module_id, &self.ast.name));
+        fn walk(
+            ty: &Type,
+            records: &[RecordAst],
+            seen: &mut Vec<String>,
+            process_is_scoped: bool,
+        ) -> bool {
             match ty {
                 Type::Task(_) | Type::Channel(_) => true,
+                Type::Record(name) if process_is_scoped && name == "Process" => true,
                 Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
-                    walk(item, records, seen)
+                    walk(item, records, seen, process_is_scoped)
                 }
-                Type::Result(ok, err) => walk(ok, records, seen) || walk(err, records, seen),
+                Type::Result(ok, err) => {
+                    walk(ok, records, seen, process_is_scoped)
+                        || walk(err, records, seen, process_is_scoped)
+                }
                 Type::Record(name) => {
                     if seen.contains(name) {
                         return false;
@@ -3741,13 +3755,13 @@ impl<'a> FnCompiler<'a> {
                             record
                                 .fields
                                 .iter()
-                                .any(|(_, field, _)| walk(field, records, seen))
+                                .any(|(_, field, _)| walk(field, records, seen, process_is_scoped))
                         })
                 }
                 _ => false,
             }
         }
-        walk(ty, self.records, &mut Vec::new())
+        walk(ty, self.records, &mut Vec::new(), process_is_scoped)
     }
 
     /// Whether a type is, or holds, a function value, looking through record fields.

@@ -52,6 +52,7 @@ pub mod stdlib_data;
 pub mod stdlib_services;
 mod yaml;
 
+mod background;
 mod entropy;
 mod tape;
 mod tasks;
@@ -670,6 +671,7 @@ impl Runtime {
             python_native_images: Vec::new(),
             together: tasks::Together::default(),
             channels: Arc::new(tasks::ChannelTable::default()),
+            processes: background::ProcessTable::default(),
         })
     }
 }
@@ -720,6 +722,8 @@ pub struct Instance {
     together: tasks::Together,
     /// The channels of the program and its tasks.
     channels: Arc<tasks::ChannelTable>,
+    /// The commands this instance started in the background.
+    processes: background::ProcessTable,
 }
 
 impl HostPolicy {
@@ -3360,6 +3364,77 @@ impl Instance {
                             },
                         );
                         outcome
+                    }
+                    guion_model::ProcessFunction::Start => {
+                        let arguments = match pop!() {
+                            Value::List(items) => {
+                                let mut arguments = Vec::with_capacity(items.len());
+                                for item in items.iter() {
+                                    let Value::Text(text) = item else {
+                                        return Err(RuntimeError::new(
+                                            "R_TYPE_INVALID",
+                                            "start_process arguments must be Text",
+                                            instruction.span,
+                                        ));
+                                    };
+                                    arguments.push(text.as_ref().to_owned());
+                                }
+                                arguments
+                            }
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "start_process arguments must be a list",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let command = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "start_process command must be Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let effect = self.begin_effect(EffectKind::ProcessSpawn, command.as_str());
+                        let outcome = self.process_start(&command, &arguments);
+                        self.finish_effect(
+                            effect,
+                            match &outcome {
+                                Value::ResultErr(_) => EffectOutcome::ReturnedError,
+                                _ => EffectOutcome::Returned,
+                            },
+                        );
+                        outcome
+                    }
+                    guion_model::ProcessFunction::Line => {
+                        let handle = pop!();
+                        self.process_line(&handle, budget, instruction.span)?
+                    }
+                    guion_model::ProcessFunction::Write => {
+                        let input = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_write needs Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let handle = pop!();
+                        self.process_write(&handle, &input, instruction.span)?
+                    }
+                    guion_model::ProcessFunction::CloseInput => {
+                        let handle = pop!();
+                        self.process_close_input(&handle, instruction.span)?
+                    }
+                    guion_model::ProcessFunction::Wait => {
+                        let handle = pop!();
+                        self.process_wait(&handle, budget, instruction.span)?
                     }
                     guion_model::ProcessFunction::Pid => {
                         Value::Int(BigInt::from_i64(i64::from(std::process::id())))
@@ -7608,6 +7683,7 @@ impl Instance {
                         python_native_images: Vec::new(),
                         together: tasks::Together::default(),
                         channels: Arc::clone(&channels),
+                        processes: background::ProcessTable::default(),
                     };
                     let result = worker.invoke_inner(
                         function,
