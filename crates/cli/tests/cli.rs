@@ -3075,7 +3075,7 @@ fn guion_source_compiler_compiles_itself_and_real_programs_with_parity() {
     let self_compiled = Command::new(env!("CARGO_BIN_EXE_guion"))
         .args(["run", "--json"])
         .arg(&inventory_stage_two)
-        .arg("main.vr")
+        .arg("main.gu")
         .current_dir(&inventory_self)
         .output()
         .unwrap();

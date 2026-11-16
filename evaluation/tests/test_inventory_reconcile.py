@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "evaluation/development/inventory_reconcile"
 if not PROJECT.is_dir():
     PROJECT = ROOT / "examples/inventory_reconcile"
-DEFAULT_VERITAS = ROOT / "veritas" if (ROOT / "veritas").is_file() else ROOT / "target/debug/veritas"
-VERITAS = Path(os.environ.get("VERITAS_BINARY", DEFAULT_VERITAS))
+DEFAULT_GUION = ROOT / "guion" if (ROOT / "guion").is_file() else ROOT / "target/debug/guion"
+GUION = Path(os.environ.get("GUION_BINARY", DEFAULT_GUION))
 
 
 class InventoryReconcileAcceptance(unittest.TestCase):
@@ -24,9 +24,9 @@ class InventoryReconcileAcceptance(unittest.TestCase):
         copytree(PROJECT, project)
         return project
 
-    def run_veritas(self, project, *args):
+    def run_guion(self, project, *args):
         return subprocess.run(
-            [str(VERITAS), "run", str(project), *args],
+            [str(GUION), "run", str(project), *args],
             cwd=project.parent,
             text=True,
             capture_output=True,
@@ -43,11 +43,11 @@ class InventoryReconcileAcceptance(unittest.TestCase):
         )
 
     def compare(self, inventory, adjustments, expect_success=True):
-        with tempfile.TemporaryDirectory(prefix="veritas-inventory-reconcile-") as directory:
+        with tempfile.TemporaryDirectory(prefix="guion-inventory-reconcile-") as directory:
             root = Path(directory)
-            veritas_project = self.copy_project(root / "veritas")
+            guion_project = self.copy_project(root / "guion")
             python_project = self.copy_project(root / "python")
-            for project in (veritas_project, python_project):
+            for project in (guion_project, python_project):
                 (project / "inventory.json").write_text(
                     json.dumps(inventory, ensure_ascii=False), encoding="utf-8"
                 )
@@ -57,21 +57,21 @@ class InventoryReconcileAcceptance(unittest.TestCase):
                 if not expect_success:
                     (project / "reconciled.json").write_bytes(b"previous result\n")
             arguments = ("inventory.json", "adjustments.json", "reconciled.json")
-            veritas = self.run_veritas(veritas_project, *arguments)
+            guion = self.run_guion(guion_project, *arguments)
             python = self.run_python(python_project, *arguments)
-            self.assertEqual(veritas.returncode, python.returncode)
-            self.assertEqual(veritas.stdout, python.stdout)
-            self.assertEqual(veritas.stderr, python.stderr)
-            self.assertEqual(veritas.returncode == 0, expect_success)
-            veritas_result = veritas_project / "reconciled.json"
+            self.assertEqual(guion.returncode, python.returncode)
+            self.assertEqual(guion.stdout, python.stdout)
+            self.assertEqual(guion.stderr, python.stderr)
+            self.assertEqual(guion.returncode == 0, expect_success)
+            guion_result = guion_project / "reconciled.json"
             python_result = python_project / "reconciled.json"
-            self.assertEqual(veritas_result.exists(), python_result.exists())
-            if veritas_result.exists():
-                self.assertEqual(veritas_result.read_bytes(), python_result.read_bytes())
+            self.assertEqual(guion_result.exists(), python_result.exists())
+            if guion_result.exists():
+                self.assertEqual(guion_result.read_bytes(), python_result.read_bytes())
                 if not expect_success:
-                    self.assertEqual(veritas_result.read_bytes(), b"previous result\n")
+                    self.assertEqual(guion_result.read_bytes(), b"previous result\n")
                     return None
-                return json.loads(veritas_result.read_text(encoding="utf-8"))
+                return json.loads(guion_result.read_text(encoding="utf-8"))
             return None
 
     def test_reconciles_duplicates_new_skus_and_unicode_deterministically(self):
@@ -143,9 +143,9 @@ class InventoryReconcileAcceptance(unittest.TestCase):
         self.assertEqual(result["changes"][-1]["balance"], 20)
 
     def test_current_artifact_reconciles_after_source_removal(self):
-        with tempfile.TemporaryDirectory(prefix="veritas-inventory-artifact-") as directory:
+        with tempfile.TemporaryDirectory(prefix="guion-inventory-artifact-") as directory:
             root = Path(directory)
-            veritas_project = self.copy_project(root / "veritas")
+            guion_project = self.copy_project(root / "guion")
             python_project = self.copy_project(root / "python")
             inventory = {"items": [{"sku": "A", "quantity": 4}]}
             adjustments = {
@@ -153,33 +153,33 @@ class InventoryReconcileAcceptance(unittest.TestCase):
                     {"sku": "A", "delta": 3, "reason": "counted", "source": "cycle-count"}
                 ]
             }
-            for project in (veritas_project, python_project):
+            for project in (guion_project, python_project):
                 (project / "inventory.json").write_text(json.dumps(inventory), encoding="utf-8")
                 (project / "adjustments.json").write_text(json.dumps(adjustments), encoding="utf-8")
             built = subprocess.run(
-                [str(VERITAS), "build", str(veritas_project)],
-                cwd=root / "veritas",
+                [str(GUION), "build", str(guion_project)],
+                cwd=root / "guion",
                 text=True,
                 capture_output=True,
                 timeout=30,
             )
             self.assertEqual(built.returncode, 0, built.stderr)
-            (veritas_project / "main.vr").unlink()
-            rmtree(veritas_project / "src")
+            (guion_project / "main.gu").unlink()
+            rmtree(guion_project / "src")
             arguments = ("inventory.json", "adjustments.json", "reconciled.json")
-            veritas = subprocess.run(
-                [str(VERITAS), "run", str(veritas_project / "main.vrb"), *arguments],
-                cwd=root / "veritas",
+            guion = subprocess.run(
+                [str(GUION), "run", str(guion_project / "main.gub"), *arguments],
+                cwd=root / "guion",
                 text=True,
                 capture_output=True,
                 timeout=30,
             )
             python = self.run_python(python_project, *arguments)
-            self.assertEqual(veritas.returncode, python.returncode)
-            self.assertEqual(veritas.stdout, python.stdout)
-            self.assertEqual(veritas.stderr, python.stderr)
+            self.assertEqual(guion.returncode, python.returncode)
+            self.assertEqual(guion.stdout, python.stdout)
+            self.assertEqual(guion.stderr, python.stderr)
             self.assertEqual(
-                (veritas_project / "reconciled.json").read_bytes(),
+                (guion_project / "reconciled.json").read_bytes(),
                 (python_project / "reconciled.json").read_bytes(),
             )
 

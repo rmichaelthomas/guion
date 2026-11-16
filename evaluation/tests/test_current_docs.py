@@ -125,7 +125,7 @@ class CurrentDocumentationTests(unittest.TestCase):
             encoding="utf-8"
         )
         reference = (ROOT / "docs/reference.md").read_text(encoding="utf-8")
-        self.assertIn(f"runtime reads artifact formats 14 through {current}", compatibility)
+        self.assertIn(f"The runtime reads formats 14 through {current} and writes {current}", compatibility)
         self.assertIn(f"current format is {current}", reference)
 
     def test_user_docs_state_verified_platform_scope_and_python_launcher(self):
@@ -133,12 +133,12 @@ class CurrentDocumentationTests(unittest.TestCase):
         compatibility = (ROOT / "docs/compatibility-and-migrations.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("macOS ARM64", readme)
-        self.assertIn("Debian 12 GNU/Linux on ARM64 and x86_64", readme)
+        self.assertIn("macOS, Apple Silicon", readme)
+        self.assertIn("guion-debian-x86_64.tar.gz", readme)
         start_here = (ROOT / "docs/agents/start-here.md").read_text(
             encoding="utf-8"
         )
-        self.assertIn("The default build works without Python", readme)
+        self.assertIn("You don't need Rust or Python installed", readme)
         self.assertIn("Python is not required to compile or run a core Guion program", start_here)
         self.assertIn(
             "Linux distributions beyond Debian 12, and libc implementations beyond glibc remain unverified",

@@ -1,4 +1,4 @@
-"""Independent standard-library reference for the Veritas API synchronization app."""
+"""Independent standard-library reference for the Guion API synchronization app."""
 
 from __future__ import annotations
 
@@ -44,9 +44,9 @@ def main(args: list[str]) -> int:
         return 2
     base_url = args[0]
     initial_page = args[1] if len(args) == 2 else "1"
-    token = os.environ.get("VERITAS_API_TOKEN")
+    token = os.environ.get("GUION_API_TOKEN")
     if token is None:
-        print("Missing VERITAS_API_TOKEN")
+        print("Missing GUION_API_TOKEN")
         return 2
     state_path = Path("sync-state.json")
     if state_path.exists():

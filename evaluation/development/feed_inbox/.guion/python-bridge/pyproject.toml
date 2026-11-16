@@ -1,5 +1,5 @@
 [project]
 dependencies = ["feedparser==6.0.14"]
-name = "veritas-python-bridge"
+name = "guion-python-bridge"
 requires-python = "==3.14.8"
 version = "0.0.0"

@@ -11,8 +11,8 @@ Input shape:
 Run from this directory with:
 
 ```sh
-veritas run . tasks.json plan.json
-veritas run . tasks.json plan.json --priority
+guion run . tasks.json plan.json
+guion run . tasks.json plan.json --priority
 ```
 
 The CLI restricts file access to this project directory. The output is written atomically after the whole graph is validated and planned.

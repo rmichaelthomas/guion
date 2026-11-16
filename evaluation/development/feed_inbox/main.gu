@@ -1,5 +1,5 @@
-import "src/inbox_store.vr"
-import "src/inbox_view.vr"
+import "src/inbox_store.gu"
+import "src/inbox_view.gu"
 
 extern python "feed_inbox:parse_entries" fn parse_entries(source: Text) -> List[Map[Text, Text]]
 
@@ -21,7 +21,7 @@ fn save_or_report(entries: Json) -> Bool:
 fn main() -> Int:
     let arguments = args()
     if len(arguments) == 0:
-        print("Usage: veritas run PROJECT <refresh URL [URL ...]|import-feed PATH|list [unread]|summary|read LINK|unread LINK>")
+        print("Usage: guion run PROJECT <refresh URL [URL ...]|import-feed PATH|list [unread]|summary|read LINK|unread LINK>")
         return 2
 
     var entries = json_array()

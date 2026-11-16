@@ -1,7 +1,7 @@
 [project]
 name = "inventory-reconcile"
 version = "0.1.0"
-entry = "main.vr"
+entry = "main.gu"
 
 [runtime]
 instruction_limit = 500000000

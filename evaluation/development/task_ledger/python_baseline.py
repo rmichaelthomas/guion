@@ -22,7 +22,7 @@ def save_tasks(path: Path, tasks):
 def main(arguments):
     path = Path("tasks.json")
     if not arguments:
-        print("Usage: veritas run . <list|summary|add TITLE NOTE|done TITLE|remove TITLE>")
+        print("Usage: guion run . <list|summary|add TITLE NOTE|done TITLE|remove TITLE>")
         return 2
     tasks = load_tasks(path)
     command, *rest = arguments

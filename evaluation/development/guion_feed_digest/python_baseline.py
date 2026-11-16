@@ -31,7 +31,10 @@ def _check_host(url):
     if parts.username is not None or parts.password is not None:
         raise FeedFailure("R_HTTP_URL", "only HTTP and HTTPS URLs without embedded credentials are allowed")
     if host not in ALLOWED_HOSTS:
-        raise FeedFailure("R_NETWORK_DENIED", "network access to this host is not granted")
+        raise FeedFailure(
+            "R_NETWORK_DENIED",
+            f"fetching {host} is not granted; add `[network] hosts = [\"{host}\"]` to guion.toml or pass --allow-http-host {host}",
+        )
 
 
 def _fetch(url):

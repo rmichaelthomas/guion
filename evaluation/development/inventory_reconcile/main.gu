@@ -1,10 +1,10 @@
-import "src/inventory.vr"
-import "src/report.vr"
+import "src/inventory.gu"
+import "src/report.gu"
 
 fn main() -> Int:
     let arguments = args()
     if len(arguments) != 3:
-        print("Usage: veritas run . INVENTORY.json ADJUSTMENTS.json OUTPUT.json")
+        print("Usage: guion run . INVENTORY.json ADJUSTMENTS.json OUTPUT.json")
         return 2
 
     let inventory_read = read_text(arguments[0])

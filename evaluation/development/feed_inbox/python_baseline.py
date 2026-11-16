@@ -37,7 +37,9 @@ def fetch(url):
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
     if parts.scheme not in {"http", "https"} or host != "127.0.0.1" or parts.username or parts.password:
-        raise OSError("R_NETWORK_DENIED: network access to this host is not granted")
+        raise OSError(
+            f"R_NETWORK_DENIED: fetching {host} is not granted; add `[network] hosts = [\"{host}\"]` to guion.toml or pass --allow-http-host {host}"
+        )
     port = parts.port or (443 if parts.scheme == "https" else 80)
     connection_type = http.client.HTTPSConnection if parts.scheme == "https" else http.client.HTTPConnection
     connection = connection_type(parts.hostname, port, timeout=15)
@@ -99,7 +101,7 @@ def merge(entries, incoming):
 
 def main(argv):
     if not argv:
-        print("Usage: veritas run PROJECT <refresh URL [URL ...]|import-feed PATH|list [unread]|summary|read LINK|unread LINK>")
+        print("Usage: guion run PROJECT <refresh URL [URL ...]|import-feed PATH|list [unread]|summary|read LINK|unread LINK>")
         return 2
     state_path = Path("inbox.json")
     try:

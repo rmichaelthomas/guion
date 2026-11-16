@@ -1,7 +1,7 @@
 [project]
 name = "feed-inbox"
 version = "0.1.0"
-entry = "main.vr"
+entry = "main.gu"
 
 [python]
 version = "3.14.8"

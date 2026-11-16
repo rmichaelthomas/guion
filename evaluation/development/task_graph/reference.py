@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-USAGE = "Usage: veritas run . INPUT.json OUTPUT.json [--priority]"
+USAGE = "Usage: guion run . INPUT.json OUTPUT.json [--priority]"
 
 
 def plan(document, priority_mode=False):
