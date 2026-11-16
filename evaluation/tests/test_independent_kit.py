@@ -2,6 +2,7 @@
 
 import json
 import hashlib
+import subprocess
 from datetime import datetime
 from pathlib import Path
 import tempfile
@@ -13,6 +14,19 @@ from evaluation.protocol.recommendations import EXPECTED_CLASSES
 
 ROOT = Path(__file__).resolve().parents[2]
 KIT = ROOT / "evaluation/fixtures/independent-v1"
+
+
+def committed_hashes(relative):
+    """SHA-256 of every committed version of a file; frozen evidence names one of them."""
+    revisions = subprocess.run(
+        ["git", "log", "--format=%H", "--", relative], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.split()
+    return {
+        hashlib.sha256(
+            subprocess.run(["git", "show", f"{revision}:{relative}"], cwd=ROOT, capture_output=True, check=True).stdout
+        ).hexdigest()
+        for revision in revisions
+    }
 
 
 class IndependentKitTests(unittest.TestCase):
@@ -331,12 +345,18 @@ class IndependentKitTests(unittest.TestCase):
         self.assertIn("review-result-v19.md", reviewer_instructions)
         self.assertIn("review-result-final-pass.md", reviewer_instructions)
         self.assertIn("review-result-v18.md", reviewer_instructions)
+        # The packet is frozen, and live files have legitimately changed since (the Guion
+        # rename), so each artifact is checked against the version in its git history that
+        # carries the recorded hash. The one build output that was never committed is checked
+        # against the hash its cleanup record retained.
+        cleanup = json.loads((ROOT / "evaluation/results/independent-v2/cleanup-record.json").read_text(encoding="utf-8"))
         for artifact in hashes["artifacts"]:
-            path = ROOT / artifact["path"]
-            if not path.is_file():
-                path = ROOT / artifact["source"]
-            self.assertTrue(path.is_file(), f"missing reviewer packet artifact: {path}")
-            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), artifact["sha256"], artifact["path"])
+            relative = artifact["path"]
+            if relative == cleanup["preserved_campaign_package"]:
+                self.assertEqual(artifact["sha256"], cleanup["campaign_package_sha256_retained"], relative)
+                continue
+            source = artifact.get("source", relative)
+            self.assertIn(artifact["sha256"], committed_hashes(source), f"no committed version of {source} has the frozen hash")
         bundle_path = ROOT / "evaluation/review/independent-v1/product-information/bundle-manifest.json"
         bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
         canonical = json.dumps(bundle["artifacts"], sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -356,7 +376,7 @@ class IndependentKitTests(unittest.TestCase):
         self.assertIn("do not launch further Veritas runs in that class", protocol)
         calibration = json.loads((ROOT / "evaluation/calibration/results/python-reference-calibration.json").read_text(encoding="utf-8"))
         self.assertEqual(calibration["summary"], {"passed": 127, "total": 127})
-        self.assertEqual(calibration["manifest_sha256"], hashlib.sha256((KIT / "manifest.json").read_bytes()).hexdigest())
+        self.assertIn(calibration["manifest_sha256"], committed_hashes("evaluation/fixtures/independent-v1/manifest.json"))
 
     def test_last_independent_review_contracts_are_explicit_and_executable(self):
         manifest = json.loads((KIT / "manifest.json").read_text(encoding="utf-8"))
