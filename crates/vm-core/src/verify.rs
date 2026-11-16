@@ -310,7 +310,8 @@ fn artifact_type_known(ty: &Type, record_names: &HashSet<guion_model::RecordName
         | Type::HttpError
         | Type::Array(_)
         | Type::Unit => true,
-        Type::RecordApp(_, _) => false,
+        Type::Channel(item) => artifact_type_known(item, record_names),
+        Type::RecordApp(_, _) | Type::Task(_) => false,
         Type::Fn(parameters, result) => {
             parameters
                 .iter()
@@ -356,6 +357,7 @@ fn value_type(value: &Value) -> Option<Type> {
         Value::Bytes(_) => Type::Bytes,
         Value::Array(array) => Type::Array(array.element()),
         Value::Unit => Type::Unit,
+        Value::Task(_) | Value::Channel(_) => return None,
         Value::List(items) => {
             let first = items.first()?;
             let item_type = value_type(first)?;
@@ -991,8 +993,62 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                             .stack
                             .push(Type::Result(Box::new(texts.clone()), Box::new(texts)));
                     }
-                    guion_model::ProcessFunction::Pid => state.stack.push(Type::Int),
+                    guion_model::ProcessFunction::Pid | guion_model::ProcessFunction::CoreCount => {
+                        state.stack.push(Type::Int)
+                    }
                     guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
+                    guion_model::ProcessFunction::Start => {
+                        let arguments = pop_type(&mut state.stack, pc)?;
+                        let command = pop_type(&mut state.stack, pc)?;
+                        if arguments != texts || command != Type::Text {
+                            return Err(format!(
+                                "start_process requires Text and List[Text] operands at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(Type::Int), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::Line => {
+                        if pop_type(&mut state.stack, pc)? != Type::Int {
+                            return Err(format!(
+                                "process_line requires an Int handle at instruction {pc}"
+                            ));
+                        }
+                        state.stack.push(Type::Option(Box::new(Type::Text)));
+                    }
+                    guion_model::ProcessFunction::Write => {
+                        let text = pop_type(&mut state.stack, pc)?;
+                        let handle = pop_type(&mut state.stack, pc)?;
+                        if text != Type::Text || handle != Type::Int {
+                            return Err(format!(
+                                "process_write requires an Int handle and Text at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(Type::Unit), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::CloseInput => {
+                        if pop_type(&mut state.stack, pc)? != Type::Int {
+                            return Err(format!(
+                                "process_close_input requires an Int handle at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(Type::Unit), Box::new(texts)));
+                    }
+                    guion_model::ProcessFunction::Wait => {
+                        if pop_type(&mut state.stack, pc)? != Type::Int {
+                            return Err(format!(
+                                "process_wait requires an Int handle at instruction {pc}"
+                            ));
+                        }
+                        state
+                            .stack
+                            .push(Type::Result(Box::new(texts.clone()), Box::new(texts)));
+                    }
                 }
             }
             Op::Regex(function) => {
@@ -1500,6 +1556,93 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(external.result.clone());
             }
+            Op::TogetherEnter | Op::TogetherExit => {}
+            Op::ChannelNew(item) => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("channel capacity must be Int at instruction {pc}"));
+                }
+                if item.contains_channel() {
+                    return Err(format!(
+                        "a channel cannot carry a channel at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Channel(Box::new(item.clone())));
+            }
+            Op::ChannelSend => {
+                let value = pop_type(&mut state.stack, pc)?;
+                let Type::Channel(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("send needs a channel at instruction {pc}"));
+                };
+                if value != *item {
+                    return Err(format!("send value type mismatch at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::TaskError),
+                ));
+            }
+            Op::ChannelReceive => {
+                let Type::Channel(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("receive needs a channel at instruction {pc}"));
+                };
+                state.stack.push(Type::Option(item));
+            }
+            Op::ChannelClose => {
+                if !matches!(pop_type(&mut state.stack, pc)?, Type::Channel(_)) {
+                    return Err(format!("close needs a channel at instruction {pc}"));
+                }
+                state.stack.push(Type::Unit);
+            }
+            Op::FirstReady(record_index) | Op::FirstValue(record_index) => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!("time limit must be Int at instruction {pc}"));
+                }
+                let Type::List(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("a list is needed at instruction {pc}"));
+                };
+                let payload = match (&instruction.op, *item) {
+                    (Op::FirstReady(_), Type::Task(result)) => {
+                        Some(Type::Result(result, Box::new(Type::TaskError)))
+                    }
+                    (Op::FirstValue(_), Type::Channel(value)) => Some(Type::Option(value)),
+                    _ => None,
+                };
+                let record = artifact.records.get(*record_index).ok_or_else(|| {
+                    format!("first_ready or first_value references a missing record at instruction {pc}")
+                })?;
+                let shaped = record.fields.len() == 2
+                    && record.fields[0].ty == Type::Int
+                    && payload.as_ref() == Some(&record.fields[1].ty);
+                if !shaped {
+                    return Err(format!(
+                        "first_ready needs tasks and first_value needs channels, and a Ready record of their result, at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Option(Box::new(Type::Record(
+                    record.name.to_string(),
+                ))));
+            }
+            Op::TaskWait => {
+                let Type::Task(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("wait needs a task at instruction {pc}"));
+                };
+                state
+                    .stack
+                    .push(Type::Result(item, Box::new(Type::TaskError)));
+            }
+            Op::TaskWaitWithin => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!(
+                        "wait_within needs Int milliseconds at instruction {pc}"
+                    ));
+                }
+                let Type::Task(item) = pop_type(&mut state.stack, pc)? else {
+                    return Err(format!("wait_within needs a task at instruction {pc}"));
+                };
+                state
+                    .stack
+                    .push(Type::Result(item, Box::new(Type::TaskError)));
+            }
             Op::MakeFn(target) => {
                 let callee = artifact.functions.get(*target).ok_or_else(|| {
                     format!("function value references missing function at instruction {pc}")
@@ -1552,6 +1695,14 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 use guion_model::HigherOrderKind as Kind;
                 let name = kind.name();
                 let mut worker_limit = false;
+                if *kind == Kind::TryParallelMap {
+                    if pop_type(&mut state.stack, pc)? != Type::Record("Workers".into()) {
+                        return Err(format!(
+                            "try_parallel_map limits must be Workers at instruction {pc}"
+                        ));
+                    }
+                    worker_limit = true;
+                }
                 if *kind == Kind::ParallelMap {
                     if pop_type(&mut state.stack, pc)? != Type::Int {
                         return Err(format!(
@@ -1623,6 +1774,33 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                             Box::new(Type::List(Box::new(result))),
                             Box::new(Type::TaskError),
                         )
+                    }
+                    Kind::TryParallelMap => {
+                        let Type::List(item) = input else {
+                            return Err(format!("parallel input must be List at instruction {pc}"));
+                        };
+                        if parameters.len() != 1
+                            || *item != parameters[0]
+                            || !worker_limit
+                            || type_contains_native_resource(&parameters[0])
+                            || type_contains_native_resource(&result)
+                        {
+                            return Err(bad_shape());
+                        }
+                        Type::List(Box::new(Type::Result(
+                            Box::new(result),
+                            Box::new(Type::TaskError),
+                        )))
+                    }
+                    Kind::StartTask => {
+                        if parameters.len() != 1
+                            || input != parameters[0]
+                            || type_contains_native_resource(&parameters[0])
+                            || type_contains_native_resource(&result)
+                        {
+                            return Err(bad_shape());
+                        }
+                        Type::Task(Box::new(result))
                     }
                     Kind::MapList => {
                         let Type::List(item) = input else {

@@ -2915,6 +2915,8 @@ fn display_type(ty: &guion_model::Type) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        Type::Task(item) => format!("Task[{}]", display_type(item)),
+        Type::Channel(item) => format!("Channel[{}]", display_type(item)),
         Type::Option(item) => format!("Option[{}]", display_type(item)),
         Type::Result(ok, err) => format!("Result[{}, {}]", display_type(ok), display_type(err)),
         Type::Fn(parameters, result) => format!(
@@ -3036,7 +3038,10 @@ fn inspection_report(
                 Op::Call(target, _) | Op::MakeFn(target) | Op::MakeClosure(target, _) => {
                     calls[function_index].insert(*target);
                 }
-                Op::HigherOrder(guion_model::HigherOrderKind::ParallelMap) => {
+                Op::HigherOrder(
+                    guion_model::HigherOrderKind::ParallelMap
+                    | guion_model::HigherOrderKind::TryParallelMap,
+                ) => {
                     direct_effects[function_index].insert("concurrency.parallel".into());
                 }
                 Op::ParallelMap(target) => {
@@ -3077,13 +3082,18 @@ fn inspection_report(
                     direct_effects[function_index].insert("network.socket".into());
                 }
                 Op::Process(function) => match function {
-                    guion_model::ProcessFunction::Run => {
+                    guion_model::ProcessFunction::Run | guion_model::ProcessFunction::Start => {
                         direct_effects[function_index].insert("process.spawn".into());
                     }
                     guion_model::ProcessFunction::SignalPoll => {
                         direct_effects[function_index].insert("process.signals".into());
                     }
-                    guion_model::ProcessFunction::Pid => {}
+                    guion_model::ProcessFunction::Pid
+                    | guion_model::ProcessFunction::CoreCount
+                    | guion_model::ProcessFunction::Line
+                    | guion_model::ProcessFunction::Write
+                    | guion_model::ProcessFunction::CloseInput
+                    | guion_model::ProcessFunction::Wait => {}
                 },
                 Op::Args | Op::ArgsFrom => {
                     direct_effects[function_index].insert("process.arguments".into());
@@ -4551,6 +4561,12 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
         policy.max_collection_items =
             runtime_usize(runtime, "max_collection_items", policy.max_collection_items)?;
         policy.max_parallelism = runtime_usize(runtime, "max_parallelism", policy.max_parallelism)?;
+        if policy.max_parallelism > guion_runtime::MAX_WORKER_CEILING {
+            return Err(format!(
+                "guion.toml [runtime].max_parallelism must be at most {}",
+                guion_runtime::MAX_WORKER_CEILING
+            ));
+        }
         policy.max_file_bytes = runtime_usize(runtime, "max_file_bytes", policy.max_file_bytes)?;
         policy.decompress_limit_bytes = runtime_usize(
             runtime,

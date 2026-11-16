@@ -1,6 +1,6 @@
 # Concurrency: what the worker count buys
 
-`parallel_map(items, function, limit)` runs `function` on each item with at most `limit` workers at a time. The worker count is a ceiling on how many jobs run at once. Jobs that **wait** (on a socket, a file or another process) and jobs that **compute** both finish sooner with more workers, up to the machine's cores; the measurements below show each.
+`parallel_map(items, function, limit)` runs `function` on each item with at most `limit` workers at a time. The worker count is a ceiling on how many jobs run at once. Jobs that **compute** finish sooner with more workers up to the machine's cores, while jobs that **wait** (on a socket, a file or another process) keep gaining well past that (the limit defaults to 64 and `[runtime] max_parallelism` can raise it to 1024); `try_parallel_map` adds a result per item and deadlines; the measurements below show each.
 
 ## Waiting: workers share one listener
 

@@ -5139,6 +5139,16 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CallFn(_) => "CallFn",
         Op::RandomBytes => "RandomBytes",
         Op::HigherOrder(_) => "HigherOrder",
+        Op::TogetherEnter => "TogetherEnter",
+        Op::TogetherExit => "TogetherExit",
+        Op::TaskWait => "TaskWait",
+        Op::TaskWaitWithin => "TaskWaitWithin",
+        Op::ChannelNew(_) => "ChannelNew",
+        Op::ChannelSend => "ChannelSend",
+        Op::ChannelReceive => "ChannelReceive",
+        Op::ChannelClose => "ChannelClose",
+        Op::FirstReady(_) => "FirstReady",
+        Op::FirstValue(_) => "FirstValue",
         Op::JsonTryGet => "JsonTryGet",
         Op::JsonTryIndex => "JsonTryIndex",
         Op::JsonTryText => "JsonTryText",
@@ -6574,7 +6584,8 @@ impl VmHost for PortableHost {
         let span = context.instruction.span;
         // `parallel_map` needs threads, which this host does not have.
         match op {
-            Op::HigherOrder(Kind::ParallelMap) | Op::ParallelMap(_) => {}
+            Op::HigherOrder(Kind::ParallelMap | Kind::TryParallelMap | Kind::StartTask)
+            | Op::ParallelMap(_) => {}
             Op::HigherOrder(kind) => return self.portable_higher_order(kind, context),
             Op::SortNatural => return self.portable_sort_natural(context),
             Op::SortByKey(target) => return self.portable_sort_keyed(target, false, context),
@@ -6582,6 +6593,26 @@ impl VmHost for PortableHost {
             Op::SortBy(target) => return self.portable_sort_by(target, context),
             Op::MergeSortedByIntKey(target) => return self.portable_merge_sorted(target, context),
             _ => {}
+        }
+        if matches!(
+            op,
+            Op::TogetherEnter
+                | Op::TogetherExit
+                | Op::TaskWait
+                | Op::TaskWaitWithin
+                | Op::ChannelNew(_)
+                | Op::ChannelSend
+                | Op::ChannelReceive
+                | Op::ChannelClose
+                | Op::FirstReady(_)
+                | Op::FirstValue(_)
+                | Op::HigherOrder(Kind::StartTask | Kind::TryParallelMap)
+        ) {
+            return Err(RuntimeError::new(
+                "R_HOST_UNSUPPORTED",
+                "together: blocks and try_parallel_map need threads, which the browser playground does not have",
+                span,
+            ));
         }
         let debug = format!("{op:?}");
         let name = debug.split(['(', ' ']).next().unwrap_or(&debug);

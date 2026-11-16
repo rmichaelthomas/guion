@@ -52,8 +52,10 @@ pub mod stdlib_data;
 pub mod stdlib_services;
 mod yaml;
 
+mod background;
 mod entropy;
 mod tape;
+mod tasks;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
@@ -229,6 +231,11 @@ mod native_inline_arena_tests {
 const MAX_EFFECT_REPORT_ENTRIES: usize = 1024;
 const MAX_EFFECT_TARGET_CHARS: usize = 256;
 const DEFAULT_ALLOCATION_LIMIT_BYTES: usize = 256 * 1024 * 1024;
+/// How many `parallel_map` workers a project gets unless it raises the limit. Independent of the
+/// core count: a worker waiting on the network does not use a core.
+pub const DEFAULT_WORKER_CEILING: usize = 64;
+/// The most `[runtime] max_parallelism` may ask for.
+pub const MAX_WORKER_CEILING: usize = 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EffectKind {
@@ -317,6 +324,9 @@ pub struct HostPolicy {
     /// Optional route to put one plain question to a person when an effect lacks a grant.
     /// `None` for tests, replays and agents: a missing grant is then simply a denial.
     pub broker: Option<std::sync::Arc<GrantBroker>>,
+    /// The moment a `try_parallel_map` item must stop by, if it has a deadline. Set only on the
+    /// copy of the policy a worker uses; every blocking host call waits no longer than what is left.
+    pub deadline: Option<std::time::Instant>,
     /// Denied effects, shared by every copy of this policy (including parallel workers).
     pub denials: std::sync::Arc<std::sync::Mutex<Vec<DenialRecord>>>,
     /// Grants a person gave at a question, kept so a recording can name where they came from.
@@ -332,10 +342,8 @@ impl Default for HostPolicy {
             max_integer_digits: 4096,
             max_text_bytes: 16 * 1024 * 1024,
             max_collection_items: 1_000_000,
-            max_parallelism: thread::available_parallelism()
-                .map(usize::from)
-                .unwrap_or(1)
-                .min(64),
+            deadline: None,
+            max_parallelism: DEFAULT_WORKER_CEILING,
             file_root: None,
             additional_file_roots: Vec::new(),
             file_root_aliases: HashMap::new(),
@@ -661,6 +669,9 @@ impl Runtime {
             omitted_effects: 0,
             python_native_image_observation: "not_used".into(),
             python_native_images: Vec::new(),
+            together: tasks::Together::default(),
+            channels: Arc::new(tasks::ChannelTable::default()),
+            processes: background::ProcessTable::default(),
         })
     }
 }
@@ -707,6 +718,12 @@ pub struct Instance {
     omitted_effects: usize,
     python_native_image_observation: String,
     python_native_images: Vec<String>,
+    /// The `together:` blocks this instance is inside and the tasks they started.
+    together: tasks::Together,
+    /// The channels of the program and its tasks.
+    channels: Arc<tasks::ChannelTable>,
+    /// The commands this instance started in the background.
+    processes: background::ProcessTable,
 }
 
 impl HostPolicy {
@@ -1043,6 +1060,7 @@ impl VmHost for Instance {
         self.cancelled
             .as_ref()
             .is_some_and(|flag| flag.load(Ordering::Acquire))
+            || self.policy.deadline_passed()
     }
 
     fn program_output_bytes(&self) -> usize {
@@ -1097,6 +1115,14 @@ impl VmHost for Instance {
         } = context;
         let operation = opcode_profile_name(&instruction.op);
         if tape.is_replay() {
+            // A replayed wait_within makes the live task match what the recording saw.
+            let waited_task = matches!(instruction.op, Op::TaskWaitWithin)
+                .then(|| stack.len().checked_sub(2).map(|at| stack[at].clone()))
+                .flatten();
+            // A replayed first_ready settles the task it named, as `wait` would have.
+            let raced_tasks = matches!(instruction.op, Op::FirstReady(_))
+                .then(|| stack.len().checked_sub(2).map(|at| stack[at].clone()))
+                .flatten();
             return match tape.replay(
                 &self.tape_lane,
                 operation,
@@ -1105,6 +1131,29 @@ impl VmHost for Instance {
                 stack.as_slice(),
             )? {
                 Ok((kept, values)) => {
+                    if let Some(task) = waited_task {
+                        let timed_out = matches!(
+                            values.first(),
+                            Some(Value::ResultErr(error))
+                                if matches!(error.as_ref(), Value::TaskError(fault) if fault.code == "R_DEADLINE")
+                        );
+                        self.task_settle_replayed_wait(&task, timed_out, budget, instruction.span)?;
+                    }
+                    if let Some(Value::List(tasks)) = raced_tasks {
+                        let winner = match values.first() {
+                            Some(Value::OptionSome(ready)) => match ready.as_ref() {
+                                Value::Record(_, fields) => match fields.first() {
+                                    Some(Value::Int(position)) => position.to_usize(),
+                                    _ => None,
+                                },
+                                _ => None,
+                            },
+                            _ => None,
+                        };
+                        if let Some(task) = winner.and_then(|position| tasks.get(position)) {
+                            self.task_settle_replayed_wait(task, false, budget, instruction.span)?;
+                        }
+                    }
                     stack.truncate(kept);
                     stack.extend(values);
                     Ok(())
@@ -1316,6 +1365,217 @@ impl Instance {
                     return Err(error);
                 }
             }
+            Op::HigherOrder(HigherOrderKind::StartTask) => {
+                let function = match pop!() {
+                    Value::Function(index) => index,
+                    Value::Closure(..) => {
+                        return Err(RuntimeError::new(
+                            "R_FN_CLOSURE",
+                            "start takes a named function, not a function that captures values",
+                            instruction.span,
+                        ));
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let argument = pop!();
+                let task = self.task_start(function, argument, depth + 1, instruction.span)?;
+                push_stack!(task);
+            }
+            Op::TogetherEnter => self.together_enter(budget),
+            Op::ChannelNew(_) => {
+                let capacity = pop!();
+                let channel = self.channel_new(&capacity, instruction.span)?;
+                push_stack!(channel);
+            }
+            Op::ChannelSend => {
+                let value = pop!();
+                let channel = pop!();
+                let result = self.channel_send(&channel, value, budget, instruction.span)?;
+                push_stack!(result);
+            }
+            Op::ChannelReceive => {
+                let channel = pop!();
+                let result = self.channel_receive(&channel, budget, instruction.span)?;
+                push_stack!(result);
+            }
+            Op::ChannelClose => {
+                let channel = pop!();
+                self.channel_close(&channel, instruction.span)?;
+                push_stack!(Value::Unit);
+            }
+            Op::FirstReady(record) | Op::FirstValue(record) => {
+                let milliseconds = match pop!() {
+                    Value::Int(value) => value.to_i64().filter(|value| *value >= 0),
+                    _ => None,
+                };
+                let items = pop!();
+                let name = self
+                    .artifact
+                    .records
+                    .get(record)
+                    .map(|record| record.name.clone())
+                    .ok_or_else(|| {
+                        RuntimeError::new(
+                            "R_ARTIFACT_INVALID",
+                            "first_ready references a missing record definition",
+                            instruction.span,
+                        )
+                    })?;
+                let result = self.first_of(
+                    &items,
+                    matches!(instruction.op, Op::FirstReady(_)),
+                    name,
+                    milliseconds.map(|value| Duration::from_millis(value as u64)),
+                    budget,
+                    instruction.span,
+                )?;
+                push_stack!(result);
+            }
+            Op::TogetherExit => self.together_exit(instruction.span)?,
+            Op::TaskWait => {
+                let task = pop!();
+                let result = self.task_wait(&task, None, budget, instruction.span)?;
+                push_stack!(result);
+            }
+            Op::TaskWaitWithin => {
+                let milliseconds = match pop!() {
+                    Value::Int(value) => value.to_i64().unwrap_or(0).max(0) as u64,
+                    _ => 0,
+                };
+                let task = pop!();
+                let result = self.task_wait(
+                    &task,
+                    Some(Duration::from_millis(milliseconds)),
+                    budget,
+                    instruction.span,
+                )?;
+                push_stack!(result);
+            }
+            Op::HigherOrder(HigherOrderKind::TryParallelMap) => {
+                let span = instruction.span;
+                let limits = match pop!() {
+                    Value::Record(name, fields) if name == "Workers" && fields.len() == 3 => {
+                        let mut numbers = [0i64; 3];
+                        for (slot, field) in numbers.iter_mut().zip(fields.iter()) {
+                            *slot = match field {
+                                Value::Int(value) => value.to_i64().unwrap_or(-1),
+                                _ => -1,
+                            };
+                        }
+                        numbers
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "try_parallel_map limits must be Workers",
+                            span,
+                        ));
+                    }
+                };
+                let [at_once, each_ms, all_ms] = limits;
+                if at_once < 1 || each_ms < 0 || all_ms < 0 {
+                    return Err(RuntimeError::new(
+                        "R_PARALLEL_LIMIT",
+                        "Workers needs at_once of at least 1, and each_ms and all_ms of 0 (no limit) or more",
+                        span,
+                    ));
+                }
+                let limit = at_once as usize;
+                if limit > self.policy.max_parallelism {
+                    return Err(RuntimeError::new(
+                        "R_PARALLEL_LIMIT",
+                        format!(
+                            "worker limit {limit} is above this project's limit of {}\n  raise it in guion.toml:   [runtime] max_parallelism = {limit}",
+                            self.policy.max_parallelism
+                        ),
+                        span,
+                    ));
+                }
+                let target = match pop!() {
+                    Value::Function(index) => index,
+                    Value::Closure(..) => {
+                        return Err(RuntimeError::new(
+                            "R_FN_CLOSURE",
+                            "try_parallel_map takes a named function, not a function that captures values",
+                            span,
+                        ));
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_FN_INVALID",
+                            "function value does not name a function of this program",
+                            span,
+                        ));
+                    }
+                };
+                let values = match pop!() {
+                    Value::List(values) => values.as_ref().clone(),
+                    Value::Float64List(values) => {
+                        values.iter().copied().map(Value::Float64).collect()
+                    }
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "try_parallel_map requires a List",
+                            span,
+                        ));
+                    }
+                };
+                let input_copy_bytes = size_of::<Vec<Value>>()
+                    .saturating_add(values.len().saturating_mul(size_of::<Value>()))
+                    .saturating_add(
+                        values
+                            .iter()
+                            .map(cloned_value_allocation)
+                            .fold(0usize, usize::saturating_add),
+                    );
+                charge_allocation(budget.as_ref(), input_copy_bytes, span)?;
+                let deadlines = TryLimits {
+                    each_ms: each_ms as u64,
+                    all_ms: all_ms as u64,
+                };
+                match self.parallel_map(
+                    target,
+                    values,
+                    ParallelRun {
+                        limit,
+                        try_limits: Some(deadlines),
+                    },
+                    depth + 1,
+                    budget.clone(),
+                    span,
+                ) {
+                    Ok(ParallelOutcome::Items(items)) => {
+                        let outcomes = items
+                            .into_iter()
+                            .map(|item| match item {
+                                Ok(value) => Value::ResultOk(Box::new(value)),
+                                Err(error) => {
+                                    Value::ResultErr(Box::new(Value::TaskError(Box::new(error))))
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        push_stack!(Value::List(Shared::new(outcomes)));
+                    }
+                    Ok(ParallelOutcome::Whole(_)) => {
+                        return Err(RuntimeError::new(
+                            "R_WORKER_CANCELLED",
+                            "try_parallel_map returned one combined result",
+                            span,
+                        ));
+                    }
+                    Err(mut error) => {
+                        error.trace.push(span);
+                        return Err(error);
+                    }
+                }
+            }
             Op::HigherOrder(kind) => {
                 let (target, captured) = match pop!() {
                     Value::Function(index) => (index, None),
@@ -1477,7 +1737,7 @@ impl Instance {
                     return Err(RuntimeError::new(
                         "R_PARALLEL_LIMIT",
                         format!(
-                            "worker limit {limit} exceeds host limit {}",
+                            "worker limit {limit} is above this project's limit of {}\n  raise it in guion.toml:   [runtime] max_parallelism = {limit}",
                             self.policy.max_parallelism
                         ),
                         instruction.span,
@@ -1508,18 +1768,28 @@ impl Instance {
                 match self.parallel_map(
                     target,
                     values,
-                    limit,
+                    ParallelRun {
+                        limit,
+                        try_limits: None,
+                    },
                     depth + 1,
                     budget.clone(),
                     instruction.span,
                 ) {
-                    Ok(Ok(results)) => {
+                    Ok(ParallelOutcome::Whole(Ok(results))) => {
                         push_stack!(Value::ResultOk(Box::new(Value::from_list_items(results))))
                     }
-                    Ok(Err(error)) => {
+                    Ok(ParallelOutcome::Whole(Err(error))) => {
                         push_stack!(Value::ResultErr(Box::new(Value::TaskError(Box::new(
                             error
                         )))))
+                    }
+                    Ok(ParallelOutcome::Items(_)) => {
+                        return Err(RuntimeError::new(
+                            "R_WORKER_CANCELLED",
+                            "parallel_map returned per-item results",
+                            instruction.span,
+                        ));
                     }
                     Err(mut error) => {
                         error.trace.push(instruction.span);
@@ -2011,9 +2281,9 @@ impl Instance {
                             .to_usize()
                             .and_then(|value| u64::try_from(value).ok())
                         {
-                            Some(value) if value > 0 => {
-                                self.policy.http_timeout.min(Duration::from_millis(value))
-                            }
+                            Some(value) if value > 0 => self
+                                .policy
+                                .cap(self.policy.http_timeout.min(Duration::from_millis(value))),
                             _ => {
                                 let mut error = http_error(
                                     "R_HTTP_TIMEOUT",
@@ -2035,7 +2305,7 @@ impl Instance {
                         }
                     }
                 } else {
-                    self.policy.http_timeout
+                    self.policy.cap(self.policy.http_timeout)
                 };
                 let body = match pop!() {
                     Value::Text(body) if !byte_response => body.as_bytes().to_vec(),
@@ -3127,11 +3397,86 @@ impl Instance {
                         );
                         outcome
                     }
+                    guion_model::ProcessFunction::Start => {
+                        let arguments = match pop!() {
+                            Value::List(items) => {
+                                let mut arguments = Vec::with_capacity(items.len());
+                                for item in items.iter() {
+                                    let Value::Text(text) = item else {
+                                        return Err(RuntimeError::new(
+                                            "R_TYPE_INVALID",
+                                            "start_process arguments must be Text",
+                                            instruction.span,
+                                        ));
+                                    };
+                                    arguments.push(text.as_ref().to_owned());
+                                }
+                                arguments
+                            }
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "start_process arguments must be a list",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let command = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "start_process command must be Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let effect = self.begin_effect(EffectKind::ProcessSpawn, command.as_str());
+                        let outcome = self.process_start(&command, &arguments);
+                        self.finish_effect(
+                            effect,
+                            match &outcome {
+                                Value::ResultErr(_) => EffectOutcome::ReturnedError,
+                                _ => EffectOutcome::Returned,
+                            },
+                        );
+                        outcome
+                    }
+                    guion_model::ProcessFunction::Line => {
+                        let handle = pop!();
+                        self.process_line(&handle, budget, instruction.span)?
+                    }
+                    guion_model::ProcessFunction::Write => {
+                        let input = match pop!() {
+                            Value::Text(text) => text.as_ref().to_owned(),
+                            _ => {
+                                return Err(RuntimeError::new(
+                                    "R_TYPE_INVALID",
+                                    "process_write needs Text",
+                                    instruction.span,
+                                ))
+                            }
+                        };
+                        let handle = pop!();
+                        self.process_write(&handle, &input, instruction.span)?
+                    }
+                    guion_model::ProcessFunction::CloseInput => {
+                        let handle = pop!();
+                        self.process_close_input(&handle, instruction.span)?
+                    }
+                    guion_model::ProcessFunction::Wait => {
+                        let handle = pop!();
+                        self.process_wait(&handle, budget, instruction.span)?
+                    }
                     guion_model::ProcessFunction::Pid => {
                         Value::Int(BigInt::from_i64(i64::from(std::process::id())))
                     }
                     guion_model::ProcessFunction::SignalPoll => {
                         Value::Text(SharedText::from(process_ops::signal_poll()))
+                    }
+                    guion_model::ProcessFunction::CoreCount => {
+                        let cores = thread::available_parallelism().map_or(1, |count| count.get());
+                        Value::Int(BigInt::from_i64(cores as i64))
                     }
                 };
                 charge_allocation(
@@ -7045,13 +7390,14 @@ impl Instance {
                 EffectKind::PythonCall,
                 format!("{}:{}", external.module, external.callable),
             );
-            let call = self.python_bridge.as_mut().unwrap().call_with_cancellation(
+            let call = self.python_bridge.as_mut().unwrap().call_until(
                 &external.module,
                 &external.callable,
                 args,
                 kwargs,
                 &external.result,
                 &budget.cancellation,
+                self.policy.deadline,
             );
             self.finish_effect(
                 effect,
@@ -7135,11 +7481,13 @@ impl Instance {
         &mut self,
         function: usize,
         values: Vec<Value>,
-        limit: usize,
+        run: ParallelRun,
         depth: usize,
         budget: Arc<Budget>,
         span: Span,
-    ) -> Result<Result<Vec<Value>, TaskErrorValue>, RuntimeError> {
+    ) -> Result<ParallelOutcome, RuntimeError> {
+        let ParallelRun { limit, try_limits } = run;
+        let try_mode = try_limits.is_some();
         if values.len() > self.policy.max_collection_items {
             return Err(RuntimeError::new(
                 "R_COLLECTION_LIMIT",
@@ -7148,7 +7496,11 @@ impl Instance {
             ));
         }
         if values.is_empty() {
-            return Ok(Ok(Vec::new()));
+            return Ok(if try_mode {
+                ParallelOutcome::Items(Vec::new())
+            } else {
+                ParallelOutcome::Whole(Ok(Vec::new()))
+            });
         }
         if function >= self.artifact.functions.len() {
             return Err(RuntimeError::new(
@@ -7202,6 +7554,14 @@ impl Instance {
         self.registers.share_across_threads();
         let next = Arc::new(AtomicUsize::new(worker_count));
         let cancelled = Arc::new(AtomicBool::new(false));
+        // Deadlines run on a monotonic clock the program cannot read, so they need no clock grant.
+        let started_at = std::time::Instant::now();
+        let each_limit = try_limits
+            .filter(|limits| limits.each_ms > 0)
+            .map(|limits| Duration::from_millis(limits.each_ms));
+        let all_deadline = try_limits
+            .filter(|limits| limits.all_ms > 0)
+            .map(|limits| started_at + Duration::from_millis(limits.all_ms));
         let artifact = Arc::clone(&self.artifact);
         let registers = Arc::clone(&self.registers);
         let native_constants = Arc::clone(&self.native_constants);
@@ -7210,6 +7570,7 @@ impl Instance {
         let native_code = self.native_code.clone();
         let values = Arc::new(values);
         let tape = self.tape.clone();
+        let channels = Arc::clone(&self.channels);
         let call_number = self.parallel_calls;
         self.parallel_calls += 1;
         let parent_lane = self.tape_lane.clone();
@@ -7251,6 +7612,7 @@ impl Instance {
             let native_compilations = native_compilations.clone();
             let native_code = native_code.clone();
             let http = self.http.clone();
+            let channels = Arc::clone(&channels);
             let sockets = self.sockets.share();
             let sender = sender.clone();
             handles.push(thread::spawn(move || {
@@ -7266,6 +7628,27 @@ impl Instance {
                         break;
                     }
                     let thread_id = format!("{:?}", thread::current().id());
+                    if all_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
+                        // Out of time before this item could start: it never runs.
+                        let _ = sender.send((
+                            index,
+                            Err(RuntimeError::new(
+                                "R_DEADLINE",
+                                "the item did not start before all_ms passed",
+                                span,
+                            )),
+                            String::new(),
+                            thread_id,
+                        ));
+                        continue;
+                    }
+                    let each_deadline = each_limit.map(|each| std::time::Instant::now() + each);
+                    let mut item_policy = policy.clone();
+                    item_policy.deadline = [item_policy.deadline, each_deadline, all_deadline]
+                        .into_iter()
+                        .flatten()
+                        .min();
+                    let item_deadline = item_policy.deadline;
                     let mut database_roots = Vec::with_capacity(
                         1 + policy.additional_file_roots.len() + policy.file_root_aliases.len(),
                     );
@@ -7279,6 +7662,7 @@ impl Instance {
                     } else {
                         format!("{parent_lane}/{call_number}.{index}")
                     };
+                    let lane_name = lane.clone();
                     let mut worker = Instance {
                         tape: tape.clone(),
                         tape_lane: lane,
@@ -7287,8 +7671,13 @@ impl Instance {
                         native_constants: Arc::clone(&native_constants),
                         registers: Arc::clone(&registers),
                         native: None,
-                        native_code: native_code.clone(),
-                        native_enabled,
+                        native_code: if item_deadline.is_none() {
+                            native_code.clone()
+                        } else {
+                            None
+                        },
+                        // Native code does not look at a deadline, so a timed item runs on the VM.
+                        native_enabled: native_enabled && item_deadline.is_none(),
                         native_whole_program_entry: false,
                         native_compile_attempted: false,
                         runtime_profile_enabled: false,
@@ -7299,7 +7688,7 @@ impl Instance {
                         native_deoptimization_sites: native_deoptimization_sites.clone(),
                         native_entry_copy_dominated: Vec::new(),
                         native_compilations: native_compilations.clone(),
-                        policy: policy.clone(),
+                        policy: item_policy,
                         http: http.clone(),
                         readers: stdlib_data::FileReaderRegistry::new(
                             usize::MAX,
@@ -7325,6 +7714,9 @@ impl Instance {
                         omitted_effects: 0,
                         python_native_image_observation: "not_used".into(),
                         python_native_images: Vec::new(),
+                        together: tasks::Together::default(),
+                        channels: Arc::clone(&channels),
+                        processes: background::ProcessTable::default(),
                     };
                     let result = worker.invoke_inner(
                         function,
@@ -7332,14 +7724,47 @@ impl Instance {
                         depth,
                         budget.clone(),
                     );
+                    let mut output = worker.output;
+                    let mut result = result;
+                    if try_mode {
+                        // A deadline stops the item through the same cancellation check a failing
+                        // sibling does, so the code says why: time ran out, or the recording
+                        // being replayed had stopped this item.
+                        let replay_cut = tape
+                            .as_ref()
+                            .is_some_and(|tape| tape.lane_cut_short(&lane_name));
+                        let timed_out = match &result {
+                            Err(error) if error.code == "R_CANCELLED" => {
+                                replay_cut
+                                    || item_deadline.is_some_and(|d| std::time::Instant::now() >= d)
+                            }
+                            Ok(_) => replay_cut,
+                            _ => false,
+                        };
+                        if timed_out && !budget.cancellation.is_cancelled() {
+                            output.clear();
+                            let limit_name = match (each_deadline, all_deadline) {
+                                (Some(each), Some(all)) if each < all => "each_ms",
+                                (Some(_), None) => "each_ms",
+                                _ => "all_ms",
+                            };
+                            result = Err(RuntimeError::new(
+                                "R_DEADLINE",
+                                format!("the item ran out of time ({limit_name})"),
+                                span,
+                            ));
+                        }
+                    }
                     match &result {
                         // The result may share parts with values this worker still holds.
                         Ok(value) => value.share_across_threads(),
                         // A cancellation is the effect of a failure, not a new one.
                         Err(error) if error.code == "R_CANCELLED" => {}
+                        // With per-item results a fault belongs to its item; siblings carry on.
+                        Err(_) if try_mode => {}
                         Err(_) => cancelled.store(true, Ordering::Relaxed),
                     }
-                    let _ = sender.send((index, result, worker.output, thread_id));
+                    let _ = sender.send((index, result, output, thread_id));
                 }
             }));
         }
@@ -7360,7 +7785,9 @@ impl Instance {
             for (index, item) in completed.iter().enumerate() {
                 let cut_short = match item {
                     None => true,
-                    Some((Err(error), _)) => error.code == "R_CANCELLED",
+                    Some((Err(error), _)) => {
+                        error.code == "R_CANCELLED" || error.code == "R_DEADLINE"
+                    }
                     Some(_) => false,
                 };
                 if cut_short {
@@ -7380,6 +7807,47 @@ impl Instance {
                 "invocation was cancelled while parallel workers were running",
                 span,
             ));
+        }
+        if try_mode {
+            let mut items = Vec::with_capacity(values.len());
+            for (index, item) in completed.into_iter().enumerate() {
+                let (result, output) = item.unwrap_or_else(|| {
+                    (
+                        Err(RuntimeError::new(
+                            "R_CANCELLED",
+                            "the item did not run because a sibling used up the instruction budget",
+                            span,
+                        )),
+                        String::new(),
+                    )
+                });
+                if self.output.len().saturating_add(output.len()) > self.policy.output_limit_bytes {
+                    return Err(RuntimeError::new(
+                        "R_OUTPUT_LIMIT",
+                        "parallel worker output exceeds the configured limit",
+                        span,
+                    ));
+                }
+                self.output.push_str(&output);
+                items.push(result.map_err(|error| {
+                    let mut trace = error.trace;
+                    trace.push(span);
+                    TaskErrorValue {
+                        index: BigInt::from_usize(index),
+                        code: error.code,
+                        message: error.message,
+                        trace,
+                    }
+                }));
+            }
+            if worker_panicked {
+                return Err(RuntimeError::new(
+                    "R_WORKER_PANIC",
+                    "a parallel worker terminated unexpectedly",
+                    span,
+                ));
+            }
+            return Ok(ParallelOutcome::Items(items));
         }
         let mut results = Vec::with_capacity(values.len());
         let mut first_error = None;
@@ -7407,12 +7875,12 @@ impl Instance {
         if let Some((index, error)) = first_error {
             let mut trace = error.trace;
             trace.push(span);
-            return Ok(Err(TaskErrorValue {
+            return Ok(ParallelOutcome::Whole(Err(TaskErrorValue {
                 index: BigInt::from_usize(index),
                 code: error.code,
                 message: error.message,
                 trace,
-            }));
+            })));
         }
         if worker_panicked {
             return Err(RuntimeError::new(
@@ -7428,8 +7896,29 @@ impl Instance {
                 span,
             ));
         }
-        Ok(Ok(results))
+        Ok(ParallelOutcome::Whole(Ok(results)))
     }
+}
+
+/// What a `parallel_map` family call produced: one combined result (`parallel_map`) or one result
+/// per item (`try_parallel_map`).
+enum ParallelOutcome {
+    Whole(Result<Vec<Value>, TaskErrorValue>),
+    Items(Vec<Result<Value, TaskErrorValue>>),
+}
+
+/// How a `parallel_map` family call runs: the worker count, and the time limits when each item
+/// gets its own result.
+struct ParallelRun {
+    limit: usize,
+    try_limits: Option<TryLimits>,
+}
+
+/// Time limits of `try_parallel_map`, in milliseconds; 0 means none.
+#[derive(Clone, Copy)]
+struct TryLimits {
+    each_ms: u64,
+    all_ms: u64,
 }
 
 unsafe extern "C" fn native_capture_vm_continuation(
@@ -8499,6 +8988,7 @@ fn input_value_allocation(value: &Value) -> usize {
                 .fold(0usize, usize::saturating_add),
         ),
         Value::Json(_) => 0,
+        Value::Task(_) | Value::Channel(_) => size_of::<Value>(),
         Value::OptionSome(value) | Value::ResultOk(value) | Value::ResultErr(value) => {
             size_of::<Value>().saturating_add(input_value_allocation(value))
         }

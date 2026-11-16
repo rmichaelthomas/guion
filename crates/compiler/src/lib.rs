@@ -675,6 +675,8 @@ enum Stmt {
     If(Expr, Vec<Stmt>, Vec<Stmt>, Span),
     While(Expr, Vec<Stmt>, Span),
     For(String, Expr, Vec<Stmt>, Span),
+    /// `together:` and its indented body: background tasks started inside end with the block.
+    Together(Vec<Stmt>, Span),
     Match(Expr, Vec<MatchArm>, Span),
     Break(Span),
     Continue(Span),
@@ -989,6 +991,12 @@ impl Parser {
                 let item = self.ty()?;
                 self.expect("]")?;
                 Ok(Type::Option(Box::new(item)))
+            }
+            "Channel" => {
+                self.expect("[")?;
+                let item = self.ty()?;
+                self.expect("]")?;
+                Ok(Type::Channel(Box::new(item)))
             }
             "Result" => {
                 self.expect("[")?;
@@ -1557,6 +1565,18 @@ impl Parser {
                 let body = self.block()?;
                 Ok(Stmt::While(c, body, t.span))
             }
+            "together"
+                if self
+                    .tokens
+                    .get(self.at + 1)
+                    .is_some_and(|next| next.text == ":") =>
+            {
+                self.advance();
+                self.expect(":")?;
+                self.expect_newline()?;
+                let body = self.block()?;
+                Ok(Stmt::Together(body, t.span))
+            }
             "for" => {
                 self.advance();
                 let name = self.name()?;
@@ -1928,7 +1948,9 @@ fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
                     walk(yes, out);
                     walk(no, out);
                 }
-                Stmt::While(_, inner, _) | Stmt::For(_, _, inner, _) => walk(inner, out),
+                Stmt::While(_, inner, _) | Stmt::For(_, _, inner, _) | Stmt::Together(inner, _) => {
+                    walk(inner, out)
+                }
                 Stmt::Match(_, arms, _) => {
                     for arm in arms {
                         walk(&arm.body, out);
@@ -2154,6 +2176,10 @@ fn desugar_block(
                 desugar_expr(&mut condition, enums, variants, counter)?;
                 desugar_block(&mut inner, enums, variants, counter)?;
                 body.push(Stmt::While(condition, inner, span));
+            }
+            Stmt::Together(mut inner, span) => {
+                desugar_block(&mut inner, enums, variants, counter)?;
+                body.push(Stmt::Together(inner, span));
             }
             Stmt::For(name, mut iterable, mut inner, span) => {
                 desugar_expr(&mut iterable, enums, variants, counter)?;
@@ -2416,6 +2442,7 @@ fn mentioned_in_block(body: &[Stmt], out: &mut Vec<String>, bound: &mut Vec<Stri
                 mentioned_names(condition, out);
                 mentioned_in_block(inner, out, bound);
             }
+            Stmt::Together(inner, _) => mentioned_in_block(inner, out, bound),
             Stmt::For(name, iterable, inner, _) => {
                 mentioned_names(iterable, out);
                 bound.push(name.clone());
@@ -2504,6 +2531,81 @@ fn mentioned_names(expression: &Expr, out: &mut Vec<String>) {
     }
 }
 
+/// The arguments of a record constructor in field order. Positional arguments fill the first
+/// fields; `field=value` arguments fill the rest by name, in any order. Values are evaluated in
+/// field order, not in the order written.
+fn order_record_arguments<'a>(
+    name: &str,
+    fields: &[&str],
+    args: &'a [Expr],
+    keywords: &'a [(String, Expr, Span)],
+    span: Span,
+) -> Result<Vec<&'a Expr>, Diagnostic> {
+    if keywords.is_empty() {
+        if args.len() != fields.len() {
+            return Err(diagnostic(
+                "E_CALL_ARITY",
+                format!(
+                    "record `{name}` expects {} fields, got {}",
+                    fields.len(),
+                    args.len()
+                ),
+                span,
+            ));
+        }
+        return Ok(args.iter().collect());
+    }
+    if args.len() > fields.len() {
+        return Err(diagnostic(
+            "E_CALL_ARITY",
+            format!(
+                "record `{name}` has {} fields, got {} positional arguments",
+                fields.len(),
+                args.len()
+            ),
+            span,
+        ));
+    }
+    let mut slots: Vec<Option<&Expr>> = vec![None; fields.len()];
+    for (slot, argument) in slots.iter_mut().zip(args) {
+        *slot = Some(argument);
+    }
+    for (keyword, value, keyword_span) in keywords {
+        let Some(position) = fields.iter().position(|field| field == keyword) else {
+            return Err(diagnostic(
+                "E_CALL_KEYWORD",
+                format!(
+                    "record `{name}` has no field `{keyword}`; its fields are {}",
+                    fields.join(", ")
+                ),
+                *keyword_span,
+            ));
+        };
+        if slots[position].is_some() {
+            return Err(diagnostic(
+                "E_CALL_KEYWORD",
+                format!("field `{keyword}` of `{name}` is given twice"),
+                *keyword_span,
+            ));
+        }
+        slots[position] = Some(value);
+    }
+    let missing: Vec<&str> = fields
+        .iter()
+        .zip(&slots)
+        .filter(|(_, slot)| slot.is_none())
+        .map(|(field, _)| *field)
+        .collect();
+    if !missing.is_empty() {
+        return Err(diagnostic(
+            "E_CALL_ARITY",
+            format!("record `{name}` is missing {}", missing.join(", ")),
+            span,
+        ));
+    }
+    Ok(slots.into_iter().flatten().collect())
+}
+
 fn substitute_type(ty: &Type, bindings: &HashMap<String, Type>) -> Type {
     match ty {
         Type::Record(name) => bindings.get(name).cloned().unwrap_or_else(|| ty.clone()),
@@ -2543,7 +2645,7 @@ fn substitute_block(body: &mut [Stmt], bindings: &HashMap<String, Type>) {
                 substitute_block(yes, bindings);
                 substitute_block(no, bindings);
             }
-            Stmt::While(_, inner, _) | Stmt::For(_, _, inner, _) => {
+            Stmt::While(_, inner, _) | Stmt::For(_, _, inner, _) | Stmt::Together(inner, _) => {
                 substitute_block(inner, bindings)
             }
             Stmt::Match(_, arms, _) => {
@@ -2621,6 +2723,8 @@ fn type_label(ty: &Type) -> String {
         Type::FileError => "FileError".into(),
         Type::HttpError => "HttpError".into(),
         Type::TaskError => "TaskError".into(),
+        Type::Task(item) => format!("Task[{}]", type_label(item)),
+        Type::Channel(item) => format!("Channel[{}]", type_label(item)),
         Type::Record(name) | Type::NativeResource(name) => name.clone(),
         Type::Array(element) => format!("Array[{}]", element.name()),
         Type::List(item) => format!("List[{}]", type_label(item)),
@@ -2789,6 +2893,7 @@ impl RecordResolver<'_> {
             Type::Map(item) => Type::Map(Box::new(self.ty(item, span))),
             Type::IntMap(item) => Type::IntMap(Box::new(self.ty(item, span))),
             Type::Option(item) => Type::Option(Box::new(self.ty(item, span))),
+            Type::Channel(item) => Type::Channel(Box::new(self.ty(item, span))),
             Type::Result(ok, err) => {
                 Type::Result(Box::new(self.ty(ok, span)), Box::new(self.ty(err, span)))
             }
@@ -2830,6 +2935,7 @@ impl RecordResolver<'_> {
                     self.expr(condition);
                     self.block(inner);
                 }
+                Stmt::Together(inner, _) => self.block(inner),
                 Stmt::For(_, values, inner, _) => {
                     self.expr(values);
                     self.block(inner);
@@ -2961,6 +3067,9 @@ struct FnCompiler<'a> {
     /// Arguments of a builtin call that sit on a serialization boundary, by identity, with the
     /// boundary's name: a type holding a function value may not reach them.
     boundary_args: Vec<(*const Expr, String)>,
+    /// The next free local slot at each enclosing `together:` block's start: a local below the
+    /// innermost one was declared outside it.
+    together_floors: Vec<usize>,
     /// Dotted names (`record`, `record.inner`) that some `set` statement assigns a field of; a
     /// record variable with such a name is split into one hidden local per field.
     split_targets: HashSet<String>,
@@ -2970,6 +3079,9 @@ struct FnCompiler<'a> {
 struct LoopFrame {
     breaks: Vec<usize>,
     continues: Vec<usize>,
+    /// How many `together:` blocks enclosed the loop; leaving one with `break` or `continue` is
+    /// refused.
+    together_depth: usize,
 }
 impl<'a> FnCompiler<'a> {
     fn emit(&mut self, op: Op, span: Span) -> usize {
@@ -3338,6 +3450,156 @@ impl<'a> FnCompiler<'a> {
         Ok(())
     }
 
+    /// `channel`, `send`, `receive`, `close`, `first_ready` and `first_value` (and their `_within`
+    /// forms), which work on the tasks and channels of a `together:` block.
+    fn channel_builtin(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> Result<Type, Diagnostic> {
+        match name {
+            "channel" => {
+                if self.together_floors.is_empty() {
+                    return Err(diagnostic(
+                        "E_CHANNEL_OUTSIDE_TOGETHER",
+                        "channel can only be made inside a `together:` block, which closes it",
+                        span,
+                    ));
+                }
+                let Some(Type::Channel(item)) = expected else {
+                    return Err(diagnostic(
+                        "E_TYPE_ANNOTATION",
+                        "a channel needs its element type from context: write `let results: Channel[Int] = channel(8)`",
+                        span,
+                    ));
+                };
+                let item = (**item).clone();
+                if self.type_has_task(&item) {
+                    return Err(diagnostic(
+                        "E_SCOPE_ESCAPE",
+                        "a channel cannot carry a task or another channel",
+                        span,
+                    ));
+                }
+                if self.expr(&args[0])? != Type::Int {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        "channel capacity must be Int",
+                        args[0].span(),
+                    ));
+                }
+                self.emit(Op::ChannelNew(item.clone()), span);
+                Ok(Type::Channel(Box::new(item)))
+            }
+            "send" => {
+                let Type::Channel(item) = self.expr(&args[0])? else {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        "send needs a channel and a value for it",
+                        args[0].span(),
+                    ));
+                };
+                if self.expr_with_expected(&args[1], Some(&item))? != *item {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        format!("send value must have type {item:?}"),
+                        args[1].span(),
+                    ));
+                }
+                self.emit(Op::ChannelSend, span);
+                Ok(Type::Result(
+                    Box::new(Type::Unit),
+                    Box::new(Type::TaskError),
+                ))
+            }
+            "receive" | "close" => {
+                let Type::Channel(item) = self.expr(&args[0])? else {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        format!("{name} needs a channel"),
+                        args[0].span(),
+                    ));
+                };
+                if name == "receive" {
+                    self.emit(Op::ChannelReceive, span);
+                    Ok(Type::Option(item))
+                } else {
+                    self.emit(Op::ChannelClose, span);
+                    Ok(Type::Unit)
+                }
+            }
+            _ => {
+                let tasks = name.starts_with("first_ready");
+                let within = name.ends_with("_within");
+                let matches_kind = |ty: &Type| match ty {
+                    Type::List(item) if tasks => matches!(**item, Type::Task(_)),
+                    Type::List(item) => matches!(**item, Type::Channel(_)),
+                    _ => false,
+                };
+                if !(self.record_generics.contains_key("Ready")
+                    && self.visible_records.contains("Ready"))
+                {
+                    return Err(diagnostic(
+                        "E_IMPORT_REQUIRED",
+                        format!(
+                            "{name} gives a `Ready` record from std:process; add `import \"std:process\"`"
+                        ),
+                        span,
+                    ));
+                }
+                let listed = self.expr(&args[0])?;
+                if !matches_kind(&listed) {
+                    return Err(diagnostic(
+                        "E_TYPE_ARGUMENT",
+                        if tasks {
+                            "first_ready needs a list of tasks"
+                        } else {
+                            "first_value needs a list of channels"
+                        },
+                        args[0].span(),
+                    ));
+                }
+                if within {
+                    if self.expr(&args[1])? != Type::Int {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "the time limit must be Int milliseconds",
+                            args[1].span(),
+                        ));
+                    }
+                } else {
+                    self.emit(Op::Const(Value::Int(BigInt::from_i64(-1))), span);
+                }
+                let Type::List(item) = listed else {
+                    unreachable!("checked above to be a list")
+                };
+                let payload = match *item {
+                    Type::Task(result) => Type::Result(result, Box::new(Type::TaskError)),
+                    Type::Channel(value) => Type::Option(value),
+                    _ => unreachable!("checked above to be tasks or channels"),
+                };
+                let (instance, record) = self.generic_record_instance("Ready", vec![payload]);
+                self.emit(
+                    if tasks {
+                        Op::FirstReady(record)
+                    } else {
+                        Op::FirstValue(record)
+                    },
+                    span,
+                );
+                let ready = Type::Record(instance);
+                if within {
+                    Ok(Type::Option(Box::new(ready)))
+                } else {
+                    self.emit(Op::Unwrap, span);
+                    Ok(ready)
+                }
+            }
+        }
+    }
+
     fn function_argument(
         &mut self,
         arg: &Expr,
@@ -3554,6 +3816,50 @@ impl<'a> FnCompiler<'a> {
         Ok(Some(result))
     }
 
+    /// Whether a type is, or holds, a task of a `together:` block, looking through record fields.
+    fn type_has_task(&self, ty: &Type) -> bool {
+        // The standard library builds and hands out `Process` values itself; programs may not
+        // let one leave the block that started it.
+        let process_is_scoped = !self
+            .standard_functions
+            .contains(&function_symbol(self.ast.module_id, &self.ast.name));
+        fn walk(
+            ty: &Type,
+            records: &[RecordAst],
+            seen: &mut Vec<String>,
+            process_is_scoped: bool,
+        ) -> bool {
+            match ty {
+                Type::Task(_) | Type::Channel(_) => true,
+                Type::Record(name) if process_is_scoped && name == "Process" => true,
+                Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+                    walk(item, records, seen, process_is_scoped)
+                }
+                Type::Result(ok, err) => {
+                    walk(ok, records, seen, process_is_scoped)
+                        || walk(err, records, seen, process_is_scoped)
+                }
+                Type::Record(name) => {
+                    if seen.contains(name) {
+                        return false;
+                    }
+                    seen.push(name.clone());
+                    records
+                        .iter()
+                        .find(|record| record.name == *name)
+                        .is_some_and(|record| {
+                            record
+                                .fields
+                                .iter()
+                                .any(|(_, field, _)| walk(field, records, seen, process_is_scoped))
+                        })
+                }
+                _ => false,
+            }
+        }
+        walk(ty, self.records, &mut Vec::new(), process_is_scoped)
+    }
+
     /// Whether a type is, or holds, a function value, looking through record fields.
     fn type_has_fn(&self, ty: &Type) -> bool {
         fn walk(ty: &Type, records: &[RecordAst], seen: &mut Vec<String>) -> bool {
@@ -3603,6 +3909,15 @@ impl<'a> FnCompiler<'a> {
                     return Err(diagnostic(
                         "E_FN_NOT_SERIALIZABLE",
                         format!("a type that holds a function value cannot cross {boundary}"),
+                        e.span(),
+                    ));
+                }
+                if self.type_has_task(&ty) {
+                    return Err(diagnostic(
+                        "E_SCOPE_ESCAPE",
+                        format!(
+                            "a task belongs to its `together:` block and cannot cross {boundary}"
+                        ),
                         e.span(),
                     ));
                 }
@@ -3745,6 +4060,13 @@ impl<'a> FnCompiler<'a> {
                     return Err(diagnostic(
                         "E_RESULT_TRY_ERROR",
                         "the error type must match the enclosing function's Result error type",
+                        *span,
+                    ));
+                }
+                if !self.together_floors.is_empty() {
+                    return Err(diagnostic(
+                        "E_TOGETHER_EXIT",
+                        "`?` cannot leave a `together:` block; handle the Result inside it",
                         *span,
                     ));
                 }
@@ -4415,6 +4737,196 @@ impl<'a> FnCompiler<'a> {
                         Box::new(Type::TaskError),
                     ));
                 }
+                if matches!(
+                    name.as_str(),
+                    "channel"
+                        | "send"
+                        | "receive"
+                        | "close"
+                        | "first_ready"
+                        | "first_ready_within"
+                        | "first_value"
+                        | "first_value_within"
+                ) && !self.visible_functions.contains_key(name)
+                    && !self.locals.contains_key(name)
+                {
+                    if !keywords.is_empty() {
+                        return Err(diagnostic(
+                            "E_CALL_KEYWORD",
+                            format!("{name} accepts positional arguments only"),
+                            keywords[0].2,
+                        ));
+                    }
+                    let arity = match name.as_str() {
+                        "channel" | "receive" | "close" | "first_ready" | "first_value" => 1,
+                        _ => 2,
+                    };
+                    if args.len() != arity {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            format!("{name} expects {arity} argument(s)"),
+                            *s,
+                        ));
+                    }
+                    return self.channel_builtin(name, args, expected, *s);
+                }
+                if matches!(name.as_str(), "start" | "wait" | "wait_within")
+                    && !self.visible_functions.contains_key(name)
+                    && !self.locals.contains_key(name)
+                {
+                    if !keywords.is_empty() {
+                        return Err(diagnostic(
+                            "E_CALL_KEYWORD",
+                            format!("{name} accepts positional arguments only"),
+                            keywords[0].2,
+                        ));
+                    }
+                    if name == "start" {
+                        if args.len() != 2 {
+                            return Err(diagnostic(
+                                "E_CALL_ARITY",
+                                "start expects a function name and one argument for it",
+                                *s,
+                            ));
+                        }
+                        if self.together_floors.is_empty() {
+                            return Err(diagnostic(
+                                "E_START_OUTSIDE_TOGETHER",
+                                "start can only be used inside a `together:` block, which ends every task it starts",
+                                *s,
+                            ));
+                        }
+                        let argument_type = self.expr(&args[1])?;
+                        self.reject_capturing_literal(&args[0], "start")?;
+                        let worker = self.function_argument(
+                            &args[0],
+                            (
+                                "E_TYPE_ARGUMENT",
+                                "start needs a named function or a function value to run",
+                            ),
+                            "task function",
+                        )?;
+                        let worker_span = worker.span();
+                        let (worker_params, worker_result) = worker.signature();
+                        if worker_params.iter().any(type_contains_native_resource)
+                            || type_contains_native_resource(&worker_result)
+                        {
+                            return Err(diagnostic(
+                                "E_PARALLEL_RESOURCE",
+                                "tasks cannot accept or return native resources",
+                                worker_span,
+                            ));
+                        }
+                        if worker_params != vec![argument_type] {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "the function given to start must accept exactly the argument that follows it",
+                                worker_span,
+                            ));
+                        }
+                        if self.type_has_task(&worker_result) {
+                            return Err(diagnostic(
+                                "E_SCOPE_ESCAPE",
+                                "a task cannot return another task",
+                                worker_span,
+                            ));
+                        }
+                        if let Some(index) = worker.index() {
+                            self.emit(Op::MakeFn(index), worker_span);
+                        }
+                        self.emit(Op::HigherOrder(HigherOrderKind::StartTask), *s);
+                        return Ok(Type::Task(Box::new(worker_result)));
+                    }
+                    let expected_arguments = if name == "wait" { 1 } else { 2 };
+                    if args.len() != expected_arguments {
+                        return Err(diagnostic(
+                            "E_CALL_ARITY",
+                            if name == "wait" {
+                                "wait expects one task"
+                            } else {
+                                "wait_within expects a task and a number of milliseconds"
+                            },
+                            *s,
+                        ));
+                    }
+                    let Type::Task(item) = self.expr(&args[0])? else {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            format!("{name} needs a task made by start"),
+                            args[0].span(),
+                        ));
+                    };
+                    if name == "wait_within" {
+                        if self.expr(&args[1])? != Type::Int {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "wait_within milliseconds must be Int",
+                                args[1].span(),
+                            ));
+                        }
+                        self.emit(Op::TaskWaitWithin, *s);
+                    } else {
+                        self.emit(Op::TaskWait, *s);
+                    }
+                    return Ok(Type::Result(item, Box::new(Type::TaskError)));
+                }
+                if name == "try_parallel_map" {
+                    if args.len() != 3 {
+                        return Err(diagnostic("E_CALL_ARITY", "try_parallel_map expects a list, a unary function name, and Workers limits", *s));
+                    }
+                    let item_type = match self.expr(&args[0])? {
+                        Type::List(item) => *item,
+                        _ => {
+                            return Err(diagnostic(
+                                "E_TYPE_ARGUMENT",
+                                "try_parallel_map first argument must be a List",
+                                args[0].span(),
+                            ))
+                        }
+                    };
+                    self.reject_capturing_literal(&args[1], "try_parallel_map")?;
+                    let worker = self.function_argument(
+                        &args[1],
+                        (
+                            "E_TYPE_ARGUMENT",
+                            "try_parallel_map worker must be a named function or a function value",
+                        ),
+                        "worker function",
+                    )?;
+                    let worker_span = worker.span();
+                    let (worker_params, worker_result) = worker.signature();
+                    if worker_params.iter().any(type_contains_native_resource)
+                        || type_contains_native_resource(&worker_result)
+                    {
+                        return Err(diagnostic(
+                            "E_PARALLEL_RESOURCE",
+                            "parallel workers cannot accept or return native resources",
+                            worker_span,
+                        ));
+                    }
+                    if worker_params != vec![item_type] {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "try_parallel_map worker must accept one item of the list's item type",
+                            worker_span,
+                        ));
+                    }
+                    if let Some(index) = worker.index() {
+                        self.emit(Op::MakeFn(index), worker_span);
+                    }
+                    if self.expr(&args[2])? != Type::Record("Workers".into()) {
+                        return Err(diagnostic(
+                            "E_TYPE_ARGUMENT",
+                            "try_parallel_map limits must be Workers(at_once, each_ms, all_ms) from std:process",
+                            args[2].span(),
+                        ));
+                    }
+                    self.emit(Op::HigherOrder(HigherOrderKind::TryParallelMap), *s);
+                    return Ok(Type::List(Box::new(Type::Result(
+                        Box::new(worker_result),
+                        Box::new(Type::TaskError),
+                    ))));
+                }
                 if name == "sort_by" {
                     if args.len() != 2 {
                         return Err(diagnostic(
@@ -5062,13 +5574,6 @@ impl<'a> FnCompiler<'a> {
                             && (self.visible_records.contains(name) || name.contains('<'))
                     })
                 {
-                    if !keywords.is_empty() {
-                        return Err(diagnostic(
-                            "E_CALL_KEYWORD",
-                            "record constructors accept positional fields only",
-                            keywords[0].2,
-                        ));
-                    }
                     if record.module_id != self.ast.module_id && !record.private_fields.is_empty() {
                         return Err(diagnostic(
                             "E_FIELD_PRIVATE",
@@ -5076,18 +5581,10 @@ impl<'a> FnCompiler<'a> {
                             *s,
                         ));
                     }
-                    if args.len() != record.fields.len() {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            format!(
-                                "record `{name}` expects {} fields, got {}",
-                                record.fields.len(),
-                                args.len()
-                            ),
-                            *s,
-                        ));
-                    }
-                    for (argument, (_, expected, _)) in args.iter().zip(&record.fields) {
+                    let field_names: Vec<&str> =
+                        record.fields.iter().map(|(field, _, _)| field.as_str()).collect();
+                    let ordered = order_record_arguments(name, &field_names, args, keywords, *s)?;
+                    for (argument, (_, expected, _)) in ordered.iter().copied().zip(&record.fields) {
                         let actual = self.expr_with_expected(argument, Some(expected))?;
                         if actual != *expected {
                             return Err(diagnostic(
@@ -5097,7 +5594,7 @@ impl<'a> FnCompiler<'a> {
                             ));
                         }
                     }
-                    self.emit(Op::MakeRecord(record_index, args.len()), *s);
+                    self.emit(Op::MakeRecord(record_index, ordered.len()), *s);
                     return Ok(Type::Record(name.clone()));
                 }
                 let (index, params, parameter_names, result, external) = if let Some(symbol) =
@@ -5170,6 +5667,15 @@ impl<'a> FnCompiler<'a> {
                                 .visible_functions
                                 .get(name)
                                 .is_some_and(|symbol| self.standard_functions.contains(symbol));
+                        if standard && self.type_has_task(&actual) {
+                            return Err(diagnostic(
+                                "E_SCOPE_ESCAPE",
+                                format!(
+                                    "a task belongs to its `together:` block and cannot cross the standard-library function `{name}`"
+                                ),
+                                arg.span(),
+                            ));
+                        }
                         if standard && self.type_has_fn(&actual) && !self.type_has_fn(expected) {
                             return Err(diagnostic(
                                 "E_FN_NOT_SERIALIZABLE",
@@ -5359,13 +5865,6 @@ impl<'a> FnCompiler<'a> {
         span: Span,
     ) -> Result<Type, Diagnostic> {
         let template = &self.record_generics[name];
-        if !keywords.is_empty() {
-            return Err(diagnostic(
-                "E_CALL_KEYWORD",
-                "record constructors accept positional fields only",
-                keywords[0].2,
-            ));
-        }
         if template.module_id != self.ast.module_id && !template.private_fields.is_empty() {
             return Err(diagnostic(
                 "E_FIELD_PRIVATE",
@@ -5373,19 +5872,14 @@ impl<'a> FnCompiler<'a> {
                 span,
             ));
         }
-        if args.len() != template.fields.len() {
-            return Err(diagnostic(
-                "E_CALL_ARITY",
-                format!(
-                    "record `{name}` expects {} fields, got {}",
-                    template.fields.len(),
-                    args.len()
-                ),
-                span,
-            ));
-        }
+        let field_names: Vec<&str> = template
+            .fields
+            .iter()
+            .map(|(field, _, _)| field.as_str())
+            .collect();
+        let ordered = order_record_arguments(name, &field_names, args, keywords, span)?;
         let mut bindings: HashMap<String, Type> = HashMap::new();
-        for (argument, (field, field_type, _)) in args.iter().zip(&template.fields) {
+        for (argument, (field, field_type, _)) in ordered.iter().copied().zip(&template.fields) {
             let actual = self.expr(argument)?;
             if !unify_type(
                 field_type,
@@ -5417,9 +5911,17 @@ impl<'a> FnCompiler<'a> {
             };
             types.push(ty.clone());
         }
+        let (instance, index) = self.generic_record_instance(name, types);
+        self.emit(Op::MakeRecord(index, ordered.len()), span);
+        Ok(Type::Record(instance))
+    }
+
+    /// The name of `Name[types]` and its record index, or index 0 while the instance is still to be
+    /// made: the pass that finds it missing reports it and the compile runs again.
+    fn generic_record_instance(&self, name: &str, types: Vec<Type>) -> (String, usize) {
         let instance = record_instance_name(name, &types);
-        match self.record_index_of(&instance) {
-            Some(index) => self.emit(Op::MakeRecord(index, args.len()), span),
+        let index = match self.record_index_of(&instance) {
+            Some(index) => index,
             None => {
                 let mut pending = self.pending_records.borrow_mut();
                 if !pending.iter().any(|(base, arguments)| {
@@ -5427,10 +5929,10 @@ impl<'a> FnCompiler<'a> {
                 }) {
                     pending.push((name.to_owned(), types));
                 }
-                self.emit(Op::MakeRecord(0, args.len()), span)
+                0
             }
         };
-        Ok(Type::Record(instance))
+        (instance, index)
     }
 
     fn stmts(&mut self, body: &[Stmt]) -> Result<(), Diagnostic> {
@@ -5550,6 +6052,18 @@ impl<'a> FnCompiler<'a> {
                         return Err(diagnostic(
                             "E_ASSIGN_IMMUTABLE",
                             format!("`{name}` is immutable; declare it with `var` to assign it"),
+                            *span,
+                        ));
+                    }
+                    if self.type_has_task(&local.ty)
+                        && self
+                            .together_floors
+                            .last()
+                            .is_some_and(|floor| local.slot < *floor)
+                    {
+                        return Err(diagnostic(
+                            "E_SCOPE_ESCAPE",
+                            "a task cannot be stored in a variable declared outside its `together:` block",
                             *span,
                         ));
                     }
@@ -5742,7 +6256,21 @@ impl<'a> FnCompiler<'a> {
                     );
                 }
                 Stmt::Return(value, span) => {
+                    if !self.together_floors.is_empty() {
+                        return Err(diagnostic(
+                            "E_TOGETHER_EXIT",
+                            "`return` cannot leave a `together:` block; let the block finish, then return after it",
+                            *span,
+                        ));
+                    }
                     let ty = self.expr_with_expected(value, Some(&self.ast.result))?;
+                    if self.type_has_task(&ty) {
+                        return Err(diagnostic(
+                            "E_SCOPE_ESCAPE",
+                            "a task belongs to its `together:` block and cannot be returned",
+                            *span,
+                        ));
+                    }
                     if ty != self.ast.result {
                         return Err(diagnostic(
                             "E_TYPE_RETURN",
@@ -5773,6 +6301,13 @@ impl<'a> FnCompiler<'a> {
                         ));
                     }
                     let printed = self.expr(&args[0])?;
+                    if self.type_has_task(&printed) {
+                        return Err(diagnostic(
+                            "E_SCOPE_ESCAPE",
+                            "a task belongs to its `together:` block and cannot cross program output",
+                            args[0].span(),
+                        ));
+                    }
                     if self.type_has_fn(&printed) {
                         return Err(diagnostic(
                             "E_FN_NOT_SERIALIZABLE",
@@ -5826,7 +6361,10 @@ impl<'a> FnCompiler<'a> {
                     }
                     let exit = self.emit(Op::JumpIfFalse(0), *span);
                     let before = self.locals.clone();
-                    self.loops.push(LoopFrame::default());
+                    self.loops.push(LoopFrame {
+                        together_depth: self.together_floors.len(),
+                        ..LoopFrame::default()
+                    });
                     self.stmts(body)?;
                     let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = before;
@@ -5839,6 +6377,15 @@ impl<'a> FnCompiler<'a> {
                     for jump in frame.continues {
                         self.patch(jump, start);
                     }
+                }
+                Stmt::Together(body, span) => {
+                    self.emit(Op::TogetherEnter, *span);
+                    let before = self.locals.clone();
+                    self.together_floors.push(self.next_local);
+                    self.stmts(body)?;
+                    self.together_floors.pop();
+                    self.locals = before;
+                    self.emit(Op::TogetherExit, *span);
                 }
                 Stmt::For(
                     name,
@@ -5926,7 +6473,10 @@ impl<'a> FnCompiler<'a> {
                             split: None,
                         },
                     );
-                    self.loops.push(LoopFrame::default());
+                    self.loops.push(LoopFrame {
+                        together_depth: self.together_floors.len(),
+                        ..LoopFrame::default()
+                    });
                     self.stmts(body)?;
                     let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = old_locals;
@@ -5999,7 +6549,10 @@ impl<'a> FnCompiler<'a> {
                             split: None,
                         },
                     );
-                    self.loops.push(LoopFrame::default());
+                    self.loops.push(LoopFrame {
+                        together_depth: self.together_floors.len(),
+                        ..LoopFrame::default()
+                    });
                     self.stmts(body)?;
                     let frame = self.loops.pop().expect("loop frame was pushed above");
                     self.locals = old_locals;
@@ -6025,6 +6578,18 @@ impl<'a> FnCompiler<'a> {
                         return Err(diagnostic(
                             "E_NO_LOOP",
                             format!("`{word}` outside a loop"),
+                            *span,
+                        ));
+                    }
+                    if self
+                        .loops
+                        .last()
+                        .is_some_and(|frame| frame.together_depth != self.together_floors.len())
+                    {
+                        let word = if is_break { "break" } else { "continue" };
+                        return Err(diagnostic(
+                            "E_TOGETHER_EXIT",
+                            format!("`{word}` cannot leave a `together:` block; let the block finish first"),
                             *span,
                         ));
                     }
@@ -7373,6 +7938,7 @@ fn compile_program_pass(
             code: Vec::new(),
             loops: Vec::new(),
             boundary_args: Vec::new(),
+            together_floors: Vec::new(),
             split_targets: split_targets_of(&f.body),
         };
         for (name, ty, span) in &f.params {
@@ -7397,6 +7963,13 @@ fn compile_program_pass(
                     *span,
                 ));
             }
+        }
+        if compiler.type_has_task(&f.result) {
+            return Err(diagnostic(
+                "E_SCOPE_ESCAPE",
+                "a function cannot return a task or a channel: they belong to their `together:` block",
+                f.span,
+            ));
         }
         compiler.stmts(&f.body)?;
         if f.result == Type::Unit {
@@ -7558,6 +8131,8 @@ fn python_bridge_type(ty: &Type) -> bool {
         Type::NativeResource(_)
         | Type::Array(_)
         | Type::Fn(_, _)
+        | Type::Task(_)
+        | Type::Channel(_)
         | Type::IntMap(_)
         | Type::RecordApp(_, _) => false,
         Type::Option(_)

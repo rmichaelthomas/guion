@@ -37,7 +37,8 @@ Everyday forms: see `docs/reference.md`.
 - Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
 - Filesystem and paths (artifact format 54): `std:fs` adds `fs_exists`, `fs_kind` (`"file"`, `"directory"`, `"other"` or `"missing"`), `fs_size`, `fs_modified_ms`, `fs_list_dir` (sorted names), `fs_make_dir` (creates missing parents; succeeds if the directory exists), `fs_remove` (a file or an empty directory), `fs_remove_all`, `fs_rename`, `fs_copy` (returns the bytes copied) and `fs_temp_dir`/`fs_temp_file` (a unique entry under `.guion-tmp/` in the granted root; the prefix is 1 to 64 ASCII letters, digits, `-` or `_`). All return `Result[T, FileError]`. Each path is relative to a granted file root, may not contain `..`, and is confined after symlink resolution, as for `read_text`; mutating operations need the file-write grant. `fs_remove`, `fs_remove_all` and `fs_rename` act on the named entry itself: removing or renaming a symlink removes or moves the link, never its target, and only the directory holding the entry must lie inside the root (so a link pointing outside the root can still be removed). Other operations follow symlinks to a confined target. Writing through a symlink whose target does not exist is refused with `R_HOST_DENIED`, since it would create the target wherever the link points. The granted root itself cannot be removed or renamed. `std:path` provides POSIX path text functions that never touch the disk: `path_normalize`, `path_join`, `path_dirname`, `path_basename`, `path_extension`, `path_stem`, `path_with_extension`, `path_components` and `path_is_absolute`. Static inspection now reports `filesystem.read` for `fs_walk`, `file_open_lines` and CSV opening as well.
 - Regular expressions (artifact format 55): `std:regex` provides `regex_is_match`, `regex_find` (the first match as a list of capture groups, group 0 first, unmatched groups as `""`), `regex_find_all`, `regex_replace`, `regex_replace_first` (replacement text expands `$1`, `${name}`; `$$` is a literal `$`), `regex_split` and `regex_escape`. Patterns use the Rust `regex` crate syntax: Unicode-aware, RE2-style, matching time linear in the subject, with no backreferences and no lookaround. An invalid or unsupported pattern, a pattern over 4,096 bytes, or one that compiles to more than 1 MiB of program returns `Err` with code `E_REGEX_INVALID`; no grant is required. Compiled patterns are cached per thread.
-- Processes and signals (artifact format 56): `std:process` provides `process_run(command, arguments, stdin)` returning `Result[ProcessResult, StdError]` with `exit_code`, `stdout` and `stderr` (a child killed by signal N reports `128 + N`; output is decoded as lossy UTF-8), `process_pid()` and `process_signal_poll()`. Starting a program is denied by default: the command name must be listed exactly in `guion.toml` `[process].commands` or passed with `guion run --allow-command NAME`; a grant for one command never covers another. The command starts without a shell from an argument list, with a cleared environment holding only `PATH` and the variables granted in `[environment]`, the project file root as working directory, and its own process group. `[process].timeout_ms` (default 30,000) and `[process].max_output_bytes` (default 16 MiB per stream) bound each call; exceeding either kills the whole group and returns `E_PROCESS_TIMEOUT` or `E_PROCESS_OUTPUT_LIMIT`. Other error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT` and `E_PROCESS_SPAWN`. `process_signal_poll()` installs `INT`, `TERM` and `HUP` handlers on first use, so those signals no longer end the program by themselves; it returns and clears the pending signal name, or `""`. Calls are synchronous: there is no way to leave a child running after the call returns. Static inspection reports `process.spawn` and `process.signals`, with a `process_grant` section.
+- Processes and signals (artifact format 56): `std:process` provides `process_run(command, arguments, stdin)` returning `Result[ProcessResult, StdError]` with `exit_code`, `stdout` and `stderr` (a child killed by signal N reports `128 + N`; output is decoded as lossy UTF-8), `process_pid()`, `core_count()` (artifact format 76; the number of processor cores, for sizing `parallel_map` on computing work) and `process_signal_poll()`. Starting a program is denied by default: the command name must be listed exactly in `guion.toml` `[process].commands` or passed with `guion run --allow-command NAME`; a grant for one command never covers another. The command starts without a shell from an argument list, with a cleared environment holding only `PATH` and the variables granted in `[environment]`, the project file root as working directory, and its own process group. `[process].timeout_ms` (default 30,000) and `[process].max_output_bytes` (default 16 MiB per stream) bound each call; exceeding either kills the whole group and returns `E_PROCESS_TIMEOUT` or `E_PROCESS_OUTPUT_LIMIT`. Other error codes are `E_PROCESS_DENIED`, `E_PROCESS_ARGUMENT` and `E_PROCESS_SPAWN`. `process_signal_poll()` installs `INT`, `TERM` and `HUP` handlers on first use, so those signals no longer end the program by themselves; it returns and clears the pending signal name, or `""`. Calls are synchronous: there is no way to leave a child running after the call returns. Static inspection reports `process.spawn` and `process.signals`, with a `process_grant` section.
+- Background work (artifact format 76): `together:` is a block statement; inside it `start(function, argument)` runs `function(argument)` on its own thread and returns a task, `wait(task)` and `wait_within(task, ms)` return `Result[T, TaskError]` (`R_DEADLINE` and the task is stopped when `ms` passes), and when the block ends every task not waited for is stopped. `start` outside a block is `E_START_OUTSIDE_TOGETHER`; `return`, `break`, `continue` and `?` cannot leave a block (`E_TOGETHER_EXIT`); a task or channel cannot be returned, printed or kept in a variable declared outside its block (`E_SCOPE_ESCAPE`). Tasks have exactly the parent's grants and share its budgets. Channels: `let c: Channel[Int] = channel(8)` inside a block, `send(c, value)` (waits while full; `Result[Unit, TaskError]`), `receive(c)` (`Option[T]`; `None` once closed and empty), `close(c)`; a started function can take a `Channel[T]` parameter; `first_ready(tasks)` and `first_value(channels)` (they need `import "std:process"`) return `Ready(index, value)`: the position of the first ready item and its result, taken in the same step. For a task the value is what `wait` gives; for a channel it is what `receive` gives (`None` once the channel is closed and empty). The `_within` forms return `Option[Ready[T]]`. Background commands (`std:process`): `start_process(command, arguments)` returns `Result[Process, StdError]` (the same grant as `process_run`), `process_line(p)` gives `Option[Text]` (the next line of its output), `process_write(p, text)` and `process_close_input(p)` feed its input, and `process_wait(p)` gives `Result[ProcessResult, StdError]`; each command runs in its own process group and is stopped with everything it started when its `together:` block ends, when the program ends, or when `guion` is interrupted; a `Process` cannot be returned from its block (`E_SCOPE_ESCAPE`). `try_parallel_map(list, f, Workers(at_once=50, each_ms=5000, all_ms=30000))` (`Workers` from `std:process`) runs `f` over a list with per-item results and deadlines (`R_DEADLINE`). The `parallel_map` worker limit defaults to 64 and `[runtime] max_parallelism` raises it to 1024.
 - Sockets (artifact format 57): `std:net` provides blocking TCP and UDP over integer-handle records `TcpConn`, `TcpListener`, `UdpSock`: `tcp_connect`, `tcp_listen`, `tcp_listener_port`, `tcp_accept`, `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close`, `tcp_listener_close`, `udp_bind`, `udp_port`, `udp_send_to`, `udp_recv_from` (a `Datagram` with `data`, `host`, `port`) and `udp_close`. Everything is denied by default. Connecting and sending datagrams need an exact `host:port` (or `host:*`) entry in `guion.toml` `[sockets].connect` or `guion run --allow-connect`; listening and binding need one in `[sockets].bind` or `--allow-bind` (`127.0.0.1:0` allows an ephemeral port on loopback). The host name is matched as written, before resolution, so grant IP literals when the name could resolve elsewhere. Every connect, accept, receive and datagram receive takes a timeout of 1 ms up to `[sockets].timeout_ms` (default 30,000); reads are capped at `[sockets].max_read_bytes` (default 1 MiB) and at most 64 sockets may be open. A zero-length receive on TCP means the peer closed. Error codes: `E_NET_DENIED`, `E_NET_ARGUMENT`, `E_NET_RESOLVE`, `E_NET_REFUSED`, `E_NET_TIMEOUT`, `E_NET_IO`, `E_NET_HANDLE`, `E_NET_LIMIT`. Handles are shared between `parallel_map` workers: a handle opened by the program or by one worker can be used by another, several workers can wait in `tcp_accept` on one listener, and calls on the same socket from two workers take turns; sockets still open when the program ends are closed by it, not by a worker's end. Calls block the calling task until they finish or time out; a cancelled sibling task is noticed at the next call boundary, so cancellation latency is bounded by the timeout. Static inspection reports `network.socket` with a `socket_grant` section. TLS is not part of this module.
 - TLS (artifact format 58): `std:net` adds `tls_connect(host, port, timeout_ms, extra_ca_pem)` and `tls_accept(listener, timeout_ms, certificate_chain_pem, private_key_pem)`, which return a `TcpConn` that `tcp_send`, `tcp_send_text`, `tcp_recv`, `tcp_close` and the port functions accept. TLS 1.2 and 1.3 only, through rustls with the ring provider. The client always verifies the server certificate and name against the bundled Mozilla roots plus any PEM certificates passed as `extra_ca_pem`; there is no option to skip verification. A rejected certificate returns `E_TLS_CERTIFICATE`, other handshake failures `E_TLS_HANDSHAKE`, bad PEM or a key that does not match `E_TLS_ARGUMENT`; timeouts and grants behave as for TCP (`E_NET_TIMEOUT`, `E_NET_DENIED`). A peer that closes without a TLS close notification surfaces as `E_NET_IO` on receive. Session resumption control and ALPN are not offered. Certificates and keys are PEM text, normally read with `read_text` under the file grant. Mutual TLS (artifact format 61): `tls_connect_with_identity(host, port, timeout_ms, extra_ca_pem, certificate_chain_pem, private_key_pem)` presents a client certificate, and `tls_accept_verified(listener, timeout_ms, certificate_chain_pem, private_key_pem, client_ca_pem)` requires one and verifies it against the PEM certificates in `client_ca_pem` only; a missing or untrusted client certificate fails the handshake on the server.
 - HTTP server and WebSockets (artifact format 59): `std:crypto` adds `crypto_sha1` (SHA-1, kept for the WebSocket handshake and legacy interchange, not for new security uses) and `bytes_xor_key(data, key)`. `std:http_server` is written in Guion over `std:net`: `http_server_listen`, `http_server_accept`, `http_server_read_request(conn, timeout_ms, max_body_bytes)` returning an `HttpServerRequest` (`conn`, `method`, `target`, `path`, `query`, lowercase-named `headers`, `body`), `http_server_header`, `http_server_respond`, `http_server_respond_text` and `http_server_send`. `http_server_read_request` reads the first request on a connection and `http_server_respond` answers it and closes (`Connection: close`). For keep-alive, answer with `http_server_reply` or `http_server_reply_text`, which keep the connection open when the client asked for that (HTTP/1.1 does by default; `Connection: close` or HTTP/1.0 without `keep-alive` closes), and read the next request with `http_server_read_next(previous, timeout_ms, max_body_bytes)` or `http_server_read_request_from(conn, pending, ...)`; bytes that arrived after a request (pipelined requests) are carried in its `pending` field. `Transfer-Encoding: chunked` request bodies are decoded (chunk extensions accepted, trailers read and ignored, the size limit applied to the decoded body); a request that names both `Content-Length` and chunked framing, or any other transfer encoding, is refused (`400`, `501`). A client that closes between requests returns `E_HTTP_CLOSED`. The request head is limited to 16,384 bytes and 100 headers, and the body to the caller's limit; a protocol fault sends 400, 413, 431 or 501 and returns `E_HTTP_REQUEST_INVALID`, `E_HTTP_BODY_TOO_LARGE`, `E_HTTP_HEADER_TOO_LARGE` or `E_HTTP_UNSUPPORTED`. A connection from `tls_accept` works the same way, which gives HTTPS. `std:websocket` implements RFC 6455: `ws_server_accept(request)`, `ws_client_handshake(conn, host, path, timeout_ms, seed)`, `ws_receive(ws, timeout_ms, max_message_bytes)` (reassembles fragments, answers pings, echoes close, validates UTF-8 text, enforces masking by role), `ws_send_text`, `ws_send_binary`, `ws_send_ping`, `ws_send_close` and `ws_close`, with errors `E_WS_HANDSHAKE`, `E_WS_PROTOCOL`, `E_WS_TOO_LARGE` and `E_WS_CLOSED`. Client masks are derived from the connection seed and the payload, so pass an unpredictable seed. Socket handles are shared between `parallel_map` workers, so several workers can accept on one listener and serve connections at the same time; the HTTP server has no HTTP/2 and no `Expect: 100-continue` handling.
@@ -46,6 +47,7 @@ Everyday forms: see `docs/reference.md`.
 - Function values (artifact format 66): a function type is written `fn(Int) -> Int`, `fn(Text, Int) -> Result[Text, StdError]` or `fn() -> Unit`, and is valid anywhere a type is: a parameter, a `let` annotation, a record field, the item of a list or map, an `Option` or `Result` payload, a result type. A bare name in value position that is not a local denotes the function of that name (own module or imported), so `let f = double` has type `fn(Int) -> Int`; a local or parameter of the same name wins. A function value is called by name, `f(x)`; the arity and the argument types are checked against the type at check time (`E_CALL_ARITY`, `E_TYPE_ARGUMENT`). A function value is a named top-level function or a closure (format 74). `==` and `!=` on a function value, or on a list, record, map, option or result that holds one, is `E_FN_COMPARE`. A function value is an index into its artifact's function table, so a call through one uses the ordinary call frame and the call-depth and instruction limits apply (recursion through a value stops at the call-depth limit); an index that names no function of the running artifact is the runtime error `R_FN_INVALID`.
 - Maps keyed by `Int` (artifact format 75): `Map[Int, T]` is a type distinct from `Map[Text, T]`, written `let m: Map[Int, Text] = {}` or as a literal with `Int` keys. `map_get`, `map_has`, `map_set`, `m[k]` and `len` take an `Int` key, and `for k in m` yields `Int` keys in ascending numeric order. It is stored under each key's decimal text, is not a `Map[Text, T]`, and `map_record_get`, `map_record_set` and the host and JSON boundaries refuse it. Any other key type is `E_TYPE_MAP_KEY`.
 - Generic records (no format change): `record Pair[A, B]:` declares a record with type parameters, written `Pair[Int, Text]`. A constructor call infers the arguments from its fields, `Pair(1, "one")`, or you write them, `Box[Int](...)`; wrong or missing arguments are `E_GENERIC_ARITY`, and an argument the fields do not fix is `E_GENERIC_INFER`. Each set of arguments compiles to an ordinary record named `Pair<Int, Text>`, so generic functions may take and return them and nothing changes at run time.
+- Named record arguments (no format change): a record constructor takes its fields by position, by name, or both: `Box(1, 2)`, `Box(height=2, width=1)`, `Box(1, height=2)`. Positional arguments come first and fill the first fields; the rest are `field=value` in any order. An unknown field, a field given twice or too many positional arguments is `E_CALL_KEYWORD` or `E_CALL_ARITY`, and a missing field is `E_CALL_ARITY` that names it. Values are evaluated in field order, not in the order written.
 - Effects of function values: effects attach where a function value is formed. Writing `let f = writer_fn`, or passing `writer_fn` by name, adds the effects of `writer_fn` to the function that contains that expression, so `guion doc --json` and `guion inspect` report them for that function and for everything that calls it, and the effects stay visible across packages. Calling through a value adds nothing further, so a function that only receives a function-typed parameter and calls it reports no effects of its own. For example, `fn former() -> Int` containing `let f = writer_fn` reports `output.write` when `writer_fn` prints, although `former` never calls `f`; `fn caller(f: fn(Int) -> Int) -> Int` containing `return f(1)` reports none, and the function that passes `writer_fn` to `caller` reports `output.write`. A sort key that is a named function is still checked to be pure at the call site (`E_SORT_EFFECT`); a function-typed variable passed as a key is accepted and its effects belong to the place the value was formed.
 - Serialization boundaries: a type holds a function if it is a function type or a record, list, map, option or result that holds one. Such a type is rejected at check time with `E_FN_NOT_SERIALIZABLE`, naming the boundary, when it reaches a builtin or standard-library function that converts or transports typed values: JSON, CSV and TOML conversion, SQLite parameters and results, process arguments and the environment, HTTP requests and responses, file reads and writes, and `print` and `eprint`. A function value never becomes an artifact constant. `parallel_map` is deliberately not a boundary: workers run the same artifact and function table, so an index means the same function in every worker, and the VM checks the index in the worker (`R_FN_INVALID`). An index cannot be written in source, so a program cannot forge one.
 - Higher-order builtins (artifact format 66): `map_list(values: List[T], f: fn(T) -> U) -> List[U]`, `filter_list(values: List[T], f: fn(T) -> Bool) -> List[T]`, `fold_list(values: List[T], initial: A, f: fn(A, T) -> A) -> A`, `any_list(values: List[T], f: fn(T) -> Bool) -> Bool` and `all_list(values: List[T], f: fn(T) -> Bool) -> Bool` call the function once per item in order (`any_list` and `all_list` stop at the first deciding answer). A `Result` returned from the function is an ordinary value, so `map_list(xs, parse)` with `parse: fn(Int) -> Result[Int, Text]` gives a `List[Result[Int, Text]]`; a runtime error inside the function carries the callee's span first, then the builtin's call site. Each call is charged as a normal call. `sort_by`, `sort_by_int_key`, `merge_sorted_by_int_key` and `parallel_map` also take function values. A function of the wrong shape is `E_TYPE_ARGUMENT`.
@@ -376,9 +378,15 @@ native_net_udp_recv_from(Int, Int, Int) -> Result[List[Bytes], List[Text]]
 native_net_udp_send_to(Int, Text, Int, Bytes) -> Result[Int, List[Text]]
 native_percent_decode(Text) -> Option[Text]
 native_percent_encode(Text) -> Text
+native_process_close_input(Int) -> Result[Unit, List[Text]]
+native_process_core_count() -> Int
+native_process_line(Int) -> Option[Text]
 native_process_pid() -> Int
 native_process_run(Text, List[Text], Text) -> Result[List[Text], List[Text]]
 native_process_signal_poll() -> Text
+native_process_start(Text, List[Text]) -> Result[Int, List[Text]]
+native_process_wait(Int) -> Result[List[Text], List[Text]]
+native_process_write(Int, Text) -> Result[Unit, List[Text]]
 native_random_advance(Int) -> Int
 native_random_below(Int, Int) -> Int
 native_random_bits(Int) -> Int
@@ -652,6 +660,12 @@ std:path — pub fn path_components(path: Text) -> List[Text]
 std:process — pub fn process_run(command: Text, arguments: List[Text], stdin: Text) -> Result[ProcessResult, StdError]
 std:process — pub fn process_pid() -> Int
 std:process — pub fn process_signal_poll() -> Text
+std:process — pub fn core_count() -> Int
+std:process — pub fn start_process(command: Text, arguments: List[Text]) -> Result[Process, StdError]
+std:process — pub fn process_line(process: Process) -> Option[Text]
+std:process — pub fn process_write(process: Process, input: Text) -> Result[Unit, StdError]
+std:process — pub fn process_close_input(process: Process) -> Result[Unit, StdError]
+std:process — pub fn process_wait(process: Process) -> Result[ProcessResult, StdError]
 std:random — pub fn random_new(seed: Int) -> Rng
 std:random — pub fn random_next_u64(rng: Rng) -> RandomInt
 std:random — pub fn random_next_i64(rng: Rng) -> RandomInt
@@ -793,6 +807,8 @@ The default is no hosts, a 15-second total request timeout, a 1 MiB request limi
 `parallel_map` runs a named unary function in one worker-local VM per task. It shares immutable input values by copy. Results are returned in input order. The group does not return until workers stop. On failure it stops assigning pending items, sets a cancellation flag that the VM checks between instructions, joins workers, preserves completed output in input-index order, and returns a `TaskError` with the selected input index, original stable runtime code/message, and source trace. Work already completed and host side effects are not rolled back. Nested parallel groups consume the invoking group's budget and worker ceiling.
 
 The current API rejects a zero or over-policy worker count. Worker count reports OS worker IDs observed, not guaranteed CPU speedup. A future async I/O API must have separate documented scheduling and cancellation semantics; this operation is not presented as a general async runtime.
+
+`try_parallel_map` returns one result per item and takes `Workers(at_once=50, each_ms=5000, all_ms=30000)`: an item past `each_ms`, or running or unstarted when `all_ms` passes, is `R_DEADLINE`, and a blocking host call inside an item waits no longer than the time left. A `together:` block runs tasks that end with the block; tasks have exactly the parent's grants, share its budgets, and have their choices (`wait_within`, `first_ready`, `first_value`, `send`, `receive`) recorded so a replay repeats them.
 
 ## Durable storage and interoperability services
 
@@ -937,6 +953,7 @@ E_CACHE
 E_CALL_ARITY
 E_CALL_KEYWORD
 E_CAPABILITY_UNSUPPORTED
+E_CHANNEL_OUTSIDE_TOGETHER
 E_CHUNK_ITEMS
 E_CLI_DUPLICATE
 E_CLI_REQUIRED
@@ -1014,6 +1031,7 @@ E_GENERIC_CALL
 E_GENERIC_INFER
 E_GENERIC_LIMIT
 E_GENERIC_PARAMETER
+E_GROUPS
 E_HEX_INVALID
 E_HISTORY
 E_HTTP_BODY_TOO_LARGE
@@ -1041,6 +1059,7 @@ E_IMPORT_ESCAPE
 E_IMPORT_PATH
 E_IMPORT_PROJECT_REQUIRED
 E_IMPORT_READ
+E_IMPORT_REQUIRED
 E_IMPORT_ROOT
 E_INDENT_TAB
 E_INDENT_WIDTH
@@ -1135,6 +1154,7 @@ E_PROCESS_RESULT
 E_PROCESS_SPAWN
 E_PROCESS_TIMEOUT
 E_PROCESS_WAIT
+E_PROCESS_WRITE
 E_PROFILE
 E_PROFILE_OUT
 E_PROJECT_ENTRY
@@ -1179,6 +1199,7 @@ E_SAFEPOINT_TEXT_LIST_TAG
 E_SAMESITE_NONE_NEEDS_SECURE
 E_SAMPLE_RATE_FRAMES
 E_SCHEMA_VERSION
+E_SCOPE_ESCAPE
 E_SECONDS
 E_SELF
 E_SEMVER_BUILD
@@ -1210,6 +1231,7 @@ E_SQLITE_STALE
 E_SQLITE_SYNTAX
 E_SQLITE_UTF8
 E_SQLITE_VALUE
+E_START_OUTSIDE_TOGETHER
 E_STATEMENT
 E_STMT_EXPR
 E_STRING_ESCAPE
@@ -1247,6 +1269,7 @@ E_TLS
 E_TLS_ARGUMENT
 E_TLS_CERTIFICATE
 E_TLS_HANDSHAKE
+E_TOGETHER_EXIT
 E_TOML_EDIT
 E_TOML_INTEGER_RANGE
 E_TOML_KEY
@@ -1304,11 +1327,15 @@ R_CALL_DEPTH
 R_CALL_TARGET
 R_CALL_TYPE
 R_CANCELLED
+R_CEILING
+R_CHANNEL_CAPACITY
+R_CHANNEL_CLOSED
 R_CLOCK_DENIED
 R_CLOCK_RANGE
 R_CLOCK_UNAVAILABLE
 R_COLLECTION_LIMIT
 R_CSV_MALFORMED
+R_DEADLINE
 R_DIV_ZERO
 R_ENV_DENIED
 R_ENV_ENCODING
@@ -1363,6 +1390,7 @@ R_NO_RETURN
 R_OPTION_UNWRAP
 R_OUTPUT_LIMIT
 R_PARALLEL_LIMIT
+R_PROCESS_INVALID
 R_PYTHON_ARGUMENT
 R_PYTHON_CALL
 R_PYTHON_CLOSED
@@ -1388,11 +1416,13 @@ R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
 R_STACK_UNDERFLOW
+R_START_OUTSIDE_TOGETHER
 R_STEPS
 R_STEP_LIMIT
 R_TAPE
 R_TAPE_DIVERGED
 R_TAPE_REDACTED
+R_TASK_INVALID
 R_TEXT_LIMIT
 R_TIME_RANGE
 R_TOML_RENDER
@@ -1633,4 +1663,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:e625204e294828d0af3a410f552d761e6919e4edd25088419caaa28d38c167e1. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:86cccdf01c2239fef8700331f18c24237f8b69cbfe569c27ad588397baa6b901. Validated by `cargo xtask agent-reference --check`. -->

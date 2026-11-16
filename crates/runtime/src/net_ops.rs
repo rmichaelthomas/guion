@@ -193,7 +193,8 @@ fn timeout_of(policy: &HostPolicy, value: i64) -> Result<Duration, Failure> {
             format!("timeout must be 1 to {limit} milliseconds"),
         ));
     }
-    Ok(Duration::from_millis(value as u64))
+    // An item with a deadline never waits past it, whatever timeout the program asked for.
+    Ok(policy.cap(Duration::from_millis(value as u64)))
 }
 
 fn resolve(host: &str, port: u16) -> Result<Vec<SocketAddr>, Failure> {

@@ -3215,6 +3215,54 @@
       "operation": "ProcessSignalPoll"
     },
     {
+      "name": "native_process_core_count",
+      "parameters": [],
+      "result": "Int",
+      "operation": "ProcessCoreCount"
+    },
+    {
+      "name": "native_process_start",
+      "parameters": [
+        "Text",
+        "List[Text]"
+      ],
+      "result": "Result[Int, List[Text]]",
+      "operation": "ProcessStart"
+    },
+    {
+      "name": "native_process_line",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Option[Text]",
+      "operation": "ProcessLine"
+    },
+    {
+      "name": "native_process_write",
+      "parameters": [
+        "Int",
+        "Text"
+      ],
+      "result": "Result[Unit, List[Text]]",
+      "operation": "ProcessWrite"
+    },
+    {
+      "name": "native_process_close_input",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Unit, List[Text]]",
+      "operation": "ProcessCloseInput"
+    },
+    {
+      "name": "native_process_wait",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[List[Text], List[Text]]",
+      "operation": "ProcessWait"
+    },
+    {
       "name": "native_net_tcp_connect",
       "parameters": [
         "Text",

@@ -2686,6 +2686,8 @@ impl ShareAcrossThreads for Value {
             | Value::HttpError(_)
             | Value::NativeResource(_)
             | Value::Function(_)
+            | Value::Task(_)
+            | Value::Channel(_)
             | Value::Unit => {}
         }
     }
@@ -3222,6 +3224,10 @@ pub enum Value {
     HttpError(Box<HttpErrorValue>),
     NativeResource(Box<NativeResourceValue>),
     Function(usize),
+    /// A background task of a `together:` block: its index in the instance's task table (format 76).
+    Task(usize),
+    /// A channel of a `together:` block: its index in the shared channel table (format 76).
+    Channel(usize),
     /// A function value with captured values (artifact format 74): the function index and
     /// the values it was created with, passed before its own arguments.
     Closure(usize, Shared<Vec<Value>>),
@@ -3302,6 +3308,8 @@ impl PartialEq for Value {
             (Value::HttpError(left), Value::HttpError(right)) => left == right,
             (Value::NativeResource(left), Value::NativeResource(right)) => left == right,
             (Value::Function(left), Value::Function(right)) => left == right,
+            (Value::Task(left), Value::Task(right)) => left == right,
+            (Value::Channel(left), Value::Channel(right)) => left == right,
             (Value::Closure(left, left_captured), Value::Closure(right, right_captured)) => {
                 left == right && left_captured == right_captured
             }
@@ -3430,6 +3438,8 @@ impl fmt::Display for Value {
             Value::HttpError(error) => write!(f, "HttpError({}, {})", error.code, error.message),
             Value::NativeResource(resource) => write!(f, "<{} resource>", resource.kind()),
             Value::Function(index) => write!(f, "<function {index}>"),
+            Value::Task(index) => write!(f, "<task {index}>"),
+            Value::Channel(index) => write!(f, "<channel {index}>"),
             Value::Closure(index, _) => write!(f, "<function {index}>"),
             Value::Unit => f.write_str("()"),
         }
@@ -3458,6 +3468,8 @@ pub enum Type {
     NativeResource(String),
     Array(ElementType),
     Fn(Vec<Type>, Box<Type>),
+    Task(Box<Type>),
+    Channel(Box<Type>),
     Unit,
 }
 
@@ -3499,6 +3511,21 @@ impl Type {
         }
     }
 
+    /// Whether this type is, or holds, a channel.
+    pub fn contains_channel(&self) -> bool {
+        match self {
+            Type::Channel(_) => true,
+            Type::List(item) | Type::Map(item) | Type::IntMap(item) | Type::Option(item) => {
+                item.contains_channel()
+            }
+            Type::Result(ok, err) => ok.contains_channel() || err.contains_channel(),
+            Type::Fn(parameters, result) => {
+                parameters.iter().any(Type::contains_channel) || result.contains_channel()
+            }
+            _ => false,
+        }
+    }
+
     pub fn contains_fn(&self) -> bool {
         match self {
             Type::Fn(_, _) => true,
@@ -3526,10 +3553,15 @@ pub enum HigherOrderKind {
     AnyList,
     AllList,
     TryMapList,
+    /// `try_parallel_map(list, f, Workers(...))` (format 76): workers with per-item results and
+    /// deadlines.
+    TryParallelMap,
+    /// `start(f, argument)` inside a `together:` block (format 76).
+    StartTask,
 }
 
 impl HigherOrderKind {
-    pub const ALL: [HigherOrderKind; 11] = [
+    pub const ALL: [HigherOrderKind; 13] = [
         HigherOrderKind::SortBy,
         HigherOrderKind::SortByKey,
         HigherOrderKind::SortByIntKey,
@@ -3541,6 +3573,8 @@ impl HigherOrderKind {
         HigherOrderKind::AnyList,
         HigherOrderKind::AllList,
         HigherOrderKind::TryMapList,
+        HigherOrderKind::TryParallelMap,
+        HigherOrderKind::StartTask,
     ];
 
     pub fn code(self) -> u8 {
@@ -3567,6 +3601,8 @@ impl HigherOrderKind {
             HigherOrderKind::AnyList => "AnyList",
             HigherOrderKind::AllList => "AllList",
             HigherOrderKind::TryMapList => "TryMapList",
+            HigherOrderKind::TryParallelMap => "TryParallelMap",
+            HigherOrderKind::StartTask => "StartTask",
         }
     }
 
@@ -3989,13 +4025,31 @@ pub enum ProcessFunction {
     Run,
     Pid,
     SignalPoll,
+    /// The number of processor cores the program may use (format 76). Pure; no grant.
+    CoreCount,
+    /// Starts a granted command without waiting for it (format 76).
+    Start,
+    /// Reads the next line of a started command's output (format 76).
+    Line,
+    /// Writes text to a started command's input (format 76).
+    Write,
+    /// Closes a started command's input (format 76).
+    CloseInput,
+    /// Waits for a started command to exit (format 76).
+    Wait,
 }
 
 impl ProcessFunction {
-    const ALL: [ProcessFunction; 3] = [
+    const ALL: [ProcessFunction; 9] = [
         ProcessFunction::Run,
         ProcessFunction::Pid,
         ProcessFunction::SignalPoll,
+        ProcessFunction::CoreCount,
+        ProcessFunction::Start,
+        ProcessFunction::Line,
+        ProcessFunction::Write,
+        ProcessFunction::CloseInput,
+        ProcessFunction::Wait,
     ];
 
     pub fn code(self) -> u8 {
@@ -4015,6 +4069,12 @@ impl ProcessFunction {
             ProcessFunction::Run => "ProcessRun",
             ProcessFunction::Pid => "ProcessPid",
             ProcessFunction::SignalPoll => "ProcessSignalPoll",
+            ProcessFunction::CoreCount => "ProcessCoreCount",
+            ProcessFunction::Start => "ProcessStart",
+            ProcessFunction::Line => "ProcessLine",
+            ProcessFunction::Write => "ProcessWrite",
+            ProcessFunction::CloseInput => "ProcessCloseInput",
+            ProcessFunction::Wait => "ProcessWait",
         }
     }
 
@@ -4029,7 +4089,9 @@ impl ProcessFunction {
     pub fn arity(self) -> usize {
         match self {
             ProcessFunction::Run => 3,
-            ProcessFunction::Pid | ProcessFunction::SignalPoll => 0,
+            ProcessFunction::Start | ProcessFunction::Write => 2,
+            ProcessFunction::Line | ProcessFunction::CloseInput | ProcessFunction::Wait => 1,
+            ProcessFunction::Pid | ProcessFunction::SignalPoll | ProcessFunction::CoreCount => 0,
         }
     }
 }
@@ -4311,6 +4373,16 @@ pub enum Op {
     MakeClosure(usize, usize),
     CallFn(usize),
     HigherOrder(HigherOrderKind),
+    TogetherEnter,
+    TogetherExit,
+    TaskWait,
+    TaskWaitWithin,
+    ChannelNew(Type),
+    ChannelSend,
+    ChannelReceive,
+    ChannelClose,
+    FirstReady(usize),
+    FirstValue(usize),
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4515,7 +4587,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 75;
+    pub const CURRENT_VERSION: u32 = 76;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4871,6 +4943,12 @@ impl Artifact {
                 "random bytes require artifact format 68",
             ));
         }
+        if self.format_version < 76 && artifact_uses_core_count(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "core_count and try_parallel_map require artifact format 76",
+            ));
+        }
         if self.format_version < 67 && artifact_uses_sha256(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -5210,6 +5288,25 @@ impl Artifact {
                         w.u8(210);
                         w.count(*target)?;
                         w.count(*captured)?;
+                    }
+                    Op::TogetherEnter => w.u8(211),
+                    Op::TogetherExit => w.u8(212),
+                    Op::TaskWait => w.u8(213),
+                    Op::TaskWaitWithin => w.u8(214),
+                    Op::ChannelNew(item) => {
+                        w.u8(215);
+                        w.ty(item)?;
+                    }
+                    Op::ChannelSend => w.u8(216),
+                    Op::ChannelReceive => w.u8(217),
+                    Op::ChannelClose => w.u8(218),
+                    Op::FirstReady(record) => {
+                        w.u8(219);
+                        w.count(*record)?;
+                    }
+                    Op::FirstValue(record) => {
+                        w.u8(220);
+                        w.count(*record)?;
                     }
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
@@ -5628,6 +5725,12 @@ impl Artifact {
                     }
                     185 if format_version >= 56 => {
                         let code = r.u8()?;
+                        if code >= 3 && format_version < 76 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "core_count requires artifact format 76",
+                            ));
+                        }
                         Op::Process(ProcessFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -5777,6 +5880,22 @@ impl Artifact {
                             "general sort and sort_by with a key require artifact format 65",
                         ));
                     }
+                    211..=220 if format_version < 76 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "together blocks require artifact format 76",
+                        ));
+                    }
+                    211 => Op::TogetherEnter,
+                    212 => Op::TogetherExit,
+                    213 => Op::TaskWait,
+                    214 => Op::TaskWaitWithin,
+                    215 => Op::ChannelNew(r.ty()?),
+                    216 => Op::ChannelSend,
+                    217 => Op::ChannelReceive,
+                    218 => Op::ChannelClose,
+                    219 => Op::FirstReady(r.count()?),
+                    220 => Op::FirstValue(r.count()?),
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -5791,6 +5910,12 @@ impl Artifact {
                     199 if format_version >= 66 => Op::CallFn(r.count()?),
                     200 if format_version >= 66 => {
                         let code = r.u8()?;
+                        if code >= HigherOrderKind::TryParallelMap.code() && format_version < 76 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "try_parallel_map requires artifact format 76",
+                            ));
+                        }
                         Op::HigherOrder(HigherOrderKind::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_OP",
@@ -6591,6 +6716,29 @@ fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_core_count(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Process(ProcessFunction::CoreCount)
+                    | Op::HigherOrder(HigherOrderKind::TryParallelMap | HigherOrderKind::StartTask)
+                    | Op::TogetherEnter
+                    | Op::TogetherExit
+                    | Op::TaskWait
+                    | Op::TaskWaitWithin
+                    | Op::ChannelNew(_)
+                    | Op::ChannelSend
+                    | Op::ChannelReceive
+                    | Op::ChannelClose
+                    | Op::FirstReady(_)
+                    | Op::FirstValue(_)
+            )
+        }) || function.parameters.iter().any(Type::contains_channel)
+            || function.result.contains_channel()
+    })
+}
+
 fn artifact_uses_sha256(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -7116,6 +7264,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::FsWalk
                         | Op::RandomBytes
                         | Op::HigherOrder(HigherOrderKind::ParallelMap)
+                        | Op::HigherOrder(HigherOrderKind::TryParallelMap)
                         | Op::ParallelMap(_) => {
                             return Err(format!(
                                 "sort comparator `{}` reaches an effectful operation",
@@ -7286,6 +7435,16 @@ impl Writer {
                 self.ty(err)?;
             }
             Type::TaskError => self.u8(6),
+            Type::Task(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_TYPE",
+                    "a task type cannot be written into an artifact; tasks stay inside their together: block",
+                ));
+            }
+            Type::Channel(item) => {
+                self.u8(21);
+                self.ty(item)?;
+            }
             Type::Json => self.u8(7),
             Type::JsonError => self.u8(8),
             Type::FileError => self.u8(9),
@@ -7456,6 +7615,12 @@ impl Writer {
                     "function values cannot be serialized as constants",
                 ));
             }
+            Value::Task(_) | Value::Channel(_) => {
+                return Err(ArtifactError::new(
+                    "E_ARTIFACT_VALUE",
+                    "tasks and channels cannot be serialized as constants",
+                ));
+            }
         }
         Ok(())
     }
@@ -7561,6 +7726,7 @@ impl<'a> Reader<'a> {
                     })
             }
             20 => Ok(Type::IntMap(Box::new(self.ty_at(depth + 1)?))),
+            21 => Ok(Type::Channel(Box::new(self.ty_at(depth + 1)?))),
             19 => {
                 let count = self.count()?;
                 if count > 255 {
