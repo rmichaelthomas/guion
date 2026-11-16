@@ -104,6 +104,16 @@ class FeedDigestAcceptance(unittest.TestCase):
         cls.work = Path(cls.work_dir.name)
         cls.project = cls.work / "feed_digest"
         copytree(PROJECT, cls.project, ignore=ignore_patterns(".venv", "__pycache__", "digest.md"))
+        if not PACKAGE_RUNNER:
+            # The committed lock names the machine it was made on; regenerate it for this one.
+            synced = subprocess.run(
+                [str(GUION), "sync", "--update", str(cls.project)],
+                text=True,
+                capture_output=True,
+                timeout=300,
+            )
+            if synced.returncode != 0:
+                raise RuntimeError(f"guion sync --update failed: {synced.stdout}{synced.stderr}")
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
