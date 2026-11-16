@@ -78,6 +78,7 @@ jobs:
           cargo build --locked -p guion-cli --features python-interop
           cargo test --locked -p guion-runtime --features python-interop --test python_bridge
           cargo test --locked -p guion-cli --features python-interop --test concurrency python
+          cargo test --locked -p guion-cli --features python-interop --test python_dependencies
 
       - name: Build the shared VM for WebAssembly
         if: github.event_name != 'pull_request'
