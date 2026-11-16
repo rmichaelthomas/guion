@@ -832,3 +832,38 @@ fn two_consumers_sharing_a_channel_never_lose_or_double_a_value() {
     let output = run_project("ready-two", "", &[], source);
     assert_eq!(stdout(&output), "20100", "{}", stderr(&output));
 }
+
+#[cfg(windows)]
+mod windows {
+    use super::*;
+
+    fn pings_running() -> usize {
+        let listing = Command::new("tasklist")
+            .args(["/FI", "IMAGENAME eq ping.exe", "/FO", "CSV", "/NH"])
+            .output()
+            .expect("tasklist runs");
+        String::from_utf8_lossy(&listing.stdout)
+            .lines()
+            .filter(|line| line.to_ascii_lowercase().contains("ping.exe"))
+            .count()
+    }
+
+    #[test]
+    fn a_command_and_what_it_started_are_gone_when_the_block_ends() {
+        assert_eq!(pings_running(), 0, "a ping was already running");
+        // Reading two lines of ping's output proves ping, a child of cmd, is running.
+        let source = "import \"std:process\"\n\nfn main() -> Int:\n    together:\n        let started = start_process(\"cmd\", [\"/c\", \"ping -n 120 127.0.0.1\"])\n        if is_ok(started):\n            let p = unwrap(started)\n            let first = process_line(p)\n            let second = process_line(p)\n            print(is_some(first) and is_some(second))\n    return 0\n";
+        let output = run_project(
+            "win-job",
+            "[environment]\nvariables = [\"SystemRoot\", \"ComSpec\", \"windir\"]\n",
+            &["--allow-command", "cmd"],
+            source,
+        );
+        assert_eq!(stdout(&output), "true", "{}", stderr(&output));
+        let started = Instant::now();
+        while pings_running() > 0 && started.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        assert_eq!(pings_running(), 0, "the grandchild outlived the block");
+    }
+}
