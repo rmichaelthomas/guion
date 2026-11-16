@@ -574,6 +574,7 @@ dependencies = [
  "tokio",
  "toml_edit",
  "webpki-roots",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

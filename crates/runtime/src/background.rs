@@ -146,7 +146,7 @@ impl Instance {
                 )
             }
         };
-        track_group(child.id());
+        track_group(&child);
         let limit = self.policy.max_process_output_bytes;
         let exceeded = Arc::new(AtomicBool::new(false));
         let lines = match child.stdout.take() {

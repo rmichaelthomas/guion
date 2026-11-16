@@ -321,11 +321,15 @@ the build differs from the design:
 - **`Channel[T]` is a parameter type, never a result type,** so a started function can be handed
   a channel. `Task` and `Process` cannot be written in a signature at all. A channel is made with
   an annotation (`let c: Channel[Int] = channel(8)`).
-- **Process groups and signals are Unix.** On Windows a background command is started and
-  stopped, but not in a process group, and nothing handles Ctrl-C for it. This has not been
-  compiled or run on Windows. A program that polls for signals with `process_signal_poll`
-  handles `INT`, `TERM` and `HUP` itself; the groups are then stopped when its block or the
-  program ends.
+- **Process groups and signals are Unix; Windows uses a job object.** On Unix each command is its
+  own process group and `INT`, `TERM` and `HUP` stop every group before `guion` exits. On Windows
+  each command is put in a job object that kills everything in it when the block ends, the
+  program ends, or `guion` dies for any reason. A grandchild started in the instant before the
+  command is assigned to the job is not covered. The Windows code compiles for
+  `x86_64-pc-windows-gnu` (checked on macOS with mingw-w64) but has **not been run on Windows**,
+  so the "no orphans" guarantee is tested on Unix only. A program that polls for signals with
+  `process_signal_poll` handles `INT`, `TERM` and `HUP` itself; the commands are then stopped
+  when its block or the program ends.
 - **The browser playground** reports that `together:` and `try_parallel_map` need threads.
 - **The self-hosted compiler is frozen at format 74** and does not know any of this; only its
   builtin catalog lists the new native names, because a conformance test reads it.

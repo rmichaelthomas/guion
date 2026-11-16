@@ -62,6 +62,7 @@ pub(crate) fn kill_group(child: &mut std::process::Child) {
 
 #[cfg(not(unix))]
 pub(crate) fn kill_group(child: &mut std::process::Child) {
+    windows_jobs::terminate(child.id());
     let _ = child.kill();
 }
 
@@ -253,7 +254,8 @@ extern "C" fn stop_groups_and_exit(signal: libc::c_int) {
 /// Remember a background command's group, and make `INT`, `TERM` and `HUP` stop every such group
 /// before `guion` exits (unless the program polls for signals itself).
 #[cfg(unix)]
-pub(crate) fn track_group(group: u32) {
+pub(crate) fn track_group(child: &std::process::Child) {
+    let group = child.id();
     static INSTALL: std::sync::Once = std::sync::Once::new();
     INSTALL.call_once(|| {
         if !SIGNALS_POLLED.load(Ordering::SeqCst) {
@@ -286,10 +288,86 @@ pub(crate) fn untrack_group(group: u32) {
 }
 
 #[cfg(not(unix))]
-pub(crate) fn track_group(_group: u32) {}
+pub(crate) fn track_group(child: &std::process::Child) {
+    windows_jobs::adopt(child);
+}
 
 #[cfg(not(unix))]
-pub(crate) fn untrack_group(_group: u32) {}
+pub(crate) fn untrack_group(group: u32) {
+    windows_jobs::release(group);
+}
+
+/// On Windows a started command is put in a job object that kills everything in it when it is
+/// terminated or when its handle closes, which also happens if `guion` itself dies, so a command
+/// cannot leave processes behind. (A grandchild started in the instant before the command is
+/// assigned to the job is not covered.)
+#[cfg(not(unix))]
+mod windows_jobs {
+    use std::collections::HashMap;
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::Mutex;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    static JOBS: Mutex<Option<HashMap<u32, isize>>> = Mutex::new(None);
+
+    pub(super) fn adopt(child: &std::process::Child) {
+        // SAFETY: plain Win32 calls on a handle this function creates and on the child's own
+        // process handle, which `Child` keeps open for as long as it lives.
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job == 0 {
+                return;
+            }
+            let mut limits: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let configured = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                std::ptr::addr_of!(limits).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            let assigned = AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE);
+            if configured == 0 || assigned == 0 {
+                CloseHandle(job);
+                return;
+            }
+            JOBS.lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .get_or_insert_with(HashMap::new)
+                .insert(child.id(), job);
+        }
+    }
+
+    pub(super) fn terminate(pid: u32) {
+        let jobs = JOBS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(job) = jobs.as_ref().and_then(|jobs| jobs.get(&pid)) {
+            // SAFETY: the handle is one `adopt` made and `release` has not closed.
+            unsafe {
+                TerminateJobObject(*job, 1);
+            }
+        }
+    }
+
+    pub(super) fn release(pid: u32) {
+        let job = JOBS
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .as_mut()
+            .and_then(|jobs| jobs.remove(&pid));
+        if let Some(job) = job {
+            // SAFETY: the handle came from `adopt` and is closed exactly once, here. Closing it
+            // ends anything still running in the job.
+            unsafe {
+                CloseHandle(job);
+            }
+        }
+    }
+}
 
 #[cfg(unix)]
 extern "C" fn record_signal(signal: libc::c_int) {
