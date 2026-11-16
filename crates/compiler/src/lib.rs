@@ -2531,6 +2531,81 @@ fn mentioned_names(expression: &Expr, out: &mut Vec<String>) {
     }
 }
 
+/// The arguments of a record constructor in field order. Positional arguments fill the first
+/// fields; `field=value` arguments fill the rest by name, in any order. Values are evaluated in
+/// field order, not in the order written.
+fn order_record_arguments<'a>(
+    name: &str,
+    fields: &[&str],
+    args: &'a [Expr],
+    keywords: &'a [(String, Expr, Span)],
+    span: Span,
+) -> Result<Vec<&'a Expr>, Diagnostic> {
+    if keywords.is_empty() {
+        if args.len() != fields.len() {
+            return Err(diagnostic(
+                "E_CALL_ARITY",
+                format!(
+                    "record `{name}` expects {} fields, got {}",
+                    fields.len(),
+                    args.len()
+                ),
+                span,
+            ));
+        }
+        return Ok(args.iter().collect());
+    }
+    if args.len() > fields.len() {
+        return Err(diagnostic(
+            "E_CALL_ARITY",
+            format!(
+                "record `{name}` has {} fields, got {} positional arguments",
+                fields.len(),
+                args.len()
+            ),
+            span,
+        ));
+    }
+    let mut slots: Vec<Option<&Expr>> = vec![None; fields.len()];
+    for (slot, argument) in slots.iter_mut().zip(args) {
+        *slot = Some(argument);
+    }
+    for (keyword, value, keyword_span) in keywords {
+        let Some(position) = fields.iter().position(|field| field == keyword) else {
+            return Err(diagnostic(
+                "E_CALL_KEYWORD",
+                format!(
+                    "record `{name}` has no field `{keyword}`; its fields are {}",
+                    fields.join(", ")
+                ),
+                *keyword_span,
+            ));
+        };
+        if slots[position].is_some() {
+            return Err(diagnostic(
+                "E_CALL_KEYWORD",
+                format!("field `{keyword}` of `{name}` is given twice"),
+                *keyword_span,
+            ));
+        }
+        slots[position] = Some(value);
+    }
+    let missing: Vec<&str> = fields
+        .iter()
+        .zip(&slots)
+        .filter(|(_, slot)| slot.is_none())
+        .map(|(field, _)| *field)
+        .collect();
+    if !missing.is_empty() {
+        return Err(diagnostic(
+            "E_CALL_ARITY",
+            format!("record `{name}` is missing {}", missing.join(", ")),
+            span,
+        ));
+    }
+    Ok(slots.into_iter().flatten().collect())
+}
+
 fn substitute_type(ty: &Type, bindings: &HashMap<String, Type>) -> Type {
     match ty {
         Type::Record(name) => bindings.get(name).cloned().unwrap_or_else(|| ty.clone()),
@@ -5478,13 +5553,6 @@ impl<'a> FnCompiler<'a> {
                             && (self.visible_records.contains(name) || name.contains('<'))
                     })
                 {
-                    if !keywords.is_empty() {
-                        return Err(diagnostic(
-                            "E_CALL_KEYWORD",
-                            "record constructors accept positional fields only",
-                            keywords[0].2,
-                        ));
-                    }
                     if record.module_id != self.ast.module_id && !record.private_fields.is_empty() {
                         return Err(diagnostic(
                             "E_FIELD_PRIVATE",
@@ -5492,18 +5560,10 @@ impl<'a> FnCompiler<'a> {
                             *s,
                         ));
                     }
-                    if args.len() != record.fields.len() {
-                        return Err(diagnostic(
-                            "E_CALL_ARITY",
-                            format!(
-                                "record `{name}` expects {} fields, got {}",
-                                record.fields.len(),
-                                args.len()
-                            ),
-                            *s,
-                        ));
-                    }
-                    for (argument, (_, expected, _)) in args.iter().zip(&record.fields) {
+                    let field_names: Vec<&str> =
+                        record.fields.iter().map(|(field, _, _)| field.as_str()).collect();
+                    let ordered = order_record_arguments(name, &field_names, args, keywords, *s)?;
+                    for (argument, (_, expected, _)) in ordered.iter().copied().zip(&record.fields) {
                         let actual = self.expr_with_expected(argument, Some(expected))?;
                         if actual != *expected {
                             return Err(diagnostic(
@@ -5513,7 +5573,7 @@ impl<'a> FnCompiler<'a> {
                             ));
                         }
                     }
-                    self.emit(Op::MakeRecord(record_index, args.len()), *s);
+                    self.emit(Op::MakeRecord(record_index, ordered.len()), *s);
                     return Ok(Type::Record(name.clone()));
                 }
                 let (index, params, parameter_names, result, external) = if let Some(symbol) =
@@ -5784,13 +5844,6 @@ impl<'a> FnCompiler<'a> {
         span: Span,
     ) -> Result<Type, Diagnostic> {
         let template = &self.record_generics[name];
-        if !keywords.is_empty() {
-            return Err(diagnostic(
-                "E_CALL_KEYWORD",
-                "record constructors accept positional fields only",
-                keywords[0].2,
-            ));
-        }
         if template.module_id != self.ast.module_id && !template.private_fields.is_empty() {
             return Err(diagnostic(
                 "E_FIELD_PRIVATE",
@@ -5798,19 +5851,14 @@ impl<'a> FnCompiler<'a> {
                 span,
             ));
         }
-        if args.len() != template.fields.len() {
-            return Err(diagnostic(
-                "E_CALL_ARITY",
-                format!(
-                    "record `{name}` expects {} fields, got {}",
-                    template.fields.len(),
-                    args.len()
-                ),
-                span,
-            ));
-        }
+        let field_names: Vec<&str> = template
+            .fields
+            .iter()
+            .map(|(field, _, _)| field.as_str())
+            .collect();
+        let ordered = order_record_arguments(name, &field_names, args, keywords, span)?;
         let mut bindings: HashMap<String, Type> = HashMap::new();
-        for (argument, (field, field_type, _)) in args.iter().zip(&template.fields) {
+        for (argument, (field, field_type, _)) in ordered.iter().copied().zip(&template.fields) {
             let actual = self.expr(argument)?;
             if !unify_type(
                 field_type,
@@ -5844,7 +5892,7 @@ impl<'a> FnCompiler<'a> {
         }
         let instance = record_instance_name(name, &types);
         match self.record_index_of(&instance) {
-            Some(index) => self.emit(Op::MakeRecord(index, args.len()), span),
+            Some(index) => self.emit(Op::MakeRecord(index, ordered.len()), span),
             None => {
                 let mut pending = self.pending_records.borrow_mut();
                 if !pending.iter().any(|(base, arguments)| {
@@ -5852,7 +5900,7 @@ impl<'a> FnCompiler<'a> {
                 }) {
                     pending.push((name.to_owned(), types));
                 }
-                self.emit(Op::MakeRecord(0, args.len()), span)
+                self.emit(Op::MakeRecord(0, ordered.len()), span)
             }
         };
         Ok(Type::Record(instance))

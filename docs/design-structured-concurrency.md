@@ -98,7 +98,7 @@ combines `parallel_map`'s workers with `try_map_list`'s per-item results. Its
 options are a record:
 
 ```
-let limits = Workers(at_once: 50, each_ms: 5000, all_ms: 30000)
+let limits = Workers(at_once=50, each_ms=5000, all_ms=30000)
 let pages = try_parallel_map(urls, fetch, limits)
 ```
 
@@ -287,9 +287,9 @@ Each step gets tests:
 All five steps are built, in the order above, and one artifact format (76) carries them. Where
 the build differs from the design:
 
-- **`Workers` takes its three numbers by position.** Guion has no named constructor arguments, so
-  it is `Workers(50, 5000, 30000)`; the fields are still `at_once`, `each_ms` and `all_ms`, and the
-  record comes from `std:process`.
+- **`Workers` takes its numbers by name.** Record constructors now accept `field=value` in any
+  order (`=`, as every other keyword argument in Guion, not `:`), so it is
+  `Workers(at_once=50, each_ms=5000, all_ms=30000)`. Positional still works.
 - **`first_ready` and `first_value` give a position, not `Ready(index, result)`.** A generic
   `Ready[T]` record would need compiler support that does not exist yet. `first_ready(tasks)` gives
   the position of the first finished task and `wait(tasks[i])` gives its result at once;

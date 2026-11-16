@@ -185,7 +185,7 @@ fn an_item_past_each_ms_is_r_deadline_and_a_hung_call_still_returns_on_time() {
         &try_source(
             &server.address,
             &["/a", "/hang", "/b"],
-            "Workers(3, 700, 0)",
+            "Workers(at_once=3, each_ms=700, all_ms=0)",
         ),
     );
     let elapsed = started.elapsed();
@@ -209,7 +209,7 @@ fn all_ms_keeps_finished_results_and_stops_the_rest() {
         &try_source(
             &server.address,
             &["/a", "/b", "/hang", "/hang", "/c"],
-            "Workers(2, 0, 900)",
+            "Workers(all_ms=900, at_once=2, each_ms=0)",
         ),
     );
     // Two finish; two are cut off while running; the last never starts.
@@ -224,7 +224,7 @@ fn all_ms_keeps_finished_results_and_stops_the_rest() {
 #[test]
 fn an_item_that_only_computes_is_stopped_at_its_deadline_too() {
     let source = format!(
-        "import \"std:process\"\n\nfn spin(count: Int) -> Int:\n    var i = 0\n    while i < count:\n        set i = i + 1\n    return i\n\n{SUMMARY}\nfn main() -> Int:\n    let results = try_parallel_map([10, 4000000000, 20], spin, Workers(3, 400, 0))\n    return show(results)\n"
+        "import \"std:process\"\n\nfn spin(count: Int) -> Int:\n    var i = 0\n    while i < count:\n        set i = i + 1\n    return i\n\n{SUMMARY}\nfn main() -> Int:\n    let results = try_parallel_map([10, 4000000000, 20], spin, Workers(at_once=3, each_ms=400, all_ms=0))\n    return show(results)\n"
     );
     let started = Instant::now();
     let output = run_project(
@@ -784,5 +784,28 @@ mod background {
         let replayed = guion(&["run", "--replay", "t.tape", "main.gu"]);
         assert_eq!(stdout(&replayed), "alpha\nbeta\n0", "{}", stderr(&replayed));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[test]
+fn record_arguments_can_be_named_in_any_order() {
+    let source = "record Box:\n    width: Int\n    height: Int\n    label: Text\n\nfn line(b: Box) -> Text:\n    return int_to_text(b.width) + \" \" + int_to_text(b.height) + \" \" + b.label\n\nfn main() -> Int:\n    print(line(Box(1, 2, \"a\")))\n    print(line(Box(label=\"b\", height=20, width=10)))\n    print(line(Box(5, label=\"c\", height=6)))\n    return 0\n";
+    let output = run_project("named-ok", "", &[], source);
+    assert_eq!(stdout(&output), "1 2 a\n10 20 b\n5 6 c", "{}", stderr(&output));
+}
+
+#[test]
+fn record_argument_mistakes_are_named() {
+    let base = "record Box:\n    width: Int\n    height: Int\n\nfn main() -> Int:\n    let b = BODY\n    return b.width\n";
+    for (body, code, words) in [
+        ("Box(width=1, depth=2)", "E_CALL_KEYWORD", "no field `depth`"),
+        ("Box(1, width=2)", "E_CALL_KEYWORD", "given twice"),
+        ("Box(1, 2, 3, height=4)", "E_CALL_ARITY", "positional"),
+        ("Box(width=1)", "E_CALL_ARITY", "missing height"),
+    ] {
+        let output = run_project("named-bad", "", &[], &base.replace("BODY", body));
+        assert!(!output.status.success(), "{body}");
+        let text = stderr(&output);
+        assert!(text.contains(code) && text.contains(words), "{body}: {text}");
     }
 }
