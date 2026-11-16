@@ -867,3 +867,43 @@ mod windows {
         assert_eq!(pings_running(), 0, "the grandchild outlived the block");
     }
 }
+
+#[cfg(feature = "python-interop")]
+#[test]
+fn a_python_call_is_cut_off_at_the_item_deadline() {
+    let python = Command::new("python3")
+        .args(["-c", "import sys; print(sys.executable)"])
+        .output()
+        .expect("python3 runs");
+    let python = String::from_utf8(python.stdout).unwrap().trim().to_owned();
+    let dir = std::env::temp_dir().join(format!("guion-conc-py-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("napper.py"),
+        "import time\ndef nap(seconds):\n    time.sleep(seconds)\n    return seconds\n",
+    )
+    .unwrap();
+    let source = format!(
+        "import \"std:process\"\n\nextern python \"napper:nap\" fn nap(seconds: Int) -> Int\n\nfn work(seconds: Int) -> Int:\n    return nap(seconds)\n\n{SUMMARY}\nfn main() -> Int:\n    let results = try_parallel_map([0, 30, 0], work, Workers(at_once=3, each_ms=800, all_ms=0))\n    return show(results)\n"
+    );
+    std::fs::write(dir.join("main.gu"), source).unwrap();
+    let started = Instant::now();
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "main.gu"])
+        .current_dir(&dir)
+        .env("GUION_PYTHON", python)
+        .env("GUION_NO_PROMPT", "1")
+        .output()
+        .expect("guion starts");
+    let elapsed = started.elapsed();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(
+        stdout(&output),
+        "ok 0\nR_DEADLINE\nok 0",
+        "{}",
+        stderr(&output)
+    );
+    // The call would sleep 30 s and the bridge's own limit is 15 s.
+    assert!(elapsed < Duration::from_secs(8), "took {elapsed:?}");
+}

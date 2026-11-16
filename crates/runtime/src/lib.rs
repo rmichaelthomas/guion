@@ -7390,13 +7390,14 @@ impl Instance {
                 EffectKind::PythonCall,
                 format!("{}:{}", external.module, external.callable),
             );
-            let call = self.python_bridge.as_mut().unwrap().call_with_cancellation(
+            let call = self.python_bridge.as_mut().unwrap().call_until(
                 &external.module,
                 &external.callable,
                 args,
                 kwargs,
                 &external.result,
                 &budget.cancellation,
+                self.policy.deadline,
             );
             self.finish_effect(
                 effect,

@@ -1,7 +1,7 @@
 use guion_compiler::compile;
-use guion_model::{BigInt, Float64, Type, Value};
+use guion_model::{BigInt, Float64, Shared, Type, Value};
 use guion_runtime::{python_bridge::PythonBridge, CancellationToken, HostPolicy, Runtime};
-use std::{path::PathBuf, process::Command, sync::Arc, time::Duration};
+use std::{path::PathBuf, process::Command, time::Duration};
 
 #[test]
 fn cancellation_terminates_a_running_python_call() {
@@ -90,8 +90,8 @@ fn bridge_preserves_large_integers_and_keyword_arguments() {
 #[test]
 fn bridge_round_trips_typed_maps_as_python_dictionaries() {
     let mut values = guion_model::TextMap::new();
-    values.insert("pear".into(), Value::Int(BigInt::parse("4").unwrap()));
-    values.insert("apple".into(), Value::Int(BigInt::parse("3").unwrap()));
+    values.insert("pear", Value::Int(BigInt::parse("4").unwrap()));
+    values.insert("apple", Value::Int(BigInt::parse("3").unwrap()));
     let mut bridge = PythonBridge::launch(
         &interpreter(),
         &std::env::temp_dir(),
@@ -102,7 +102,7 @@ fn bridge_round_trips_typed_maps_as_python_dictionaries() {
         .call(
             "builtins",
             "dict",
-            &[Value::Map(Arc::new(values))],
+            &[Value::Map(Shared::new(values))],
             &[],
             &Type::Map(Box::new(Type::Int)),
         )
@@ -128,7 +128,7 @@ fn bridge_sends_packed_float64_lists_as_tagged_python_arguments() {
         Duration::from_secs(5),
     )
     .unwrap();
-    let values = Value::Float64List(Arc::new(vec![
+    let values = Value::Float64List(Shared::new(vec![
         Float64::new(0.25).unwrap(),
         Float64::new(0.5).unwrap(),
     ]));
@@ -184,8 +184,8 @@ fn bridge_accepts_empty_packed_float_list_at_the_nesting_boundary() {
         Duration::from_secs(5),
     )
     .unwrap();
-    let nested = (0..64).fold(Value::Float64List(Arc::new(Vec::new())), |value, _| {
-        Value::List(Arc::new(vec![value]))
+    let nested = (0..64).fold(Value::Float64List(Shared::new(Vec::new())), |value, _| {
+        Value::List(Shared::new(vec![value]))
     });
     let output = bridge
         .call("builtins", "len", &[nested], &[], &Type::Int)

@@ -12,10 +12,7 @@ use std::{
     io::{self, Read, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStdin, Command, Stdio},
-    sync::{
-        mpsc::{self, Receiver},
-        Arc,
-    },
+    sync::mpsc::{self, Receiver},
     thread,
     time::{Duration, Instant},
 };
@@ -217,6 +214,11 @@ impl Serialize for WireValue<'_, '_> {
             | Value::FileError(_)
             | Value::HttpError(_)
             | Value::NativeResource(_)
+            | Value::Array(_)
+            | Value::Function(_)
+            | Value::Closure(..)
+            | Value::Task(_)
+            | Value::Channel(_)
             | Value::Record(_, _) => {
                 return Err(serde::ser::Error::custom(
                     "unsupported Guion value in Python bridge request",
@@ -289,6 +291,7 @@ impl Serialize for WireMap<'_, '_> {
     {
         let mut map = serializer.serialize_map(Some(self.values.len()))?;
         for (key, value) in self.values.iter() {
+            let key: &str = key.as_ref();
             map.serialize_entry(
                 key,
                 &WireValue {
@@ -453,6 +456,30 @@ impl PythonBridge {
         result_type: &Type,
         cancellation: &CancellationToken,
     ) -> Result<PythonCallOutput, PythonBridgeError> {
+        self.call_until(
+            module,
+            function,
+            args,
+            kwargs,
+            result_type,
+            cancellation,
+            None,
+        )
+    }
+
+    /// Like `call_with_cancellation`, and also gives up at `until` when that comes before the
+    /// bridge's own timeout (the deadline of a timed item in `try_parallel_map`).
+    #[allow(clippy::too_many_arguments)]
+    pub fn call_until(
+        &mut self,
+        module: &str,
+        function: &str,
+        args: &[Value],
+        kwargs: &[(String, Value)],
+        result_type: &Type,
+        cancellation: &CancellationToken,
+        until: Option<Instant>,
+    ) -> Result<PythonCallOutput, PythonBridgeError> {
         if self.closed {
             return Err(bridge_error("R_PYTHON_CLOSED", "Python sidecar is closed"));
         }
@@ -490,7 +517,10 @@ impl PythonBridge {
             matches!(result_type, Type::List(_)),
             self.profile.as_mut(),
         )?;
-        let deadline = Instant::now() + self.timeout;
+        let own_deadline = Instant::now() + self.timeout;
+        let deadline = until.map_or(own_deadline, |until| own_deadline.min(until));
+        // When the caller's deadline is the nearer one, running out of time is a cancellation.
+        let cut_by_caller = until.is_some_and(|until| until < own_deadline);
         let response_wait_started = self.profile.as_ref().map(|_| Instant::now());
         let response = loop {
             if cancellation.is_cancelled() {
@@ -500,6 +530,9 @@ impl PythonBridge {
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
                 self.terminate();
+                if cut_by_caller {
+                    return Err(bridge_error("R_CANCELLED", "invocation ran out of time"));
+                }
                 return Err(bridge_error(
                     "R_PYTHON_TIMEOUT",
                     format!(
@@ -782,9 +815,14 @@ fn validate_value(value: &Value, depth: usize) -> Result<(), PythonBridgeError> 
         | Value::FileError(_)
         | Value::HttpError(_)
         | Value::NativeResource(_)
+        | Value::Array(_)
+        | Value::Function(_)
+        | Value::Closure(..)
+        | Value::Task(_)
+        | Value::Channel(_)
         | Value::Record(_, _) => Err(bridge_error(
             "R_PYTHON_CONVERSION",
-            "Option, Result, structured errors, and native resources cannot cross the current Python bridge",
+            "Option, Result, structured errors, records, functions, tasks and native resources cannot cross the current Python bridge",
         )),
     }
 }
@@ -845,7 +883,7 @@ fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridg
         ("bytes", Type::Bytes) => payload
             .as_str()
             .and_then(|encoded| STANDARD.decode(encoded).ok())
-            .map(|bytes| Value::Bytes(Arc::new(bytes)))
+            .map(|bytes| Value::Bytes(Shared::new(bytes)))
             .ok_or_else(invalid),
         ("list", Type::List(item_type)) => payload
             .as_array()
@@ -860,7 +898,7 @@ fn decode_value(value: &JsonValue, expected: &Type) -> Result<Value, PythonBridg
             for (key, item) in object {
                 values.insert(key.clone(), decode_value(item, item_type)?);
             }
-            Ok(Value::Map(Arc::new(values)))
+            Ok(Value::Map(Shared::new(values)))
         }
         _ => Err(invalid()),
     }
@@ -979,7 +1017,7 @@ fn write_request_frame<'data>(
     writer
         .flush()
         .map_err(|error| bridge_error("R_PYTHON_PROTOCOL", error.to_string()))?;
-    if let (Some(profile), Some(started)) = (profile.as_deref_mut(), write_started) {
+    if let (Some(profile), Some(started)) = (profile, write_started) {
         profile.add("request_write", started.elapsed());
     }
     Ok(())
@@ -1023,22 +1061,21 @@ fn read_frame(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     #[test]
     fn request_frame_uses_ordered_raw_attachments_for_nested_bytes() {
-        let top_level = Value::Bytes(Arc::new(vec![0, 0xff]));
-        let list_and_map = Value::List(Arc::new(vec![
-            Value::Bytes(Arc::new(vec![b'c', 0, 0xff])),
-            Value::Map(Arc::new(TextMap::from([
-                ("zeta".into(), Value::Bytes(Arc::new(vec![0]))),
-                ("alpha".into(), Value::Bytes(Arc::new(vec![0x80]))),
+        let top_level = Value::Bytes(Shared::new(vec![0, 0xff]));
+        let list_and_map = Value::List(Shared::new(vec![
+            Value::Bytes(Shared::new(vec![b'c', 0, 0xff])),
+            Value::Map(Shared::new(TextMap::from([
+                ("zeta".into(), Value::Bytes(Shared::new(vec![0]))),
+                ("alpha".into(), Value::Bytes(Shared::new(vec![0x80]))),
             ]))),
         ]));
         let args = [top_level, list_and_map];
         let kwargs = [
-            ("z_payload".into(), Value::Bytes(Arc::new(vec![b'z']))),
-            ("a_payload".into(), Value::Bytes(Arc::new(vec![b'a']))),
+            ("z_payload".into(), Value::Bytes(Shared::new(vec![b'z']))),
+            ("a_payload".into(), Value::Bytes(Shared::new(vec![b'a']))),
         ];
         let mut frame = Vec::new();
         write_request_frame(
