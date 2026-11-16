@@ -71,6 +71,19 @@ class FeedInboxAcceptance(unittest.TestCase):
         payload = json.dumps(self.fixture, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         (self.guion_project / "inbox.json").write_text(payload + "\n", encoding="utf-8")
         (self.python_project / "inbox.json").write_text(payload + "\n", encoding="utf-8")
+        # The committed lock names the machine it was made on; regenerate it for this one.
+        environment = os.environ.copy()
+        environment.update({
+            "GUION_UV": str(UV),
+            "UV_CACHE_DIR": str(UV_CACHE),
+            "UV_PYTHON_INSTALL_DIR": str(PYTHON_INSTALL),
+        })
+        environment.pop("UV_OFFLINE", None)
+        synced = subprocess.run(
+            [str(GUION), "sync", "--update", str(self.guion_project)],
+            cwd=self.root, env=environment, text=True, capture_output=True, timeout=300,
+        )
+        self.assertEqual(synced.returncode, 0, synced.stderr)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -87,7 +100,7 @@ class FeedInboxAcceptance(unittest.TestCase):
         else:
             environment.pop("UV_OFFLINE", None)
             synced = subprocess.run(
-                [str(GUION), "sync", str(self.guion_project)],
+                [str(GUION), "sync", "--update", str(self.guion_project)],
                 cwd=self.root,
                 env=environment,
                 text=True,
@@ -114,7 +127,7 @@ class FeedInboxAcceptance(unittest.TestCase):
                 environment["UV_OFFLINE"] = "1"
             else:
                 environment.pop("UV_OFFLINE", None)
-            synced = subprocess.run([str(GUION), "sync", str(self.python_project)], cwd=self.root, env=environment, text=True, capture_output=True, timeout=60)
+            synced = subprocess.run([str(GUION), "sync", "--update", str(self.python_project)], cwd=self.root, env=environment, text=True, capture_output=True, timeout=60)
             self.assertEqual(synced.returncode, 0, synced.stderr)
         return subprocess.run(
             [str(interpreter), str(self.python_project / "python_baseline.py"), *args],
