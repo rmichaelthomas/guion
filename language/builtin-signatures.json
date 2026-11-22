@@ -3111,6 +3111,22 @@
       "operation": "CryptoX509VerifyIssuedBy"
     },
     {
+      "name": "native_crypto_x509_dns_names",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Text], Record[StdError]]",
+      "operation": "CryptoX509DnsNames"
+    },
+    {
+      "name": "native_crypto_x509_validity",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Int], Record[StdError]]",
+      "operation": "CryptoX509Validity"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"

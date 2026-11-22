@@ -20,7 +20,8 @@ pub use bls::bls12381_verify_g1;
 pub use dagcbor::dagcbor_encode;
 pub use hash::{sha3_512, sha512};
 pub use signature::{
-    ecdsa_p256_verify, rsa_verify, x509_rsa_public_key, x509_verify_issued_by, RsaScheme,
+    ecdsa_p256_verify, rsa_verify, x509_dns_names, x509_rsa_public_key, x509_validity,
+    x509_verify_issued_by, RsaScheme,
 };
 pub use tlock::{tlock_chain_hash, tlock_decrypt, tlock_encrypt, tlock_round};
 

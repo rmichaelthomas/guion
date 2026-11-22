@@ -7519,6 +7519,14 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
             vec![Type::Bytes, Type::Bytes],
             crypto_result_type(Type::Bool),
         ),
+        CryptoFunction::X509DnsNames => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Text))),
+        ),
+        CryptoFunction::X509Validity => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Int))),
+        ),
     }
 }
 
@@ -7686,6 +7694,34 @@ fn apply_crypto(
             Ok(crypto_result(
                 guion_crypto::x509_verify_issued_by(&certificate, &issuer).map(Value::Bool),
             ))
+        }
+        CryptoFunction::X509DnsNames => {
+            let Value::Bytes(der) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::x509_dns_names(&der).map(
+                |names| {
+                    Value::List(Shared::new(
+                        names
+                            .iter()
+                            .map(|name| Value::Text(SharedText::from(name.as_str())))
+                            .collect(),
+                    ))
+                },
+            )))
+        }
+        CryptoFunction::X509Validity => {
+            let Value::Bytes(der) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::x509_validity(&der).map(
+                |[not_before, not_after]| {
+                    Value::List(Shared::new(vec![
+                        Value::Int(BigInt::from_i64(not_before)),
+                        Value::Int(BigInt::from_i64(not_after)),
+                    ]))
+                },
+            )))
         }
         CryptoFunction::TlockRound => {
             let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {

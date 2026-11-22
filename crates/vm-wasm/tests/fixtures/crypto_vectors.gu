@@ -46,6 +46,20 @@ fn rsa_key(result: Result[List[Bytes], StdError]) -> Text:
         Err(problem):
             return problem.code
 
+fn name_list(result: Result[List[Text], StdError]) -> Text:
+    match result:
+        Ok(names):
+            return text_join(names, ",")
+        Err(problem):
+            return problem.code
+
+fn date_list(result: Result[List[Int], StdError]) -> Text:
+    match result:
+        Ok(dates):
+            return f"{int_to_text(dates[0])},{int_to_text(dates[1])}"
+        Err(problem):
+            return problem.code
+
 fn json_encoded(text: Text) -> Text:
     match json_parse(text):
         Ok(value):
@@ -139,6 +153,11 @@ fn vectors() -> Text:
     set out = out + line("x509 leaf by root", flag(crypto_x509_verify_issued_by(nist_leaf(), nist_root())))
     set out = out + line("x509 sha1", flag(crypto_x509_verify_issued_by(sha1_leaf(), rsa_ca())))
     set out = out + line("x509 garbage", flag(crypto_x509_verify_issued_by(h("00"), nist_issuer())))
+    set out = out + line("x509 names", name_list(crypto_x509_dns_names(san_leaf())))
+    set out = out + line("x509 names nist", name_list(crypto_x509_dns_names(nist_leaf())))
+    set out = out + line("x509 names garbage", name_list(crypto_x509_dns_names(h("00"))))
+    set out = out + line("x509 validity", date_list(crypto_x509_validity(dated_leaf())))
+    set out = out + line("x509 validity garbage", date_list(crypto_x509_validity(h("00"))))
     set out = out + line("and", int_to_text(int_and(12, 10)))
     set out = out + line("or", int_to_text(int_or(12, 10)))
     set out = out + line("xor", int_to_text(int_xor(12, 10)))

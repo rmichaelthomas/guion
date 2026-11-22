@@ -97,7 +97,7 @@ fn browser(artifact: &[u8], entry: &str) -> Outcome {
 
 fn program() -> String {
     let mut out =
-        String::from("import \"std:crypto\"\nimport \"std:encoding\"\nimport \"std:types\"\n");
+        String::from("import \"std:crypto\"\nimport \"std:encoding\"\nimport \"std:types\"\nimport \"std:text\"\n");
     for (name, bytes) in [
         ("message", crypto_fixture("message.bin")),
         ("pkcs1_256", crypto_fixture("rsa_pkcs1_sha256.sig")),
@@ -112,6 +112,8 @@ fn program() -> String {
         ("nist_root", crypto_fixture("x509/nist-root.der")),
         ("sha1_leaf", crypto_fixture("x509/leaf-rsa-sha1.der")),
         ("rsa_ca", crypto_fixture("x509/rsa-ca.der")),
+        ("san_leaf", crypto_fixture("x509/leaf-san.der")),
+        ("dated_leaf", crypto_fixture("x509/leaf-dated.der")),
         ("modulus", hex_to_bytes(&crypto_fixture("rsa_modulus.hex"))),
         (
             "exponent",
@@ -204,6 +206,12 @@ fn browser_crypto_vectors_match_native() {
         "x509 leaf by root=false",
         "x509 sha1=E_X509_ALG",
         "x509 garbage=E_X509",
+        // codes 12 and 13
+        "x509 names=a.example.test,b.example.test",
+        "x509 names nist=engine.beacon.nist.gov",
+        "x509 names garbage=E_X509",
+        "x509 validity=1704164645,1749283750",
+        "x509 validity garbage=E_X509",
         // codec 15 to 19
         "and=8",
         "or=14",

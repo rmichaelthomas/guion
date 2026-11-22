@@ -22,7 +22,8 @@ pub enum RsaScheme {
     Pkcs1v15Sha256,
     /// RSASSA-PKCS1-v1_5 with SHA-512.
     Pkcs1v15Sha512,
-    /// RSASSA-PSS with SHA-256 and MGF1(SHA-256); the salt length is taken from the signature.
+    /// RSASSA-PSS with SHA-256 and MGF1(SHA-256); the salt length is the digest length (32 bytes),
+    /// which is what JWS `PS256` requires. A signature made with another salt length is `Ok(false)`.
     PssSha256,
     /// RSASSA-PKCS1-v1_5 with SHA-384. Reached by certificate checks, not by name from a program.
     Pkcs1v15Sha384,
@@ -64,7 +65,8 @@ fn strip_leading_zeros(bytes: &[u8]) -> &[u8] {
 }
 
 /// Verifies an RSA signature. `modulus` and `exponent` are big-endian (leading zero bytes are
-/// ignored); `signature` must be exactly as long as the modulus.
+/// ignored); `signature` must be exactly as long as the modulus. The modulus must be between 1024
+/// and 8192 bits exactly. For the PSS schemes the salt length is the digest length.
 pub fn rsa_verify(
     modulus: &[u8],
     exponent: &[u8],
@@ -72,12 +74,34 @@ pub fn rsa_verify(
     signature: &[u8],
     scheme: RsaScheme,
 ) -> Result<bool, CryptoError> {
+    rsa_verify_with_salt(modulus, exponent, message, signature, scheme, None)
+}
+
+/// The number of significant bits in a big-endian number with no leading zero bytes.
+fn bit_length(bytes: &[u8]) -> usize {
+    match bytes.first() {
+        Some(first) => bytes.len() * 8 - first.leading_zeros() as usize,
+        None => 0,
+    }
+}
+
+/// [`rsa_verify`] with an explicit PSS salt length (used by certificate checks, where the
+/// RSASSA-PSS parameters name it). `None` means the digest length. Ignored for PKCS#1 v1.5.
+fn rsa_verify_with_salt(
+    modulus: &[u8],
+    exponent: &[u8],
+    message: &[u8],
+    signature: &[u8],
+    scheme: RsaScheme,
+    salt_len: Option<usize>,
+) -> Result<bool, CryptoError> {
     let modulus = strip_leading_zeros(modulus);
     let exponent = strip_leading_zeros(exponent);
     if modulus.is_empty() || exponent.is_empty() {
         return Err(input("RSA modulus and exponent must not be empty or zero"));
     }
-    if modulus.len() * 8 < MIN_MODULUS_BITS || modulus.len() * 8 > MAX_MODULUS_BITS + 8 {
+    let bits = bit_length(modulus);
+    if !(MIN_MODULUS_BITS..=MAX_MODULUS_BITS).contains(&bits) {
         return Err(input("RSA modulus must be between 1024 and 8192 bits"));
     }
     if modulus[modulus.len() - 1] & 1 == 0 {
@@ -91,9 +115,10 @@ pub fn rsa_verify(
             "RSA exponent must be an odd number of at least 3 and under 2^33",
         ));
     }
-    let key = RsaPublicKey::new(
+    let key = RsaPublicKey::new_with_max_size(
         BigUint::from_bytes_be(modulus),
         BigUint::from_bytes_be(exponent),
+        MAX_MODULUS_BITS,
     )
     .map_err(|error| input(&format!("invalid RSA public key: {error}")))?;
     if signature.len() != key.size() {
@@ -103,6 +128,7 @@ pub fn rsa_verify(
             signature.len()
         )));
     }
+    let pss_key = |digest_len: usize| (key.clone(), salt_len.unwrap_or(digest_len));
     let valid = match scheme {
         RsaScheme::Pkcs1v15Sha256 => pkcs1v15::Signature::try_from(signature)
             .and_then(|parsed| pkcs1v15::VerifyingKey::<Sha256>::new(key).verify(message, &parsed))
@@ -110,18 +136,36 @@ pub fn rsa_verify(
         RsaScheme::Pkcs1v15Sha512 => pkcs1v15::Signature::try_from(signature)
             .and_then(|parsed| pkcs1v15::VerifyingKey::<Sha512>::new(key).verify(message, &parsed))
             .is_ok(),
-        RsaScheme::PssSha256 => pss::Signature::try_from(signature)
-            .and_then(|parsed| pss::VerifyingKey::<Sha256>::new(key).verify(message, &parsed))
-            .is_ok(),
+        RsaScheme::PssSha256 => {
+            let (key, salt) = pss_key(32);
+            pss::Signature::try_from(signature)
+                .and_then(|parsed| {
+                    pss::VerifyingKey::<Sha256>::new_with_salt_len(key, salt)
+                        .verify(message, &parsed)
+                })
+                .is_ok()
+        }
         RsaScheme::Pkcs1v15Sha384 => pkcs1v15::Signature::try_from(signature)
             .and_then(|parsed| pkcs1v15::VerifyingKey::<Sha384>::new(key).verify(message, &parsed))
             .is_ok(),
-        RsaScheme::PssSha384 => pss::Signature::try_from(signature)
-            .and_then(|parsed| pss::VerifyingKey::<Sha384>::new(key).verify(message, &parsed))
-            .is_ok(),
-        RsaScheme::PssSha512 => pss::Signature::try_from(signature)
-            .and_then(|parsed| pss::VerifyingKey::<Sha512>::new(key).verify(message, &parsed))
-            .is_ok(),
+        RsaScheme::PssSha384 => {
+            let (key, salt) = pss_key(48);
+            pss::Signature::try_from(signature)
+                .and_then(|parsed| {
+                    pss::VerifyingKey::<Sha384>::new_with_salt_len(key, salt)
+                        .verify(message, &parsed)
+                })
+                .is_ok()
+        }
+        RsaScheme::PssSha512 => {
+            let (key, salt) = pss_key(64);
+            pss::Signature::try_from(signature)
+                .and_then(|parsed| {
+                    pss::VerifyingKey::<Sha512>::new_with_salt_len(key, salt)
+                        .verify(message, &parsed)
+                })
+                .is_ok()
+        }
     };
     Ok(valid)
 }
@@ -129,6 +173,10 @@ pub fn rsa_verify(
 /// Verifies an ECDSA P-256 signature over SHA-256 of `message`. `sec1_public_key` is a SEC1
 /// encoded point (uncompressed 65 bytes, or compressed 33) that must lie on the curve;
 /// `signature_r_s` is the raw 64-byte `r || s` form that JWS uses.
+///
+/// ECDSA signatures are malleable and this primitive is permissive: for every valid `(r, s)` the
+/// signature `(r, n - s)` also verifies (high-S is not rejected). Never use signature bytes as an
+/// identifier or dedupe key; hash the signed message instead.
 pub fn ecdsa_p256_verify(
     sec1_public_key: &[u8],
     message: &[u8],
@@ -216,7 +264,8 @@ impl CertHash {
 /// How a certificate says it was signed.
 enum CertSignature {
     RsaPkcs1v15(CertHash),
-    RsaPss(CertHash),
+    /// RSASSA-PSS with the hash and the `saltLength` the certificate's parameters name.
+    RsaPss(CertHash, usize),
     Ecdsa(CertHash),
 }
 
@@ -229,10 +278,9 @@ fn x509_alg(message: impl Into<String>) -> CryptoError {
 }
 
 fn certificate_signature_algorithm(
-    certificate: &Certificate,
+    algorithm: &x509_cert::spki::AlgorithmIdentifierOwned,
 ) -> Result<CertSignature, CryptoError> {
     use rsa::pkcs1::der::Encode;
-    let algorithm = &certificate.signature_algorithm;
     let oid = algorithm.oid.to_string();
     let rsa = |hash| Ok(CertSignature::RsaPkcs1v15(hash));
     let ecdsa = |hash| Ok(CertSignature::Ecdsa(hash));
@@ -251,6 +299,7 @@ fn certificate_signature_algorithm(
             let encoded = parameters
                 .to_der()
                 .map_err(|error| x509_error(format!("RSASSA-PSS parameters: {error}")))?;
+            // `trailerField` other than 1 (the only defined value) does not decode and is `E_X509`.
             let parsed = rsa::pkcs1::RsaPssParams::from_der(&encoded)
                 .map_err(|error| x509_error(format!("RSASSA-PSS parameters: {error}")))?;
             let hash = CertHash::from_oid(&parsed.hash.oid.to_string())
@@ -265,7 +314,7 @@ fn certificate_signature_algorithm(
                     "RSASSA-PSS needs MGF1 with the same hash as the message digest",
                 ));
             }
-            Ok(CertSignature::RsaPss(hash))
+            Ok(CertSignature::RsaPss(hash, usize::from(parsed.salt_len)))
         }
         other => Err(x509_alg(format!(
             "certificate signature algorithm {other} is not supported (RSA PKCS#1 v1.5 or PSS with SHA-256, SHA-384 or SHA-512, ECDSA with SHA-256, SHA-384 or SHA-512)"
@@ -311,7 +360,10 @@ fn raw_tbs_certificate(der: &[u8]) -> Option<&[u8]> {
 /// SHA-256, SHA-384 or SHA-512 under an RSA issuer key; ECDSA with SHA-256, SHA-384 or SHA-512
 /// under a P-256 or P-384 issuer key. Any other algorithm or key type (SHA-1, P-521, Ed25519) is
 /// `E_X509_ALG`. A name that does not match, a key of the wrong type for the algorithm or a
-/// signature that does not verify is `Ok(false)`. Validity dates, extensions and revocation are
+/// signature that does not verify is `Ok(false)`, as is a certificate whose outer `signatureAlgorithm`
+/// differs from the one inside its `tbsCertificate` (RFC 5280 4.1.1.2). For RSASSA-PSS the
+/// `saltLength` in the certificate's parameters is honoured and a `trailerField` other than 1 is
+/// `E_X509`. Validity dates, extensions and revocation are
 /// not examined.
 pub fn x509_verify_issued_by(
     certificate_der: &[u8],
@@ -327,7 +379,11 @@ pub fn x509_verify_issued_by(
     })?;
     let tbs = raw_tbs_certificate(certificate_der)
         .ok_or_else(|| x509_error("certificate structure is malformed"))?;
-    let algorithm = certificate_signature_algorithm(&certificate)?;
+    // RFC 5280 4.1.1.2: the outer signatureAlgorithm must equal the one inside tbsCertificate.
+    if certificate.signature_algorithm != certificate.tbs_certificate.signature {
+        return Ok(false);
+    }
+    let algorithm = certificate_signature_algorithm(&certificate.signature_algorithm)?;
     let issuer_name = certificate
         .tbs_certificate
         .issuer
@@ -372,21 +428,21 @@ pub fn x509_verify_issued_by(
         .as_bytes()
         .ok_or_else(|| x509_error("certificate signature is not a whole number of bytes"))?;
     match (algorithm, curve) {
-        (rsa_algorithm @ (CertSignature::RsaPkcs1v15(_) | CertSignature::RsaPss(_)), None) => {
-            let scheme = match rsa_algorithm {
-                CertSignature::RsaPkcs1v15(CertHash::Sha256) => RsaScheme::Pkcs1v15Sha256,
-                CertSignature::RsaPkcs1v15(CertHash::Sha384) => RsaScheme::Pkcs1v15Sha384,
-                CertSignature::RsaPkcs1v15(CertHash::Sha512) => RsaScheme::Pkcs1v15Sha512,
-                CertSignature::RsaPss(CertHash::Sha256) => RsaScheme::PssSha256,
-                CertSignature::RsaPss(CertHash::Sha384) => RsaScheme::PssSha384,
-                CertSignature::RsaPss(CertHash::Sha512) => RsaScheme::PssSha512,
+        (rsa_algorithm @ (CertSignature::RsaPkcs1v15(_) | CertSignature::RsaPss(..)), None) => {
+            let (scheme, salt_len) = match rsa_algorithm {
+                CertSignature::RsaPkcs1v15(CertHash::Sha256) => (RsaScheme::Pkcs1v15Sha256, None),
+                CertSignature::RsaPkcs1v15(CertHash::Sha384) => (RsaScheme::Pkcs1v15Sha384, None),
+                CertSignature::RsaPkcs1v15(CertHash::Sha512) => (RsaScheme::Pkcs1v15Sha512, None),
+                CertSignature::RsaPss(CertHash::Sha256, salt) => (RsaScheme::PssSha256, Some(salt)),
+                CertSignature::RsaPss(CertHash::Sha384, salt) => (RsaScheme::PssSha384, Some(salt)),
+                CertSignature::RsaPss(CertHash::Sha512, salt) => (RsaScheme::PssSha512, Some(salt)),
                 CertSignature::Ecdsa(_) => return Ok(false),
             };
             let (modulus, exponent) = x509_rsa_public_key(issuer_der)?;
             if signature.len() != modulus.len() {
                 return Ok(false);
             }
-            rsa_verify(&modulus, &exponent, tbs, signature, scheme)
+            rsa_verify_with_salt(&modulus, &exponent, tbs, signature, scheme, salt_len)
                 .map_err(|error| x509_error(format!("issuer RSA key: {}", error.message)))
         }
         (CertSignature::Ecdsa(hash), Some(curve)) => {
@@ -414,5 +470,130 @@ pub fn x509_verify_issued_by(
         }
         // An RSA algorithm under an EC key, or the other way round, cannot have been signed by it.
         _ => Ok(false),
+    }
+}
+
+/// The DNS names an X.509 certificate (DER) is valid for: every `dNSName` entry of its
+/// SubjectAltName extension, in order. Only when the certificate has no SubjectAltName extension
+/// at all are the common names (CN) of its subject returned instead (the legacy fallback). IP
+/// addresses, e-mail addresses and URIs in the extension are ignored. A certificate that does not
+/// parse, or whose SubjectAltName is malformed, is `E_X509`. Names are returned exactly as
+/// encoded; the caller compares them (and handles wildcards, which this does not expand).
+pub fn x509_dns_names(der: &[u8]) -> Result<Vec<String>, CryptoError> {
+    use x509_cert::ext::pkix::name::GeneralName;
+    use x509_cert::ext::pkix::SubjectAltName;
+    let certificate = Certificate::from_der(der)
+        .map_err(|error| x509_error(format!("not a valid DER X.509 certificate: {error}")))?;
+    let has_san = certificate
+        .tbs_certificate
+        .extensions
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .any(|extension| extension.extn_id == const_oid_san());
+    if has_san {
+        let san = certificate
+            .tbs_certificate
+            .get::<SubjectAltName>()
+            .map_err(|error| x509_error(format!("malformed SubjectAltName: {error}")))?;
+        let Some((_, SubjectAltName(names))) = san else {
+            return Ok(Vec::new());
+        };
+        return Ok(names
+            .iter()
+            .filter_map(|name| match name {
+                GeneralName::DnsName(dns) => Some(dns.to_string()),
+                _ => None,
+            })
+            .collect());
+    }
+    // No SubjectAltName: the subject's common names.
+    let mut common_names = Vec::new();
+    for rdn in certificate.tbs_certificate.subject.0.iter() {
+        for attribute in rdn.0.iter() {
+            if attribute.oid.to_string() != "2.5.4.3" {
+                continue;
+            }
+            let value = &attribute.value;
+            let text = value
+                .decode_as::<rsa::pkcs1::der::asn1::Utf8StringRef>()
+                .map(|s| s.as_str().to_string())
+                .or_else(|_| {
+                    value
+                        .decode_as::<rsa::pkcs1::der::asn1::PrintableStringRef>()
+                        .map(|s| s.as_str().to_string())
+                })
+                .or_else(|_| {
+                    value
+                        .decode_as::<rsa::pkcs1::der::asn1::Ia5StringRef>()
+                        .map(|s| s.as_str().to_string())
+                })
+                .map_err(|_| x509_error("a subject common name is not a text string"))?;
+            common_names.push(text);
+        }
+    }
+    Ok(common_names)
+}
+
+fn const_oid_san() -> x509_cert::der::asn1::ObjectIdentifier {
+    x509_cert::ext::pkix::ID_CE_SUBJECT_ALT_NAME
+}
+
+/// The validity period of an X.509 certificate (DER) as `[notBefore, notAfter]` in seconds since
+/// the Unix epoch. A certificate that does not parse is `E_X509`. Only the dates are reported;
+/// the caller decides what instant to compare them with.
+pub fn x509_validity(der: &[u8]) -> Result<[i64; 2], CryptoError> {
+    let certificate = Certificate::from_der(der)
+        .map_err(|error| x509_error(format!("not a valid DER X.509 certificate: {error}")))?;
+    let seconds = |time: x509_cert::time::Time| {
+        i64::try_from(time.to_unix_duration().as_secs())
+            .map_err(|_| x509_error("certificate date is out of range"))
+    };
+    let validity = &certificate.tbs_certificate.validity;
+    Ok([seconds(validity.not_before)?, seconds(validity.not_after)?])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsa::pkcs1::der::asn1::{Any, ObjectIdentifier};
+
+    fn pss_algorithm(parameters: &[u8]) -> x509_cert::spki::AlgorithmIdentifierOwned {
+        x509_cert::spki::AlgorithmIdentifierOwned {
+            oid: ObjectIdentifier::new_unwrap(RSA_PSS_OID),
+            parameters: Some(Any::from_der(parameters).expect("parameters are DER")),
+        }
+    }
+
+    // SHA-256, MGF1(SHA-256), saltLength 32, then an optional trailerField.
+    fn pss_parameters(trailer: Option<u8>) -> Vec<u8> {
+        let mut body = vec![
+            0xa0, 0x0d, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02,
+            0x01, 0xa1, 0x1a, 0x30, 0x18, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01,
+            0x01, 0x08, 0x30, 0x0b, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02,
+            0x01, 0xa2, 0x03, 0x02, 0x01, 0x20,
+        ];
+        if let Some(value) = trailer {
+            body.extend_from_slice(&[0xa3, 0x03, 0x02, 0x01, value]);
+        }
+        let mut out = vec![0x30, body.len() as u8];
+        out.extend_from_slice(&body);
+        out
+    }
+
+    #[test]
+    fn pss_parameters_carry_the_salt_length_and_only_trailer_field_one() {
+        match certificate_signature_algorithm(&pss_algorithm(&pss_parameters(None))) {
+            Ok(CertSignature::RsaPss(CertHash::Sha256, 32)) => {}
+            _ => panic!("salt length 32 with SHA-256 expected"),
+        }
+        match certificate_signature_algorithm(&pss_algorithm(&pss_parameters(Some(1)))) {
+            Ok(CertSignature::RsaPss(CertHash::Sha256, 32)) => {}
+            _ => panic!("trailerField 1 is the default"),
+        }
+        let error = certificate_signature_algorithm(&pss_algorithm(&pss_parameters(Some(2))))
+            .err()
+            .expect("trailerField 2 is refused");
+        assert_eq!(error.code, "E_X509");
     }
 }

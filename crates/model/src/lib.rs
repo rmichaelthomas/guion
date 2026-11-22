@@ -1409,6 +1409,9 @@ mod tests {
     /// The first artifact format with the tlock chain hash and the X.509 issuer check.
     const CHAIN_ISSUER_FIRST_FORMAT: u32 = 84;
 
+    /// The first artifact format with the X.509 name and validity reads.
+    const X509_NAME_FIRST_FORMAT: u32 = 85;
+
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
@@ -1503,6 +1506,18 @@ mod tests {
         assert_gated(
             Op::Crypto(CryptoFunction::X509VerifyIssuedBy),
             CHAIN_ISSUER_FIRST_FORMAT,
+        );
+    }
+
+    #[test]
+    fn old_format_rejects_x509_name_and_validity_crypto_ops() {
+        assert_gated(
+            Op::Crypto(CryptoFunction::X509DnsNames),
+            X509_NAME_FIRST_FORMAT,
+        );
+        assert_gated(
+            Op::Crypto(CryptoFunction::X509Validity),
+            X509_NAME_FIRST_FORMAT,
         );
     }
 
@@ -3907,7 +3922,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact formats 78 to 84 (see `first_format`) and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 to 85 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3939,10 +3954,15 @@ pub enum CryptoFunction {
     /// Whether an X.509 certificate was signed by the key of an issuer certificate (code 11,
     /// format 84).
     X509VerifyIssuedBy,
+    /// The DNS names of an X.509 certificate: SubjectAltName dNSName entries, or the subject CN
+    /// when there is no SubjectAltName extension (code 12, format 85).
+    X509DnsNames,
+    /// The `[notBefore, notAfter]` of an X.509 certificate as Unix seconds (code 13, format 85).
+    X509Validity,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 12] = [
+    const ALL: [CryptoFunction; 14] = [
         CryptoFunction::Sha512,
         CryptoFunction::Sha3_512,
         CryptoFunction::RsaVerify,
@@ -3955,6 +3975,8 @@ impl CryptoFunction {
         CryptoFunction::DagCborEncode,
         CryptoFunction::TlockChainHash,
         CryptoFunction::X509VerifyIssuedBy,
+        CryptoFunction::X509DnsNames,
+        CryptoFunction::X509Validity,
     ];
 
     /// The first artifact format that may carry this function; older formats reject it.
@@ -3970,6 +3992,7 @@ impl CryptoFunction {
             | CryptoFunction::TlockRound => 81,
             CryptoFunction::DagCborEncode => 82,
             CryptoFunction::TlockChainHash | CryptoFunction::X509VerifyIssuedBy => 84,
+            CryptoFunction::X509DnsNames | CryptoFunction::X509Validity => 85,
         }
     }
 
@@ -3999,6 +4022,8 @@ impl CryptoFunction {
             CryptoFunction::DagCborEncode => "CryptoDagCborEncode",
             CryptoFunction::TlockChainHash => "CryptoTlockChainHash",
             CryptoFunction::X509VerifyIssuedBy => "CryptoX509VerifyIssuedBy",
+            CryptoFunction::X509DnsNames => "CryptoX509DnsNames",
+            CryptoFunction::X509Validity => "CryptoX509Validity",
         }
     }
 
@@ -4024,6 +4049,7 @@ impl CryptoFunction {
             CryptoFunction::DagCborEncode => 1,
             CryptoFunction::TlockChainHash => 1,
             CryptoFunction::X509VerifyIssuedBy => 2,
+            CryptoFunction::X509DnsNames | CryptoFunction::X509Validity => 1,
         }
     }
 }
@@ -4813,7 +4839,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 84;
+    pub const CURRENT_VERSION: u32 = 85;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5185,6 +5211,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 85 && artifact_uses_x509_name_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the X.509 name and validity instructions require artifact format 85",
             ));
         }
         if self.format_version < 84 && artifact_uses_chain_issuer_crypto(self) {
@@ -7072,6 +7104,14 @@ fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 84)
+        })
+    })
+}
+
+fn artifact_uses_x509_name_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 85)
         })
     })
 }

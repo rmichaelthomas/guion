@@ -102,7 +102,7 @@ The pure cryptography of `std:crypto` and `std:encoding` runs in the browser VM,
 |---|---|
 | Hashes | `crypto_sha256`, `crypto_sha512`, `crypto_sha3_512`, `crypto_sha1` |
 | Signatures and certificates | `crypto_rsa_verify` (PKCS#1 v1.5 and PSS), `crypto_ecdsa_p256_verify`, `crypto_bls12381_verify_g1`, `crypto_x509_rsa_public_key`, `crypto_x509_verify_issued_by`, `crypto_pem_decode` |
-| Timelock (drand tlock, age format) | `crypto_tlock_decrypt`, `crypto_tlock_round`, `crypto_tlock_chain_hash`, and encryption through `native_crypto_tlock_encrypt` when the caller supplies the 48 bytes of randomness |
+| Timelock (drand tlock, age format) | `crypto_tlock_decrypt`, `crypto_tlock_round`, `crypto_tlock_chain_hash`, `crypto_x509_dns_names`, `crypto_x509_validity`, and encryption through `native_crypto_tlock_encrypt` when the caller supplies the 48 bytes of randomness |
 | Encoding | `dagcbor_encode`, `hex_encode`/`hex_decode`, `base64_*`, `bytes_xor_key` |
 | Bit operations | `int_and`, `int_or`, `int_xor`, `int_shift_left`, `int_shift_right` (64-bit; `R_INTEGER_RANGE` and `R_SHIFT_RANGE` as natively) |
 | JSON | `json_parse`, `json_stringify`, `json_get`, `json_index`, `json_has`, `json_len`, `json_set`, `json_push`, the `json_as_*` and `json_try_*` accessors and the JSON constructors, with native limits and error codes |

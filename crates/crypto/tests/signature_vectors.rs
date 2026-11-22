@@ -213,3 +213,76 @@ fn x509_rsa_key_verifies_a_signature() {
         Ok(true)
     );
 }
+
+#[test]
+fn rsa_8192_bit_keys_verify_and_larger_moduli_are_refused() {
+    let modulus = hex_fixture("rsa8192_modulus.hex");
+    assert_eq!(modulus.len(), 1024);
+    assert!(
+        modulus[0] & 0x80 != 0,
+        "the fixture modulus is 8192 bits exactly"
+    );
+    let message = fixture("message.bin");
+    let signature = fixture("rsa8192_pkcs1_sha256.sig");
+    assert_eq!(
+        rsa_verify(
+            &modulus,
+            &[1, 0, 1],
+            &message,
+            &signature,
+            RsaScheme::Pkcs1v15Sha256
+        ),
+        Ok(true)
+    );
+    // 8193 bits: one more bit than allowed. 8200 bits: a full extra byte.
+    for first in [0x01u8, 0xFF] {
+        let mut too_big = vec![first];
+        too_big.extend_from_slice(&modulus);
+        too_big[1024] |= 1;
+        let error = rsa_verify(
+            &too_big,
+            &[1, 0, 1],
+            &message,
+            &signature,
+            RsaScheme::Pkcs1v15Sha256,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "E_CRYPTO_INPUT", "{first:#x}");
+        assert!(error.message.contains("8192"), "{}", error.message);
+    }
+}
+
+#[test]
+fn rsa_pss_uses_the_digest_length_as_the_salt() {
+    // The fixture signature was made with salt length 32 (the SHA-256 digest length).
+    let key = rsa();
+    let signature = fixture("rsa_pss_sha256.sig");
+    assert_eq!(
+        rsa_verify(
+            &key.modulus,
+            &key.exponent,
+            &key.message,
+            &signature,
+            RsaScheme::PssSha256
+        ),
+        Ok(true)
+    );
+}
+
+#[test]
+fn ecdsa_accepts_the_malleated_high_s_twin_of_a_valid_signature() {
+    // Documented behaviour: the primitive is permissive, so (r, n - s) verifies as well as (r, s).
+    // Signature bytes are therefore not identifiers.
+    let key = fixture("ec_public_sec1.bin");
+    let message = fixture("message.bin");
+    let signature = fixture("ec_signature_rs.bin");
+    assert_eq!(ecdsa_p256_verify(&key, &message, &signature), Ok(true));
+    let parsed = p256::ecdsa::Signature::from_slice(&signature).unwrap();
+    let (r, s) = parsed.split_scalars();
+    let twin = p256::ecdsa::Signature::from_scalars(r.to_bytes(), (-*s).to_bytes()).unwrap();
+    assert_ne!(twin.to_bytes().as_slice(), signature.as_slice());
+    assert_eq!(
+        ecdsa_p256_verify(&key, &message, &twin.to_bytes()),
+        Ok(true)
+    );
+}

@@ -32,8 +32,23 @@ pub import "std:http_types"
 # verifies under the issuer's key: RSA PKCS#1 v1.5 or PSS with SHA-256, SHA-384 or SHA-512, and ECDSA
 # with SHA-256, SHA-384 or SHA-512 under a P-256 or P-384 key, whichever the certificate names. A
 # name mismatch, a key of the wrong type or a signature that does not verify is Ok(false); input that
-# is not DER X.509 is E_X509; any other algorithm (SHA-1, P-521, Ed25519) is E_X509_ALG. It checks one
-# link only: not validity dates, extensions such as CA:TRUE, or revocation.
+# is not DER X.509 is E_X509; any other algorithm (SHA-1, P-521, Ed25519) is E_X509_ALG. A certificate
+# whose outer signatureAlgorithm differs from the one inside its tbsCertificate is Ok(false), and for
+# RSASSA-PSS the saltLength in the certificate's parameters is honoured (a trailerField other than 1 is
+# E_X509). It checks one link only: not validity dates, extensions such as CA:TRUE, or revocation. Read
+# those yourself with the two functions below, and compare them to what you expect:
+#
+# crypto_x509_dns_names(der) (artifact format 85) gives the dNSName entries of the certificate's
+# SubjectAltName extension, in order (IP, e-mail and URI entries are skipped); only when the certificate
+# has no SubjectAltName extension at all does it give the subject's common names instead. Wildcards are
+# returned as written, not expanded. crypto_x509_validity(der) gives [notBefore, notAfter] as Unix
+# seconds. Input that is not a DER certificate is E_X509. A name and a date check is what turns "some
+# certificate this CA issued" into "the certificate I mean".
+#
+# ECDSA signatures are malleable: crypto_ecdsa_p256_verify accepts both (r, s) and (r, n - s) for a
+# valid signature, so never use signature bytes as an identifier or a dedupe key. crypto_rsa_verify
+# accepts moduli from 1024 to 8192 bits; "pss-sha256" uses a salt as long as the digest (32 bytes), as
+# JWS PS256 requires, and a signature made with another salt length is Ok(false).
 #
 # crypto_tlock_encrypt, crypto_tlock_decrypt and crypto_tlock_round are drand timelock encryption
 # (artifact format 81) in the age format, interoperable with drand's `tle` and tlock-js on a
@@ -107,6 +122,12 @@ pub fn crypto_tlock_chain_hash(armored: Text) -> Result[Bytes, StdError]:
 
 pub fn crypto_x509_verify_issued_by(certificate_der: Bytes, issuer_der: Bytes) -> Result[Bool, StdError]:
     return native_crypto_x509_verify_issued_by(certificate_der, issuer_der)
+
+pub fn crypto_x509_dns_names(der: Bytes) -> Result[List[Text], StdError]:
+    return native_crypto_x509_dns_names(der)
+
+pub fn crypto_x509_validity(der: Bytes) -> Result[List[Int], StdError]:
+    return native_crypto_x509_validity(der)
 
 pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
     return native_crypto_x509_rsa_public_key(der)

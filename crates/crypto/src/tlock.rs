@@ -174,9 +174,16 @@ fn tlock_stanza(header: &age::Header) -> Result<(u64, Vec<u8>, &Stanza), CryptoE
         if stanza.kind != "tlock" || stanza.args.len() != 2 {
             continue;
         }
-        let round = stanza.args[0]
+        // Strict decimal: digits only, no sign and no leading zeros (a round is never 0).
+        let text = &stanza.args[0];
+        let canonical = !text.starts_with('0') && text.bytes().all(|byte| byte.is_ascii_digit());
+        let round = text
             .parse::<u64>()
-            .map_err(|_| age::format_error("the tlock stanza round is not a number"))?;
+            .ok()
+            .filter(|_| canonical)
+            .ok_or_else(|| {
+                age::format_error("the tlock stanza round is not a plain decimal number")
+            })?;
         let chain_hash = unhex(&stanza.args[1])
             .filter(|h| h.len() == CHAIN_HASH_LEN)
             .ok_or_else(|| age::format_error("the tlock stanza chain hash is not 32 hex bytes"))?;
@@ -235,4 +242,44 @@ pub fn tlock_decrypt(armored: &str, round_signature_g1: &[u8]) -> Result<Vec<u8>
         .get(header.payload_offset..)
         .ok_or_else(|| age::format_error("truncated age file"))?;
     age::stream_open(&file_key, payload)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ROUND_1000: &str = include_str!("../tests/fixtures/tlock/round1000.age");
+
+    /// The armored fixture with `-> tlock 1000 ` replaced by `-> tlock <round> `.
+    fn with_round(round: &str) -> String {
+        let binary = age::dearmor(ROUND_1000).expect("fixture dearmors");
+        let needle = b"-> tlock 1000 ";
+        let at = binary
+            .windows(needle.len())
+            .position(|window| window == needle)
+            .expect("stanza line present");
+        let mut patched = binary[..at].to_vec();
+        patched.extend_from_slice(format!("-> tlock {round} ").as_bytes());
+        patched.extend_from_slice(&binary[at + needle.len()..]);
+        age::armor(&patched)
+    }
+
+    #[test]
+    fn the_stanza_round_is_strict_decimal() {
+        assert_eq!(tlock_round(&with_round("1000")).unwrap().0, 1000);
+        assert_eq!(tlock_round(&with_round("7")).unwrap().0, 7);
+        for bad in [
+            "+1000",
+            "01000",
+            "0",
+            "-5",
+            "1e3",
+            "1_000",
+            "",
+            "18446744073709551616",
+        ] {
+            let error = tlock_round(&with_round(bad)).unwrap_err();
+            assert_eq!(error.code, "E_TLOCK_FORMAT", "round {bad:?}");
+        }
+    }
 }

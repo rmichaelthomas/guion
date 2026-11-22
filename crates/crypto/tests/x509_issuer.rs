@@ -123,3 +123,48 @@ fn malformed_input_is_e_x509_and_never_panics() {
         let _ = x509_verify_issued_by(&good, &issuer[..cut.min(issuer.len())]);
     }
 }
+
+#[test]
+fn rsa_pss_honours_the_certificates_salt_length() {
+    // Salt lengths 0, 20 (the RFC 4055 default, omitted from the parameters) and 64.
+    for leaf in ["leaf-pss-salt0", "leaf-pss-salt20", "leaf-pss-salt64"] {
+        assert!(issued(leaf, "name-rsa-ca"), "{leaf}");
+    }
+    // The existing fixtures use salt = digest length and still verify.
+    assert!(issued("leaf-rsa-pss-sha256", "rsa-ca"));
+    assert!(issued("leaf-name-rsa-sha256", "name-rsa-ca"));
+}
+
+/// Finds `needle` in `haystack` at or after `from`.
+fn find(haystack: &[u8], needle: &[u8], from: usize) -> usize {
+    from + haystack[from..]
+        .windows(needle.len())
+        .position(|window| window == needle)
+        .expect("pattern present")
+}
+
+#[test]
+fn an_outer_algorithm_that_differs_from_the_signed_one_is_false() {
+    let issuer = der("rsa-ca");
+    let original = der("leaf-rsa-sha256");
+    assert_eq!(x509_verify_issued_by(&original, &issuer), Ok(true));
+    // sha256WithRSAEncryption AlgorithmIdentifier with its NULL parameters.
+    let with_null: &[u8] = &[
+        0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b, 0x05, 0x00,
+    ];
+    let without_null: &[u8] = &[
+        0x30, 0x0b, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b,
+    ];
+    // The first occurrence is inside tbsCertificate, the last is the outer signatureAlgorithm.
+    let first = find(&original, with_null, 0);
+    let outer = find(&original, with_null, first + with_null.len());
+    let mut patched = original[..outer].to_vec();
+    patched.extend_from_slice(without_null);
+    patched.extend_from_slice(&original[outer + with_null.len()..]);
+    // Fix the outer SEQUENCE length (a 2-byte long form: 0x30 0x82 hi lo).
+    assert_eq!(patched[1], 0x82);
+    let length = u16::from_be_bytes([patched[2], patched[3]]) - 2;
+    patched[2..4].copy_from_slice(&length.to_be_bytes());
+    // Same key, same signed bytes, valid signature: only the two identifiers differ.
+    assert_eq!(x509_verify_issued_by(&patched, &issuer), Ok(false));
+}

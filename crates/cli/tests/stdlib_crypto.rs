@@ -686,6 +686,9 @@ fn old_format_rejects_dagcbor_op() {
 /// The first artifact format with the tlock chain hash and the X.509 issuer check.
 const CHAIN_ISSUER_FIRST_FORMAT: u32 = 84;
 
+/// The first artifact format with the X.509 name and validity reads.
+const X509_NAME_FIRST_FORMAT: u32 = 85;
+
 fn x509_fixture_hex(name: &str) -> String {
     let path = format!(
         "{}/../crypto/tests/fixtures/x509/{name}.der",
@@ -730,6 +733,21 @@ fn main() -> Int:
     assert(flag(crypto_x509_verify_issued_by(leaf, root)) == "false")
     assert(flag(crypto_x509_verify_issued_by(h("{sha1_leaf}"), h("{rsa_ca}"))) == "E_X509_ALG")
     assert(flag(crypto_x509_verify_issued_by(h("00"), issuer)) == "E_X509")
+    match crypto_x509_dns_names(leaf):
+        Ok(names):
+            assert(names == ["engine.beacon.nist.gov"])
+        Err(problem):
+            assert(false)
+    match crypto_x509_validity(h("{dated}")):
+        Ok(dates):
+            assert(dates == [1704164645, 1749283750])
+        Err(problem):
+            assert(false)
+    match crypto_x509_dns_names(h("00")):
+        Ok(names):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_X509")
     return 0
 "#,
         prelude = signature_prelude(),
@@ -738,6 +756,7 @@ fn main() -> Int:
         root = x509_fixture_hex("nist-root"),
         sha1_leaf = x509_fixture_hex("leaf-rsa-sha1"),
         rsa_ca = x509_fixture_hex("rsa-ca"),
+        dated = x509_fixture_hex("leaf-dated"),
     )
 }
 
@@ -768,6 +787,36 @@ fn old_format_rejects_chain_hash_and_issuer_ops() {
         .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
     // Format 83 still holds codes 0 to 9.
     let previous = CHAIN_ISSUER_FIRST_FORMAT - 1;
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}
+
+#[test]
+fn old_format_rejects_x509_name_and_validity_ops() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("x509-name-old-format");
+    std::fs::write(scratch.0.join("main.gu"), chain_issuer_program()).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(crypto) if crypto.first_format() == 85))));
+    // Format 84 still holds codes 0 to 11 but not 12 or 13.
+    let previous = X509_NAME_FIRST_FORMAT - 1;
     artifact.format_version = previous;
     assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
     let mut old = current;
