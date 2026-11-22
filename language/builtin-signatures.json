@@ -2979,6 +2979,36 @@
       "operation": "CryptoSha3_512"
     },
     {
+      "name": "native_crypto_rsa_verify",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Text"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoRsaVerify"
+    },
+    {
+      "name": "native_crypto_ecdsa_p256_verify",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoEcdsaP256Verify"
+    },
+    {
+      "name": "native_crypto_x509_rsa_public_key",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Bytes], Record[StdError]]",
+      "operation": "CryptoX509RsaPublicKey"
+    },
+    {
       "name": "native_bytes_xor",
       "parameters": [
         "Bytes",

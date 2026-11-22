@@ -1451,6 +1451,13 @@ mod tests {
     }
 
     #[test]
+    fn old_format_rejects_signature_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::RsaVerify), 79);
+        assert_gated(Op::Crypto(CryptoFunction::EcdsaP256Verify), 79);
+        assert_gated(Op::Crypto(CryptoFunction::X509RsaPublicKey), 79);
+    }
+
+    #[test]
     fn sha256_instructions_are_gated_on_format_67() {
         assert_gated(Op::Codec(CodecFunction::Sha256), 67);
         assert_gated(Op::Fs(FsFunction::Sha256), 67);
@@ -3819,7 +3826,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact format 78 and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 and 79 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3827,10 +3834,31 @@ pub enum CryptoFunction {
     Sha512,
     /// SHA3-512 digest of a byte string (code 1).
     Sha3_512,
+    /// RSA signature verification over modulus, exponent, message, signature and scheme name
+    /// (code 2, format 79).
+    RsaVerify,
+    /// ECDSA P-256 signature verification over SEC1 key, message and raw r||s (code 3, format 79).
+    EcdsaP256Verify,
+    /// The RSA modulus and exponent of a DER X.509 certificate (code 4, format 79).
+    X509RsaPublicKey,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 2] = [CryptoFunction::Sha512, CryptoFunction::Sha3_512];
+    const ALL: [CryptoFunction; 5] = [
+        CryptoFunction::Sha512,
+        CryptoFunction::Sha3_512,
+        CryptoFunction::RsaVerify,
+        CryptoFunction::EcdsaP256Verify,
+        CryptoFunction::X509RsaPublicKey,
+    ];
+
+    /// The first artifact format that may carry this function; older formats reject it.
+    pub fn first_format(self) -> u32 {
+        match self {
+            CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => 78,
+            _ => 79,
+        }
+    }
 
     pub fn code(self) -> u8 {
         Self::ALL
@@ -3848,6 +3876,9 @@ impl CryptoFunction {
         match self {
             CryptoFunction::Sha512 => "CryptoSha512",
             CryptoFunction::Sha3_512 => "CryptoSha3_512",
+            CryptoFunction::RsaVerify => "CryptoRsaVerify",
+            CryptoFunction::EcdsaP256Verify => "CryptoEcdsaP256Verify",
+            CryptoFunction::X509RsaPublicKey => "CryptoX509RsaPublicKey",
         }
     }
 
@@ -3861,7 +3892,11 @@ impl CryptoFunction {
     /// Number of operands the function pops.
     pub fn arity(self) -> usize {
         match self {
-            CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => 1,
+            CryptoFunction::Sha512
+            | CryptoFunction::Sha3_512
+            | CryptoFunction::X509RsaPublicKey => 1,
+            CryptoFunction::EcdsaP256Verify => 3,
+            CryptoFunction::RsaVerify => 5,
         }
     }
 }
@@ -4651,7 +4686,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 78;
+    pub const CURRENT_VERSION: u32 = 79;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5011,6 +5046,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "cryptographic instructions require artifact format 78",
+            ));
+        }
+        if self.format_version < 79 && artifact_uses_signature_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "signature verification and X.509 instructions require artifact format 79",
             ));
         }
         if self.format_version < 77 && artifact_uses_stdin(self) {
@@ -5992,12 +6033,22 @@ impl Artifact {
                     }
                     223 => {
                         let code = r.u8()?;
-                        Op::Crypto(CryptoFunction::from_code(code).ok_or_else(|| {
+                        let function = CryptoFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
                                 format!("crypto instruction has unknown function code {code}"),
                             )
-                        })?)
+                        })?;
+                        if format_version < function.first_format() {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                format!(
+                                    "crypto function code {code} requires artifact format {}",
+                                    function.first_format()
+                                ),
+                            ));
+                        }
+                        Op::Crypto(function)
                     }
                     221 => Op::StdinReadLine,
                     222 => Op::StdinReadAll,
@@ -6827,6 +6878,14 @@ fn artifact_uses_crypto(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Crypto(_)))
+    })
+}
+
+fn artifact_uses_signature_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 79)
+        })
     })
 }
 

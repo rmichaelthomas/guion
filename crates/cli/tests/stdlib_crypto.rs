@@ -225,6 +225,9 @@ fn main() -> Int:
     );
 }
 
+const CRYPTO_FIRST_FORMAT: u32 = 78;
+const SIGNATURE_FIRST_FORMAT: u32 = 79;
+
 const SHA512_ABC: &str = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f";
 const SHA3_512_ABC: &str = "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0";
 
@@ -268,7 +271,198 @@ fn old_format_rejects_crypto_ops() {
         .code
         .iter()
         .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
-    let previous = Artifact::CURRENT_VERSION - 1;
+    // The Crypto instruction arrived in format 78; later formats keep accepting it.
+    let previous = CRYPTO_FIRST_FORMAT - 1;
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}
+
+fn fixture(name: &str) -> Vec<u8> {
+    let path = format!(
+        "{}/../crypto/tests/fixtures/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read(&path).unwrap_or_else(|error| panic!("{path}: {error}"))
+}
+
+fn fixture_text(name: &str) -> String {
+    String::from_utf8(fixture(name)).unwrap()
+}
+
+/// Constants for the signature programs: every fixture as a hex string, then `h(name)` decodes it.
+fn signature_prelude() -> String {
+    let mut out =
+        String::from("import \"std:crypto\"\nimport \"std:encoding\"\nimport \"std:types\"\n");
+    for (name, file) in [
+        ("MESSAGE", "message.bin"),
+        ("PKCS1_256", "rsa_pkcs1_sha256.sig"),
+        ("PKCS1_512", "rsa_pkcs1_sha512.sig"),
+        ("PSS_256", "rsa_pss_sha256.sig"),
+        ("EC_KEY", "ec_public_sec1.bin"),
+        ("EC_SIG", "ec_signature_rs.bin"),
+        ("RSA_CERT", "rsa_cert.der"),
+        ("EC_CERT", "ec_cert.der"),
+    ] {
+        out.push_str(&format!(
+            "fn {}() -> Bytes:\n    return h(\"{}\")\n",
+            name.to_lowercase(),
+            hex(&fixture(file))
+        ));
+    }
+    out.push_str(&format!(
+        "fn modulus() -> Bytes:\n    return h(\"{}\")\nfn exponent() -> Bytes:\n    return h(\"{}\")\n",
+        fixture_text("rsa_modulus.hex").trim(),
+        fixture_text("rsa_exponent.hex").trim()
+    ));
+    out.push_str(
+        "fn h(text: Text) -> Bytes:\n    match hex_decode(text):\n        Ok(data):\n            return data\n        Err(problem):\n            return bytes_from_text(\"\")\n\
+fn flip(data: Bytes, index: Int) -> Bytes:\n    return bytes_xor_key(data, bytes_from_ints([1]))\n\
+fn verdict(result: Result[Bool, StdError]) -> Text:\n    match result:\n        Ok(value):\n            if value:\n                return \"true\"\n            return \"false\"\n        Err(problem):\n            return problem.code\n",
+    );
+    out
+}
+
+fn run_signature_program(name: &str, body: &str) {
+    let scratch = Scratch::new(name);
+    let source = format!("{}{body}", signature_prelude());
+    let output = run_with_root(&scratch, &source);
+    assert_success(&output);
+}
+
+#[test]
+fn rsa_verify_runs_from_a_program() {
+    run_signature_program(
+        "rsa-verify",
+        r#"fn main() -> Int:
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), pkcs1_256(), "pkcs1v15-sha256")) == "true")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), pkcs1_512(), "pkcs1v15-sha512")) == "true")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), pss_256(), "pss-sha256")) == "true")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), pkcs1_256(), "pss-sha256")) == "false")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), flip(message(), 0), pss_256(), "pss-sha256")) == "false")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), flip(pss_256(), 7), "pss-sha256")) == "false")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), pss_256(), "md5-rsa")) == "E_CRYPTO_SCHEME")
+    assert(verdict(crypto_rsa_verify(modulus(), exponent(), message(), bytes_from_text("short"), "pss-sha256")) == "E_CRYPTO_INPUT")
+    assert(verdict(crypto_rsa_verify(bytes_from_text(""), exponent(), message(), pss_256(), "pss-sha256")) == "E_CRYPTO_INPUT")
+    return 0
+"#,
+    );
+}
+
+#[test]
+fn ecdsa_p256_verify_runs_from_a_program() {
+    run_signature_program(
+        "ecdsa-verify",
+        r#"fn main() -> Int:
+    assert(verdict(crypto_ecdsa_p256_verify(ec_key(), message(), ec_sig())) == "true")
+    assert(verdict(crypto_ecdsa_p256_verify(ec_key(), message(), flip(ec_sig(), 40))) == "false")
+    assert(verdict(crypto_ecdsa_p256_verify(ec_key(), flip(message(), 2), ec_sig())) == "false")
+    assert(verdict(crypto_ecdsa_p256_verify(flip(ec_key(), 64), message(), ec_sig())) == "E_CRYPTO_INPUT")
+    assert(verdict(crypto_ecdsa_p256_verify(ec_key(), message(), bytes_from_text("short"))) == "E_CRYPTO_INPUT")
+    return 0
+"#,
+    );
+}
+
+#[test]
+fn x509_rsa_public_key_runs_from_a_program() {
+    run_signature_program(
+        "x509-rsa",
+        r#"fn main() -> Int:
+    match crypto_x509_rsa_public_key(rsa_cert()):
+        Ok(parts):
+            assert(len(parts) == 2)
+            assert(hex_encode(parts[0]) == hex_encode(modulus()))
+            assert(hex_encode(parts[1]) == "010001")
+        Err(problem):
+            assert(false)
+    match crypto_x509_rsa_public_key(ec_cert()):
+        Ok(parts):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_X509")
+    match crypto_x509_rsa_public_key(bytes_from_text("not a certificate")):
+        Ok(parts):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_X509")
+    return 0
+"#,
+    );
+}
+
+#[test]
+fn pem_decode_round_trips_and_rejects_malformed_text() {
+    let pem = fixture_text("rsa_cert.pem");
+    let der = fixture("rsa_cert.der");
+    let crlf = pem.replace('\n', "\r\n");
+    let spaced = format!("\n  {}\n\n", pem.replace('\n', "  \n"));
+    let scratch = Scratch::new("pem-decode");
+    let mut source = signature_prelude();
+    source.push_str("fn main() -> Int:\n");
+    for (index, variant) in [pem.as_str(), crlf.as_str(), spaced.as_str()]
+        .iter()
+        .enumerate()
+    {
+        let escaped = variant.replace('\r', "\\r").replace('\n', "\\n");
+        source.push_str(&format!(
+            "    match crypto_pem_decode(\"{escaped}\"):\n        Ok(data):\n            assert(hex_encode(data) == hex_encode(rsa_cert()))\n        Err(problem):\n            assert(false)\n"
+        ));
+        let _ = index;
+    }
+    assert_eq!(hex(&der), hex(&fixture("rsa_cert.der")));
+    for bad in [
+        "",
+        "no armor at all",
+        "-----BEGIN CERTIFICATE-----\\nAAAA\\n",
+        "AAAA\\n-----END CERTIFICATE-----\\n",
+        "-----BEGIN CERTIFICATE-----\\n!!!!\\n-----END CERTIFICATE-----\\n",
+        "-----BEGIN CERTIFICATE-----\\nAAAA\\n-----END CERTIFICATE-----\\nAAAA\\n",
+    ] {
+        source.push_str(&format!(
+            "    assert(verdict_bytes(crypto_pem_decode(\"{bad}\")) == \"E_CRYPTO_INPUT\")\n"
+        ));
+    }
+    source.push_str("    return 0\n");
+    source.push_str("fn verdict_bytes(result: Result[Bytes, StdError]) -> Text:\n    match result:\n        Ok(data):\n            return \"ok\"\n        Err(problem):\n            return problem.code\n");
+    let output = run_with_root(&scratch, &source);
+    assert_success(&output);
+}
+
+#[test]
+fn old_format_rejects_signature_codes_but_keeps_hashes() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("crypto-signature-old-format");
+    let source = format!(
+        "{}fn main() -> Int:\n    let ignored = crypto_rsa_verify(modulus(), exponent(), message(), pss_256(), \"pss-sha256\")\n    return 0\n",
+        signature_prelude()
+    );
+    std::fs::write(scratch.0.join("main.gu"), &source).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    assert_eq!(
+        Artifact::from_bytes(&current).unwrap().format_version,
+        Artifact::CURRENT_VERSION
+    );
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
+    // Function codes 2 to 4 arrived in format 79; format 78 still holds codes 0 and 1.
+    let previous = SIGNATURE_FIRST_FORMAT - 1;
+    assert_eq!(previous, CRYPTO_FIRST_FORMAT);
     artifact.format_version = previous;
     assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
     let mut old = current;

@@ -15,10 +15,13 @@ The exact Rust dependency graph is recorded in [`Cargo.lock`](Cargo.lock). Relea
 
 ### Cryptography
 
-`guion-crypto` (the `Crypto` instruction behind `std:crypto`'s SHA-512 and SHA3-512) uses these pure-Rust RustCrypto crates, pinned exactly in the workspace `Cargo.toml`. They need no C compiler and build for the browser VM as well as the native runtime.
+`guion-crypto` (the `Crypto` instruction behind `std:crypto`'s SHA-512, SHA3-512, RSA and ECDSA P-256 verification and X.509 key reading) uses these pure-Rust RustCrypto crates, pinned exactly in the workspace `Cargo.toml`. They need no C compiler and build for the browser VM as well as the native runtime.
 
 - `sha2` 0.10.9 (MIT OR Apache-2.0), also used elsewhere in the workspace, with `digest` 0.10.7 (MIT OR Apache-2.0).
 - `sha3` 0.10.8 (MIT OR Apache-2.0), with `keccak` 0.1.6 (Apache-2.0 OR MIT).
+- `rsa` 0.9.10 (MIT OR Apache-2.0), with `num-bigint-dig`, `pkcs1` and `pkcs8` (Apache-2.0 OR MIT). Used only to verify signatures against public keys; the Marvin timing advisory RUSTSEC-2023-0071 concerns private-key decryption and signing, which Guion never does.
+- `p256` 0.13.2 and `ecdsa` 0.16.9 (Apache-2.0 OR MIT), with `elliptic-curve`, `crypto-bigint`, `sec1` and `signature`. ECDSA P-256 verification.
+- `x509-cert` 0.2.5 (Apache-2.0 OR MIT), with `der`, `spki` and `const-oid`. Reads the public key of a DER certificate.
 
 ## Other bundled or evaluated components
 

@@ -10,8 +10,10 @@
 //! arm in `guion_vm_core::apply_crypto` and a wrapper in `language/stdlib/crypto.gu`.
 
 mod hash;
+mod signature;
 
 pub use hash::{sha3_512, sha512};
+pub use signature::{ecdsa_p256_verify, rsa_verify, x509_rsa_public_key, RsaScheme};
 
 /// A failed cryptographic operation: a stable machine-readable `code` and a human `message`.
 #[derive(Clone, Debug, PartialEq, Eq)]

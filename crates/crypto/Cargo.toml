@@ -9,7 +9,7 @@ license.workspace = true
 # argument. Every dependency is pinned exactly and shares one `digest` major version (0.10),
 # which is the version `sha2` already used in this workspace.
 #
-# Compatible set for the later crypto tasks (Task 5 adds the last three; do not mix in a
+# Compatible set for the later crypto tasks (signature verification only, no private keys; do not mix in a
 # newer major of any of them, they would pull a second `digest`/`der`/`spki`):
 #   sha2      =0.10.9   digest 0.10
 #   sha3      =0.10.8   digest 0.10
@@ -17,5 +17,11 @@ license.workspace = true
 #   p256      =0.13.2   ecdsa 0.16, digest 0.10, pkcs8/spki/der 0.7
 #   x509-cert =0.2.5    der/spki 0.7
 [dependencies]
-sha2.workspace = true
+sha2 = { workspace = true, features = ["oid"] }
 sha3.workspace = true
+rsa.workspace = true
+p256.workspace = true
+x509-cert.workspace = true
+
+# rsa 0.9 has the Marvin timing side channel (RUSTSEC-2023-0071) in private-key operations; this
+# crate only verifies signatures with public keys and never decrypts or signs, so it is not reachable.

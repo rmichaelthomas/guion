@@ -1,5 +1,6 @@
 import "std:encoding"
 import "std:types"
+import "std:text"
 
 # std:crypto: HMAC-SHA-256, SHA-256, SHA-512, SHA3-512 and SHA-1 digests, and byte XOR.
 #
@@ -10,6 +11,17 @@ import "std:types"
 #
 # crypto_sha512 and crypto_sha3_512 digest a value held in memory and return the 64-byte digest
 # (SHA-512 from FIPS 180-4, SHA3-512 from FIPS 202). Both are pure and need no grant.
+#
+# crypto_rsa_verify, crypto_ecdsa_p256_verify and crypto_x509_rsa_public_key check signatures
+# against public keys (artifact format 79); they are pure, need no grant, and never sign. A
+# malformed key, signature length, scheme or certificate is a typed StdError (E_CRYPTO_INPUT,
+# E_CRYPTO_SCHEME, E_X509); a well-formed signature that does not verify is Ok(false).
+# crypto_rsa_verify takes the big-endian modulus and exponent and a scheme, one of
+# "pkcs1v15-sha256", "pkcs1v15-sha512" or "pss-sha256". crypto_ecdsa_p256_verify takes a SEC1
+# public key (65 bytes uncompressed) and the raw 64-byte r||s signature over SHA-256 of the
+# message, as JWS writes it. crypto_x509_rsa_public_key reads a DER certificate and gives
+# [modulus, exponent]. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
+# exactly one well-formed BEGIN/END block is E_CRYPTO_INPUT.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
 # from the operating system's cryptographic generator (getentropy on macOS, getrandom on Linux).
@@ -41,6 +53,59 @@ pub fn crypto_sha512(data: Bytes) -> Bytes:
 
 pub fn crypto_sha3_512(data: Bytes) -> Bytes:
     return native_crypto_sha3_512(data)
+
+pub fn crypto_rsa_verify(modulus: Bytes, exponent: Bytes, message: Bytes, signature: Bytes, scheme: Text) -> Result[Bool, StdError]:
+    return native_crypto_rsa_verify(modulus, exponent, message, signature, scheme)
+
+pub fn crypto_ecdsa_p256_verify(public_key: Bytes, message: Bytes, signature: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_ecdsa_p256_verify(public_key, message, signature)
+
+pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
+    return native_crypto_x509_rsa_public_key(der)
+
+fn pem_error(message: Text) -> StdError:
+    return std_error("E_CRYPTO_INPUT", message)
+
+# A `-----BEGIN X-----` or `-----END X-----` line: the dashes at both ends and the word after them.
+fn pem_marker(line: Text, word: Text) -> Bool:
+    let size = len(line)
+    let lead = len(word) + 5
+    if size < lead + 5:
+        return false
+    if text_slice(line, 0, lead) != "-----" + word:
+        return false
+    return text_slice(line, size - 5, size) == "-----"
+
+pub fn crypto_pem_decode(text: Text) -> Result[Bytes, StdError]:
+    let lines = text_split(text_replace(text, "\r", ""), "\n")
+    var state = 0
+    var body = ""
+    var index = 0
+    while index < len(lines):
+        let line = text_trim(lines[index])
+        set index = index + 1
+        if line == "":
+            continue
+        if pem_marker(line, "BEGIN "):
+            if state != 0:
+                return Err(pem_error("PEM text has more than one BEGIN line"))
+            set state = 1
+            continue
+        if pem_marker(line, "END "):
+            if state != 1:
+                return Err(pem_error("PEM END line without a BEGIN line"))
+            set state = 2
+            continue
+        if state != 1:
+            return Err(pem_error("PEM text has content outside its BEGIN and END lines"))
+        set body = body + line
+    if state != 2:
+        return Err(pem_error("PEM text needs one BEGIN line and one END line"))
+    match base64_decode(body):
+        Ok(data):
+            return Ok(data)
+        Err(problem):
+            return Err(pem_error("PEM body is not valid base64"))
 
 pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]:
     match native_fs_sha256(path):

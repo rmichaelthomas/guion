@@ -7470,7 +7470,30 @@ fn apply_regex(
 fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
     match function {
         CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => (vec![Type::Bytes], Type::Bytes),
+        CryptoFunction::RsaVerify => (
+            vec![
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Text,
+            ],
+            crypto_result_type(Type::Bool),
+        ),
+        CryptoFunction::EcdsaP256Verify => (
+            vec![Type::Bytes, Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
+        CryptoFunction::X509RsaPublicKey => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Bytes))),
+        ),
     }
+}
+
+/// `Result[ok, StdError]`, the result type of a fallible crypto function.
+fn crypto_result_type(ok: Type) -> Type {
+    Type::Result(Box::new(ok), Box::new(Type::Record("StdError".into())))
 }
 
 /// The Guion `StdError` value for a failed crypto function: the crate's `code` and `message`,
@@ -7489,7 +7512,6 @@ fn crypto_error_value(error: guion_crypto::CryptoError) -> Value {
 }
 
 /// Wraps what a fallible crypto function returned as the Guion `Result` value.
-#[allow(dead_code)]
 fn crypto_result(outcome: Result<Value, guion_crypto::CryptoError>) -> Value {
     match outcome {
         Ok(value) => Value::ResultOk(Box::new(value)),
@@ -7517,6 +7539,48 @@ fn apply_crypto(
                 _ => guion_crypto::sha3_512(&data),
             };
             Ok(Value::Bytes(Shared::new(digest.to_vec())))
+        }
+        CryptoFunction::RsaVerify => {
+            let Value::Text(scheme) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            // Popped in reverse: signature, message, exponent, modulus.
+            let outcome = guion_crypto::RsaScheme::from_name(&scheme).and_then(|scheme| {
+                guion_crypto::rsa_verify(&parts[3], &parts[2], &parts[1], &parts[0], scheme)
+            });
+            Ok(crypto_result(outcome.map(Value::Bool)))
+        }
+        CryptoFunction::EcdsaP256Verify => {
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(3);
+            for _ in 0..3 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            Ok(crypto_result(
+                guion_crypto::ecdsa_p256_verify(&parts[2], &parts[1], &parts[0]).map(Value::Bool),
+            ))
+        }
+        CryptoFunction::X509RsaPublicKey => {
+            let Value::Bytes(der) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::x509_rsa_public_key(&der).map(
+                |(modulus, exponent)| {
+                    Value::List(Shared::new(vec![
+                        Value::Bytes(Shared::new(modulus)),
+                        Value::Bytes(Shared::new(exponent)),
+                    ]))
+                },
+            )))
         }
     }
 }
