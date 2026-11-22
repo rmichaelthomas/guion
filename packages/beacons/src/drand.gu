@@ -122,23 +122,10 @@ pub fn tlock_seal(chain: DrandChain, round: Int, plaintext: Bytes) -> Result[Tex
 pub fn tlock_armor_round(armored: Text) -> Result[Int, StdError]:
     return crypto_tlock_round(armored)
 
-fn starts_with(line: Text, prefix: Text) -> Bool:
-    return len(line) >= len(prefix) and text_slice(line, 0, len(prefix)) == prefix
-
-# The chain hash (lower-case hex) in the file's `-> tlock <round> <chain hash>` line. The header is
-# not authenticated; a file whose chain is edited fails to decrypt anyway.
+# The chain hash (lower-case hex) in the file's tlock stanza, read by `crypto_tlock_chain_hash`. The
+# header is not authenticated; a file whose chain is edited fails to decrypt anyway.
 pub fn tlock_armor_chain(armored: Text) -> Result[Text, StdError]:
-    let raw = crypto_pem_decode(armored)?
-    let lines = text_split(encoding_utf8_decode_lossy(raw), "\n")
-    var index = 0
-    while index < len(lines):
-        if starts_with(lines[index], "-> tlock "):
-            let words = text_split(lines[index], " ")
-            if len(words) != 4:
-                return Err(drand_error("E_TLOCK_FORMAT", "the tlock line does not have a round and a chain hash"))
-            return Ok(words[3])
-        set index = index + 1
-    return Err(drand_error("E_TLOCK_FORMAT", "the file has no tlock line"))
+    return Ok(hex_encode(crypto_tlock_chain_hash(armored)?))
 
 # Opens `armored` with an already-fetched round value. It refuses a file sealed for another chain
 # (E_TLOCK_CHAIN), a value for another round (E_DRAND_ROUND) and one that does not verify

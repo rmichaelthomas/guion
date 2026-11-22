@@ -124,12 +124,32 @@ Functions:
 - `nist_verify(pulse, certificate_pem: Text) -> Result[Bool, StdError]`: the signature, `certificateId`, and
   `outputValue`. This takes the certificate PEM as a second argument (the brief's one-argument form cannot work
   offline). `Ok(false)` on any mismatch, never true for a tampered pulse; `E_NIST_SUITE` for a cipher suite other
-  than 0. It does not check that a CA issued the certificate.
+  than 0. It also checks that the certificate was issued by the **pinned issuer** (below) and is `Ok(false)` for one that was not.
+- `nist_verify_certificate(certificate_pem, issuer_pem) -> Result[Bool, StdError]`: one issuer link (`crypto_x509_verify_issued_by`): true when the issuer
+  certificate's key signed the certificate. `nist_pinned_issuer_pem() -> Text` is the pinned issuer.
 - `nist_verify_precommitment(previous, current) -> Result[Bool, StdError]`: `current` is the next pulse of the same
   chain, links to `previous`, and `previous.precommitment_value == SHA-512(current.local_random_value)`. It does
   not check signatures.
 - `nist_fetch_last()`, `nist_fetch(chain, pulse)`, `nist_fetch_certificate(pulse)`: fetch only (`E_NIST_FETCH`).
 - `nist_signed_bytes(pulse)`, `nist_output_value(pulse)`: the serialization and the recomputed output value.
+
+**Pinned issuer.** NIST's beacon certificate (`engine.beacon.nist.gov`, a 4096-bit RSA key, SHA-256 with RSA) is issued by
+`C=US, O=DigiCert Inc, CN=DigiCert Global G2 TLS RSA SHA256 2020 CA1`, an **intermediate** CA valid until 2031-03-29
+(SHA-256 fingerprint `C8:02:5F:9F:C6:5F:DF:C9:5B:3C:A8:CC:78:67:B9:A5:87:B5:27:79:73:95:79:17:46:3F:C8:13:D0:B6:25:A9`).
+That intermediate is what `nist_verify` pins (`fixtures/nist-issuer.pem`, copied into `nist_pinned_issuer_pem()` in
+`src/nist.gu` so the library needs no file). It is itself issued by the self-signed root `DigiCert Global Root G2`
+(saved as `fixtures/nist-issuer-root.pem` for the test that checks that link; the root is not pinned, because pinning the
+intermediate is the narrower trust). The leaf certificate rotates; the intermediate it hangs from changes rarely. To
+refresh the pin when NIST moves to a new issuer (`nist_verify` then returns `Ok(false)` for the new certificate):
+1. fetch the certificate the newest pulse names: `nist_fetch_certificate(pulse)`, or
+   `https://beacon.nist.gov/beacon/2.0/certificate/<certificateId in hex>`;
+2. read its `Authority Information Access` "CA Issuers" URL (`openssl x509 -in cert.pem -noout -text`) and download it;
+3. convert it (`openssl x509 -inform DER -in issuer.crt -out fixtures/nist-issuer.pem`), check
+   `openssl verify -partial_chain -trusted_first -CAfile fixtures/nist-issuer.pem cert.pem` says OK, and confirm the
+   fingerprint against DigiCert's published list (https://www.digicert.com/kb/digicert-root-certificates.htm);
+4. paste the PEM into `nist_pinned_issuer_pem()` (the test `test_nist_pinned_issuer_is_the_saved_fixture` fails until the
+   two match) and update the fingerprint above;
+5. record `tapes/nist-live.tape` again (below).
 
 NIST tests run offline on fixtures saved live (`nist-pulse-2038647/2038648/2038144/2038145.json`,
 `nist-certificate.pem`): the last pulse, two consecutive pulses, a pair across the 2026-11-21/22 UTC midnight, a

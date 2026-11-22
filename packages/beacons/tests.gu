@@ -533,6 +533,31 @@ fn test_nist_certificate_must_be_the_named_one() -> Unit:
     assert(code_of_bool(nist_verify(nist_pulse(2038648), other)) != "true")
     assert(code_of_bool(nist_verify(nist_pulse(2038648), "")) != "true")
 
+fn pem_fixture(name: Text) -> Text:
+    return unwrap(text_from_bytes(read_fixture(name)))
+
+fn test_nist_pinned_issuer_is_the_saved_fixture() -> Unit:
+    assert(nist_pinned_issuer_pem() == pem_fixture("fixtures/nist-issuer.pem"))
+
+fn test_nist_certificate_chains_to_the_pinned_issuer() -> Unit:
+    assert(is_true(nist_verify_certificate(nist_pem(), nist_pinned_issuer_pem())))
+    # The pinned issuer is an intermediate: DigiCert Global Root G2 issued it.
+    assert(is_true(nist_verify_certificate(nist_pinned_issuer_pem(), pem_fixture("fixtures/nist-issuer-root.pem"))))
+
+fn test_nist_certificate_is_not_issued_by_anything_else() -> Unit:
+    assert(not is_true(nist_verify_certificate(nist_pem(), pem_fixture("fixtures/nist-issuer-root.pem"))))
+    assert(not is_true(nist_verify_certificate(nist_pem(), nist_pem())))
+    assert(not is_true(nist_verify_certificate(nist_pinned_issuer_pem(), nist_pem())))
+    assert(code_of_bool(nist_verify_certificate(nist_pem(), "")) != "true")
+    assert(code_of_bool(nist_verify_certificate(nist_pem(), fixture_armor())) != "true")
+
+fn test_armor_chain_of_a_malformed_file_is_e_tlock_format() -> Unit:
+    match tlock_armor_chain("-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n-----END AGE ENCRYPTED FILE-----\n"):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TLOCK_FORMAT")
+
 fn code_of_bool(result: Result[Bool, StdError]) -> Text:
     match result:
         Ok(value):

@@ -28,7 +28,7 @@ import "twine.gu"
 # Needs the network grant for beacon.nist.gov for the fetch functions.
 #
 # Errors: E_NIST_FETCH (a request or its answer is bad), E_NIST_FORMAT (not a pulse), E_NIST_SUITE (a
-# cipher suite other than 0), plus the crypto codes (a certificate that is not an RSA certificate).
+# cipher suite other than 0), plus the crypto codes (a certificate that is not an RSA certificate, or one whose issuer algorithm is not supported).
 
 pub record NistPulse:
     uri: Text
@@ -144,15 +144,37 @@ pub fn nist_signed_bytes(pulse: NistPulse) -> Bytes:
 pub fn nist_output_value(pulse: NistPulse) -> Bytes:
     return crypto_sha512(bytes_join([nist_signed_bytes(pulse), pulse.signature]))
 
+# The issuer certificate this package pins: "DigiCert Global G2 TLS RSA SHA256 2020 CA1", an
+# intermediate (issued by DigiCert Global Root G2) that signed NIST's beacon certificate
+# (engine.beacon.nist.gov, found through the certificate's Authority Information Access URL
+# http://cacerts.digicert.com/DigiCertGlobalG2TLSRSASHA2562020CA1-1.crt). It is valid until
+# 2031-03-29. The same PEM is saved as fixtures/nist-issuer.pem and a test keeps the two equal;
+# README.md says how to refresh it.
+pub fn nist_pinned_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIEyDCCA7CgAwIBAgIQDPW9BitWAvR6uFAsI8zwZjANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\nMjAeFw0yMTAzMzAwMDAwMDBaFw0zMTAzMjkyMzU5NTlaMFkxCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxMzAxBgNVBAMTKkRpZ2lDZXJ0IEdsb2Jh\nbCBHMiBUTFMgUlNBIFNIQTI1NiAyMDIwIENBMTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAMz3EGJPprtjb+2QUlbFbSd7ehJWivH0+dbn4Y+9lavyYEEV\ncNsSAPonCrVXOFt9slGTcZUOakGUWzUb+nv6u8W+JDD+Vu/E832X4xT1FE3LpxDy\nFuqrIvAxIhFhaZAmunjZlx/jfWardUSVc8is/+9dCopZQ+GssjoP80j812s3wWPc\n3kbW20X+fSP9kOhRBx5Ro1/tSUZUfyyIxfQTnJcVPAPooTncaQwywa8WV0yUR0J8\nosicfebUTVSvQpmowQTCd5zWSOTOEeAqgJnwQ3DPP3Zr0UxJqyRewg2C/Uaoq2yT\nzGJSQnWS+Jr6Xl6ysGHlHx+5fwmY6D36g39HaaECAwEAAaOCAYIwggF+MBIGA1Ud\nEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFHSFgMBmx9833s+9KTeqAx2+7c0XMB8G\nA1UdIwQYMBaAFE4iVCAYlebjbuYP+vq5Eu0GF485MA4GA1UdDwEB/wQEAwIBhjAd\nBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwdgYIKwYBBQUHAQEEajBoMCQG\nCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQAYIKwYBBQUHMAKG\nNGh0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RH\nMi5jcnQwQgYDVR0fBDswOTA3oDWgM4YxaHR0cDovL2NybDMuZGlnaWNlcnQuY29t\nL0RpZ2lDZXJ0R2xvYmFsUm9vdEcyLmNybDA9BgNVHSAENjA0MAsGCWCGSAGG/WwC\nATAHBgVngQwBATAIBgZngQwBAgEwCAYGZ4EMAQICMAgGBmeBDAECAzANBgkqhkiG\n9w0BAQsFAAOCAQEAkPFwyyiXaZd8dP3A+iZ7U6utzWX9upwGnIrXWkOH7U1MVl+t\nwcW1BSAuWdH/SvWgKtiwla3JLko716f2b4gp/DA/JIS7w7d7kwcsr4drdjPtAFVS\nslme5LnQ89/nD/7d+MS5EHKBCQRfz5eeLjJ1js+aWNJXMX43AYGyZm0pGrFmCW3R\nbpD0ufovARTFXFZkAdl9h6g4U5+LXUZtXMYnhIHUfoyMo5tS58aI7Dd8KvvwVVo4\nchDYABPPTHPbqjc1qCmBaZx2vN4Ye5DUys/vZwP9BFohFrH/6j/f3IL16/RZkiMN\nJCqVJUzKoZHm1Lesh3Sz8W2jmdv51b2EQJ8HmA==\n-----END CERTIFICATE-----\n"
+
+# True when the certificate (PEM) was signed by the key of the issuer certificate (PEM) and names it
+# as its issuer. One link only: no validity dates, no CA flag, no revocation. Err for text that is
+# not a certificate (E_CRYPTO_INPUT, E_X509) or a signature algorithm outside RSA PKCS#1 v1.5 / PSS
+# and ECDSA P-256 / P-384 with SHA-256, SHA-384 or SHA-512 (E_X509_ALG).
+pub fn nist_verify_certificate(certificate_pem: Text, issuer_pem: Text) -> Result[Bool, StdError]:
+    let certificate = crypto_pem_decode(certificate_pem)?
+    let issuer = crypto_pem_decode(issuer_pem)?
+    return crypto_x509_verify_issued_by(certificate, issuer)
+
 # Checks a pulse against the certificate PEM it names: certificateId is SHA-512 of the certificate's
-# DER, the RSA PKCS#1 v1.5 / SHA-512 signature verifies under the certificate's key, and outputValue
-# is the hash of the serialization and signature. Ok(false) on any mismatch. The certificate chain
-# (that NIST's CA issued it) is not checked here.
+# DER, the certificate was issued by the pinned issuer (nist_pinned_issuer_pem), the RSA PKCS#1
+# v1.5 / SHA-512 signature verifies under the certificate's key, and outputValue is the hash of the
+# serialization and signature. Ok(false) on any mismatch, including a certificate the pinned issuer
+# did not sign.
 pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
     if pulse.cipher_suite != 0:
         return Err(nist_error("E_NIST_SUITE", f"cipher suite {pulse.cipher_suite} is not defined; only 0 is"))
     let der = crypto_pem_decode(certificate_pem)?
     if crypto_sha512(der) != pulse.certificate_id:
+        return Ok(false)
+    let issued = crypto_x509_verify_issued_by(der, crypto_pem_decode(nist_pinned_issuer_pem())?)?
+    if not issued:
         return Ok(false)
     let key = crypto_x509_rsa_public_key(der)?
     let signed = crypto_rsa_verify(key[0], key[1], nist_signed_bytes(pulse), pulse.signature, "pkcs1v15-sha512")?
