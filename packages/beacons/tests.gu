@@ -690,12 +690,141 @@ fn test_nist_a_timestamp_that_is_not_iso_8601_is_e_nist_format() -> Unit:
         assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_FORMAT")
         set i = i + 1
 
+fn repeated(unit: Text, count: Int) -> Text:
+    var out = ""
+    var i = 0
+    while i < count:
+        set out = out + unit
+        set i = i + 1
+    return out
+
+fn test_nist_a_very_long_timestamp_fraction_is_an_answer_not_an_abort() -> Unit:
+    # 5000 digits is past the 4096-digit integer limit; the fraction must be checked, not summed.
+    let long = "2026-11-22T08:23:00." + repeated("7", 5000) + "Z"
+    let pulse = nist_tampered(2038648, "timeStamp", json_text(long))
+    # a well-formed stamp whose signature no longer matches: false, not an error and not an abort
+    assert(code_of_bool(nist_verify(pulse, nist_pem())) == "false")
+    let bad = "2026-11-22T08:23:00." + repeated("7", 5000) + "x" + repeated("7", 10) + "Z"
+    assert(code_of_bool(nist_verify(nist_tampered(2038648, "timeStamp", json_text(bad)), nist_pem())) == "E_NIST_FORMAT")
+
+fn test_nist_a_timestamp_day_must_exist_in_its_month() -> Unit:
+    # impossible dates are E_NIST_FORMAT, not silently moved to the next month
+    var impossible: List[Text] = ["2026-02-31T08:23:00.000Z", "2026-02-29T08:23:00.000Z", "2026-02-30T08:23:00.000Z", "2100-02-29T08:23:00.000Z", "2026-04-31T08:23:00.000Z", "2026-06-31T08:23:00.000Z", "2026-09-31T08:23:00.000Z", "2026-11-31T08:23:00.000Z", "2026-01-32T08:23:00.000Z", "2026-01-00T08:23:00.000Z"]
+    var i = 0
+    while i < len(impossible):
+        let odd = nist_tampered(2038648, "timeStamp", json_text(impossible[i]))
+        assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_FORMAT")
+        set i = i + 1
+    # real last days (leap years 2024 and 2000 included) parse; the changed stamp then fails the
+    # signature, so the answer is false, not E_NIST_FORMAT
+    var real: List[Text] = ["2026-02-28T08:23:00.000Z", "2024-02-29T08:23:00.000Z", "2000-02-29T08:23:00.000Z", "2026-04-30T08:23:00.000Z", "2026-01-31T08:23:00.000Z", "2026-12-31T23:59:59.000Z"]
+    var j = 0
+    while j < len(real):
+        let ok = nist_tampered(2038648, "timeStamp", json_text(real[j]))
+        assert(code_of_bool(nist_verify(ok, nist_pem())) == "false")
+        set j = j + 1
+
+# ---- the oldest NIST certificate, signed by a different DigiCert intermediate ----
+# Chain 2's first pulse (2022-09-21) names a certificate issued by "DigiCert TLS RSA SHA256 2020 CA1"
+# (fixtures/nist-legacy-*.pem, nist-pulse-1.json), not the issuer of the later certificates.
+
+fn legacy_pem() -> Text:
+    return pem_fixture("fixtures/nist-legacy-certificate.pem")
+
+fn test_nist_the_oldest_pulse_verifies_under_its_own_certificate() -> Unit:
+    let pulse = nist_pulse(1)
+    assert(pulse.chain_index == 2)
+    assert(pulse.pulse_index == 1)
+    assert(hex_encode(pulse.certificate_id) == nist_legacy_certificate_ids()[0])
+    assert(code_of_bool(nist_verify(pulse, legacy_pem())) == "true")
+
+fn test_nist_the_legacy_issuer_is_the_saved_fixture_and_chains_to_digicert() -> Unit:
+    assert(nist_legacy_issuer_pem() == pem_fixture("fixtures/nist-legacy-issuer.pem"))
+    assert(is_true(nist_verify_certificate(legacy_pem(), nist_legacy_issuer_pem())))
+    assert(is_true(nist_verify_certificate(nist_legacy_issuer_pem(), pem_fixture("fixtures/nist-legacy-root.pem"))))
+
+fn test_nist_each_certificate_id_has_its_own_issuer() -> Unit:
+    let old = nist_pulse(1)
+    let current = nist_pulse(2038648)
+    # the legacy issuer does not stand for the current ids, nor the current issuer for the legacy one
+    assert(code_of_bool(nist_verify_pinned(current, nist_pem(), nist_legacy_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids())) == "false")
+    assert(code_of_bool(nist_verify_pinned(old, legacy_pem(), nist_pinned_issuer_pem(), nist_beacon_host(), nist_legacy_certificate_ids())) == "false")
+    assert(not is_true(nist_verify_certificate(nist_pem(), nist_legacy_issuer_pem())))
+    assert(not is_true(nist_verify_certificate(legacy_pem(), nist_pinned_issuer_pem())))
+    # and the legacy ids are not in the current list
+    assert(not list_contains_text(nist_known_certificate_ids(), nist_legacy_certificate_ids()[0]))
+    # a certificate swapped across the two pins is false
+    assert(code_of_bool(nist_verify(old, nist_pem())) == "false")
+    assert(code_of_bool(nist_verify(current, legacy_pem())) == "false")
+
+fn test_nist_legacy_certificate_ids_are_the_saved_fixture() -> Unit:
+    var saved: List[Text] = []
+    let lines = text_split(pem_fixture("fixtures/nist-legacy-certificate-ids.txt"), "\n")
+    var i = 0
+    while i < len(lines):
+        let line = text_trim(lines[i])
+        if len(line) > 0 and text_slice(line, 0, 1) != "#":
+            set saved = list_push(saved, line)
+        set i = i + 1
+    assert(saved == nist_legacy_certificate_ids())
+
+fn list_contains_text(items: List[Text], wanted: Text) -> Bool:
+    var i = 0
+    while i < len(items):
+        if items[i] == wanted:
+            return true
+        set i = i + 1
+    return false
+
 # ---- Twine, CURBy and drand: a bad shape is an error code, never an aborted program ----
 
 fn header_record(pulse: TwineRecord, header: Text) -> TwineRecord:
     let parts = text_split(pulse.signature, ".")
     let encoded = text_replace(base64url_encode(bytes_from_text(header)), "=", "")
     return resealed(TwineRecord(pulse.cid, pulse.content, encoded + "." + parts[1] + "." + parts[2]))
+
+fn power_of_ten(digits: Int) -> Int:
+    var out = 1
+    var i = 0
+    while i < digits:
+        set out = out * 10
+        set i = i + 1
+    return out
+
+fn test_twine_a_hostile_links_radix_is_refused_not_an_abort() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    assert(link_total(pulse) >= 2)
+    # the real radix holds
+    assert(twine_skip_links_hold(chain, pulse, load_records("fixtures/curby-q-pulses.json")))
+    # a radix past 2^32, and one with thousands of digits, are false
+    var radixes: List[Int] = [4294967297, 1000000000000, power_of_ten(40), power_of_ten(4000)]
+    var i = 0
+    while i < len(radixes):
+        let hostile = TwineRecord(chain.cid, json_set(chain.content, "links_radix", json_int(radixes[i])), chain.signature)
+        assert(not twine_skip_links_hold(hostile, pulse, [pulse]))
+        set i = i + 1
+
+fn link_total(pulse: TwineRecord) -> Int:
+    return twine_link_count(pulse)
+
+fn test_twine_a_pulse_with_thousands_of_links_is_refused_not_an_abort() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    var links = json_array()
+    var i = 0
+    while i < 5000:
+        set links = json_push(links, json_object())
+        set i = i + 1
+    let many = with_content(pulse, json_set(pulse.content, "links", links))
+    assert(twine_link_count(many) == 5000)
+    # radix 4294967296 (the largest allowed) passes 10^18 at the third power; radix 2 at the 60th
+    var radixes: List[Int] = [2, 32, 4294967296]
+    var j = 0
+    while j < len(radixes):
+        let sparse = TwineRecord(chain.cid, json_set(chain.content, "links_radix", json_int(radixes[j])), chain.signature)
+        assert(not twine_skip_links_hold(sparse, many, [many]))
+        set j = j + 1
 
 fn test_twine_a_jws_header_without_alg_is_e_twine_alg() -> Unit:
     let chain = chain_named(curby_q_chain())

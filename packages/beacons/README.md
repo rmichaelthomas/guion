@@ -148,8 +148,8 @@ Functions:
 - `nist_fetch_last()`, `nist_fetch(chain, pulse)`, `nist_fetch_certificate(pulse)`: fetch only (`E_NIST_FETCH`).
 - `nist_signed_bytes(pulse)`, `nist_output_value(pulse)`: the serialization and the recomputed output value.
 
-**Two pins, and how to refresh both.** The issuer pin alone would accept a certificate DigiCert issued to anyone, so
-`nist_verify` also requires a known certificate id, the host name and the validity window.
+**Two pins (and an older certificate with its own issuer), and how to refresh them.** The issuer pin alone would accept a certificate DigiCert issued to anyone, so
+`nist_verify` also requires a known certificate id, the host name and the validity window. Each known id is paired with the one issuer that must have signed it, so no pinned issuer stands for another issuer's ids: `nist_known_certificate_ids()` go with `nist_pinned_issuer_pem()`, and `nist_legacy_certificate_ids()` go with `nist_legacy_issuer_pem()` (below). A pulse naming a legacy id is checked against the legacy issuer only, any other id against the current issuer only.
 
 *The known certificate ids* are in `fixtures/nist-certificate-ids.txt` (one SHA-512 of a certificate's DER per line,
 with the validity dates in comments) and copied into `nist_known_certificate_ids()` in `src/nist.gu`; a test keeps the
@@ -187,8 +187,30 @@ refresh the pin when NIST moves to a new issuer (`nist_verify` then returns `Ok(
    two match) and update the fingerprint above;
 5. record `tapes/nist-live.tape` again (below).
 
+**The oldest certificate, and its own issuer.** Chain 2's first pulse (`/beacon/2.0/chain/2/pulse/1`, 2022-09-21) names
+certificate `ed8e1b97...983c2b`, valid 2022-09-15 to 2023-09-15. It was issued by a different intermediate,
+`C=US, O=DigiCert Inc, CN=DigiCert TLS RSA SHA256 2020 CA1` (valid until 2031-04-13, SHA-256 fingerprint
+`52:27:4C:57:CE:4D:EE:3B:49:DB:7A:7F:F7:08:C0:40:F7:71:89:8B:3B:E8:87:25:A8:6F:B4:43:01:82:FE:14`), which hangs from
+`DigiCert Global Root CA` (not Global Root G2). That intermediate is the second pin: `fixtures/nist-legacy-issuer.pem`,
+copied into `nist_legacy_issuer_pem()`, trusted only for the ids in `fixtures/nist-legacy-certificate-ids.txt` /
+`nist_legacy_certificate_ids()` (a test keeps each pair equal to its fixture). Without it every pulse from the first year of
+chain 2 would verify `false`. Certificate, intermediate and root are saved as `fixtures/nist-legacy-certificate.pem`,
+`nist-legacy-issuer.pem` and `nist-legacy-root.pem`, and the pulse as `fixtures/nist-pulse-1.json`. To refresh the
+legacy pin (it only needs it if NIST's certificate history is re-read or a pulse is found under another old certificate):
+1. take the pulse's `certificateId` (`/beacon/2.0/chain/2/pulse/<n>`) and fetch
+   `https://beacon.nist.gov/beacon/2.0/certificate/<id>`; check `openssl x509 -outform DER` of it hashes (SHA-512) to the id
+   and its SubjectAltName is `engine.beacon.nist.gov`;
+2. read its "CA Issuers" URL (`openssl x509 -in cert.pem -noout -text`), download it and convert it
+   (`openssl x509 -inform DER -in issuer.crt -out issuer.pem`); `openssl verify -no_check_time -partial_chain -CAfile issuer.pem cert.pem`
+   must say OK, and so must `openssl verify -no_check_time -partial_chain -CAfile root.pem issuer.pem` for the DigiCert
+   root named in the issuer's own "CA Issuers" URL (confirm its fingerprint against DigiCert's published list);
+3. if the issuer is the one already pinned, add the id to that issuer's list (the current or the legacy one) in both the
+   fixture file and `src/nist.gu`; if it is a new issuer, add a new issuer function, id list and fixtures beside the
+   legacy ones and a branch for it in `nist_verify`, so the new issuer is paired with its own ids only;
+4. save a real pulse that names the certificate as `fixtures/nist-pulse-<n>.json` and add a test that it verifies.
+
 NIST tests run offline on fixtures saved live (`nist-pulse-2038647/2038648/2038144/2038145.json`,
-`nist-certificate.pem`): the last pulse, two consecutive pulses, a pair across the 2026-11-21/22 UTC midnight, a
+`nist-certificate.pem`, and `nist-pulse-1.json` with `nist-legacy-certificate.pem` for the oldest certificate): the last pulse, two consecutive pulses, a pair across the 2026-11-21/22 UTC midnight, a
 tampered `localRandomValue` (false), and other tampering. Forged-but-validly-issued pulses
 (`test-ca.pem`, `test-leaf.pem`, `test-pulse-in-window/after/before.json`, made by `fixtures/make_test_pulses.sh`, keys
 discarded) prove each check on its own: a leaf from a re-pinned issuer with a non-NIST name, an unknown certificate id,
@@ -205,6 +227,10 @@ lacks a member or has it in the wrong shape is `E_CURBY_STAGE`, `E_CURBY_RANDOMN
 with a missing or mistyped member is `E_NIST_FORMAT`, and a drand answer is `E_DRAND_FETCH`. `json_items(value)`
 (`twine.gu`) reads a JSON array as a list, or `None`; `twine_link(pulse, n)` and `twine_link_count(pulse)` read the
 `links` of a pulse without raising.
+
+A `timeStamp` fraction of any length is only checked for digits, and the date must exist (2026-02-31 and 2100-02-29 are
+`E_NIST_FORMAT`). `twine_skip_links_hold(chain, pulse, pool)` (used by `twine_verify_links_in`) is `false`, never an
+abort, for a chain whose `links_radix` is above 2^32 or a pulse whose skip links pass 10^18.
 
 ## Tests
 

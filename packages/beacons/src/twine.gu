@@ -289,17 +289,29 @@ fn step_back(chain: TwineRecord, current: TwineRecord, previous: TwineRecord) ->
         return Ok(false)
     return twine_verify(chain, previous)
 
+# Largest skip-link scale (radix^k) the walk will compute: 10^18, far above any real pulse index.
+# A chain record is attacker-supplied, so a huge links_radix or a long links array must be refused
+# before the power grows into the integer digit limit.
+fn scale_cap() -> Int:
+    return 1000000000000000000
+
+# radix^power, or scale_cap() + 1 as soon as it exceeds scale_cap(). radix must be 2 to 2^32, so each
+# step multiplies a number at most scale_cap() by at most 2^32 and the loop stops at the first overflow.
 fn pow_radix(radix: Int, power: Int) -> Int:
     var out = 1
     var i = 0
     while i < power:
         set out = out * radix
+        if out > scale_cap():
+            return scale_cap() + 1
         set i = i + 1
     return out
 
 # A pulse at index n links to n-1, then to floor((n-1) / radix^k) * radix^k for k = 1, 2, ... while
 # radix^k <= n-1 (links_radix is 32 for CURBy). Links to pulses in the pool must sit at those indices.
-fn skip_links_hold(chain: TwineRecord, current: TwineRecord, pool: List[TwineRecord]) -> Bool:
+# False, never an abort, for a links_radix above 2^32 or a link whose scale passes 10^18. Public so the
+# tests can give it a chain record with a hostile radix (one whose signature could not be forged).
+pub fn twine_skip_links_hold(chain: TwineRecord, current: TwineRecord, pool: List[TwineRecord]) -> Bool:
     var radix = 0
     match json_try_get_int(chain.content, "links_radix"):
         Ok(value):
@@ -308,9 +320,13 @@ fn skip_links_hold(chain: TwineRecord, current: TwineRecord, pool: List[TwineRec
             return false
     if radix < 2:
         return true
+    if radix > 4294967296:
+        return false
     var k = 1
     while k < link_count(current):
         let scale = pow_radix(radix, k)
+        if scale > scale_cap():
+            return false
         let expected = (index_of(current) - 1) // scale * scale
         match twine_find(pool, link_of(current, k)):
             Ok(found):
@@ -332,7 +348,7 @@ pub fn twine_verify_links_in(chain: TwineRecord, record: TwineRecord, depth: Int
     while step < depth:
         if link_count(current) == 0:
             return Ok(true)
-        if not skip_links_hold(chain, current, pool):
+        if not twine_skip_links_hold(chain, current, pool):
             return Ok(false)
         let previous = twine_find(pool, link_of(current, 0))?
         if not step_back(chain, current, previous)?:
