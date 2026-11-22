@@ -974,3 +974,60 @@ fn a_zstd_frame_with_a_corrupted_content_checksum_is_an_encoding_error() {
         "{error:?}"
     );
 }
+
+#[test]
+fn a_zstd_body_of_several_frames_decodes_every_frame() {
+    // hello, a skippable frame (magic 0x184D2A50, 3 bytes of data), then hello again.
+    let mut body = ZSTD_HELLO.to_vec();
+    body.extend_from_slice(&[0x50, 0x2A, 0x4D, 0x18, 0x03, 0x00, 0x00, 0x00, 1, 2, 3]);
+    body.extend_from_slice(&ZSTD_HELLO);
+    let url = serve_raw_once(zstd_response(&body));
+    assert_eq!(
+        fetch_text_with_cap(&url, 64),
+        Value::ResultOk(Box::new(Value::Text("hellohello".into())))
+    );
+}
+
+/// A frame holding 100 `a` bytes as one RLE block: 10 bytes on the wire.
+const ZSTD_100_A: [u8; 10] = [0x28, 0xB5, 0x2F, 0xFD, 0x20, 0x64, 0x23, 0x03, 0x00, b'a'];
+
+#[test]
+fn the_response_limit_covers_all_zstd_frames_together() {
+    let mut body = ZSTD_100_A.to_vec();
+    body.extend_from_slice(&ZSTD_100_A);
+    // 20 bytes on the wire, 200 decoded: each frame alone is under the limit, the total is not.
+    let url = serve_raw_once(zstd_response(&body));
+    assert_eq!(
+        fetch_text_with_cap(&url, 200),
+        Value::ResultOk(Box::new(Value::Text("a".repeat(200).as_str().into())))
+    );
+    let url = serve_raw_once(zstd_response(&body));
+    let error = fetch_text_with_cap(&url, 199);
+    assert!(format!("{error:?}").contains("R_HTTP_LIMIT"), "{error:?}");
+}
+
+#[test]
+fn trailing_bytes_after_the_last_zstd_frame_are_an_encoding_error() {
+    for tail in [&[0u8][..], b"junk", &[0x28, 0xB5, 0x2F][..]] {
+        let mut body = ZSTD_HELLO.to_vec();
+        body.extend_from_slice(tail);
+        let url = serve_raw_once(zstd_response(&body));
+        let error = fetch_text_with_cap(&url, 64);
+        assert!(
+            format!("{error:?}").contains("R_HTTP_ENCODING"),
+            "{tail:?}: {error:?}"
+        );
+    }
+}
+
+#[test]
+fn a_truncated_skippable_zstd_frame_is_an_encoding_error() {
+    let mut body = ZSTD_HELLO.to_vec();
+    body.extend_from_slice(&[0x50, 0x2A, 0x4D, 0x18, 0x09, 0x00, 0x00, 0x00, 1]);
+    let url = serve_raw_once(zstd_response(&body));
+    let error = fetch_text_with_cap(&url, 64);
+    assert!(
+        format!("{error:?}").contains("R_HTTP_ENCODING"),
+        "{error:?}"
+    );
+}

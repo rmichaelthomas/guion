@@ -510,6 +510,35 @@ fn a_tape_replays_after_an_edit_that_leaves_every_outside_call_alone() {
 }
 
 #[test]
+fn a_json_run_report_carries_the_relaxed_replay_notice() {
+    let directory = record_two_reads("edit-json");
+    // An exact replay has no notice.
+    let exact = guion(
+        &directory,
+        &["run", "--json", "--replay", "run.tape", "main.gu"],
+    );
+    let report: serde_json::Value = serde_json::from_str(&text(&exact.stdout)).unwrap();
+    assert_eq!(report["status"], "passed", "{report}");
+    assert!(report["tape_notice"].is_null(), "{report}");
+    // Edit the program without touching any outside call: the replay is relaxed, and says so.
+    let edited = format!("# a note\n{TWO_READS}");
+    std::fs::write(directory.join("main.gu"), edited).unwrap();
+    let relaxed = guion(
+        &directory,
+        &["run", "--json", "--replay", "run.tape", "main.gu"],
+    );
+    let report: serde_json::Value = serde_json::from_str(&text(&relaxed.stdout)).unwrap();
+    assert_eq!(report["status"], "passed", "{report}");
+    let notice = report["tape_notice"]
+        .as_str()
+        .expect("a tape_notice string");
+    assert!(notice.contains("program hash differs"), "{notice}");
+    assert!(notice.contains("--replay-strict"), "{notice}");
+    // JSON mode keeps stderr clean of the note.
+    assert!(!text(&relaxed.stderr).contains("program hash differs"));
+}
+
+#[test]
 fn an_edit_that_changes_what_a_call_is_given_still_diverges() {
     let directory = record_two_reads("edit-arg");
     std::fs::write(

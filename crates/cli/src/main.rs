@@ -1370,8 +1370,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             };
             let runtime_load_ns = runtime_load_started.map(|started| started.elapsed().as_nanos());
             let program_started = phase_timings_enabled.then(Instant::now);
+            // Text mode prints the notice; a JSON report carries it as `tape_notice` (null when there
+            // is none), so a consumer can tell a relaxed replay from an exact one.
+            let tape_notice = instance.tape_notice();
             if !json_run {
-                if let Some(notice) = instance.tape_notice() {
+                if let Some(notice) = &tape_notice {
                     eprintln!("note: {notice}");
                 }
             }
@@ -1501,6 +1504,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     "grants_from_question": grants_from_question,
                     "python_native_image_observation": python_native_image_observation,
                     "python_native_images": python_native_images,
+                    "tape_notice": tape_notice,
                     "source_cache": source_cache_status,
                     "native_backend": native_backend,
                     "exit_code": exit_code,

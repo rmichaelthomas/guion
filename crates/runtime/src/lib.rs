@@ -36,6 +36,7 @@ pub use grants::{
     DenialRecord, GrantAnswer, GrantAnswerRecord, GrantAsker, GrantBroker, GrantKind, GrantRequest,
 };
 mod native_arena;
+mod replay_skip;
 use native_arena::*;
 mod http_client;
 mod json_decode;
@@ -676,8 +677,8 @@ impl Runtime {
             output: String::new(),
             program_stderr: String::new(),
             streamed_bytes: 0,
-            replay_skip_stdout: 0,
-            replay_skip_stderr: 0,
+            replay_skip_stdout: replay_skip::ReplaySkip::default(),
+            replay_skip_stderr: replay_skip::ReplaySkip::default(),
             closed: false,
             worker_threads: HashSet::new(),
             cancelled: None,
@@ -731,10 +732,11 @@ pub struct Instance {
     /// against `output_limit_bytes` but are not kept.
     streamed_bytes: usize,
     /// Output a native function already wrote before it fell back to the VM. The VM replays that
-    /// function from its start and prints the same lines again; these many bytes of the replay's
-    /// standard output and standard error are not written a second time.
-    replay_skip_stdout: usize,
-    replay_skip_stderr: usize,
+    /// function from its start and prints the same lines again; the replay's standard output and
+    /// standard error are compared with what was written and the matching part is not written a
+    /// second time.
+    replay_skip_stdout: replay_skip::ReplaySkip,
+    replay_skip_stderr: replay_skip::ReplaySkip,
     closed: bool,
     worker_threads: HashSet<String>,
     cancelled: Option<Arc<AtomicBool>>,
@@ -775,22 +777,24 @@ impl Instance {
     }
 
     /// Drops the front of `text` that a native function already wrote before it fell back to the VM
-    /// (see `replay_skip_stdout`). Anything that is not exactly such a replay is written whole.
+    /// (see `replay_skip_stdout`), comparing it with what was written; the first difference ends the
+    /// skipping and the rest is written.
     fn without_replayed_output<'a>(&mut self, stream: OutputStream, text: &'a str) -> &'a str {
         let skip = match stream {
             OutputStream::Stdout => &mut self.replay_skip_stdout,
             OutputStream::Stderr => &mut self.replay_skip_stderr,
         };
-        if *skip == 0 {
+        if skip.is_empty() {
             return text;
         }
-        let take = (*skip).min(text.len());
-        if !text.is_char_boundary(take) {
-            *skip = 0;
-            return text;
-        }
-        *skip -= take;
-        &text[take..]
+        let (rest, mismatch) = skip.filter(text);
+        // Native code and the VM must print the same bytes; a difference is a bug worth failing a
+        // debug build for, and in release the replay is written from the difference on.
+        debug_assert!(
+            !mismatch,
+            "the VM replay of a native function printed different output than native code wrote"
+        );
+        rest
     }
 
     fn stream_text(&mut self, stream: OutputStream, text: &str) -> Result<(), RuntimeError> {
@@ -1309,7 +1313,7 @@ impl Instance {
     fn host_op_inner(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
         let HostOpContext {
             instruction,
-            function: _,
+            function,
             stack,
             locals,
             budget,
@@ -1325,6 +1329,20 @@ impl Instance {
                 operation: opcode_profile_name(&instruction.op),
                 started: Instant::now(),
             });
+        // The `Json` instructions have one implementation, shared with the browser VM's host
+        // (`guion_vm_core::run_json_instruction`), so the two behave the same by construction.
+        // The data-library projections below (`JsonIntColumn` and the like) stay here.
+        let mut json_context = HostOpContext {
+            instruction,
+            function,
+            stack: &mut *stack,
+            locals: &mut *locals,
+            budget,
+            depth,
+        };
+        if guion_vm_core::run_json_instruction(&mut json_context, &self.policy.vm_limits())? {
+            return Ok(());
+        }
         macro_rules! push_stack {
             ($value:expr) => {{
                 let value = $value;
@@ -1358,132 +1376,6 @@ impl Instance {
             _ => None,
         };
         match *static_form.as_ref().unwrap_or(&instruction.op) {
-            Op::JsonPushLocal(slot) => {
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_push value must be Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let local = locals.get_mut(slot).ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_LOCAL_UNINITIALIZED",
-                        "json_push assignment targets an uninitialized local",
-                        instruction.span,
-                    )
-                })?;
-                let Value::Json(array) = local else {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_push assignment target must be Json",
-                        instruction.span,
-                    ));
-                };
-                let Some(items) = array.as_array() else {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_push requires a JSON array",
-                        instruction.span,
-                    ));
-                };
-                let len = items.len();
-                if len >= self.policy.max_collection_items {
-                    return Err(RuntimeError::new(
-                        "R_COLLECTION_LIMIT",
-                        "JSON array exceeds the configured item limit",
-                        instruction.span,
-                    ));
-                }
-                charge_allocation(
-                    budget.as_ref(),
-                    shared_json_push_local_allocation(array),
-                    instruction.span,
-                )?;
-                Shared::make_mut(array)
-                    .as_array_mut()
-                    .expect("array type was checked before copy-on-write")
-                    .push(value);
-                if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
-                    return Err(error);
-                }
-            }
-            Op::JsonSetLocal(slot) => {
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_set value must be Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let key = match pop!() {
-                    Value::Text(key) => key,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_set key must be Text",
-                            instruction.span,
-                        ));
-                    }
-                };
-                if key.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "JSON key exceeds the configured byte limit",
-                        instruction.span,
-                    ));
-                }
-                let local = locals.get_mut(slot).ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_LOCAL_UNINITIALIZED",
-                        "json_set assignment targets an uninitialized local",
-                        instruction.span,
-                    )
-                })?;
-                let Value::Json(object) = local else {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_set assignment target must be Json",
-                        instruction.span,
-                    ));
-                };
-                let Some(fields) = object.as_object() else {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_set requires an object",
-                        instruction.span,
-                    ));
-                };
-                if !fields.contains_key(key.as_ref())
-                    && fields.len() >= self.policy.max_collection_items
-                {
-                    return Err(RuntimeError::new(
-                        "R_COLLECTION_LIMIT",
-                        "JSON object exceeds the configured item limit",
-                        instruction.span,
-                    ));
-                }
-                let shared = Shared::strong_count(object) > 1
-                    || matches!(object.as_ref(), SharedJson::Object(values) if Shared::strong_count(values) > 1);
-                let copied_bytes = shared_json_set_local_allocation(object, &key);
-                charge_allocation(budget.as_ref(), copied_bytes, instruction.span)?;
-                Shared::make_mut(object)
-                    .as_object_mut()
-                    .expect("object type was checked before copy-on-write")
-                    .insert(key.to_string(), value);
-                if let Some(profile) = &budget.runtime_profile {
-                    profile.record_json_set(if shared { copied_bytes } else { 0 });
-                }
-                if let Some(error) = value_limit_error(local, &self.policy, instruction.span) {
-                    return Err(error);
-                }
-            }
             Op::HigherOrder(HigherOrderKind::StartTask) => {
                 let function = match pop!() {
                     Value::Function(index) => index,
@@ -4831,25 +4723,6 @@ impl Instance {
                     }
                 }
             }
-            Op::JsonErrorMessage | Op::JsonErrorLine | Op::JsonErrorColumn | Op::JsonErrorCode => {
-                let error = match pop!() {
-                    Value::JsonError(error) => error,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "JSON error accessor requires JsonError",
-                            instruction.span,
-                        ));
-                    }
-                };
-                push_stack!(match instruction.op {
-                    Op::JsonErrorMessage => Value::Text(error.message.into()),
-                    Op::JsonErrorLine => Value::Int(BigInt::from_usize(error.line)),
-                    Op::JsonErrorColumn => Value::Int(BigInt::from_usize(error.column)),
-                    Op::JsonErrorCode => Value::Text(error.code.into()),
-                    _ => unreachable!(),
-                });
-            }
             Op::FileErrorCode | Op::FileErrorMessage | Op::FileErrorLine | Op::FileErrorColumn => {
                 let error = match pop!() {
                     Value::FileError(error) => error,
@@ -4952,302 +4825,6 @@ impl Instance {
                     instruction.span,
                 )?;
                 push_stack!(result);
-            }
-            Op::JsonNull => {
-                push_stack!(finish_json_value(
-                    serde_json::Value::Null,
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonBool => {
-                let boolean = match pop!() {
-                    Value::Bool(boolean) => boolean,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_bool requires Bool",
-                            instruction.span,
-                        ));
-                    }
-                };
-                push_stack!(finish_json_value(
-                    serde_json::Value::Bool(boolean),
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonInt => {
-                let integer = match pop!() {
-                    Value::Int(integer) => integer,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_int requires Int",
-                            instruction.span,
-                        ));
-                    }
-                };
-                if integer.digit_count() > self.policy.max_integer_digits {
-                    return Err(RuntimeError::new(
-                        "R_INTEGER_LIMIT",
-                        "JSON integer exceeds the configured digit limit",
-                        instruction.span,
-                    ));
-                }
-                let parsed = serde_json::from_str::<serde_json::Value>(&integer.to_string())
-                    .map_err(|error| {
-                        RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
-                    })?;
-                push_stack!(finish_json_value(
-                    parsed,
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonFloat => {
-                let float = match pop!() {
-                    Value::Float64(float) => float.get(),
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_float requires Float64",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let number = serde_json::Number::from_f64(float).ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "JSON number must be finite",
-                        instruction.span,
-                    )
-                })?;
-                push_stack!(finish_json_value(
-                    serde_json::Value::Number(number),
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonText => {
-                let text = match pop!() {
-                    Value::Text(text) => text,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_text requires Text",
-                            instruction.span,
-                        ));
-                    }
-                };
-                if text.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "JSON text exceeds the configured byte limit",
-                        instruction.span,
-                    ));
-                }
-                push_stack!(finish_json_value(
-                    serde_json::Value::String(text.to_string()),
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonArray => {
-                push_stack!(finish_json_value(
-                    serde_json::Value::Array(Vec::new()),
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonObject => {
-                push_stack!(finish_json_value(
-                    serde_json::Value::Object(serde_json::Map::new()),
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonPush => {
-                let child = match pop!() {
-                    Value::Json(value) => value.as_ref().clone(),
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_push value must be Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let mut array = match pop!() {
-                    Value::Json(value) => value.as_ref().clone(),
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_push requires a JSON array",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let Some(items) = array.as_array_mut() else {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_push requires an array",
-                        instruction.span,
-                    ));
-                };
-                items.push(Shared::new(child));
-                push_stack!(finish_shared_json(
-                    array,
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonSet => {
-                let child = match pop!() {
-                    Value::Json(value) => value.as_ref().clone(),
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_set value must be Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let key = match pop!() {
-                    Value::Text(key) => key,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_set key must be Text",
-                            instruction.span,
-                        ));
-                    }
-                };
-                if key.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "JSON key exceeds the configured byte limit",
-                        instruction.span,
-                    ));
-                }
-                let mut object = match pop!() {
-                    Value::Json(value) => value.as_ref().clone(),
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_set requires a JSON object",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let Some(fields) = object.as_object_mut() else {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_set requires an object",
-                        instruction.span,
-                    ));
-                };
-                fields.insert(key.to_string(), Shared::new(child));
-                push_stack!(finish_shared_json(
-                    object,
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?);
-            }
-            Op::JsonParse => {
-                let source = match pop!() {
-                    Value::Text(text) => text,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_parse requires Text",
-                            instruction.span,
-                        ));
-                    }
-                };
-                if source.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "JSON input exceeds the configured byte limit",
-                        instruction.span,
-                    ));
-                }
-                let parse_started = budget.runtime_profile.as_ref().map(|_| Instant::now());
-                let parsed = parse_unique_shared_json(&source);
-                if let (Some(profile), Some(started)) = (&budget.runtime_profile, parse_started) {
-                    profile.record_json_parse(
-                        started.elapsed().as_nanos().min(u64::MAX as u128) as u64
-                    );
-                }
-                let value = match parsed {
-                    Ok(value) => value,
-                    Err(JsonDecodeError::Parse(error)) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
-                            JsonErrorValue {
-                                code: "R_JSON_PARSE".into(),
-                                message: error.to_string(),
-                                line: error.line(),
-                                column: error.column(),
-                            },
-                        )))));
-                        return Ok(());
-                    }
-                    Err(JsonDecodeError::DuplicateKey { key, line, column }) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
-                            JsonErrorValue {
-                                code: "R_JSON_DUPLICATE_KEY".into(),
-                                message: format!("JSON object contains duplicate key `{key}`"),
-                                line,
-                                column,
-                            },
-                        )))));
-                        return Ok(());
-                    }
-                };
-                let value = finish_shared_json(
-                    value,
-                    &self.policy.vm_limits(),
-                    budget.as_ref(),
-                    instruction.span,
-                )?;
-                push_stack!(Value::ResultOk(Box::new(value)));
-            }
-            Op::JsonStringify => {
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_stringify requires Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let text = serde_json::to_string(value.as_ref()).map_err(|error| {
-                    RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
-                })?;
-                if text.len() > self.policy.max_text_bytes {
-                    return Err(RuntimeError::new(
-                        "R_TEXT_LIMIT",
-                        "JSON output exceeds the configured byte limit",
-                        instruction.span,
-                    ));
-                }
-                charge_allocation(
-                    budget.as_ref(),
-                    size_of::<String>().saturating_add(text.len()),
-                    instruction.span,
-                )?;
-                push_stack!(Value::Text(text.into()));
             }
             Op::JsonStringifyPairs => {
                 let value_field = match pop!() {
@@ -5384,277 +4961,6 @@ impl Instance {
                     RuntimeError::new("R_JSON_ENCODE", error.to_string(), instruction.span)
                 })?;
                 push_stack!(Value::Text(text.into()));
-            }
-            Op::JsonTryGet
-            | Op::JsonTryGetText
-            | Op::JsonTryGetInt
-            | Op::JsonTryIndex
-            | Op::JsonTryText
-            | Op::JsonTryInt
-            | Op::JsonTryBool
-            | Op::JsonTryFloat => {
-                let outcome: Result<Value, JsonErrorValue> = match instruction.op {
-                    Op::JsonTryGet | Op::JsonTryGetText | Op::JsonTryGetInt => {
-                        let key = match pop!() {
-                            Value::Text(key) => key,
-                            _ => {
-                                return Err(RuntimeError::new(
-                                    "R_TYPE_INVALID",
-                                    "json_try_get key must be Text",
-                                    instruction.span,
-                                ));
-                            }
-                        };
-                        if key.len() > self.policy.max_text_bytes {
-                            return Err(RuntimeError::new(
-                                "R_TEXT_LIMIT",
-                                "JSON key exceeds the configured byte limit",
-                                instruction.span,
-                            ));
-                        }
-                        let value = match pop!() {
-                            Value::Json(value) => value,
-                            _ => {
-                                return Err(RuntimeError::new(
-                                    "R_TYPE_INVALID",
-                                    "json_try_get requires Json",
-                                    instruction.span,
-                                ));
-                            }
-                        };
-                        match instruction.op {
-                            Op::JsonTryGet => {
-                                stdlib_data::json_try_get(&value, &key).map(Value::Json)
-                            }
-                            Op::JsonTryGetText => {
-                                stdlib_data::json_try_get(&value, &key).and_then(|child| {
-                                    stdlib_data::json_try_text(child.as_ref())
-                                        .map(|text| Value::Text(text.into()))
-                                })
-                            }
-                            _ => stdlib_data::json_try_get(&value, &key).and_then(|child| {
-                                stdlib_data::json_try_int(child.as_ref()).map(Value::Int)
-                            }),
-                        }
-                    }
-                    Op::JsonTryIndex => {
-                        let index = match pop!() {
-                            Value::Int(index) => index.to_i64().unwrap_or(-1),
-                            _ => {
-                                return Err(RuntimeError::new(
-                                    "R_TYPE_INVALID",
-                                    "json_try_index index must be Int",
-                                    instruction.span,
-                                ));
-                            }
-                        };
-                        let value = match pop!() {
-                            Value::Json(value) => value,
-                            _ => {
-                                return Err(RuntimeError::new(
-                                    "R_TYPE_INVALID",
-                                    "json_try_index requires Json",
-                                    instruction.span,
-                                ));
-                            }
-                        };
-                        stdlib_data::json_try_index(&value, index).map(Value::Json)
-                    }
-                    Op::JsonTryText | Op::JsonTryInt | Op::JsonTryBool | Op::JsonTryFloat => {
-                        let value = match pop!() {
-                            Value::Json(value) => value,
-                            _ => {
-                                return Err(RuntimeError::new(
-                                    "R_TYPE_INVALID",
-                                    "JSON conversion requires Json",
-                                    instruction.span,
-                                ));
-                            }
-                        };
-                        match instruction.op {
-                            Op::JsonTryText => stdlib_data::json_try_text(value.as_ref())
-                                .map(|text| Value::Text(text.into())),
-                            Op::JsonTryInt => {
-                                stdlib_data::json_try_int(value.as_ref()).map(Value::Int)
-                            }
-                            Op::JsonTryBool => {
-                                stdlib_data::json_try_bool(value.as_ref()).map(Value::Bool)
-                            }
-                            Op::JsonTryFloat => stdlib_data::json_try_float(value.as_ref())
-                                .and_then(|number| {
-                                    Float64::new(number).map(Value::Float64).ok_or_else(|| {
-                                        JsonErrorValue {
-                                            code: "E_JSON_TYPE".into(),
-                                            message: "JSON number is outside finite Float64 range"
-                                                .into(),
-                                            line: 0,
-                                            column: 0,
-                                        }
-                                    })
-                                }),
-                            _ => unreachable!(),
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-                match outcome {
-                    Ok(value) => {
-                        if let Value::Int(integer) = &value {
-                            if integer.digit_count() > self.policy.max_integer_digits {
-                                return Err(RuntimeError::new(
-                                    "R_INTEGER_LIMIT",
-                                    "JSON integer exceeds the configured digit limit",
-                                    instruction.span,
-                                ));
-                            }
-                        }
-                        if let Value::Text(text) = &value {
-                            charge_allocation(
-                                budget.as_ref(),
-                                size_of::<String>().saturating_add(text.len()),
-                                instruction.span,
-                            )?;
-                        }
-                        push_stack!(Value::ResultOk(Box::new(value)));
-                    }
-                    Err(error) => {
-                        push_stack!(Value::ResultErr(Box::new(Value::JsonError(Box::new(
-                            error
-                        )))))
-                    }
-                }
-            }
-            Op::JsonGet => {
-                let key = match pop!() {
-                    Value::Text(key) => key,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_get key must be Text",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_get requires Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let object = value.as_object().ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_get requires an object",
-                        instruction.span,
-                    )
-                })?;
-                let value = object.get(key.as_ref()).cloned().ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_KEY",
-                        format!("JSON object has no key `{key}`"),
-                        instruction.span,
-                    )
-                })?;
-                push_stack!(Value::Json(value));
-            }
-            Op::JsonIndex => {
-                let index = match pop!() {
-                    Value::Int(index) => index.to_usize(),
-                    _ => None,
-                }
-                .ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_INDEX",
-                        "JSON array index must be a non-negative machine-sized Int",
-                        instruction.span,
-                    )
-                })?;
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_index requires Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let array = value.as_array().ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_index requires an array",
-                        instruction.span,
-                    )
-                })?;
-                let value = array.get(index).cloned().ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_INDEX",
-                        format!(
-                            "JSON array index {index} is out of range for length {}",
-                            array.len()
-                        ),
-                        instruction.span,
-                    )
-                })?;
-                push_stack!(Value::Json(value));
-            }
-            Op::JsonHas => {
-                let key = match pop!() {
-                    Value::Text(key) => key,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_has key must be Text",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_has requires Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let object = value.as_object().ok_or_else(|| {
-                    RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "json_has requires an object",
-                        instruction.span,
-                    )
-                })?;
-                push_stack!(Value::Bool(object.contains_key(key.as_ref())));
-            }
-            Op::JsonLength => {
-                let value = match pop!() {
-                    Value::Json(value) => value,
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_TYPE_INVALID",
-                            "json_len requires Json",
-                            instruction.span,
-                        ));
-                    }
-                };
-                let length = value
-                    .as_array()
-                    .map(|items| items.len())
-                    .or_else(|| value.as_object().map(|items| items.len()))
-                    .ok_or_else(|| {
-                        RuntimeError::new(
-                            "R_JSON_TYPE",
-                            "json_len requires an array or object",
-                            instruction.span,
-                        )
-                    })?;
-                push_stack!(Value::Int(BigInt::from_usize(length)));
             }
             Op::JsonIntColumn => {
                 let field = match pop!() {
@@ -6035,137 +5341,6 @@ impl Instance {
                     instruction.span
                 )?);
             }
-            Op::JsonAsText => match pop!() {
-                Value::Json(value) => match value.as_ref() {
-                    SharedJson::String(text) => {
-                        charge_allocation(
-                            budget.as_ref(),
-                            size_of::<String>().saturating_add(text.len()),
-                            instruction.span,
-                        )?;
-                        push_stack!(Value::Text(text.to_string().into()))
-                    }
-                    _ => {
-                        return Err(RuntimeError::new(
-                            "R_JSON_TYPE",
-                            "JSON value is not Text",
-                            instruction.span,
-                        ));
-                    }
-                },
-                _ => {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_as_text requires Json",
-                        instruction.span,
-                    ));
-                }
-            },
-            Op::JsonAsInt => match pop!() {
-                Value::Json(value) if value.is_number() => {
-                    let integer = json_exact_integer(value.as_ref()).ok_or_else(|| {
-                        RuntimeError::new(
-                            "R_JSON_TYPE",
-                            "JSON number is not an exact integer",
-                            instruction.span,
-                        )
-                    })?;
-                    if integer.digit_count() > self.policy.max_integer_digits {
-                        return Err(RuntimeError::new(
-                            "R_INTEGER_LIMIT",
-                            "JSON integer exceeds the configured digit limit",
-                            instruction.span,
-                        ));
-                    }
-                    charge_allocation(
-                        budget.as_ref(),
-                        size_of::<BigInt>().saturating_add(integer.digit_count()),
-                        instruction.span,
-                    )?;
-                    push_stack!(Value::Int(integer));
-                }
-                Value::Json(_) => {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "JSON value is not an integer",
-                        instruction.span,
-                    ));
-                }
-                _ => {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_as_int requires Json",
-                        instruction.span,
-                    ));
-                }
-            },
-            Op::JsonAsFloat => match pop!() {
-                Value::Json(value) if value.is_number() => {
-                    let number = value
-                        .as_number()
-                        .and_then(serde_json::Number::as_f64)
-                        .ok_or_else(|| {
-                            RuntimeError::new(
-                                "R_JSON_TYPE",
-                                "JSON number cannot be represented as Float64",
-                                instruction.span,
-                            )
-                        })?;
-                    let value = Float64::new(number).ok_or_else(|| {
-                        RuntimeError::new(
-                            "R_JSON_TYPE",
-                            "JSON number is outside finite Float64 range",
-                            instruction.span,
-                        )
-                    })?;
-                    push_stack!(Value::Float64(value));
-                }
-                Value::Json(_) => {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "JSON value is not a number",
-                        instruction.span,
-                    ));
-                }
-                _ => {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_as_float requires Json",
-                        instruction.span,
-                    ));
-                }
-            },
-            Op::JsonAsBool => match pop!() {
-                Value::Json(value) if value.is_boolean() => {
-                    push_stack!(Value::Bool(
-                        value.as_bool().expect("boolean type was checked")
-                    ))
-                }
-                Value::Json(_) => {
-                    return Err(RuntimeError::new(
-                        "R_JSON_TYPE",
-                        "JSON value is not Bool",
-                        instruction.span,
-                    ));
-                }
-                _ => {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_as_bool requires Json",
-                        instruction.span,
-                    ));
-                }
-            },
-            Op::JsonIsNull => match pop!() {
-                Value::Json(value) => push_stack!(Value::Bool(value.is_null())),
-                _ => {
-                    return Err(RuntimeError::new(
-                        "R_TYPE_INVALID",
-                        "json_is_null requires Json",
-                        instruction.span,
-                    ));
-                }
-            },
             ref other => {
                 return Err(RuntimeError::new(
                     "R_HOST_UNSUPPORTED",
@@ -6342,8 +5517,8 @@ impl Instance {
         self.output.clear();
         self.program_stderr.clear();
         self.streamed_bytes = 0;
-        self.replay_skip_stdout = 0;
-        self.replay_skip_stderr = 0;
+        self.replay_skip_stdout.clear();
+        self.replay_skip_stderr.clear();
         self.host_stderr.clear();
         self.effect_report.clear();
         self.omitted_effects = 0;
@@ -6450,6 +5625,7 @@ impl Instance {
                         as *const u8,
                     count_guest_branch: native_count_guest_branch as *const () as *const u8,
                     loop_safepoint: native_loop_safepoint as *const () as *const u8,
+                    flush_tick: native_flush_tick as *const () as *const u8,
                 },
                 runtime_profile.is_some(),
                 self.native_whole_program_entry.then_some(index),
@@ -6479,6 +5655,10 @@ impl Instance {
             )?;
         }
         let result = self.invoke_inner(index, args, 0, budget);
+        // A replay that stopped early (an error before it printed everything native code had
+        // written) must not swallow output written afterwards.
+        self.replay_skip_stdout.clear();
+        self.replay_skip_stderr.clear();
         self.readers.close_all();
         self.databases.close_all();
         self.sockets.close_all();
@@ -6526,8 +5706,8 @@ impl Instance {
         self.output.clear();
         self.program_stderr.clear();
         self.streamed_bytes = 0;
-        self.replay_skip_stdout = 0;
-        self.replay_skip_stderr = 0;
+        self.replay_skip_stdout.clear();
+        self.replay_skip_stderr.clear();
         self.host_stderr.clear();
         #[cfg(feature = "python-interop")]
         if let Some(bridge) = &mut self.python_bridge {
@@ -6697,6 +5877,18 @@ impl Instance {
                 .map(|(_, text, _)| text.len())
                 .fold(0usize, usize::saturating_add),
         );
+        if self.policy.streaming_output {
+            // Kept so a later VM replay of this function can be compared with it.
+            let keep = |kept: &mut Vec<u8>, text: &str| {
+                let room = replay_skip::VERIFIED_BYTES_PER_RUN.saturating_sub(kept.len());
+                let take = text.len().min(room);
+                kept.extend_from_slice(&text.as_bytes()[..take]);
+            };
+            keep(&mut arena.flushed_stdout_text, &output);
+            for (_, text, _) in &errors {
+                keep(&mut arena.flushed_stderr_text, text);
+            }
+        }
         arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(output.len());
         let mut prints = std::mem::take(&mut arena.pending_print_bytes)
             .into_iter()
@@ -7439,12 +6631,14 @@ impl Instance {
                         // The VM runs the function again from its start. Whatever native code
                         // already wrote while it ran (see `NativeListArena::flush_if_due`) is not
                         // written a second time.
-                        self.replay_skip_stdout = self
-                            .replay_skip_stdout
-                            .saturating_add(native_arena.flushed_stdout);
-                        self.replay_skip_stderr = self
-                            .replay_skip_stderr
-                            .saturating_add(native_arena.flushed_stderr);
+                        self.replay_skip_stdout.expect(
+                            &native_arena.flushed_stdout_text,
+                            native_arena.flushed_stdout,
+                        );
+                        self.replay_skip_stderr.expect(
+                            &native_arena.flushed_stderr_text,
+                            native_arena.flushed_stderr,
+                        );
                         budget.refund(outcome.steps);
                         budget.refund_allocation(outcome.allocations);
                     }
@@ -7943,8 +7137,8 @@ impl Instance {
                         output: String::new(),
                         program_stderr: String::new(),
                         streamed_bytes: 0,
-                        replay_skip_stdout: 0,
-                        replay_skip_stderr: 0,
+                        replay_skip_stdout: replay_skip::ReplaySkip::default(),
+                        replay_skip_stderr: replay_skip::ReplaySkip::default(),
                         closed: false,
                         worker_threads: HashSet::new(),
                         cancelled: Some(cancelled.clone()),
@@ -9132,6 +8326,16 @@ unsafe extern "C" fn native_loop_safepoint(
     };
     arena.reclaim_dead_handles(roots);
     i32::from(arena.host_error.is_some())
+}
+
+/// Loop-backedge check in functions that print: every `FLUSH_TICK_BACKEDGES` backedges, writes out
+/// held output that is older than the flush interval. Non-zero means carry on; zero means writing
+/// failed (the error is kept for the host).
+unsafe extern "C" fn native_flush_tick(arena: *mut NativeListArena) -> i32 {
+    if arena.is_null() {
+        return 1;
+    }
+    i32::from(unsafe { &mut *arena }.flush_tick())
 }
 
 unsafe extern "C" fn native_count_guest_branch(arena: *mut NativeListArena) {

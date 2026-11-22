@@ -28,6 +28,7 @@ pub mod array;
 mod array_compute;
 pub mod json_decode;
 mod json_host;
+pub use json_host::run_json_instruction;
 pub mod json_try;
 mod matmul;
 pub mod ordering;

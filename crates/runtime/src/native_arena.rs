@@ -118,7 +118,12 @@ pub(crate) struct NativeListArena {
     /// `flush_if_due`).
     pub(crate) flushed_stdout: usize,
     pub(crate) flushed_stderr: usize,
+    /// The first bytes of what was written, kept so a VM replay can be compared with it.
+    pub(crate) flushed_stdout_text: Vec<u8>,
+    pub(crate) flushed_stderr_text: Vec<u8>,
     pub(crate) last_flush: Option<std::time::Instant>,
+    /// Loop backedges left before the next look at held output (see `flush_tick`).
+    pub(crate) flush_ticks_left: u32,
     pub(crate) reclaim_floor: usize,
     pub(crate) reclamations: u64,
 }
@@ -126,6 +131,9 @@ pub(crate) struct NativeListArena {
 const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
 /// How long native code may sit on printed lines before the next print writes them out.
 const FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(2);
+/// Loop backedges between looks at held output: a tight loop turns over in a few nanoseconds, so
+/// this keeps the clock read rare and still bounds the delay to about the flush interval.
+const FLUSH_TICK_BACKEDGES: u32 = 256;
 /// Printed bytes that are written out at once regardless of the interval.
 const FLUSH_BACKLOG_BYTES: usize = 64 * 1024;
 
@@ -224,7 +232,10 @@ impl NativeListArena {
             pending_stderr_bytes: 0,
             flushed_stdout: 0,
             flushed_stderr: 0,
+            flushed_stdout_text: Vec::new(),
+            flushed_stderr_text: Vec::new(),
             last_flush: None,
+            flush_ticks_left: FLUSH_TICK_BACKEDGES,
             reclaim_floor: NATIVE_ARENA_RECLAIM_MIN_ENTRIES,
             reclamations: 0,
         }
@@ -2717,6 +2728,22 @@ impl NativeListArena {
         self.pending_output.push('\n');
         self.pending_print_bytes
             .push((self.pending_output.len(), bytes));
+        self.flush_if_due()
+    }
+
+    /// Called at the backedges of loops in functions that print. Looks at held output once every
+    /// `FLUSH_TICK_BACKEDGES` calls and writes it when it has waited at least `FLUSH_INTERVAL`, so a
+    /// line printed just after another is never held for the length of a long loop. Returns false
+    /// when writing failed (the error is kept as the host error).
+    pub(crate) fn flush_tick(&mut self) -> bool {
+        self.flush_ticks_left = self.flush_ticks_left.saturating_sub(1);
+        if self.flush_ticks_left > 0 {
+            return true;
+        }
+        self.flush_ticks_left = FLUSH_TICK_BACKEDGES;
+        if self.pending_output.is_empty() && self.pending_stderr.is_empty() {
+            return true;
+        }
         self.flush_if_due()
     }
 

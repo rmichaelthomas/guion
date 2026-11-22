@@ -265,3 +265,31 @@ fn a_native_function_writes_its_lines_before_the_program_blocks_on_stdin() {
     );
     assert!(child.wait().unwrap().success());
 }
+
+/// Two prints back to back (the second lands within the batching interval), then a long native loop.
+const BACK_TO_BACK: &str = "fn main() -> Int:\n    print(\"first\")\n    print(\"second\")\n    var i = 0\n    while i < 900000000:\n        set i = i + 1\n    print(\"third\")\n    return 0\n";
+
+#[test]
+fn a_line_printed_right_after_another_is_not_held_until_the_loop_ends() {
+    let project = project("instruction_limit = 100000000000\n", BACK_TO_BACK);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", project.0.to_str().unwrap()])
+        .env("GUION_NO_PROMPT", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    assert_eq!(lines.next().unwrap().unwrap(), "first");
+    assert_eq!(lines.next().unwrap().unwrap(), "second");
+    let second_at = Instant::now();
+    assert_eq!(lines.next().unwrap().unwrap(), "third");
+    let third_at = Instant::now();
+    assert!(child.wait().unwrap().success());
+    // `second` was readable while the loop was still running, not together with `third`.
+    let gap = third_at.duration_since(second_at);
+    assert!(
+        gap >= Duration::from_millis(500),
+        "second arrived only {gap:?} before third; it was held until the loop ended"
+    );
+}
