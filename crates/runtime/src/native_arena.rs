@@ -110,11 +110,24 @@ pub(crate) struct NativeListArena {
     pub(crate) committed_output_bytes: usize,
     pub(crate) pending_output: String,
     pub(crate) pending_print_bytes: Vec<usize>,
+    /// Standard-error lines native code printed, each with how much of `pending_output` came before it.
+    pub(crate) pending_stderr: Vec<(usize, String, Span)>,
+    pub(crate) pending_stderr_bytes: usize,
+    /// Bytes this native run has already written to standard output and standard error (see
+    /// `flush_if_due`).
+    pub(crate) flushed_stdout: usize,
+    pub(crate) flushed_stderr: usize,
+    pub(crate) last_flush: Option<std::time::Instant>,
     pub(crate) reclaim_floor: usize,
     pub(crate) reclamations: u64,
 }
 
 const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
+/// How long native code may sit on printed lines before the next print writes them out.
+const FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(2);
+/// Printed bytes that are written out at once regardless of the interval.
+const FLUSH_BACKLOG_BYTES: usize = 64 * 1024;
+
 /// Arena entries that must accumulate before a loop safepoint attempts to retire dead handles.
 const NATIVE_ARENA_RECLAIM_MIN_ENTRIES: usize = 2048;
 /// List items an entry must copy into a fresh native frame before its cost is tracked.
@@ -206,6 +219,11 @@ impl NativeListArena {
             committed_output_bytes: 0,
             pending_output: String::new(),
             pending_print_bytes: Vec::new(),
+            pending_stderr: Vec::new(),
+            pending_stderr_bytes: 0,
+            flushed_stdout: 0,
+            flushed_stderr: 0,
+            last_flush: None,
             reclaim_floor: NATIVE_ARENA_RECLAIM_MIN_ENTRIES,
             reclamations: 0,
         }
@@ -1672,12 +1690,13 @@ impl NativeListArena {
                 let text = text.clone();
                 let output_bytes = text.len().saturating_add(1);
                 let instance = unsafe { &mut *runtime.instance };
-                if instance.policy.streaming_output {
-                    return None;
-                }
+                // Held with the stdout prints until the function completes: a native function that
+                // falls back to the VM is replayed from its start, and what it already wrote could
+                // not be taken back.
                 if instance
                     .program_output_bytes()
                     .saturating_add(self.pending_output.len())
+                    .saturating_add(self.pending_stderr_bytes)
                     .saturating_add(output_bytes)
                     > self.output_limit_bytes
                     || !self.charge(output_bytes)
@@ -1687,12 +1706,12 @@ impl NativeListArena {
                 let mut rendered = String::with_capacity(output_bytes);
                 rendered.push_str(&text);
                 rendered.push('\n');
-                instance.commit_native_output(self).ok()?;
-                instance
-                    .write_program_output(OutputStream::Stderr, &rendered, instruction.span)
-                    .ok()?;
-                self.committed_output_bytes =
-                    self.committed_output_bytes.saturating_add(rendered.len());
+                self.pending_stderr_bytes = self.pending_stderr_bytes.saturating_add(output_bytes);
+                self.pending_stderr
+                    .push((self.pending_output.len(), rendered, instruction.span));
+                if !self.flush_if_due() {
+                    return None;
+                }
                 return Some(0);
             }
             Op::Args => {
@@ -2662,20 +2681,9 @@ impl NativeListArena {
         }
     }
 
-    /// Whether the program's output goes straight to the process (`guion run`).
-    pub(crate) fn streams_output(&self) -> bool {
-        self.runtime_context.as_ref().is_some_and(|context| {
-            // SAFETY: the instance outlives the arena that was attached to it.
-            unsafe { &*context.instance }.policy.streaming_output
-        })
-    }
-
     pub(crate) fn print(&mut self, value: i64, kind: i64) -> bool {
-        // Native code that deoptimizes is replayed from its start by the VM, so output it has
-        // already shown could not be taken back. Under streaming output, the VM does the print.
-        if self.streams_output() {
-            return false;
-        }
+        // Output is held in `pending_output` until the native function completes (or resumes in
+        // the VM at a continuation); a deoptimization that replays the function drops it.
         let rendered = match kind {
             1 => value.to_string(),
             2 => {
@@ -2697,6 +2705,7 @@ impl NativeListArena {
             .initial_output_bytes
             .saturating_add(self.committed_output_bytes)
             .saturating_add(self.pending_output.len())
+            .saturating_add(self.pending_stderr_bytes)
             .saturating_add(bytes)
             > self.output_limit_bytes
             || !self.charge(bytes)
@@ -2706,6 +2715,41 @@ impl NativeListArena {
         self.pending_output.push_str(&rendered);
         self.pending_output.push('\n');
         self.pending_print_bytes.push(bytes);
-        true
+        self.flush_if_due()
+    }
+
+    /// Under streaming output (`guion run`), writes what native code has printed so far when it is
+    /// time to: the first print, one at least `FLUSH_INTERVAL` after the last write, or a large
+    /// backlog. Without this a long native loop would hold every line until the function returned.
+    /// Writing early is sound because the VM drops the replayed copy of what was written if the
+    /// function later falls back (`Instance::replay_skip_stdout`). A write that fails (closed pipe)
+    /// is kept as the host error and the native run stops.
+    fn flush_if_due(&mut self) -> bool {
+        let Some(context) = self.runtime_context.as_ref() else {
+            return true;
+        };
+        // SAFETY: the instance outlives the arena that was attached to it.
+        let instance = unsafe { &mut *context.instance };
+        if !instance.policy.streaming_output {
+            return true;
+        }
+        let backlog = self
+            .pending_output
+            .len()
+            .saturating_add(self.pending_stderr_bytes);
+        let due = backlog >= FLUSH_BACKLOG_BYTES
+            || self
+                .last_flush
+                .is_none_or(|flushed| flushed.elapsed() >= FLUSH_INTERVAL);
+        if !due {
+            return true;
+        }
+        match instance.commit_native_output(self) {
+            Ok(()) => true,
+            Err(error) => {
+                self.host_error = Some(error);
+                false
+            }
+        }
     }
 }

@@ -156,6 +156,8 @@ impl TaskParts {
             output: String::new(),
             program_stderr: String::new(),
             streamed_bytes: 0,
+            replay_skip_stdout: 0,
+            replay_skip_stderr: 0,
             closed: false,
             worker_threads: HashSet::new(),
             cancelled: Some(cancelled),

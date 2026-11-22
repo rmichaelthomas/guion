@@ -677,6 +677,8 @@ impl Runtime {
             output: String::new(),
             program_stderr: String::new(),
             streamed_bytes: 0,
+            replay_skip_stdout: 0,
+            replay_skip_stderr: 0,
             closed: false,
             worker_threads: HashSet::new(),
             cancelled: None,
@@ -729,6 +731,11 @@ pub struct Instance {
     /// Bytes already written through to the process under `streaming_output`; they count
     /// against `output_limit_bytes` but are not kept.
     streamed_bytes: usize,
+    /// Output a native function already wrote before it fell back to the VM. The VM replays that
+    /// function from its start and prints the same lines again; these many bytes of the replay's
+    /// standard output and standard error are not written a second time.
+    replay_skip_stdout: usize,
+    replay_skip_stderr: usize,
     closed: bool,
     worker_threads: HashSet<String>,
     cancelled: Option<Arc<AtomicBool>>,
@@ -756,12 +763,35 @@ impl Instance {
     /// Adds output a worker, task, native run or Python call produced to standard output,
     /// writing it through when streaming.
     fn append_stdout(&mut self, text: &str) -> Result<(), RuntimeError> {
+        let text = self.without_replayed_output(OutputStream::Stdout, text);
+        if text.is_empty() {
+            return Ok(());
+        }
         if self.policy.streaming_output {
             self.stream_text(OutputStream::Stdout, text)
         } else {
             self.output.push_str(text);
             Ok(())
         }
+    }
+
+    /// Drops the front of `text` that a native function already wrote before it fell back to the VM
+    /// (see `replay_skip_stdout`). Anything that is not exactly such a replay is written whole.
+    fn without_replayed_output<'a>(&mut self, stream: OutputStream, text: &'a str) -> &'a str {
+        let skip = match stream {
+            OutputStream::Stdout => &mut self.replay_skip_stdout,
+            OutputStream::Stderr => &mut self.replay_skip_stderr,
+        };
+        if *skip == 0 {
+            return text;
+        }
+        let take = (*skip).min(text.len());
+        if !text.is_char_boundary(take) {
+            *skip = 0;
+            return text;
+        }
+        *skip -= take;
+        &text[take..]
     }
 
     fn stream_text(&mut self, stream: OutputStream, text: &str) -> Result<(), RuntimeError> {
@@ -1143,6 +1173,11 @@ impl VmHost for Instance {
             OutputStream::Stdout => EffectKind::ProgramOutput,
             OutputStream::Stderr => EffectKind::ProgramErrorOutput,
         };
+        let written = self.without_replayed_output(stream, text);
+        if written.is_empty() && !text.is_empty() {
+            return Ok(());
+        }
+        let text = written;
         if self.policy.streaming_output {
             if self.program_output_bytes().saturating_add(text.len())
                 > self.policy.output_limit_bytes
@@ -6308,6 +6343,8 @@ impl Instance {
         self.output.clear();
         self.program_stderr.clear();
         self.streamed_bytes = 0;
+        self.replay_skip_stdout = 0;
+        self.replay_skip_stderr = 0;
         self.host_stderr.clear();
         self.effect_report.clear();
         self.omitted_effects = 0;
@@ -6490,6 +6527,8 @@ impl Instance {
         self.output.clear();
         self.program_stderr.clear();
         self.streamed_bytes = 0;
+        self.replay_skip_stdout = 0;
+        self.replay_skip_stderr = 0;
         self.host_stderr.clear();
         #[cfg(feature = "python-interop")]
         if let Some(bridge) = &mut self.python_bridge {
@@ -6645,10 +6684,37 @@ impl Instance {
         }
     }
 
+    /// Writes what native code printed, in order, once the native function has completed or
+    /// resumes in the VM. Standard error lines go out between the standard output they followed.
     fn commit_native_output(&mut self, arena: &mut NativeListArena) -> Result<(), RuntimeError> {
         let output = std::mem::take(&mut arena.pending_output);
+        let errors = std::mem::take(&mut arena.pending_stderr);
+        arena.pending_stderr_bytes = 0;
+        arena.last_flush = Some(std::time::Instant::now());
+        arena.flushed_stdout = arena.flushed_stdout.saturating_add(output.len());
+        arena.flushed_stderr = arena.flushed_stderr.saturating_add(
+            errors
+                .iter()
+                .map(|(_, text, _)| text.len())
+                .fold(0usize, usize::saturating_add),
+        );
         arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(output.len());
-        let written = self.append_stdout(&output);
+        let mut written = Ok(());
+        let mut done = 0;
+        for (offset, text, span) in errors {
+            let offset = offset.min(output.len());
+            if written.is_ok() {
+                written = self.append_stdout(&output[done..offset]);
+            }
+            done = offset;
+            if written.is_ok() {
+                written = self.write_program_output(OutputStream::Stderr, &text, span);
+            }
+            arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(text.len());
+        }
+        if written.is_ok() {
+            written = self.append_stdout(&output[done..]);
+        }
         for bytes in std::mem::take(&mut arena.pending_print_bytes) {
             let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
             self.finish_effect(effect, EffectOutcome::Returned);
@@ -7359,6 +7425,15 @@ impl Instance {
                                 .collect();
                             return Ok(FrameStart::VmFrames(frames));
                         }
+                        // The VM runs the function again from its start. Whatever native code
+                        // already wrote while it ran (see `NativeListArena::flush_if_due`) is not
+                        // written a second time.
+                        self.replay_skip_stdout = self
+                            .replay_skip_stdout
+                            .saturating_add(native_arena.flushed_stdout);
+                        self.replay_skip_stderr = self
+                            .replay_skip_stderr
+                            .saturating_add(native_arena.flushed_stderr);
                         budget.refund(outcome.steps);
                         budget.refund_allocation(outcome.allocations);
                     }
@@ -7857,6 +7932,8 @@ impl Instance {
                         output: String::new(),
                         program_stderr: String::new(),
                         streamed_bytes: 0,
+                        replay_skip_stdout: 0,
+                        replay_skip_stderr: 0,
                         closed: false,
                         worker_threads: HashSet::new(),
                         cancelled: Some(cancelled.clone()),

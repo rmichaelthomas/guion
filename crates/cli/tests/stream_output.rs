@@ -36,7 +36,7 @@ fn project(runtime_section: &str, main: &str) -> Project {
     Project(dir)
 }
 
-const SLOW: &str = "fn main() -> Int:\n    print(\"first\")\n    var i = 0\n    while i < 120000000:\n        set i = i + 1\n    print(\"second\")\n    return 0\n";
+const SLOW: &str = "fn main() -> Int:\n    print(\"first\")\n    var i = 0\n    while i < 900000000:\n        set i = i + 1\n    print(\"second\")\n    return 0\n";
 
 #[test]
 fn prints_arrive_before_the_program_ends() {
@@ -61,7 +61,7 @@ fn prints_arrive_before_the_program_ends() {
     let gap = ended_at.duration_since(first_at);
     assert!(
         gap >= Duration::from_secs(1),
-        "first arrived only {gap:?} before the process ended; the loop must run for about 2 s"
+        "first arrived only {gap:?} before the process ended; the loop must run for a few seconds"
     );
 }
 
@@ -124,4 +124,96 @@ fn a_closed_pipe_is_output_closed_not_a_panic() {
     assert!(!output.status.success());
     assert!(stderr.contains("R_OUTPUT_CLOSED"), "stderr: {stderr}");
     assert!(!stderr.contains("panicked"), "stderr: {stderr}");
+}
+
+fn run_lines(runtime_section: &str, main: &str) -> (bool, String, String) {
+    let project = project(runtime_section, main);
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", project.0.to_str().unwrap()])
+        .env("GUION_NO_PROMPT", "1")
+        .output()
+        .unwrap();
+    (
+        output.status.success(),
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+    )
+}
+
+// Native code that prints and then gives up (here: the product leaves 64 bits) is replayed by the VM
+// from the start. What native code printed before giving up must not be written twice.
+#[test]
+fn native_prints_are_not_repeated_when_the_function_falls_back_to_the_vm() {
+    let main = "fn grow(n: Int) -> Int:\n    var i = 0\n    var x = 1\n    while i < n:\n        print(x)\n        set x = x * 3\n        set i = i + 1\n    return x\n\nfn main() -> Int:\n    print(grow(60))\n    return 0\n";
+    let (ok, stdout, stderr) = run_lines("", main);
+    assert!(ok, "{stderr}");
+    let mut expected = String::new();
+    let mut x = num_bigint_free_pow3(0);
+    for index in 0..60u32 {
+        x = num_bigint_free_pow3(index);
+        expected.push_str(&format!("{x}\n"));
+    }
+    expected.push_str(&format!("{}\n", num_bigint_free_pow3(60)));
+    let _ = x;
+    assert_eq!(stdout, expected);
+}
+
+/// 3^power as a decimal string (power up to 60 overflows u64 but not u128).
+fn num_bigint_free_pow3(power: u32) -> u128 {
+    3u128.pow(power)
+}
+
+#[test]
+fn native_stdout_and_stderr_prints_keep_their_order_and_appear_once() {
+    let main = "fn both(n: Int) -> Int:\n    var i = 0\n    while i < n:\n        print(i)\n        eprint(\"e\")\n        set i = i + 1\n    return i\n\nfn main() -> Int:\n    print(both(2000))\n    return 0\n";
+    let (ok, stdout, stderr) = run_lines("", main);
+    assert!(ok, "{stderr}");
+    let expected: String = (0..2000).map(|i| format!("{i}\n")).collect::<String>() + "2000\n";
+    assert_eq!(stdout, expected);
+    assert_eq!(
+        stderr.matches('e').count(),
+        stderr.len() - stderr.matches('\n').count()
+    );
+    assert_eq!(stderr.lines().count(), 2000);
+}
+
+#[test]
+fn native_prints_respect_the_output_limit_and_what_fits_is_written() {
+    let main = "fn many(n: Int) -> Int:\n    var i = 0\n    while i < n:\n        print(i % 10)\n        set i = i + 1\n    return i\n\nfn main() -> Int:\n    print(many(100000))\n    return 0\n";
+    // Each line is two bytes; 64 bytes hold 32.
+    let (ok, stdout, stderr) = run_lines("output_limit_bytes = 64\n", main);
+    assert!(!ok);
+    assert!(stderr.contains("R_OUTPUT_LIMIT"), "{stderr}");
+    assert_eq!(stdout.lines().count(), 32, "{stdout}");
+}
+
+// Native code writes early lines before it finishes (so a long loop does not hold them back). When it
+// later leaves native code at an overflow (the VM resumes mid-function), nothing is written twice, on
+// either stream.
+#[test]
+fn lines_native_code_already_wrote_are_not_repeated_by_the_replay() {
+    let main = "fn grow(n: Int) -> Int:\n    var x = 1\n    print(\"start\")\n    eprint(\"warn\")\n    var spin = 0\n    while spin < 60000000:\n        set spin = spin + 1\n    var i = 0\n    while i < n:\n        print(x)\n        set x = x * 3\n        set i = i + 1\n    return x\n\nfn main() -> Int:\n    print(grow(60))\n    return 0\n";
+    let (ok, stdout, stderr) = run_lines("instruction_limit = 100000000000\n", main);
+    assert!(ok, "{stderr}");
+    let mut expected = String::from("start\n");
+    for index in 0..60u32 {
+        expected.push_str(&format!("{}\n", num_bigint_free_pow3(index)));
+    }
+    expected.push_str(&format!("{}\n", num_bigint_free_pow3(60)));
+    assert_eq!(stdout, expected);
+    assert_eq!(stderr, "warn\n");
+}
+
+// The `native_math` case: `main` is native, prints a line, and then `float_to_int` of a value past 64
+// bits makes native code give up. The VM runs `main` again from its start; the first line was already
+// written and must not appear twice.
+#[test]
+fn native_main_that_falls_back_after_printing_does_not_print_twice() {
+    let main = "import \"std:math\"\nfn sum(n: Int) -> Float64:\n    var i = 0\n    var total = 0.0\n    while i < n:\n        let x = int_to_float(i) * 0.5\n        set total = total + math_sin(x) + math_floor(x) + math_pow(x, 2.0) + math_atan2(x, 3.0)\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    print(sum(5000))\n    print(float_to_int(123456.9))\n    print(float_to_int(-7.9))\n    print(float_to_int(1.0e19))\n    return 0\n";
+    let (ok, stdout, stderr) = run_lines("", main);
+    assert!(ok, "{stderr}");
+    assert_eq!(
+        stdout,
+        "10419797182.625711\n123456\n-7\n10000000000000000000\n"
+    );
 }

@@ -8221,3 +8221,32 @@ fn native_recursion_needs_exactly_the_instruction_budget_the_vm_needs() {
         assert_eq!(minimal(false), minimal(true), "descend({n})");
     }
 }
+
+#[test]
+fn a_function_that_prints_still_runs_natively_under_streaming_output() {
+    // `guion run` streams output; native code buffers its prints and writes them when the
+    // function finishes, so printing functions keep their machine-code speed.
+    let source = "fn emit(n: Int) -> Int:\n    var i = 0\n    var total = 0\n    while i < n:\n        set total = (total + i * 3) % 1000003\n        if i % 4 == 0:\n            print(total)\n        set i = i + 1\n    return total\n\nfn main() -> Int:\n    return emit(1)\n";
+    let artifact = compile("native-print-stream.gu", source).expect("compiles");
+    let policy = HostPolicy::default().with_streaming_output(true);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance
+        .invoke("emit", vec![Value::Int(BigInt::from_i64(2000))])
+        .unwrap();
+    assert!(
+        instance
+            .native_function_names()
+            .iter()
+            .any(|name| name == "emit"),
+        "emit compiles"
+    );
+    assert!(
+        instance.native_calls() > 0,
+        "a printing function must run natively under streaming output"
+    );
+    assert_eq!(
+        instance.native_deoptimizations(),
+        0,
+        "printing must not make native code fall back to the VM"
+    );
+}
