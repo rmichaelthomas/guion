@@ -942,3 +942,35 @@ fn a_corrupt_zstd_body_is_a_typed_error_not_a_panic() {
         "{error:?}"
     );
 }
+
+/// The same frame with the content-checksum flag set and the checksum (low 32 bits of XXH64) appended.
+fn zstd_hello_with_checksum(checksum: [u8; 4]) -> Vec<u8> {
+    let mut frame = vec![
+        0x28, 0xB5, 0x2F, 0xFD, 0x24, 0x05, 0x29, 0x00, 0x00, b'h', b'e', b'l', b'l', b'o',
+    ];
+    frame.extend_from_slice(&checksum);
+    frame
+}
+
+#[test]
+fn a_zstd_frame_with_a_correct_content_checksum_decodes() {
+    let url = serve_raw_once(zstd_response(&zstd_hello_with_checksum([
+        0xA3, 0x6D, 0x9F, 0x88,
+    ])));
+    assert_eq!(
+        fetch_text_with_cap(&url, 64),
+        Value::ResultOk(Box::new(Value::Text("hello".into())))
+    );
+}
+
+#[test]
+fn a_zstd_frame_with_a_corrupted_content_checksum_is_an_encoding_error() {
+    let url = serve_raw_once(zstd_response(&zstd_hello_with_checksum([
+        0xA3, 0x6D, 0x9F, 0x89,
+    ])));
+    let error = fetch_text_with_cap(&url, 64);
+    assert!(
+        format!("{error:?}").contains("R_HTTP_ENCODING"),
+        "{error:?}"
+    );
+}

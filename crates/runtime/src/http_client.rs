@@ -122,7 +122,7 @@ pub(crate) fn request_headers(
 /// The client advertises no `Accept-Encoding`, yet some hosts answer with `Content-Encoding: zstd`
 /// anyway (their cache stores the compressed copy). A response in that one encoding is decoded here,
 /// so the program sees the body the host meant. The decoded size is held to the same response limit
-/// as the wire size, so a small frame cannot expand past it. `content-encoding` and `content-length`
+/// as the wire size, so a small frame cannot expand past it. A frame that carries a content checksum is verified against it (mismatch is `R_HTTP_ENCODING`). `content-encoding` and `content-length`
 /// are dropped from the headers because they no longer describe the body.
 fn decode_content_encoding(
     mut headers: BTreeMap<String, String>,
@@ -155,6 +155,19 @@ fn decode_content_encoding(
             "R_HTTP_LIMIT",
             "HTTP response exceeds the configured byte limit",
         ));
+    }
+    // The decoder reads the frame's content checksum but does not compare it. The whole frame has
+    // been read here (the body fit the limit), so the checksum calculated while decoding and the
+    // one the frame carries are both final. A frame without a checksum has nothing to compare.
+    // (With several concatenated frames the check covers the last one.)
+    let frame = decoder.into_frame_decoder();
+    if let Some(expected) = frame.get_checksum_from_data() {
+        if frame.get_calculated_checksum() != Some(expected) {
+            return Err(http_error(
+                "R_HTTP_ENCODING",
+                "HTTP response body failed the zstd content checksum",
+            ));
+        }
     }
     headers.remove("content-encoding");
     headers.remove("content-length");
