@@ -26,6 +26,9 @@ use std::{
 
 pub mod array;
 mod array_compute;
+pub mod json_decode;
+mod json_host;
+pub mod json_try;
 mod matmul;
 pub mod ordering;
 mod register;
@@ -6599,8 +6602,11 @@ impl VmHost for PortableHost {
         )))
     }
 
-    fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
+    fn host_op(&mut self, mut context: HostOpContext<'_>) -> Result<(), RuntimeError> {
         use guion_model::HigherOrderKind as Kind;
+        if self.portable_json(&mut context)? {
+            return Ok(());
+        }
         let op = context.instruction.op.clone();
         let span = context.instruction.span;
         // `parallel_map` needs threads, which this host does not have.

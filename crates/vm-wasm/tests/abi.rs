@@ -196,3 +196,65 @@ fn failures_report_clear_errors() {
     assert!(run_artifact(&gub(HELLO), MAX_BROWSER_STEPS + 1).is_err());
     assert!(run_artifact(&vec![0; MAX_ARTIFACT_BYTES + 1], 32).is_err());
 }
+
+fn busy_loop(iterations: u32) -> Vec<u8> {
+    gub(&format!(
+        "fn count() -> Int:\n    var i = 0\n    while i < {iterations}:\n        set i = i + 1\n    return i\n\nfn main() -> Int:\n    return 0\n"
+    ))
+}
+
+fn run_count(artifact: &[u8], limits: &str) -> serde_json::Value {
+    let request = format!(
+        r#"{{"abi":{{"major":1,"minor":0}},"entry":"count","arguments":[],"capabilities":[],"limits":{limits}}}"#
+    );
+    serde_json::from_slice(&execute_artifact_request(artifact, request.as_bytes())).unwrap()
+}
+
+#[test]
+fn v1_default_step_ceiling_is_unchanged_without_the_explicit_option() {
+    assert_eq!(MAX_BROWSER_STEPS, 10_000);
+    let artifact = busy_loop(10_000);
+    // The program needs more than 10,000 steps: the default budget stops it.
+    let stopped = run_count(&artifact, r#"{"steps":10000}"#);
+    assert_eq!(stopped["code"], "R_STEP_LIMIT");
+    // Asking for more steps without the option is refused, and `false` is the same as absent.
+    for limits in [
+        r#"{"steps":20000}"#,
+        r#"{"steps":20000,"allowRaisedSteps":false}"#,
+    ] {
+        let refused = run_count(&artifact, limits);
+        assert_eq!(refused["ok"], false, "{limits}");
+        assert_eq!(refused["code"], "E_ABI_LIMIT", "{limits}");
+    }
+}
+
+#[test]
+fn v1_allow_raised_steps_lifts_the_ceiling_to_the_stated_maximum_only() {
+    let artifact = busy_loop(10_000);
+    let finished = run_count(&artifact, r#"{"steps":100000,"allowRaisedSteps":true}"#);
+    assert_eq!(finished["ok"], true, "{finished}");
+    assert_eq!(finished["value"]["value"], "10000");
+    assert!(finished["steps"].as_u64().unwrap() > u64::from(MAX_BROWSER_STEPS));
+
+    // A raised budget is still a budget: a program that needs more is stopped.
+    let still_bounded = run_count(&artifact, r#"{"steps":20000,"allowRaisedSteps":true}"#);
+    assert_eq!(still_bounded["code"], "R_STEP_LIMIT");
+
+    // The hard ceiling holds even with the option.
+    let top = format!(
+        r#"{{"steps":{},"allowRaisedSteps":true}}"#,
+        MAX_RAISED_BROWSER_STEPS
+    );
+    assert_ne!(run_count(&artifact, &top)["code"], "E_ABI_LIMIT");
+    let over = format!(
+        r#"{{"steps":{},"allowRaisedSteps":true}}"#,
+        MAX_RAISED_BROWSER_STEPS + 1
+    );
+    assert_eq!(run_count(&artifact, &over)["code"], "E_ABI_LIMIT");
+    // The option does not lift the output ceiling.
+    let output = run_count(
+        &artifact,
+        r#"{"outputBytes":65537,"allowRaisedSteps":true}"#,
+    );
+    assert_eq!(output["code"], "E_ABI_LIMIT");
+}

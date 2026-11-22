@@ -16,7 +16,6 @@ use guion_vm_core::{
 };
 pub use guion_vm_core::{live_memory, set_live_memory_probe};
 use std::{
-    borrow::Cow,
     cmp::Ordering as CmpOrdering,
     collections::{BTreeMap, HashMap, HashSet},
     fs,
@@ -9734,13 +9733,6 @@ mod function_cache_tests {
         assert!(Arc::ptr_eq(&first_frame, &second_worker));
         assert_eq!(Arc::strong_count(&shared), 3);
     }
-}
-
-fn source_position(source: &str, offset: usize) -> (usize, usize) {
-    let prefix = &source[..offset.min(source.len())];
-    let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
-    let column = prefix.rsplit('\n').next().unwrap_or("").len() + 1;
-    (line, column)
 }
 
 fn atomic_replace_text(path: &Path, content: &str) -> std::io::Result<()> {

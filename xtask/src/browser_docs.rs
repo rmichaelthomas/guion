@@ -31,8 +31,14 @@ const ROWS: &[(&str, &str, &str, &str)] = &[
         "`E_ABI_LIMIT`",
     ),
     (
-        "Execution steps (a request may lower this, never raise it)",
+        "Execution steps (a request may lower this; raising it takes the option below)",
         "MAX_BROWSER_STEPS",
+        "steps",
+        "`E_ABI_LIMIT` for a request above it, `R_STEP_LIMIT` when a run reaches it",
+    ),
+    (
+        "Execution steps with `limits.allowRaisedSteps` (the hard ceiling; a request must opt in)",
+        "MAX_RAISED_BROWSER_STEPS",
         "steps",
         "`E_ABI_LIMIT` for a request above it, `R_STEP_LIMIT` when a run reaches it",
     ),

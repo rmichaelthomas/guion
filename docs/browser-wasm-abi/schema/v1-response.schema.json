@@ -19,7 +19,7 @@
         "ok": {"const": true},
         "value": {"$ref": "#/$defs/value"},
         "stdout": {"type": "string"},
-        "steps": {"type": "integer", "minimum": 0, "maximum": 10000}
+        "steps": {"type": "integer", "minimum": 0, "maximum": 50000000}
       }
     },
     "failure": {
@@ -31,7 +31,7 @@
         "code": {"type": "string", "minLength": 1},
         "message": {"type": "string"},
         "stdout": {"type": "string"},
-        "steps": {"type": "integer", "minimum": 0, "maximum": 10000}
+        "steps": {"type": "integer", "minimum": 0, "maximum": 50000000}
       }
     }
   }

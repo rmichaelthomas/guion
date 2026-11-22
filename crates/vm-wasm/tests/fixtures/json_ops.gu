@@ -1,0 +1,102 @@
+import "std:json"
+import "std:types"
+
+fn line(label: Text, value: Text) -> Text:
+    return label + "=" + value + "\n"
+
+fn bool_text(value: Bool) -> Text:
+    if value:
+        return "true"
+    return "false"
+
+fn doc() -> Json:
+    return unwrap(json_parse("{\"name\":\"beacon\",\"round\":2038648,\"ok\":true,\"list\":[10,20,30]}"))
+
+fn error_of(text: Text) -> Text:
+    match json_parse(text):
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return f"{json_error_code(problem)} {json_error_line(problem)}"
+
+fn try_text_of(value: Json) -> Text:
+    match json_try_text(value):
+        Ok(text):
+            return text
+        Err(problem):
+            return json_error_code(problem)
+
+fn try_get_of(value: Json, key: Text) -> Text:
+    match json_try_get(value, key):
+        Ok(found):
+            return "found"
+        Err(problem):
+            return json_error_code(problem)
+
+fn try_int_of(value: Json) -> Text:
+    match json_try_int(value):
+        Ok(number):
+            return int_to_text(number)
+        Err(problem):
+            return json_error_code(problem)
+
+fn try_index_of(value: Json, index: Int) -> Text:
+    match json_try_index(value, index):
+        Ok(found):
+            return "found"
+        Err(problem):
+            return json_error_code(problem)
+
+fn transcript() -> Text:
+    var out = ""
+    let value = doc()
+    set out = out + line("parse ok", bool_text(error_of("[1,2]") == "ok"))
+    set out = out + line("parse error", error_of("{\"a\": [}"))
+    set out = out + line("parse duplicate", error_of("{\"a\":1,\"a\":2}"))
+    set out = out + line("get text", json_as_text(json_get(value, "name")))
+    set out = out + line("get int", int_to_text(json_as_int(json_get(value, "round"))))
+    set out = out + line("index", int_to_text(json_as_int(json_index(json_get(value, "list"), 1))))
+    set out = out + line("len array", int_to_text(json_len(json_get(value, "list"))))
+    set out = out + line("len object", int_to_text(json_len(value)))
+    set out = out + line("has", bool_text(json_has(value, "name")))
+    set out = out + line("has not", bool_text(json_has(value, "nope")))
+    set out = out + line("as_text", json_as_text(json_get(value, "name")))
+    set out = out + line("as_int", int_to_text(json_as_int(json_get(value, "round"))))
+    set out = out + line("as_bool", bool_text(json_as_bool(json_get(value, "ok"))))
+    set out = out + line("try text", try_text_of(json_get(value, "name")))
+    set out = out + line("try missing", try_get_of(value, "nope"))
+    set out = out + line("try shape", try_get_of(json_get(value, "list"), "x"))
+    set out = out + line("try type", try_int_of(json_get(value, "name")))
+    set out = out + line("try int", try_int_of(json_get(value, "round")))
+    set out = out + line("try index range", try_index_of(json_get(value, "list"), 9))
+    set out = out + line("try index negative", try_index_of(json_get(value, "list"), 0 - 1))
+    let built = json_set(json_set(json_object(), "a", json_int(1)), "b", json_push(json_push(json_array(), json_int(1)), json_int(2)))
+    set out = out + line("stringify", json_stringify(built))
+    set out = out + line("set", json_stringify(json_set(value, "name", json_text("changed"))))
+    var local = json_object()
+    set local = json_set(local, "x", json_bool(true))
+    set local = json_set(local, "y", json_null())
+    var items = json_array()
+    set items = json_push(items, json_text("one"))
+    set items = json_push(items, json_float(1.5))
+    set out = out + line("local set", json_stringify(local) + json_stringify(items))
+    set out = out + line("is null", bool_text(json_is_null(json_get(local, "y"))))
+    return out
+
+fn raise_key() -> Int:
+    return json_len(json_get(doc(), "nope"))
+
+fn raise_index() -> Int:
+    return json_len(json_index(json_get(doc(), "list"), 7))
+
+fn raise_object() -> Int:
+    return json_len(json_get(json_get(doc(), "list"), "x"))
+
+fn raise_text() -> Int:
+    return len(json_as_text(json_get(doc(), "round")))
+
+fn raise_len() -> Int:
+    return json_len(json_get(doc(), "name"))
+
+fn main() -> Int:
+    return 0

@@ -952,6 +952,7 @@ dependencies = [
  "guion-model",
  "memchr",
  "regex",
+ "serde",
  "serde_json",
 ]
 
@@ -962,6 +963,7 @@ dependencies = [
  "base64",
  "guion-compiler",
  "guion-model",
+ "guion-runtime",
  "guion-vm-core",
  "serde",
  "serde_json",

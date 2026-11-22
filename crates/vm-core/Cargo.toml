@@ -11,6 +11,7 @@ guion-model.workspace = true
 guion-crypto.workspace = true
 memchr = "2"
 regex = "1"
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
