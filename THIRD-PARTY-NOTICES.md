@@ -13,6 +13,13 @@ The exact Rust dependency graph is recorded in [`Cargo.lock`](Cargo.lock). Relea
 - `flate2` 1.1.10 (MIT OR Apache-2.0), with its `miniz_oxide` 0.9.1 backend (MIT OR Zlib OR Apache-2.0), which in turn uses `adler2` 2.0.1 (0BSD OR MIT OR Apache-2.0), `simd-adler32` 0.3.10 (MIT) and `crc32fast` 1.5.2 (MIT OR Apache-2.0).
 - `tar` 0.4.46 (MIT OR Apache-2.0), with `filetime` 0.2.29 (MIT OR Apache-2.0).
 
+### Cryptography
+
+`guion-crypto` (the `Crypto` instruction behind `std:crypto`'s SHA-512 and SHA3-512) uses these pure-Rust RustCrypto crates, pinned exactly in the workspace `Cargo.toml`. They need no C compiler and build for the browser VM as well as the native runtime.
+
+- `sha2` 0.10.9 (MIT OR Apache-2.0), also used elsewhere in the workspace, with `digest` 0.10.7 (MIT OR Apache-2.0).
+- `sha3` 0.10.8 (MIT OR Apache-2.0), with `keccak` 0.1.6 (Apache-2.0 OR MIT).
+
 ## Other bundled or evaluated components
 
 - The pinned `uv` tool's Apache-2.0 and MIT license texts are retained in [`distribution/licenses/`](distribution/licenses/).

@@ -7,9 +7,10 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, CodecFunction, FileErrorValue, Float64, FsFunction, HttpErrorValue,
-    JsonErrorValue, MathFunction, NativeResourceValue, Op, RegexFunction, RuntimeError,
-    ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    Artifact, BigInt, CodecFunction, CryptoFunction, FileErrorValue, Float64, FsFunction,
+    HttpErrorValue, JsonErrorValue, MathFunction, NativeResourceValue, Op, RegexFunction,
+    RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
+    TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -2804,6 +2805,23 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Crypto(function) => {
+                let function = *function;
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let value = apply_crypto(function, operands).map_err(|(code, message)| {
+                    RuntimeError::new(code, message, instruction.span)
+                })?;
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::Regex(function) => {
                 let function = *function;
                 let mut operands = Vec::with_capacity(function.arity());
@@ -5107,6 +5125,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::Math(function) => function.op_name(),
         Op::Array(function, _) => function.op_name(),
         Op::Codec(function) => function.op_name(),
+        Op::Crypto(function) => function.op_name(),
         Op::Fs(function) => function.op_name(),
         Op::Regex(function) => function.op_name(),
         Op::Process(function) => function.op_name(),
@@ -7444,6 +7463,62 @@ fn apply_regex(
         RegexFunction::Escape => unreachable!("handled above"),
     };
     Ok(Value::ResultOk(Box::new(ok)))
+}
+
+/// Operand and result types of a crypto function; operands are listed in push order. A function
+/// that can fail returns `Result[T, StdError]`, built by [`crypto_result`].
+fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
+    match function {
+        CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => (vec![Type::Bytes], Type::Bytes),
+    }
+}
+
+/// The Guion `StdError` value for a failed crypto function: the crate's `code` and `message`,
+/// with no path, line or column.
+fn crypto_error_value(error: guion_crypto::CryptoError) -> Value {
+    Value::Record(
+        "StdError".into(),
+        Shared::new(vec![
+            Value::Text(SharedText::from(error.code)),
+            Value::Text(SharedText::from(error.message.as_str())),
+            Value::Text(SharedText::from("")),
+            Value::Int(BigInt::from_i64(0)),
+            Value::Int(BigInt::from_i64(0)),
+        ]),
+    )
+}
+
+/// Wraps what a fallible crypto function returned as the Guion `Result` value.
+#[allow(dead_code)]
+fn crypto_result(outcome: Result<Value, guion_crypto::CryptoError>) -> Value {
+    match outcome {
+        Ok(value) => Value::ResultOk(Box::new(value)),
+        Err(error) => Value::ResultErr(Box::new(crypto_error_value(error))),
+    }
+}
+
+/// Runs a crypto function over its operands (in push order). A wrong operand type is a runtime
+/// error; a failure of the function itself is a `Result` value, never a panic.
+fn apply_crypto(
+    function: CryptoFunction,
+    mut operands: Vec<Value>,
+) -> Result<Value, (&'static str, &'static str)> {
+    const TYPE: (&str, &str) = (
+        "R_TYPE_INVALID",
+        "crypto function received an invalid operand",
+    );
+    match function {
+        CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => {
+            let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let digest = match function {
+                CryptoFunction::Sha512 => guion_crypto::sha512(&data),
+                _ => guion_crypto::sha3_512(&data),
+            };
+            Ok(Value::Bytes(Shared::new(digest.to_vec())))
+        }
+    }
 }
 
 /// Operand and result types of a codec function; operands are listed in push order.

@@ -2963,6 +2963,22 @@
       "operation": "CodecSha256"
     },
     {
+      "name": "native_crypto_sha512",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CryptoSha512"
+    },
+    {
+      "name": "native_crypto_sha3_512",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CryptoSha3_512"
+    },
+    {
       "name": "native_bytes_xor",
       "parameters": [
         "Bytes",

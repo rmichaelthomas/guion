@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/model", "crates/compiler", "crates/vm-core", "crates/vm-wasm", "crates/runtime", "crates/cli", "crates/bootstrap", "xtask"]
+members = ["crates/model", "crates/crypto", "crates/compiler", "crates/vm-core", "crates/vm-wasm", "crates/runtime", "crates/cli", "crates/bootstrap", "xtask"]
 
 [workspace.package]
 version = "0.7.0"
@@ -12,10 +12,12 @@ guion-model = { path = "crates/model" }
 guion-compiler = { path = "crates/compiler" }
 guion-runtime = { path = "crates/runtime" }
 guion-vm-core = { path = "crates/vm-core" }
+guion-crypto = { path = "crates/crypto" }
 toml = "=1.1.8"
 serde_json = { version = "=1.0.151", features = ["arbitrary_precision"] }
 serde = "=1.0.229"
 sha2 = "=0.10.9"
+sha3 = "=0.10.8"
 hmac = "=0.12.1"
 rusqlite = { version = "=0.37.0", default-features = false, features = ["bundled", "hooks"] }
 toml_edit = "=0.25.13"

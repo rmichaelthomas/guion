@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+const STDIN_FIRST_FORMAT: u32 = 77;
+
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
 struct Project(PathBuf);
@@ -271,7 +273,8 @@ fn old_format_rejects_stdin_ops() {
         .code
         .iter()
         .any(|instruction| matches!(instruction.op, Op::StdinReadLine))));
-    let previous = Artifact::CURRENT_VERSION - 1;
+    // The stdin instructions arrived in format 77; later formats keep accepting them.
+    let previous = STDIN_FIRST_FORMAT - 1;
     artifact.format_version = previous;
     assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
     let mut old = current;

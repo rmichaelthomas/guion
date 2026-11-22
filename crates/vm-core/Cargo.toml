@@ -8,6 +8,7 @@ license.workspace = true
 
 [dependencies]
 guion-model.workspace = true
+guion-crypto.workspace = true
 memchr = "2"
 regex = "1"
 serde_json.workspace = true

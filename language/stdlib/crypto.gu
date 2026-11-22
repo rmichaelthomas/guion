@@ -1,12 +1,15 @@
 import "std:encoding"
 import "std:types"
 
-# std:crypto: HMAC-SHA-256, SHA-256 and SHA-1 digests, and byte XOR.
+# std:crypto: HMAC-SHA-256, SHA-256, SHA-512, SHA3-512 and SHA-1 digests, and byte XOR.
 #
 # crypto_sha256 and crypto_sha256_text digest a value held in memory and return the 32-byte
 # digest. crypto_sha256_file reads the file in fixed-size blocks, so memory stays constant for
 # any file size; it needs the file-read grant (effect filesystem.read) and returns a typed
 # StdError for a missing or ungranted path.
+#
+# crypto_sha512 and crypto_sha3_512 digest a value held in memory and return the 64-byte digest
+# (SHA-512 from FIPS 180-4, SHA3-512 from FIPS 202). Both are pure and need no grant.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
 # from the operating system's cryptographic generator (getentropy on macOS, getrandom on Linux).
@@ -32,6 +35,12 @@ pub fn crypto_sha256(data: Bytes) -> Bytes:
 
 pub fn crypto_sha256_text(text: Text) -> Bytes:
     return native_crypto_sha256(bytes_from_text(text))
+
+pub fn crypto_sha512(data: Bytes) -> Bytes:
+    return native_crypto_sha512(data)
+
+pub fn crypto_sha3_512(data: Bytes) -> Bytes:
+    return native_crypto_sha3_512(data)
 
 pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]:
     match native_fs_sha256(path):

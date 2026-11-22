@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, fs};
 
 use guion_model::{
-    ArrayFunction, Artifact, BigInt, CodecFunction, ElementType, ExternalFunction, Float64,
-    FsFunction, Function, Instruction, MathFunction, NetFunction, Op, ProcessFunction,
+    ArrayFunction, Artifact, BigInt, CodecFunction, CryptoFunction, ElementType, ExternalFunction,
+    Float64, FsFunction, Function, Instruction, MathFunction, NetFunction, Op, ProcessFunction,
     RecordDefinition, RecordField, RegexFunction, Span, TlsFunction, Type, Value,
 };
 use serde_json::Value as Json;
@@ -534,9 +534,14 @@ fn parse_instruction(
             (None, None, None, None, None, Some(function), _) => Op::Net(function),
             (None, None, None, None, None, None, Some(function)) => Op::Tls(function),
             (None, None, None, None, None, None, None) => {
-                return Err(format!(
-                    "unsupported IR opcode `{op_name}` at instruction {pc}"
-                ))
+                match CryptoFunction::from_op_name(other) {
+                    Some(function) => Op::Crypto(function),
+                    None => {
+                        return Err(format!(
+                            "unsupported IR opcode `{op_name}` at instruction {pc}"
+                        ))
+                    }
+                }
             }
         },
     };

@@ -224,3 +224,57 @@ fn main() -> Int:
         String::from_utf8_lossy(&pinned.stderr)
     );
 }
+
+const SHA512_ABC: &str = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f";
+const SHA3_512_ABC: &str = "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0";
+
+const SHA512_PROGRAM: &str = r#"import "std:crypto"
+import "std:encoding"
+fn main() -> Int:
+    assert(hex_encode(crypto_sha512(bytes_from_text(""))) == "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e")
+    assert(hex_encode(crypto_sha512(bytes_from_text("abc"))) == "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f")
+    assert(hex_encode(crypto_sha3_512(bytes_from_text(""))) == "a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c11e3e9402c3ac558f500199d95b6d3e301758586281dcd26")
+    assert(hex_encode(crypto_sha3_512(bytes_from_text("abc"))) == "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0")
+    assert(len(bytes_to_ints(crypto_sha512(bytes_from_text("abc")))) == 64)
+    assert(len(bytes_to_ints(crypto_sha3_512(bytes_from_text("abc")))) == 64)
+    return 0
+"#;
+
+#[test]
+fn sha512_and_sha3_512_run_from_a_program() {
+    let scratch = Scratch::new("sha512-program");
+    let output = run_with_root(&scratch, SHA512_PROGRAM);
+    assert_success(&output);
+    // The constants above are the NIST vectors; keep them tied to the unit-test values.
+    assert_eq!(SHA512_ABC.len(), 128);
+    assert_eq!(SHA3_512_ABC.len(), 128);
+}
+
+#[test]
+fn old_format_rejects_crypto_ops() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("crypto-old-format");
+    std::fs::write(scratch.0.join("main.gu"), SHA512_PROGRAM).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
+    let previous = Artifact::CURRENT_VERSION - 1;
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}

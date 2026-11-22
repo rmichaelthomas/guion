@@ -1,0 +1,38 @@
+//! Pure cryptography for Guion's `Crypto` instruction.
+//!
+//! This crate does no I/O, reads no clock and never draws randomness: anything that needs
+//! entropy receives it as an argument. It has no C dependency, so it builds for
+//! `wasm32-unknown-unknown` and the browser VM gets every function through `guion-vm-core`.
+//! No function here panics on any input; a function that can fail returns [`CryptoError`],
+//! which the VM turns into a Guion `StdError` carrying the same `code`.
+//!
+//! To add a function: write it here, add a `CryptoFunction` variant in `guion-model`, a dispatch
+//! arm in `guion_vm_core::apply_crypto` and a wrapper in `language/stdlib/crypto.gu`.
+
+mod hash;
+
+pub use hash::{sha3_512, sha512};
+
+/// A failed cryptographic operation: a stable machine-readable `code` and a human `message`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CryptoError {
+    pub code: &'static str,
+    pub message: String,
+}
+
+impl CryptoError {
+    pub fn new(code: &'static str, message: impl Into<String>) -> Self {
+        CryptoError {
+            code,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for CryptoError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for CryptoError {}

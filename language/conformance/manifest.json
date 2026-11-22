@@ -11046,6 +11046,34 @@
       }
     },
     {
+      "id": "opcode-crypto",
+      "kind": "opcode",
+      "name": "Crypto",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-crypto.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-crypto.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-crypto.interaction",
+          "state": "implemented",
+          "owner_task": 4
+        }
+      }
+    },
+    {
       "id": "type-channel",
       "kind": "type",
       "name": "Channel",

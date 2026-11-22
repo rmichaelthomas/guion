@@ -929,6 +929,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(result);
             }
+            Op::Crypto(function) => {
+                let (parameters, result) = crypto_signature(*function);
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(result);
+            }
             Op::Tls(function) => {
                 let expected: &[Type] = match function {
                     guion_model::TlsFunction::Connect => {

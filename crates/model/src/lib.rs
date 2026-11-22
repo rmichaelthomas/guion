@@ -124,9 +124,10 @@ mod shared_text_tests {
 mod tests {
     use super::Shared;
     use super::{
-        Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue,
-        FsFunction, Function, Instruction, JsonErrorValue, NetFunction, Op, PackageIdentity,
-        ProcessFunction, RegexFunction, ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
+        Artifact, BigInt, BuildMetadata, CodecFunction, CryptoFunction, ExternalFunction,
+        FileErrorValue, FsFunction, Function, Instruction, JsonErrorValue, NetFunction, Op,
+        PackageIdentity, ProcessFunction, RegexFunction, ResourceLimits, SharedJson, Span,
+        TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1441,6 +1442,12 @@ mod tests {
             Artifact::from_bytes(&old).unwrap_err().code,
             "E_ARTIFACT_VERSION"
         );
+    }
+
+    #[test]
+    fn old_format_rejects_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::Sha512), 78);
+        assert_gated(Op::Crypto(CryptoFunction::Sha3_512), 78);
     }
 
     #[test]
@@ -3811,6 +3818,54 @@ impl CodecFunction {
     }
 }
 
+/// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
+/// Codes are part of artifact format 78 and append-only: a later release adds codes after the
+/// last one and never renumbers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CryptoFunction {
+    /// SHA-512 digest of a byte string (code 0).
+    Sha512,
+    /// SHA3-512 digest of a byte string (code 1).
+    Sha3_512,
+}
+
+impl CryptoFunction {
+    const ALL: [CryptoFunction; 2] = [CryptoFunction::Sha512, CryptoFunction::Sha3_512];
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every crypto function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            CryptoFunction::Sha512 => "CryptoSha512",
+            CryptoFunction::Sha3_512 => "CryptoSha3_512",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => 1,
+        }
+    }
+}
+
 /// Filesystem operations behind `Op::Fs`. Every path is checked against the host's file grants.
 /// Codes are part of artifact format 54.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -4391,6 +4446,7 @@ pub enum Op {
     FirstValue(usize),
     StdinReadLine,
     StdinReadAll,
+    Crypto(CryptoFunction),
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4595,7 +4651,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 77;
+    pub const CURRENT_VERSION: u32 = 78;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4949,6 +5005,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "random bytes require artifact format 68",
+            ));
+        }
+        if self.format_version < 78 && artifact_uses_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "cryptographic instructions require artifact format 78",
             ));
         }
         if self.format_version < 77 && artifact_uses_stdin(self) {
@@ -5324,6 +5386,10 @@ impl Artifact {
                     }
                     Op::StdinReadLine => w.u8(221),
                     Op::StdinReadAll => w.u8(222),
+                    Op::Crypto(function) => {
+                        w.u8(223);
+                        w.u8(function.code());
+                    }
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -5917,6 +5983,21 @@ impl Artifact {
                             "E_ARTIFACT_VERSION",
                             "standard input reads require artifact format 77",
                         ));
+                    }
+                    223 if format_version < 78 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "cryptographic instructions require artifact format 78",
+                        ));
+                    }
+                    223 => {
+                        let code = r.u8()?;
+                        Op::Crypto(CryptoFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("crypto instruction has unknown function code {code}"),
+                            )
+                        })?)
                     }
                     221 => Op::StdinReadLine,
                     222 => Op::StdinReadAll,
@@ -6737,6 +6818,15 @@ fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::RandomBytes))
+    })
+}
+
+fn artifact_uses_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Crypto(_)))
     })
 }
 
