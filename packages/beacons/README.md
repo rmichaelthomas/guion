@@ -1,7 +1,7 @@
 # beacons
 
 Checking public randomness beacons in Guion. This covers multiformats, drand, and Twine with CURBy
-(including the quantum chain CURBy-Q); NIST comes in a later part. Every function is plain Guion over `std:crypto`, `std:encoding` and
+(including the quantum chain CURBy-Q), and the NIST Randomness Beacon 2.0. Every function is plain Guion over `std:crypto`, `std:encoding` and
 `http_get`.
 
 Capabilities (declared in `guion.toml`): `network` to `api.drand.sh`, `drand.cloudflare.com`,
@@ -85,6 +85,57 @@ RS256, PS256 and ES256 are implemented; the fixtures exercise RS256 and ES256 (n
   is `links[0]`, the signature is RS256 (deterministic), and `SHA3-512(salt XOR digest(previous CID))` equals
   the `pre` multihash in `previous`'s payload. The crate also checks that timestamps are one period apart;
   this package does not. `E_CURBY_RNG` otherwise.
+
+## NIST Beacon 2.0 (`src/nist.gu`)
+
+Sources: NISTIR 8213 (draft), "A Reference for Randomness Beacons: Format and Protocol Version 2"
+(https://nvlpubs.nist.gov/nistpubs/ir/2019/NIST.IR.8213-draft.pdf), sections 3.1 to 4.9 and Algorithm 2, and the
+live service at https://beacon.nist.gov/beacon/2.0. Where the draft and the service differ, the service wins; this
+was found by testing serializations against live pulses, and a third-party verifier guide
+(https://beacon-6sg.pages.dev/guides/nist-verification) agreed with the service.
+
+Facts, each confirmed on live pulses (pulse 2038648 of chain 2, 2026-11-22, and others):
+
+- **Cipher suite 0**: SHA-512 for every hash and RSA PKCS#1 v1.5 with SHA-512 for the signature.
+- **What is signed** (fields 1 to 19, in this order): `uri`, `version`, `cipherSuite`, `period`, `certificateId`,
+  `chainIndex`, `pulseIndex`, `timeStamp`, `localRandomValue`, `external.sourceId`, `external.statusCode`,
+  `external.value`, `previous`, `hour`, `day`, `month`, `year` (the five `listValues` by type), `precommitmentValue`,
+  `statusCode`. Serialization: `uri`, `version`, `timeStamp` and every hex field (hex decoded) are a **4-byte**
+  big-endian length then the bytes; `cipherSuite`, `period`, `external.statusCode` and `statusCode` are 4 bytes
+  big-endian; `chainIndex` and `pulseIndex` are 8 bytes big-endian. `version` is the text `2.0` as served. The
+  message is this serialization and the scheme hashes it. NISTIR 8213 (draft) says 8-byte length prefixes and an
+  8-byte `external.statusCode`; the live service does not (tried all combinations: only 4 and 4 verify).
+- **`outputValue`** = SHA-512(serialization of fields 1 to 19 || raw `signatureValue` bytes). The signature is
+  appended raw, with no length prefix (the draft's Algorithm 3 prefixes it; the service does not).
+- **`certificateId`** = SHA-512 of the signing certificate's **DER** (not of the PEM text), served as PEM at
+  `https://beacon.nist.gov/beacon/2.0/certificate/<certificateId in hex>`. Pulses by index:
+  `/beacon/2.0/chain/<chain>/pulse/<index>`; newest: `/beacon/2.0/pulse/last`. Hex in the JSON is upper case.
+- **Precommitment**: `precommitmentValue` of pulse n = SHA-512(`localRandomValue` of pulse n+1), and pulse n+1's
+  `previous` listValue = pulse n's `outputValue` (confirmed on 2038647 and 2038648 and on the pair across a UTC day
+  boundary).
+
+Functions:
+
+- `record NistPulse`: the JSON pulse with hex fields decoded to `Bytes` (`uri, version, cipher_suite, period,
+  certificate_id, chain_index, pulse_index, time_stamp, local_random_value, external_source_id,
+  external_status_code, external_value, previous, hour, day, month, year, precommitment_value, status_code,
+  signature, output_value`).
+- `nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]` (`E_NIST_FORMAT`).
+- `nist_verify(pulse, certificate_pem: Text) -> Result[Bool, StdError]`: the signature, `certificateId`, and
+  `outputValue`. This takes the certificate PEM as a second argument (the brief's one-argument form cannot work
+  offline). `Ok(false)` on any mismatch, never true for a tampered pulse; `E_NIST_SUITE` for a cipher suite other
+  than 0. It does not check that a CA issued the certificate.
+- `nist_verify_precommitment(previous, current) -> Result[Bool, StdError]`: `current` is the next pulse of the same
+  chain, links to `previous`, and `previous.precommitment_value == SHA-512(current.local_random_value)`. It does
+  not check signatures.
+- `nist_fetch_last()`, `nist_fetch(chain, pulse)`, `nist_fetch_certificate(pulse)`: fetch only (`E_NIST_FETCH`).
+- `nist_signed_bytes(pulse)`, `nist_output_value(pulse)`: the serialization and the recomputed output value.
+
+NIST tests run offline on fixtures saved live (`nist-pulse-2038647/2038648/2038144/2038145.json`,
+`nist-certificate.pem`): the last pulse, two consecutive pulses, a pair across the 2026-11-21/22 UTC midnight, a
+tampered `localRandomValue` (false), and other tampering. `live_nist.gu` is the live check (newest pulse, five
+earlier pulses with their precommitments, and the day-boundary pair), recorded to `tapes/nist-live.tape`; record
+again with `guion run --allow-http-host beacon.nist.gov --record tapes/nist-live.tape live_nist.gu`.
 
 ## Tests
 

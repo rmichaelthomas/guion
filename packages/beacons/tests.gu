@@ -449,3 +449,109 @@ fn test_curby_randomness_matches_the_reference_client() -> Unit:
     assert(json_as_int(json_get(pulses[0].content, "index")) == 1616432)
     let bits = unwrap(curby_rng_randomness(chain, pulses[0], pulses[1]))
     assert(hex_encode(bits) == "14d681647739d2211c6e3b0f6d42060ec086e8ade622ef8d29180b5bbaa7ffc63a86ce93be33225de816c561f6e2c482b44bfc8c09d32bd2960d026d62b26bba")
+
+# NIST Beacon 2.0. Fixtures saved live from beacon.nist.gov: consecutive pulses 2038647 and 2038648,
+# the last pulse of one UTC day (2038144, 2026-11-21T23:59Z) and the first of the next (2038145), and
+# the certificate all four name.
+fn nist_doc(index: Int) -> Json:
+    return unwrap(json_parse(unwrap(text_from_bytes(read_fixture(f"fixtures/nist-pulse-{index}.json")))))
+
+fn nist_pulse(index: Int) -> NistPulse:
+    return unwrap(nist_pulse_from_json(nist_doc(index)))
+
+fn nist_pem() -> Text:
+    return unwrap(text_from_bytes(read_fixture("fixtures/nist-certificate.pem")))
+
+fn nist_tampered(index: Int, field: Text, value: Json) -> NistPulse:
+    let doc = nist_doc(index)
+    return unwrap(nist_pulse_from_json(json_set(doc, "pulse", json_set(json_get(doc, "pulse"), field, value))))
+
+fn test_nist_pulse_fields_are_decoded() -> Unit:
+    let pulse = nist_pulse(2038648)
+    assert(pulse.pulse_index == 2038648)
+    assert(pulse.chain_index == 2)
+    assert(pulse.cipher_suite == 0)
+    assert(pulse.period == 60000)
+    assert(pulse.time_stamp == "2026-11-22T08:23:00.000Z")
+    assert(len(pulse.local_random_value) == 64)
+    assert(len(pulse.signature) == 512)
+    assert(hex_encode(pulse.output_value) == "346ac4fbdf68dfc2b9c8" + text_slice(hex_encode(pulse.output_value), 20, 128))
+
+fn test_nist_verify_the_last_pulse() -> Unit:
+    assert(is_true(nist_verify(nist_pulse(2038648), nist_pem())))
+    assert(is_true(nist_verify(nist_pulse(2038647), nist_pem())))
+
+fn test_nist_verify_across_a_day_boundary() -> Unit:
+    let before = nist_pulse(2038144)
+    let after = nist_pulse(2038145)
+    assert(text_slice(before.time_stamp, 0, 10) == "2026-11-21")
+    assert(text_slice(after.time_stamp, 0, 10) == "2026-11-22")
+    assert(is_true(nist_verify(before, nist_pem())))
+    assert(is_true(nist_verify(after, nist_pem())))
+    assert(is_true(nist_verify_precommitment(before, after)))
+
+fn test_nist_precommitment_of_consecutive_pulses() -> Unit:
+    assert(is_true(nist_verify_precommitment(nist_pulse(2038647), nist_pulse(2038648))))
+    # wrong order, and pulses that are not neighbours
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038648), nist_pulse(2038647))))
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038144), nist_pulse(2038648))))
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038647), nist_pulse(2038647))))
+
+fn test_nist_tampered_local_random_value_is_false() -> Unit:
+    let bad = nist_tampered(2038648, "localRandomValue", json_text("F73265622184EBFF7614018375AF605A8D0395C23F5E5335623B269367AFF70A35B66D766CC774614792F39287D6F8247289986EC6E5270C19A7990439874D2A"))
+    match nist_verify(bad, nist_pem()):
+        Ok(value):
+            assert(not value)
+        Err(problem):
+            assert(false)
+    # the previous pulse's precommitment no longer matches it either
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038647), bad)))
+
+fn test_nist_other_tampering_is_never_true() -> Unit:
+    let pem = nist_pem()
+    assert(not is_true(nist_verify(nist_tampered(2038648, "timeStamp", json_text("2026-11-22T08:24:00.000Z")), pem)))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "pulseIndex", json_int(2038649)), pem)))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "statusCode", json_int(1)), pem)))
+    let sig = json_as_text(json_get(json_get(nist_doc(2038648), "pulse"), "signatureValue"))
+    let flipped = "00" + text_slice(sig, 2, len(sig))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "signatureValue", json_text(flipped)), pem)))
+    # the output value must match too
+    let out = json_as_text(json_get(json_get(nist_doc(2038648), "pulse"), "outputValue"))
+    let bad_out = "00" + text_slice(out, 2, len(out))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "outputValue", json_text(bad_out)), pem)))
+    # a different pulse's signature
+    let other = json_as_text(json_get(json_get(nist_doc(2038647), "pulse"), "signatureValue"))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "signatureValue", json_text(other)), pem)))
+
+fn test_nist_certificate_must_be_the_named_one() -> Unit:
+    # certificateId is SHA-512 of the certificate's DER; another certificate is false, not true
+    let other = unwrap(text_from_bytes(read_fixture("fixtures/round1000.age")))
+    assert(code_of_bool(nist_verify(nist_pulse(2038648), other)) != "true")
+    assert(code_of_bool(nist_verify(nist_pulse(2038648), "")) != "true")
+
+fn code_of_bool(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn test_nist_malformed_pulse_is_e_nist_format() -> Unit:
+    match nist_pulse_from_json(json_object()):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_NIST_FORMAT")
+    let doc = nist_doc(2038648)
+    let missing = json_set(doc, "pulse", json_set(json_get(doc, "pulse"), "localRandomValue", json_text("zz")))
+    match nist_pulse_from_json(missing):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_NIST_FORMAT")
+
+fn test_nist_unknown_cipher_suite_is_an_error() -> Unit:
+    let odd = nist_tampered(2038648, "cipherSuite", json_int(1))
+    assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_SUITE")

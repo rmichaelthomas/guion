@@ -1,5 +1,5 @@
 //! The `beacons` package (packages/beacons): its own tests, the recorded live check of 100
-//! consecutive drand quicknet rounds, and the recorded CURBy check, each replayed with no network,
+//! consecutive drand quicknet rounds, the recorded CURBy check, and the recorded NIST check, each replayed with no network,
 //! clock or file grant.
 
 use std::path::{Path, PathBuf};
@@ -61,4 +61,13 @@ fn the_recorded_curby_check_replays_as_verified() {
         out.contains("CURBy-Q randomness (pulse 84646): 61c307b2"),
         "{out}"
     );
+}
+
+#[test]
+fn the_recorded_nist_check_replays_as_verified() {
+    let replayed = guion(&["run", "--replay", "tapes/nist-live.tape", "live_nist.gu"]);
+    let out = text(&replayed);
+    assert!(replayed.status.success(), "{out}");
+    assert!(out.contains("14/14 checks passed"), "{out}");
+    assert!(out.contains("day boundary: precommitment: true"), "{out}");
 }

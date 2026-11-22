@@ -1,0 +1,206 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "std:text"
+import "twine.gu"
+
+# The NIST Randomness Beacon, version 2.0 (https://beacon.nist.gov/beacon/2.0, NISTIR 8213), cipher
+# suite 0: SHA-512 and RSA PKCS#1 v1.5 with SHA-512.
+#
+# A pulse is signed over its fields 1 to 19 in this order, each serialized as below, and signed with
+# RSA PKCS#1 v1.5 / SHA-512 (the message is the serialization; SHA-512 happens inside the scheme):
+#   uri, version, timeStamp, and every hex field (certificateId, localRandomValue, external.sourceId,
+#   external.value, previous, hour, day, month, year, precommitmentValue):
+#       a 4-byte big-endian length, then the bytes (UTF-8 text, or the hex decoded)
+#   cipherSuite, period, external.statusCode, statusCode: 4 bytes big-endian
+#   chainIndex, pulseIndex: 8 bytes big-endian
+# in the order uri, version, cipherSuite, period, certificateId, chainIndex, pulseIndex, timeStamp,
+# localRandomValue, external.sourceId, external.statusCode, external.value, previous, hour, day,
+# month, year, precommitmentValue, statusCode. outputValue is SHA-512 of that same serialization
+# followed by the raw signature bytes (no length prefix). certificateId is SHA-512 of the signing
+# certificate's DER. A pulse n commits to the next with precommitmentValue[n] ==
+# SHA-512(localRandomValue[n+1]), and pulse n+1's previous is pulse n's outputValue.
+# NISTIR 8213 (draft) writes the length prefixes as 8 bytes and external.statusCode as 8; the live
+# service uses 4 and 4. The README records how this was found.
+#
+# Verifiers take an already-fetched pulse (and the certificate PEM); the fetch functions only fetch.
+# Needs the network grant for beacon.nist.gov for the fetch functions.
+#
+# Errors: E_NIST_FETCH (a request or its answer is bad), E_NIST_FORMAT (not a pulse), E_NIST_SUITE (a
+# cipher suite other than 0), plus the crypto codes (a certificate that is not an RSA certificate).
+
+pub record NistPulse:
+    uri: Text
+    version: Text
+    cipher_suite: Int
+    period: Int
+    certificate_id: Bytes
+    chain_index: Int
+    pulse_index: Int
+    time_stamp: Text
+    local_random_value: Bytes
+    external_source_id: Bytes
+    external_status_code: Int
+    external_value: Bytes
+    previous: Bytes
+    hour: Bytes
+    day: Bytes
+    month: Bytes
+    year: Bytes
+    precommitment_value: Bytes
+    status_code: Int
+    signature: Bytes
+    output_value: Bytes
+
+fn nist_error(code: Text, message: Text) -> StdError:
+    return std_error(code, message)
+
+fn base() -> Text:
+    return "https://beacon.nist.gov"
+
+fn field_text(value: Json, key: Text) -> Result[Text, StdError]:
+    match json_try_get(value, key):
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
+        Ok(found):
+            match json_try_text(found):
+                Ok(text):
+                    return Ok(text)
+                Err(problem):
+                    return Err(nist_error("E_NIST_FORMAT", f"{key} is not text"))
+
+fn field_int(value: Json, key: Text) -> Result[Int, StdError]:
+    match json_try_get(value, key):
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
+        Ok(found):
+            match json_try_int(found):
+                Ok(number):
+                    return Ok(number)
+                Err(problem):
+                    return Err(nist_error("E_NIST_FORMAT", f"{key} is not an integer"))
+
+fn decode_hex(text: Text, what: Text) -> Result[Bytes, StdError]:
+    match hex_decode(text):
+        Ok(bytes):
+            return Ok(bytes)
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"{what} is not hex"))
+
+fn field_hex(value: Json, key: Text) -> Result[Bytes, StdError]:
+    let text = field_text(value, key)?
+    return decode_hex(text, key)
+
+# The value of the listValues entry of a type ("previous", "hour", "day", "month", "year").
+fn list_value(entries: Json, kind: Text) -> Result[Bytes, StdError]:
+    var index = 0
+    while index < json_len(entries):
+        let entry = json_index(entries, index)
+        match json_try_text(json_get(entry, "type")):
+            Ok(found):
+                if found == kind:
+                    return field_hex(entry, "value")
+            Err(problem):
+                return Err(nist_error("E_NIST_FORMAT", "a listValues entry has no type"))
+        set index = index + 1
+    return Err(nist_error("E_NIST_FORMAT", f"listValues has no {kind}"))
+
+# A pulse from the JSON the service answers with ({"pulse": {...}}); a bare pulse object also works.
+pub fn nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]:
+    var value = answer
+    if has_key(answer, "pulse"):
+        set value = json_get(answer, "pulse")
+    if not has_key(value, "pulseIndex"):
+        return Err(nist_error("E_NIST_FORMAT", "not a beacon pulse"))
+    let external = match_key(value, "external")?
+    let entries = match_key(value, "listValues")?
+    return Ok(NistPulse(field_text(value, "uri")?, field_text(value, "version")?, field_int(value, "cipherSuite")?, field_int(value, "period")?, field_hex(value, "certificateId")?, field_int(value, "chainIndex")?, field_int(value, "pulseIndex")?, field_text(value, "timeStamp")?, field_hex(value, "localRandomValue")?, field_hex(external, "sourceId")?, field_int(external, "statusCode")?, field_hex(external, "value")?, list_value(entries, "previous")?, list_value(entries, "hour")?, list_value(entries, "day")?, list_value(entries, "month")?, list_value(entries, "year")?, field_hex(value, "precommitmentValue")?, field_int(value, "statusCode")?, field_hex(value, "signatureValue")?, field_hex(value, "outputValue")?))
+fn match_key(value: Json, key: Text) -> Result[Json, StdError]:
+    match json_try_get(value, key):
+        Ok(found):
+            return Ok(found)
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
+
+fn big_endian(value: Int, width: Int) -> Bytes:
+    var octets: List[Int] = []
+    var place = 1
+    var count = 1
+    while count < width:
+        set place = place * 256
+        set count = count + 1
+    var left = width
+    while left > 0:
+        set octets = list_push(octets, (value // place) % 256)
+        set place = place // 256
+        set left = left - 1
+    return bytes_from_ints(octets)
+
+fn prefixed(data: Bytes) -> Bytes:
+    return bytes_join([big_endian(len(data), 4), data])
+
+fn prefixed_text(text: Text) -> Bytes:
+    return prefixed(bytes_from_text(text))
+
+# The bytes the beacon signs: fields 1 to 19, serialized as the header describes.
+pub fn nist_signed_bytes(pulse: NistPulse) -> Bytes:
+    return bytes_join([prefixed_text(pulse.uri), prefixed_text(pulse.version), big_endian(pulse.cipher_suite, 4), big_endian(pulse.period, 4), prefixed(pulse.certificate_id), big_endian(pulse.chain_index, 8), big_endian(pulse.pulse_index, 8), prefixed_text(pulse.time_stamp), prefixed(pulse.local_random_value), prefixed(pulse.external_source_id), big_endian(pulse.external_status_code, 4), prefixed(pulse.external_value), prefixed(pulse.previous), prefixed(pulse.hour), prefixed(pulse.day), prefixed(pulse.month), prefixed(pulse.year), prefixed(pulse.precommitment_value), big_endian(pulse.status_code, 4)])
+# SHA-512 of the signed bytes followed by the signature: what outputValue must equal.
+pub fn nist_output_value(pulse: NistPulse) -> Bytes:
+    return crypto_sha512(bytes_join([nist_signed_bytes(pulse), pulse.signature]))
+
+# Checks a pulse against the certificate PEM it names: certificateId is SHA-512 of the certificate's
+# DER, the RSA PKCS#1 v1.5 / SHA-512 signature verifies under the certificate's key, and outputValue
+# is the hash of the serialization and signature. Ok(false) on any mismatch. The certificate chain
+# (that NIST's CA issued it) is not checked here.
+pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
+    if pulse.cipher_suite != 0:
+        return Err(nist_error("E_NIST_SUITE", f"cipher suite {pulse.cipher_suite} is not defined; only 0 is"))
+    let der = crypto_pem_decode(certificate_pem)?
+    if crypto_sha512(der) != pulse.certificate_id:
+        return Ok(false)
+    let key = crypto_x509_rsa_public_key(der)?
+    let signed = crypto_rsa_verify(key[0], key[1], nist_signed_bytes(pulse), pulse.signature, "pkcs1v15-sha512")?
+    if not signed:
+        return Ok(false)
+    return Ok(nist_output_value(pulse) == pulse.output_value)
+
+# True when `current` is the pulse right after `previous` in the same chain, names it as its
+# previous, and previous's precommitmentValue is SHA-512 of current's localRandomValue. It does
+# not check either pulse's signature (nist_verify does).
+pub fn nist_verify_precommitment(previous: NistPulse, current: NistPulse) -> Result[Bool, StdError]:
+    if previous.chain_index != current.chain_index or previous.pulse_index + 1 != current.pulse_index:
+        return Ok(false)
+    if previous.output_value != current.previous:
+        return Ok(false)
+    return Ok(previous.precommitment_value == crypto_sha512(current.local_random_value))
+
+fn fetch_pulse(url: Text) -> Result[NistPulse, StdError]:
+    match http_get(url):
+        Err(failure):
+            return Err(nist_error("E_NIST_FETCH", f"{url}: {http_error_message(failure)}"))
+        Ok(body):
+            match json_parse(body):
+                Err(problem):
+                    return Err(nist_error("E_NIST_FETCH", f"{url} answered with text that is not JSON"))
+                Ok(value):
+                    return nist_pulse_from_json(value)
+
+# The newest pulse. Fetches only; check it with nist_verify.
+pub fn nist_fetch_last() -> Result[NistPulse, StdError]:
+    return fetch_pulse("https://beacon.nist.gov/beacon/2.0/pulse/last")
+
+# A pulse by chain and index (the live chain is 2). Fetches only.
+pub fn nist_fetch(chain: Int, pulse: Int) -> Result[NistPulse, StdError]:
+    return fetch_pulse(f"https://beacon.nist.gov/beacon/2.0/chain/{chain}/pulse/{pulse}")
+
+# The PEM certificate a pulse names (certificateId). Fetches only; nist_verify checks that its hash
+# matches.
+pub fn nist_fetch_certificate(pulse: NistPulse) -> Result[Text, StdError]:
+    let url = f"https://beacon.nist.gov/beacon/2.0/certificate/{hex_encode(pulse.certificate_id)}"
+    match http_get(url):
+        Err(failure):
+            return Err(nist_error("E_NIST_FETCH", f"{url}: {http_error_message(failure)}"))
+        Ok(body):
+            return Ok(body)
