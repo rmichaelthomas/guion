@@ -28,6 +28,9 @@ import "multiformats.gu"
 # unsupported), E_TWINE_KEY (the JWK does not suit the algorithm), E_TWINE_MISSING (a linked pulse is
 # not in the pool), E_TWINE_FETCH (the network or the answer), plus encoding and CID codes.
 # A record that is well formed but does not check is Ok(false), never an error and never true.
+# Records come from the network, so nothing here stops the program on a bad shape: a missing or
+# mistyped member is one of the codes above (E_TWINE_KEY for a chain record with no key), never a
+# JSON error that ends the run.
 
 pub record TwineRecord:
     cid: Text
@@ -41,6 +44,21 @@ pub fn has_key(value: Json, key: Text) -> Bool:
 fn twine_error(code: Text, message: Text) -> StdError:
     return std_error(code, message)
 
+# The items of a JSON array, or None when the value is not an array. Never stops the program.
+pub fn json_items(value: Json) -> Option[List[Json]]:
+    var items: List[Json] = []
+    var index = 0
+    while true:
+        match json_try_index(value, index):
+            Ok(item):
+                set items = list_push(items, item)
+            Err(problem):
+                if json_error_code(problem) == "E_JSON_SHAPE":
+                    return None
+                return Some(items)
+        set index = index + 1
+    return Some(items)
+
 fn api() -> Text:
     return "https://random.colorado.edu/api"
 
@@ -51,7 +69,13 @@ pub fn twine_record_from_json(value: Json) -> Result[TwineRecord, StdError]:
     let data = json_get(value, "data")
     if not has_key(data, "content") or not has_key(data, "signature"):
         return Err(twine_error("E_TWINE_FORMAT", "a Twine record's data has content and signature"))
-    let cid = json_get(json_get(value, "cid"), "/")
+    match json_try_get(json_get(value, "cid"), "/"):
+        Err(problem):
+            return Err(twine_error("E_TWINE_FORMAT", "a Twine record's cid is {\"/\": text}"))
+        Ok(cid):
+            return record_from_parts(cid, data)
+
+fn record_from_parts(cid: Json, data: Json) -> Result[TwineRecord, StdError]:
     match json_try_text(cid):
         Err(problem):
             return Err(twine_error("E_TWINE_FORMAT", "a Twine record's cid is {\"/\": text}"))
@@ -68,12 +92,16 @@ pub fn twine_records_from_json(value: Json) -> Result[List[TwineRecord], StdErro
     if has_key(value, "cid"):
         let one = twine_record_from_json(value)?
         return Ok([one])
-    var i = 0
-    while i < json_len(value):
-        let one = twine_record_from_json(json_index(value, i))?
-        set records = list_push(records, one)
-        set i = i + 1
-    return Ok(records)
+    match json_items(value):
+        None:
+            return Err(twine_error("E_TWINE_FORMAT", "expected a Twine record or an array of records"))
+        Some(items):
+            var i = 0
+            while i < len(items):
+                let one = twine_record_from_json(items[i])?
+                set records = list_push(records, one)
+                set i = i + 1
+            return Ok(records)
 
 pub fn twine_find(records: List[TwineRecord], cid: Text) -> Result[TwineRecord, StdError]:
     var i = 0
@@ -119,7 +147,7 @@ pub fn base64_nopad_decode(text: Text) -> Result[Bytes, StdError]:
     return base64_decode(padded)
 
 fn jwk_text(key: Json, name: Text) -> Result[Text, StdError]:
-    match json_try_text(json_get(key, name)):
+    match json_try_get_text(key, name):
         Ok(value):
             return Ok(value)
         Err(problem):
@@ -166,7 +194,7 @@ fn record_holds(record: TwineRecord, key: Json) -> Result[Bool, StdError]:
             set header = value
         Err(problem):
             return Err(twine_error("E_TWINE_JWS", "the JWS header is not JSON"))
-    match json_try_text(json_get(header, "alg")):
+    match json_try_get_text(header, "alg"):
         Err(problem):
             return Err(twine_error("E_TWINE_ALG", "the JWS header has no alg"))
         Ok(alg):
@@ -182,16 +210,25 @@ fn record_holds(record: TwineRecord, key: Json) -> Result[Bool, StdError]:
             return signature_holds(alg, key, message, signature)
 
 fn chain_link_of(pulse: TwineRecord) -> Text:
-    match json_try_text(json_get(json_get(pulse.content, "chain"), "/")):
-        Ok(value):
-            return value
+    match json_try_get(pulse.content, "chain"):
         Err(problem):
             return ""
+        Ok(link):
+            match json_try_get_text(link, "/"):
+                Ok(value):
+                    return value
+                Err(problem):
+                    return ""
 
 # Is `record` (a pulse of `chain`, or `chain` itself) intact and signed by the chain's key? The
 # chain is checked against its own key first.
 pub fn twine_verify(chain: TwineRecord, record: TwineRecord) -> Result[Bool, StdError]:
-    let key = json_get(chain.content, "key")
+    var key = json_null()
+    match json_try_get(chain.content, "key"):
+        Ok(found):
+            set key = found
+        Err(problem):
+            return Err(twine_error("E_TWINE_KEY", "the chain record has no key"))
     if not record_holds(chain, key)?:
         return Ok(false)
     if has_key(record.content, "chain"):
@@ -203,23 +240,45 @@ pub fn twine_verify(chain: TwineRecord, record: TwineRecord) -> Result[Bool, Std
     return record_holds(record, key)
 
 fn index_of(pulse: TwineRecord) -> Int:
-    match json_try_int(json_get(pulse.content, "index")):
+    match json_try_get_int(pulse.content, "index"):
         Ok(value):
             return value
         Err(problem):
             return -1
 
-fn link_of(pulse: TwineRecord, position: Int) -> Text:
-    match json_try_text(json_get(json_index(json_get(pulse.content, "links"), position), "/")):
-        Ok(value):
-            return value
+# The CID text of links[position], or "" when there is no such link or it is not {"/": text}.
+pub fn twine_link(pulse: TwineRecord, position: Int) -> Text:
+    match json_try_get(pulse.content, "links"):
         Err(problem):
             return ""
+        Ok(links):
+            match json_try_index(links, position):
+                Err(problem):
+                    return ""
+                Ok(link):
+                    match json_try_get_text(link, "/"):
+                        Ok(value):
+                            return value
+                        Err(problem):
+                            return ""
+
+# How many links the pulse has; 0 when `links` is missing or is not an array.
+pub fn twine_link_count(pulse: TwineRecord) -> Int:
+    match json_try_get(pulse.content, "links"):
+        Err(problem):
+            return 0
+        Ok(links):
+            match json_items(links):
+                None:
+                    return 0
+                Some(items):
+                    return len(items)
+
+fn link_of(pulse: TwineRecord, position: Int) -> Text:
+    return twine_link(pulse, position)
 
 fn link_count(pulse: TwineRecord) -> Int:
-    if not has_key(pulse.content, "links"):
-        return 0
-    return json_len(json_get(pulse.content, "links"))
+    return twine_link_count(pulse)
 
 # One step back: `previous` must be the pulse `current` links to first, verify, and sit one index
 # lower.
@@ -242,7 +301,7 @@ fn pow_radix(radix: Int, power: Int) -> Int:
 # radix^k <= n-1 (links_radix is 32 for CURBy). Links to pulses in the pool must sit at those indices.
 fn skip_links_hold(chain: TwineRecord, current: TwineRecord, pool: List[TwineRecord]) -> Bool:
     var radix = 0
-    match json_try_int(json_get(chain.content, "links_radix")):
+    match json_try_get_int(chain.content, "links_radix"):
         Ok(value):
             set radix = value
         Err(problem):

@@ -27,8 +27,15 @@ import "twine.gu"
 # Verifiers take an already-fetched pulse (and the certificate PEM); the fetch functions only fetch.
 # Needs the network grant for beacon.nist.gov for the fetch functions.
 #
-# Errors: E_NIST_FETCH (a request or its answer is bad), E_NIST_FORMAT (not a pulse), E_NIST_SUITE (a
+# Errors: E_NIST_FETCH (a request or its answer is bad), E_NIST_FORMAT (not a pulse: a member is
+# missing or mistyped, a number is out of range, the timeStamp is not an ISO 8601 UTC time), E_NIST_SUITE (a
 # cipher suite other than 0), plus the crypto codes (a certificate that is not an RSA certificate, or one whose issuer algorithm is not supported).
+# A pulse comes from the network, so nothing here stops the program on a bad shape.
+#
+# What makes a pulse NIST's (nist_verify): the certificate is one of the known NIST beacon
+# certificates (the pulse's certificateId is in nist_known_certificate_ids), it was issued by the pinned
+# DigiCert issuer, it names engine.beacon.nist.gov, it was valid when the pulse was made, and the RSA
+# signature and outputValue check. The issuer alone would accept a certificate DigiCert issued to anyone.
 
 pub record NistPulse:
     uri: Text
@@ -70,16 +77,28 @@ fn field_text(value: Json, key: Text) -> Result[Text, StdError]:
                 Err(problem):
                     return Err(nist_error("E_NIST_FORMAT", f"{key} is not text"))
 
-fn field_int(value: Json, key: Text) -> Result[Int, StdError]:
+# An integer member that is serialized in `bytes` big-endian bytes (4 or 8): 0 up to what the
+# serialization holds (an 8-byte value is limited to 2^63 - 1, the largest Int the bit operations take).
+fn field_int(value: Json, key: Text, bytes: Int) -> Result[Int, StdError]:
     match json_try_get(value, key):
         Err(problem):
             return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
         Ok(found):
             match json_try_int(found):
                 Ok(number):
+                    if not fits(number, bytes):
+                        return Err(nist_error("E_NIST_FORMAT", f"{key} is out of range"))
                     return Ok(number)
                 Err(problem):
                     return Err(nist_error("E_NIST_FORMAT", f"{key} is not an integer"))
+
+# Does the number serialize in `bytes` big-endian bytes? 0 to 2^32 - 1 for 4, 0 to 2^63 - 1 for 8.
+fn fits(number: Int, bytes: Int) -> Bool:
+    if number < 0:
+        return false
+    if bytes == 4:
+        return number <= 4294967295
+    return number <= 9223372036854775807
 
 fn decode_hex(text: Text, what: Text) -> Result[Bytes, StdError]:
     match hex_decode(text):
@@ -94,17 +113,20 @@ fn field_hex(value: Json, key: Text) -> Result[Bytes, StdError]:
 
 # The value of the listValues entry of a type ("previous", "hour", "day", "month", "year").
 fn list_value(entries: Json, kind: Text) -> Result[Bytes, StdError]:
-    var index = 0
-    while index < json_len(entries):
-        let entry = json_index(entries, index)
-        match json_try_text(json_get(entry, "type")):
-            Ok(found):
-                if found == kind:
-                    return field_hex(entry, "value")
-            Err(problem):
-                return Err(nist_error("E_NIST_FORMAT", "a listValues entry has no type"))
-        set index = index + 1
-    return Err(nist_error("E_NIST_FORMAT", f"listValues has no {kind}"))
+    match json_items(entries):
+        None:
+            return Err(nist_error("E_NIST_FORMAT", "listValues is not an array"))
+        Some(items):
+            var index = 0
+            while index < len(items):
+                match json_try_get_text(items[index], "type"):
+                    Ok(found):
+                        if found == kind:
+                            return field_hex(items[index], "value")
+                    Err(problem):
+                        return Err(nist_error("E_NIST_FORMAT", "a listValues entry has no type"))
+                set index = index + 1
+            return Err(nist_error("E_NIST_FORMAT", f"listValues has no {kind}"))
 
 # A pulse from the JSON the service answers with ({"pulse": {...}}); a bare pulse object also works.
 pub fn nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]:
@@ -115,7 +137,7 @@ pub fn nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]:
         return Err(nist_error("E_NIST_FORMAT", "not a beacon pulse"))
     let external = match_key(value, "external")?
     let entries = match_key(value, "listValues")?
-    return Ok(NistPulse(field_text(value, "uri")?, field_text(value, "version")?, field_int(value, "cipherSuite")?, field_int(value, "period")?, field_hex(value, "certificateId")?, field_int(value, "chainIndex")?, field_int(value, "pulseIndex")?, field_text(value, "timeStamp")?, field_hex(value, "localRandomValue")?, field_hex(external, "sourceId")?, field_int(external, "statusCode")?, field_hex(external, "value")?, list_value(entries, "previous")?, list_value(entries, "hour")?, list_value(entries, "day")?, list_value(entries, "month")?, list_value(entries, "year")?, field_hex(value, "precommitmentValue")?, field_int(value, "statusCode")?, field_hex(value, "signatureValue")?, field_hex(value, "outputValue")?))
+    return Ok(NistPulse(field_text(value, "uri")?, field_text(value, "version")?, field_int(value, "cipherSuite", 4)?, field_int(value, "period", 4)?, field_hex(value, "certificateId")?, field_int(value, "chainIndex", 8)?, field_int(value, "pulseIndex", 8)?, field_text(value, "timeStamp")?, field_hex(value, "localRandomValue")?, field_hex(external, "sourceId")?, field_int(external, "statusCode", 4)?, field_hex(external, "value")?, list_value(entries, "previous")?, list_value(entries, "hour")?, list_value(entries, "day")?, list_value(entries, "month")?, list_value(entries, "year")?, field_hex(value, "precommitmentValue")?, field_int(value, "statusCode", 4)?, field_hex(value, "signatureValue")?, field_hex(value, "outputValue")?))
 fn match_key(value: Json, key: Text) -> Result[Json, StdError]:
     match json_try_get(value, key):
         Ok(found):
@@ -137,7 +159,9 @@ fn prefixed(data: Bytes) -> Bytes:
 fn prefixed_text(text: Text) -> Bytes:
     return prefixed(bytes_from_text(text))
 
-# The bytes the beacon signs: fields 1 to 19, serialized as the header describes.
+# The bytes the beacon signs: fields 1 to 19, serialized as the header describes. The numbers must
+# fit their fields (nist_pulse_from_json and nist_verify check that; this stops the program with
+# R_INTEGER_RANGE on a pulse built by hand with one that does not).
 pub fn nist_signed_bytes(pulse: NistPulse) -> Bytes:
     return bytes_join([prefixed_text(pulse.uri), prefixed_text(pulse.version), big_endian(pulse.cipher_suite, 4), big_endian(pulse.period, 4), prefixed(pulse.certificate_id), big_endian(pulse.chain_index, 8), big_endian(pulse.pulse_index, 8), prefixed_text(pulse.time_stamp), prefixed(pulse.local_random_value), prefixed(pulse.external_source_id), big_endian(pulse.external_status_code, 4), prefixed(pulse.external_value), prefixed(pulse.previous), prefixed(pulse.hour), prefixed(pulse.day), prefixed(pulse.month), prefixed(pulse.year), prefixed(pulse.precommitment_value), big_endian(pulse.status_code, 4)])
 # SHA-512 of the signed bytes followed by the signature: what outputValue must equal.
@@ -162,25 +186,127 @@ pub fn nist_verify_certificate(certificate_pem: Text, issuer_pem: Text) -> Resul
     let issuer = crypto_pem_decode(issuer_pem)?
     return crypto_x509_verify_issued_by(certificate, issuer)
 
-# Checks a pulse against the certificate PEM it names: certificateId is SHA-512 of the certificate's
-# DER, the certificate was issued by the pinned issuer (nist_pinned_issuer_pem), the RSA PKCS#1
-# v1.5 / SHA-512 signature verifies under the certificate's key, and outputValue is the hash of the
-# serialization and signature. Ok(false) on any mismatch, including a certificate the pinned issuer
-# did not sign.
-pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
+# The host name NIST's beacon certificate is for (its SubjectAltName), read from the live
+# certificate. nist_verify requires the certificate to name it.
+pub fn nist_beacon_host() -> Text:
+    return "engine.beacon.nist.gov"
+
+# The certificateId values (SHA-512 of the certificate's DER, lower-case hex) of the NIST beacon
+# certificates this package trusts: the ones for engine.beacon.nist.gov that the pinned issuer
+# signed. The same list is saved, with their validity dates, as fixtures/nist-certificate-ids.txt and a
+# test keeps the two equal; README.md says how to refresh it when NIST rotates its certificate.
+pub fn nist_known_certificate_ids() -> List[Text]:
+    return ["aa1e1ed43ed72a4a8e8535687074690c593adc683c122dbed16842acbfd697020ddb1c382bf06893b11836da1fc9df982ec34e4d9dc3c105a816950948a25005", "e692b0f6b208322ac84c963e167245f6356c21f31fa95274b25e92329510b5a210d5179afb6ee25e12dd9fc2691f49ed778d9a709aa3c2ea0f3ff2eaf8c47a62", "528943a555f5f8ca54423be6dfb95925a35c7b552046420e7d7cd072058a14d6536ad3a8e9754b6582f164a90b0cd86a65d659f5426a2659a947595d1c816c8c", "87f27f431da3f584af6007fe045df13aaa81d831f335b6ee73f6334768f32d3ae10491e669b93a43e548b20370a6526c3def99643c25d8ad7bf5df95a3c2b45d", "5b6386e6ac8a993bac8d99d6549deda44af82f2fa4a0e9c0025b6474ab0cbfcab67bfff264fda41aac003b0c9ee7fb77d2938dc0f286fb73cc8fa79864ec0c18"]
+
+fn list_has(items: List[Text], wanted: Text) -> Bool:
+    var index = 0
+    while index < len(items):
+        if items[index] == wanted:
+            return true
+        set index = index + 1
+    return false
+
+# `digits` characters of `text` from `start` as a number, or -1 when one is not a digit.
+fn digits_at(text: Text, start: Int, count: Int) -> Int:
+    var value = 0
+    var index = 0
+    while index < count:
+        let found = text_find("0123456789", text_slice(text, start + index, start + index + 1), 0)
+        if found < 0:
+            return -1
+        set value = value * 10 + found
+        set index = index + 1
+    return value
+
+# Days from 1970-01-01 to a civil date (proleptic Gregorian, year 1970 or later).
+fn days_from_civil(year: Int, month: Int, day: Int) -> Int:
+    var shifted = year
+    if month <= 2:
+        set shifted = year - 1
+    let era = shifted // 400
+    let year_of_era = shifted - era * 400
+    var month_index = month - 3
+    if month <= 2:
+        set month_index = month + 9
+    let day_of_year = (153 * month_index + 2) // 5 + day - 1
+    let day_of_era = year_of_era * 365 + year_of_era // 4 - year_of_era // 100 + day_of_year
+    return era * 146097 + day_of_era - 719468
+
+# A pulse's timeStamp ("2026-11-22T08:23:00.000Z": ISO 8601 UTC, optional fraction) as unix
+# seconds, fraction dropped. E_NIST_FORMAT for anything else.
+fn pulse_seconds(stamp: Text) -> Result[Int, StdError]:
+    let size = len(stamp)
+    let bad = nist_error("E_NIST_FORMAT", "the pulse's timeStamp is not an ISO 8601 UTC time")
+    if size < 20 or text_slice(stamp, size - 1, size) != "Z":
+        return Err(bad)
+    if text_slice(stamp, 4, 5) != "-" or text_slice(stamp, 7, 8) != "-" or text_slice(stamp, 10, 11) != "T":
+        return Err(bad)
+    if text_slice(stamp, 13, 14) != ":" or text_slice(stamp, 16, 17) != ":":
+        return Err(bad)
+    if size > 20:
+        if text_slice(stamp, 19, 20) != "." or size < 22:
+            return Err(bad)
+        if digits_at(stamp, 20, size - 21) < 0:
+            return Err(bad)
+    let year = digits_at(stamp, 0, 4)
+    let month = digits_at(stamp, 5, 2)
+    let day = digits_at(stamp, 8, 2)
+    let hour = digits_at(stamp, 11, 2)
+    let minute = digits_at(stamp, 14, 2)
+    let second = digits_at(stamp, 17, 2)
+    if year < 1970 or month < 1 or month > 12 or day < 1 or day > 31 or hour < 0 or hour > 23 or minute < 0 or minute > 59 or second < 0 or second > 59:
+        return Err(bad)
+    return Ok(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second)
+
+fn numbers_fit(pulse: NistPulse) -> Bool:
+    return fits(pulse.cipher_suite, 4) and fits(pulse.period, 4) and fits(pulse.external_status_code, 4) and fits(pulse.status_code, 4) and fits(pulse.chain_index, 8) and fits(pulse.pulse_index, 8)
+
+# nist_verify with the pins named instead of the package's own: `issuer_pem` is the issuer the
+# certificate must come from, `host` the name it must carry, `known_ids` the certificateId values
+# (lower-case hex) the pulse may name. Every check of nist_verify applies; Ok(true) needs all of them:
+#  1. certificateId is SHA-512 of the certificate's DER and is one of `known_ids`;
+#  2. the certificate was issued by `issuer_pem` (one link; algorithms as nist_verify_certificate);
+#  3. its SubjectAltName (its subject CN only when it has no SubjectAltName) includes `host`;
+#  4. the pulse's timeStamp lies within the certificate's notBefore and notAfter;
+#  5. the RSA PKCS#1 v1.5 / SHA-512 signature verifies under the certificate's key;
+#  6. outputValue is the hash of the serialization and signature.
+# Ok(false) when any of them fails. E_NIST_SUITE for a cipher suite other than 0, E_NIST_FORMAT for
+# a number the serialization cannot hold or a timeStamp that is not an ISO 8601 UTC time. This is how
+# the tests prove each check on its own with a certificate that satisfies the others.
+pub fn nist_verify_pinned(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text]) -> Result[Bool, StdError]:
     if pulse.cipher_suite != 0:
         return Err(nist_error("E_NIST_SUITE", f"cipher suite {pulse.cipher_suite} is not defined; only 0 is"))
+    if not numbers_fit(pulse):
+        return Err(nist_error("E_NIST_FORMAT", "a pulse number is out of range"))
+    let made = pulse_seconds(pulse.time_stamp)?
     let der = crypto_pem_decode(certificate_pem)?
     if crypto_sha512(der) != pulse.certificate_id:
         return Ok(false)
-    let issued = crypto_x509_verify_issued_by(der, crypto_pem_decode(nist_pinned_issuer_pem())?)?
+    if not list_has(known_ids, hex_encode(pulse.certificate_id)):
+        return Ok(false)
+    let issued = crypto_x509_verify_issued_by(der, crypto_pem_decode(issuer_pem)?)?
     if not issued:
+        return Ok(false)
+    if not list_has(crypto_x509_dns_names(der)?, host):
+        return Ok(false)
+    let window = crypto_x509_validity(der)?
+    if made < window[0] or made > window[1]:
         return Ok(false)
     let key = crypto_x509_rsa_public_key(der)?
     let signed = crypto_rsa_verify(key[0], key[1], nist_signed_bytes(pulse), pulse.signature, "pkcs1v15-sha512")?
     if not signed:
         return Ok(false)
     return Ok(nist_output_value(pulse) == pulse.output_value)
+
+# Checks a pulse against the certificate PEM it names. Ok(true) only for NIST's own: the pulse names
+# a known NIST beacon certificate (nist_known_certificate_ids), the certificate was issued by the
+# pinned DigiCert issuer (nist_pinned_issuer_pem), it names nist_beacon_host, the pulse's timeStamp
+# lies within its validity, the RSA PKCS#1 v1.5 / SHA-512 signature verifies under its key, and
+# outputValue is the hash of the serialization and signature. Ok(false) on any mismatch, including a
+# certificate the pinned issuer did not sign, one issued to another name, one that had expired or not
+# begun, or one NIST is not known to use.
+pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
+    return nist_verify_pinned(pulse, certificate_pem, nist_pinned_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids())
 
 # True when `current` is the pulse right after `previous` in the same chain, names it as its
 # previous, and previous's precommitmentValue is SHA-512 of current's localRandomValue. It does

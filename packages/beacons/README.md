@@ -23,7 +23,11 @@ grants the hosts and the clock in its own `guion.toml`.
 - `drand_fetch(chain, round) -> Result[DrandRound, StdError]`: `api.drand.sh`, then `drand.cloudflare.com`,
   both at `/<chain hash>/public/<round>`. The round is not checked; `E_DRAND_FETCH`, `E_DRAND_ROUND`.
 - `drand_verify(chain, value) -> Result[Bool, StdError]`: BLS check of SHA-256(round, 8 bytes big-endian)
-  and `randomness == SHA-256(signature)`. A bad value is `Ok(false)`; malformed bytes are `Err`.
+  and `randomness == SHA-256(signature)`. A bad value is `Ok(false)`; malformed bytes are `Err`; a round
+  outside 1 to 2^63 - 1 is `E_DRAND_ROUND`.
+- `drand_parse_round(body: Text, round) -> Result[DrandRound, StdError]`: reads one `public/<round>` answer; text
+  that is not JSON or lacks `round`, `randomness` or `signature` (or has them in the wrong type) is `E_DRAND_FETCH`,
+  another round is `E_DRAND_ROUND`.
 - `drand_round_at(chain, unix_seconds) -> Int`, `drand_round_time(chain, round) -> Int`.
 - `tlock_seal(chain, round, plaintext) -> Result[Text, StdError]`: armored age, interoperable with `tle`.
 - `tlock_open(chain, armored) -> Result[Bytes, StdError]`: refuses a file sealed for another chain
@@ -120,11 +124,22 @@ Functions:
   certificate_id, chain_index, pulse_index, time_stamp, local_random_value, external_source_id,
   external_status_code, external_value, previous, hour, day, month, year, precommitment_value, status_code,
   signature, output_value`).
-- `nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]` (`E_NIST_FORMAT`).
-- `nist_verify(pulse, certificate_pem: Text) -> Result[Bool, StdError]`: the signature, `certificateId`, and
-  `outputValue`. This takes the certificate PEM as a second argument (the brief's one-argument form cannot work
-  offline). `Ok(false)` on any mismatch, never true for a tampered pulse; `E_NIST_SUITE` for a cipher suite other
-  than 0. It also checks that the certificate was issued by the **pinned issuer** (below) and is `Ok(false)` for one that was not.
+- `nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]` (`E_NIST_FORMAT` for a missing or mistyped member,
+  `listValues` that is not an array of `{type, value}`, or a number the signed serialization cannot hold: 4-byte fields
+  0 to 2^32 - 1, `chainIndex` and `pulseIndex` 0 to 2^63 - 1).
+- `nist_verify(pulse, certificate_pem: Text) -> Result[Bool, StdError]`: `Ok(true)` only for NIST's own pulse. All of
+  these must hold: `certificateId` is SHA-512 of the certificate's DER **and is one of the known NIST beacon
+  certificates** (`nist_known_certificate_ids()`); the certificate was issued by the **pinned issuer** (below); its
+  SubjectAltName includes `nist_beacon_host()` (`engine.beacon.nist.gov`, read from the live certificate); the pulse's
+  `timeStamp` lies within the certificate's `notBefore` and `notAfter`; the RSA signature verifies under its key; and
+  `outputValue` is the hash of the serialization and signature. The issuer alone is not enough: it is a public TLS CA
+  that signs certificates for any customer. This takes the certificate PEM as a second argument (the brief's
+  one-argument form cannot work offline). `Ok(false)` on any mismatch, never true for a tampered or forged pulse;
+  `E_NIST_SUITE` for a cipher suite other than 0, `E_NIST_FORMAT` for a number the serialization cannot hold or a
+  `timeStamp` that is not ISO 8601 UTC.
+- `nist_verify_pinned(pulse, certificate_pem, issuer_pem, host, known_ids: List[Text])`: the same checks with the issuer,
+  the host name and the known certificate ids named by the caller (the tests use it to give each check a certificate
+  that satisfies all the others).
 - `nist_verify_certificate(certificate_pem, issuer_pem) -> Result[Bool, StdError]`: one issuer link (`crypto_x509_verify_issued_by`): true when the issuer
   certificate's key signed the certificate. `nist_pinned_issuer_pem() -> Text` is the pinned issuer.
 - `nist_verify_precommitment(previous, current) -> Result[Bool, StdError]`: `current` is the next pulse of the same
@@ -132,6 +147,27 @@ Functions:
   not check signatures.
 - `nist_fetch_last()`, `nist_fetch(chain, pulse)`, `nist_fetch_certificate(pulse)`: fetch only (`E_NIST_FETCH`).
 - `nist_signed_bytes(pulse)`, `nist_output_value(pulse)`: the serialization and the recomputed output value.
+
+**Two pins, and how to refresh both.** The issuer pin alone would accept a certificate DigiCert issued to anyone, so
+`nist_verify` also requires a known certificate id, the host name and the validity window.
+
+*The known certificate ids* are in `fixtures/nist-certificate-ids.txt` (one SHA-512 of a certificate's DER per line,
+with the validity dates in comments) and copied into `nist_known_certificate_ids()` in `src/nist.gu`; a test keeps the
+two equal. NIST rotates its beacon certificate about every year (the current one is valid 2026-10-21 to 2027-03-20),
+and after a rotation `nist_verify` is `Ok(false)` for new pulses until the list is refreshed. To refresh:
+1. fetch the newest pulse (`nist_fetch_last()`) and take its `certificateId`; sample earlier pulses
+   (`/beacon/2.0/chain/2/pulse/<index>`) to find the ids in between;
+2. for each id fetch `https://beacon.nist.gov/beacon/2.0/certificate/<id>`, check that `openssl x509 -outform DER` of it
+   hashes (SHA-512) to that id, that its SubjectAltName is `engine.beacon.nist.gov`, and that
+   `openssl verify -no_check_time -partial_chain -CAfile fixtures/nist-issuer.pem cert.pem` says OK (a certificate the
+   pinned issuer did not sign does not belong on the list);
+3. add the ids to `fixtures/nist-certificate-ids.txt` and `nist_known_certificate_ids()`; save the newest certificate as
+   `fixtures/nist-certificate.pem` if the test fixtures move to newer pulses (and update the validity numbers in
+   `test_nist_certificate_names_and_validity_are_read_from_the_certificate`);
+4. record `tapes/nist-live.tape` again (below).
+
+*The host name* `engine.beacon.nist.gov` is `nist_beacon_host()`; change it only if NIST serves the beacon from another
+name (read it from the certificate's SubjectAltName).
 
 **Pinned issuer.** NIST's beacon certificate (`engine.beacon.nist.gov`, a 4096-bit RSA key, SHA-256 with RSA) is issued by
 `C=US, O=DigiCert Inc, CN=DigiCert Global G2 TLS RSA SHA256 2020 CA1`, an **intermediate** CA valid until 2031-03-29
@@ -153,9 +189,22 @@ refresh the pin when NIST moves to a new issuer (`nist_verify` then returns `Ok(
 
 NIST tests run offline on fixtures saved live (`nist-pulse-2038647/2038648/2038144/2038145.json`,
 `nist-certificate.pem`): the last pulse, two consecutive pulses, a pair across the 2026-11-21/22 UTC midnight, a
-tampered `localRandomValue` (false), and other tampering. `live_nist.gu` is the live check (newest pulse, five
+tampered `localRandomValue` (false), and other tampering. Forged-but-validly-issued pulses
+(`test-ca.pem`, `test-leaf.pem`, `test-pulse-in-window/after/before.json`, made by `fixtures/make_test_pulses.sh`, keys
+discarded) prove each check on its own: a leaf from a re-pinned issuer with a non-NIST name, an unknown certificate id,
+or a `timeStamp` outside the leaf's validity is `false`, and the same leaf with every pin matching is `true`. `live_nist.gu` is the live check (newest pulse, five
 earlier pulses with their precommitments, and the day-boundary pair), recorded to `tapes/nist-live.tape`; record
 again with `guion run --allow-http-host beacon.nist.gov --record tapes/nist-live.tape live_nist.gu`.
+
+## Bad shapes
+
+Every record these functions read comes from the network, so none of them stops the program on a malformed answer:
+a Twine record whose `cid` is not `{"/": text}` is `E_TWINE_FORMAT`, a JWS header with no `alg` is `E_TWINE_ALG`, a
+chain record with no `key` is `E_TWINE_KEY`, `links` that is not an array counts as no links, a CURBy payload that
+lacks a member or has it in the wrong shape is `E_CURBY_STAGE`, `E_CURBY_RANDOMNESS` or `E_CURBY_RNG`, a NIST pulse
+with a missing or mistyped member is `E_NIST_FORMAT`, and a drand answer is `E_DRAND_FETCH`. `json_items(value)`
+(`twine.gu`) reads a JSON array as a list, or `None`; `twine_link(pulse, n)` and `twine_link_count(pulse)` read the
+`links` of a pulse without raising.
 
 ## Tests
 

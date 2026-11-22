@@ -63,6 +63,8 @@ fn quicknet_dst() -> Bytes:
     return bytes_from_text("BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_")
 
 pub fn drand_verify(chain: DrandChain, value: DrandRound) -> Result[Bool, StdError]:
+    if value.round < 1 or value.round > 9223372036854775807:
+        return Err(drand_error("E_DRAND_ROUND", "a drand round is 1 to 2^63 - 1"))
     let signed = crypto_bls12381_verify_g1(chain.public_key, round_message(value.round), value.signature, quicknet_dst())?
     if not signed:
         return Ok(false)
@@ -71,8 +73,10 @@ pub fn drand_verify(chain: DrandChain, value: DrandRound) -> Result[Bool, StdErr
 fn hosts() -> List[Text]:
     return ["api.drand.sh", "drand.cloudflare.com"]
 
-# Reads one public/<round> JSON body into a round, refusing a body for any other round.
-fn parse_round(body: Text, round: Int) -> Result[DrandRound, StdError]:
+# Reads one public/<round> JSON body into a round, refusing a body for any other round. A body that
+# is not JSON or lacks round, randomness or signature is E_DRAND_FETCH, never a JSON error that ends
+# the program. The round is not checked; pass it to drand_verify.
+pub fn drand_parse_round(body: Text, round: Int) -> Result[DrandRound, StdError]:
     var parsed = json_null()
     match json_parse(body):
         Ok(value):
@@ -102,7 +106,7 @@ pub fn drand_fetch(chain: DrandChain, round: Int) -> Result[DrandRound, StdError
         let url = f"https://{names[index]}/{chain.hash}/public/{round}"
         match http_get(url):
             Ok(body):
-                match parse_round(body, round):
+                match drand_parse_round(body, round):
                     Ok(value):
                         return Ok(value)
                     Err(problem):

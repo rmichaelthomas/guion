@@ -584,3 +584,224 @@ fn test_nist_malformed_pulse_is_e_nist_format() -> Unit:
 fn test_nist_unknown_cipher_suite_is_an_error() -> Unit:
     let odd = nist_tampered(2038648, "cipherSuite", json_int(1))
     assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_SUITE")
+
+
+# ---- nist_verify binds a pulse to NIST's own certificate ----
+
+# The leaf below is validly issued by a throwaway CA (fixtures/make_test_pulses.sh) for
+# test.beacon.example, valid 2026-01-01 to 2026-12-31. Its three pulses are signed by its key. With the
+# issuer, host and certificate ids re-pinned to the test values everything checks out; each test then
+# gets ONE of those pins (or the pulse's time) wrong and the answer must be false.
+
+fn forged_pulse(name: Text) -> NistPulse:
+    return unwrap(nist_pulse_from_json(load_json(f"fixtures/test-pulse-{name}.json")))
+
+fn forged_pem() -> Text:
+    return pem_fixture("fixtures/test-leaf.pem")
+
+fn forged_ca() -> Text:
+    return pem_fixture("fixtures/test-ca.pem")
+
+fn forged_ids() -> List[Text]:
+    return [hex_encode(forged_pulse("in-window").certificate_id)]
+
+fn test_nist_a_leaf_from_a_repinned_issuer_with_the_right_pins_is_true() -> Unit:
+    # The control: nothing is wrong, so it is true. Without this the false answers below prove nothing.
+    assert(is_true(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), "test.beacon.example", forged_ids())))
+
+fn test_nist_a_validly_issued_leaf_with_a_non_nist_name_is_false() -> Unit:
+    # Issued by the (re-pinned) issuer, in its validity, a known id, a good signature, but not NIST's name.
+    assert(not is_true(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), nist_beacon_host(), forged_ids())))
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), nist_beacon_host(), forged_ids())) == "false")
+
+fn test_nist_a_timestamp_outside_the_leafs_validity_is_false() -> Unit:
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("after"), forged_pem(), forged_ca(), "test.beacon.example", forged_ids())) == "false")
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("before"), forged_pem(), forged_ca(), "test.beacon.example", forged_ids())) == "false")
+
+fn test_nist_an_unknown_certificate_id_is_false() -> Unit:
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), "test.beacon.example", [])) == "false")
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), "test.beacon.example", nist_known_certificate_ids())) == "false")
+
+fn test_nist_a_leaf_the_pinned_issuer_did_not_sign_is_false() -> Unit:
+    # Right name, window and id, but the issuer is NIST's pinned DigiCert one, not the test CA.
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), nist_pinned_issuer_pem(), "test.beacon.example", forged_ids())) == "false")
+    # And the package's own pins refuse the forged pulse whatever it claims.
+    assert(code_of_bool(nist_verify(forged_pulse("in-window"), forged_pem())) == "false")
+
+fn test_nist_the_real_pulse_needs_every_one_of_its_pins() -> Unit:
+    let pulse = nist_pulse(2038648)
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), nist_pinned_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids())) == "true")
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), nist_pinned_issuer_pem(), "beacon.nist.gov", nist_known_certificate_ids())) == "false")
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), nist_pinned_issuer_pem(), nist_beacon_host(), [])) == "false")
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), forged_ca(), nist_beacon_host(), nist_known_certificate_ids())) == "false")
+
+fn test_nist_known_certificate_ids_are_the_saved_fixture() -> Unit:
+    var saved: List[Text] = []
+    let lines = text_split(pem_fixture("fixtures/nist-certificate-ids.txt"), "\n")
+    var i = 0
+    while i < len(lines):
+        let line = text_trim(lines[i])
+        if len(line) > 0 and text_slice(line, 0, 1) != "#":
+            set saved = list_push(saved, line)
+        set i = i + 1
+    assert(saved == nist_known_certificate_ids())
+    assert(len(saved) == 5)
+    # the certificate in the fixtures is one of them
+    assert(hex_encode(nist_pulse(2038648).certificate_id) == saved[4])
+
+fn test_nist_certificate_names_and_validity_are_read_from_the_certificate() -> Unit:
+    let der = unwrap(crypto_pem_decode(nist_pem()))
+    assert(unwrap(crypto_x509_dns_names(der)) == [nist_beacon_host()])
+    let window = unwrap(crypto_x509_validity(der))
+    assert(window == [1792540800, 1805587199])
+
+fn test_nist_malformed_pulse_shapes_are_e_nist_format() -> Unit:
+    let doc = nist_doc(2038648)
+    let pulse = json_get(doc, "pulse")
+    var cases: List[Json] = []
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "listValues", json_text("x"))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "listValues", json_set(json_object(), "a", json_int(1)))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "listValues", json_push(json_array(), json_int(5)))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "external", json_text("x"))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "pulseIndex", json_int(9223372036854775808))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "chainIndex", json_int(9223372036854775808))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "pulseIndex", json_int(0 - 1))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "statusCode", json_int(4294967296))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "period", json_text("60000"))))
+    var i = 0
+    while i < len(cases):
+        match nist_pulse_from_json(cases[i]):
+            Ok(value):
+                assert(false)
+            Err(problem):
+                assert(problem.code == "E_NIST_FORMAT")
+        set i = i + 1
+
+fn test_nist_a_pulse_built_by_hand_with_a_huge_index_is_an_error_not_an_abort() -> Unit:
+    let real = nist_pulse(2038648)
+    let big = NistPulse(real.uri, real.version, real.cipher_suite, real.period, real.certificate_id, real.chain_index, 9223372036854775808, real.time_stamp, real.local_random_value, real.external_source_id, real.external_status_code, real.external_value, real.previous, real.hour, real.day, real.month, real.year, real.precommitment_value, real.status_code, real.signature, real.output_value)
+    assert(code_of_bool(nist_verify(big, nist_pem())) == "E_NIST_FORMAT")
+
+fn test_nist_a_timestamp_that_is_not_iso_8601_is_e_nist_format() -> Unit:
+    var stamps: List[Text] = ["", "yesterday", "2026-11-22 08:23:00.000Z", "2026-11-22T08:23:00.000", "2026-13-22T08:23:00.000Z", "2026-11-22T25:23:00.000Z", "2026-11-22T08:23:00.Z", "2026-11-22T08:23:0x.000Z", "1969-12-31T23:59:59.000Z"]
+    var i = 0
+    while i < len(stamps):
+        let odd = nist_tampered(2038648, "timeStamp", json_text(stamps[i]))
+        assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_FORMAT")
+        set i = i + 1
+
+# ---- Twine, CURBy and drand: a bad shape is an error code, never an aborted program ----
+
+fn header_record(pulse: TwineRecord, header: Text) -> TwineRecord:
+    let parts = text_split(pulse.signature, ".")
+    let encoded = text_replace(base64url_encode(bytes_from_text(header)), "=", "")
+    return resealed(TwineRecord(pulse.cid, pulse.content, encoded + "." + parts[1] + "." + parts[2]))
+
+fn test_twine_a_jws_header_without_alg_is_e_twine_alg() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    assert(code_of_bool(twine_verify(chain, header_record(pulse, "{}"))) == "E_TWINE_ALG")
+    assert(code_of_bool(twine_verify(chain, header_record(pulse, "[1,2]"))) == "E_TWINE_ALG")
+    assert(code_of_bool(twine_verify(chain, header_record(pulse, "{\"alg\":5}"))) == "E_TWINE_ALG")
+
+fn test_twine_a_cid_that_is_not_an_object_is_e_twine_format() -> Unit:
+    let data = json_set(json_set(json_object(), "content", json_object()), "signature", json_text("a.b.c"))
+    var bad: List[Json] = []
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_text("bafy")), "data", data))
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_int(7)), "data", data))
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_set(json_object(), "/", json_int(7))), "data", data))
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_set(json_object(), "/", json_text("bafy"))), "data", json_text("x")))
+    var i = 0
+    while i < len(bad):
+        match twine_record_from_json(bad[i]):
+            Ok(value):
+                assert(false)
+            Err(problem):
+                assert(problem.code == "E_TWINE_FORMAT")
+        set i = i + 1
+
+fn test_twine_records_that_are_not_an_array_are_e_twine_format() -> Unit:
+    match twine_records_from_json(json_int(5)):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_FORMAT")
+    match twine_records_from_json(json_push(json_array(), json_int(5))):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_FORMAT")
+
+fn test_twine_a_chain_without_a_key_is_e_twine_key() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let keyless = TwineRecord(chain.cid, json_object(), chain.signature)
+    assert(code_of_bool(twine_verify(keyless, pulse)) == "E_TWINE_KEY")
+    assert(code_of_bool(twine_verify(TwineRecord(chain.cid, json_text("x"), chain.signature), pulse)) == "E_TWINE_KEY")
+
+fn test_twine_links_that_are_not_an_array_do_not_abort() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let odd = with_content(pulse, json_set(pulse.content, "links", json_text("x")))
+    assert(twine_link_count(odd) == 0)
+    assert(twine_link(odd, 0) == "")
+    assert(not is_true(twine_verify_links_in(chain, odd, 5, [odd])))
+    let other = with_content(pulse, json_set(pulse.content, "links", json_push(json_array(), json_int(1))))
+    assert(twine_link_count(other) == 1)
+    assert(twine_link(other, 0) == "")
+    assert(not is_true(twine_verify_links_in(chain, other, 5, [other])))
+    # a chain whose links_radix is not a number
+    let bad_radix = TwineRecord(chain.cid, json_set(chain.content, "links_radix", json_text("x")), chain.signature)
+    assert(not is_true(twine_verify_links_in(bad_radix, pulse, 5, [pulse])))
+
+fn test_curby_a_payload_of_the_wrong_shape_is_a_curby_code() -> Unit:
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    let pulse = pulses[1]
+    let payload = json_get(pulse.content, "payload")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_text("x"))))) == "E_CURBY_STAGE")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_object()))) == "E_CURBY_STAGE")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_set(payload, "randomness", json_int(3)))))) == "E_CURBY_RANDOMNESS")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_set(payload, "randomness", json_set(json_object(), "/", json_int(5))))))) == "E_CURBY_RANDOMNESS")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_set(payload, "randomness", json_set(json_object(), "/", json_set(json_object(), "bytes", json_int(5)))))))) == "E_CURBY_RANDOMNESS")
+    var no_randomness = json_object()
+    set no_randomness = json_set(no_randomness, "stage", json_text("randomness"))
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", no_randomness)))) == "E_CURBY_RANDOMNESS")
+
+fn test_curby_rng_with_wrong_shapes_is_an_error_not_an_abort() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    let odd = with_content(pulses[0], json_set(pulses[0].content, "links", json_text("x")))
+    assert(code_of_bytes(curby_rng_randomness(chain, odd, pulses[1])) == "E_CURBY_RNG")
+    let keyless = TwineRecord(chain.cid, json_object(), chain.signature)
+    assert(code_of_bytes(curby_rng_randomness(keyless, pulses[0], pulses[1])) == "E_TWINE_KEY")
+
+fn drand_body(round: Json, randomness: Json, signature: Json) -> Text:
+    return json_stringify(json_set(json_set(json_set(json_object(), "round", round), "randomness", randomness), "signature", signature))
+
+fn test_drand_a_round_body_missing_a_field_is_e_drand_fetch() -> Unit:
+    let good_sig = json_text(hex_encode(sig_1000()))
+    let good_random = json_text(hex_encode(crypto_sha256(sig_1000())))
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1000), good_random, good_sig), 1000)) == "ok")
+    assert(code_of_round(drand_parse_round(json_stringify(json_set(json_set(json_object(), "round", json_int(1000)), "randomness", good_random)), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(json_stringify(json_set(json_set(json_object(), "round", json_int(1000)), "signature", good_sig)), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(json_stringify(json_set(json_set(json_object(), "randomness", good_random), "signature", good_sig)), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round("{}", 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round("[1]", 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round("not json", 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_text("1000"), good_random, good_sig), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1000), json_int(3), good_sig), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1000), json_text("zz"), good_sig), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1001), good_random, good_sig), 1000)) == "E_DRAND_ROUND")
+
+fn code_of_round(result: Result[DrandRound, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+fn test_drand_a_round_out_of_range_is_e_drand_round() -> Unit:
+    let chain = chain_fixture()
+    assert(code_of_bool(drand_verify(chain, round_of(9223372036854775808, sig_1000()))) == "E_DRAND_ROUND")
+    assert(code_of_bool(drand_verify(chain, round_of(0, sig_1000()))) == "E_DRAND_ROUND")
+    assert(code_of_bool(drand_verify(chain, round_of(0 - 5, sig_1000()))) == "E_DRAND_ROUND")
