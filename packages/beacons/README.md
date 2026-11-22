@@ -42,9 +42,9 @@ against live data:
   /chains/<chain cid>`, `GET /chains/<chain cid>/pulses/latest`, `/pulses/<index>`, `/pulses/<pulse cid>`
   and `/pulses/<from>-<to>` (a range, higher index first, as a JSON array). Records are
   `{"cid": {"/": cid}, "data": {"content": ..., "signature": jws}}`. The host often answers a single
-  chain, a single pulse by CID, and many single pulses by index zstd-compressed (`content-encoding:
-  zstd`, even when not asked), which `http_get` cannot read. Range answers and `/chains` are plain
-  JSON, so `twine_fetch_pulse` fetches an index as `<i>-<i>` and `twine_fetch_chain` reads `/chains`.
+  pulse zstd-compressed (`content-encoding: zstd`, even though the client asks for no encoding);
+  `http_get` decodes that, so `twine_fetch_pulse` fetches an index, a pulse CID or `latest` directly
+  and `twine_verify_links` follows each `links[0]` CID.
 - **A pulse** is `content: {chain, index, links, mixins, payload, source}`. `links` are CIDs of earlier
   pulses of the same chain; `mixins` are `{chain, value}` pairs naming pulses of other chains.
 - **`links_radix` links** (32 for CURBy): a pulse at index n links first to n-1, then to
@@ -146,9 +146,11 @@ key, a foreign pulse, an unknown algorithm, and the randomness values CURBy's Ja
 same pulses. `live_curby.gu` is the live check and `tapes/curby-live.tape` its recording
 (`guion run --replay tapes/curby-live.tape live_curby.gu`); to record again:
 `guion run --allow-http-host random.colorado.edu --record tapes/curby-live.tape live_curby.gu`.
-Any edit under `src/` invalidates both tapes (`R_TAPE`); record again.
+A replay of an edited library still runs when every outside call (kind, URL, body, order) is the one
+recorded, with a note that the program hash differs; `--replay-strict` refuses it. Record again when a
+library change alters what is fetched.
 
-`guion test tests.gu` runs offline: fixtures in `fixtures/` (made by Go `tle` v1.2.0 on quicknet) are read
+`guion test` (in this directory; it finds `tests.gu`) runs offline: fixtures in `fixtures/` (made by Go `tle` v1.2.0 on quicknet) are read
 from the package directory. `live_drand.gu` is the live check; `tapes/drand-100.tape` is its recorded run
 (100 consecutive rounds verified, plus `tlock_open` of the round-1000 fixture), and
 `guion run --replay tapes/drand-100.tape live_drand.gu` replays it with no grants. To record again:

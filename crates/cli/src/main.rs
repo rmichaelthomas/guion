@@ -52,7 +52,7 @@ new        create a project (guion new <dir>, or --lib for a library)
 check      compile a source file or project and report problems without running it
 fmt        format source (--check reports unformatted files)
 lint       report unused imports and locals and unreachable statements
-test       run the test_* functions of a file or project
+test       run the test_* functions of a file or project (no path: the tests.gu here)
 run        run a source file, artifact or project; permissions such as --file-root,
            --allow-http-host and --allow-clock are granted with flags; in a terminal
            it asks once about what is missing (--no-prompt turns that off); --sealed
@@ -99,7 +99,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 kept.push(argument);
             }
         }
-        kept
+        discover_test_file(kept)?
     } else {
         args
     };
@@ -168,7 +168,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             .iter()
             .any(|argument| argument == "--help" || argument == "-h")
     {
-        println!("usage: guion run [--json] [--no-cache] [--no-prompt] [--sealed] [--keep-temp] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
+        println!("usage: guion run [--json] [--no-cache] [--no-prompt] [--sealed] [--keep-temp] [--file-root DIR] [--allow-http-host HOST] [--allow-clock] [--allow-command NAME] [--allow-connect HOST:PORT] [--allow-bind HOST:PORT] [--record TAPE | --replay TAPE | --replay-strict TAPE | --replay-changed TAPE] <source|artifact|project> [ARGS...]");
         return Ok(ExitCode::SUCCESS);
     }
     if command == "sync" {
@@ -673,6 +673,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
     let mut tape_record: Option<String> = None;
     let mut tape_replay: Option<String> = None;
     let mut tape_replay_changed = false;
+    let mut tape_replay_strict = false;
     let json_inspect = command == "inspect" && args.iter().any(|argument| argument == "--json");
     let json_doc = command == "doc" && args.get(1).is_some_and(|arg| arg == "--json");
     let json_build = command == "build" && args.get(1).is_some_and(|arg| arg == "--json");
@@ -728,7 +729,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     socket_overrides.push(format!("{}={entry}", &argument[8..]));
                     index += 2;
                 }
-                "--record" | "--replay" | "--replay-changed" => {
+                "--record" | "--replay" | "--replay-strict" | "--replay-changed" => {
                     let Some(file) = args.get(index + 1) else {
                         return Err(format!("usage: guion run [{argument} TAPE] <source|artifact|project> [ARGS...]"));
                     };
@@ -737,6 +738,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     } else {
                         tape_replay = Some(file.clone());
                         tape_replay_changed = argument == "--replay-changed";
+                        tape_replay_strict = argument == "--replay-strict";
                     }
                     index += 2;
                 }
@@ -985,7 +987,13 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 {
                     let used = library_used_effects(&path, &artifact, &project_root, &exports);
                     let (mut errors, mut warnings) = declared.compare_with_effects(&used);
-                    let hosts = library_literal_hosts(&artifact, &project_root, &exports);
+                    let declared_hosts: BTreeSet<String> = declared
+                        .network
+                        .iter()
+                        .map(|host| host.to_ascii_lowercase())
+                        .collect();
+                    let hosts =
+                        library_literal_hosts(&artifact, &project_root, &exports, &declared_hosts);
                     let (host_errors, host_warnings) = declared.compare_with_hosts(&used, &hosts);
                     errors.extend(host_errors);
                     warnings.extend(host_warnings);
@@ -1211,6 +1219,9 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                 (_, Some(file)) if tape_replay_changed => {
                     runtime.with_tape(guion_runtime::TapeMode::ReplayChanged(file.into()))
                 }
+                (_, Some(file)) if tape_replay_strict => {
+                    runtime.with_tape(guion_runtime::TapeMode::ReplayStrict(file.into()))
+                }
                 (_, Some(file)) => runtime.with_tape(guion_runtime::TapeMode::Replay(file.into())),
                 _ => runtime,
             };
@@ -1359,6 +1370,11 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
             };
             let runtime_load_ns = runtime_load_started.map(|started| started.elapsed().as_nanos());
             let program_started = phase_timings_enabled.then(Instant::now);
+            if !json_run {
+                if let Some(notice) = instance.tape_notice() {
+                    eprintln!("note: {notice}");
+                }
+            }
             let result = instance.invoke("main", vec![]);
             let tape_result = instance.finish_tape();
             let result = match (result, tape_result) {
@@ -2989,12 +3005,17 @@ fn library_used_effects(
     used
 }
 
-/// Hosts named by URL literals (`http`, `https`, `ws`, `wss`) in the library's own functions,
-/// each with the first function that names it. Hosts built at run time are not visible here.
+/// Hosts the library's own functions name in string literals, each with the first function that
+/// names it. A literal that starts with a URL scheme (`http`, `https`, `ws`, `wss`) names its
+/// host, so a literal base such as `"https://host/api"` that a path is added to counts. A literal
+/// without a scheme (`"host"`, `"host/v2"`, `"host:8443"`) counts only when it names a host the
+/// library declares, because any other text could be anything. Hosts built entirely at run time
+/// are not visible here.
 fn library_literal_hosts(
     artifact: &Artifact,
     project_root: &Path,
     exports: &[String],
+    declared: &BTreeSet<String>,
 ) -> std::collections::BTreeMap<String, String> {
     let mut hosts = std::collections::BTreeMap::new();
     for function in library_functions(artifact, project_root, exports) {
@@ -3003,16 +3024,17 @@ fn library_literal_hosts(
                 continue;
             };
             let text: &str = text.as_ref();
-            if !["http://", "https://", "ws://", "wss://"]
+            let host = if ["http://", "https://", "ws://", "wss://"]
                 .iter()
                 .any(|scheme| text.starts_with(scheme))
             {
-                continue;
-            }
-            if let Some(host) = reqwest::Url::parse(text)
-                .ok()
-                .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
-            {
+                reqwest::Url::parse(text)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            } else {
+                bare_declared_host(text, declared)
+            };
+            if let Some(host) = host {
                 let name = function
                     .name
                     .rsplit('/')
@@ -3024,6 +3046,17 @@ fn library_literal_hosts(
         }
     }
     hosts
+}
+
+/// The declared host a scheme-less literal names: the text up to a `/`, minus a `:port`.
+fn bare_declared_host(text: &str, declared: &BTreeSet<String>) -> Option<String> {
+    let authority = text.split('/').next().unwrap_or("");
+    let host = match authority.rsplit_once(':') {
+        Some((host, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => host,
+        _ => authority,
+    };
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    declared.contains(&host).then_some(host)
 }
 
 fn inspection_report(
@@ -5005,6 +5038,47 @@ fn tape_redactions(project_root: &Path) -> Vec<String> {
                 })
         })
         .unwrap_or_default()
+}
+
+/// The file a package keeps its tests in, found by `guion test` when it is given no file.
+const PACKAGE_TESTS_FILE: &str = "tests.gu";
+
+/// `guion test` with no path, or with a directory, runs the directory's `tests.gu` (the file
+/// `guion new --lib` writes and the packages in this repository use). A directory with no
+/// `tests.gu` is still a project, and is tested as before. A file argument is left alone.
+fn discover_test_file(mut args: Vec<String>) -> Result<Vec<String>, String> {
+    let at = args
+        .iter()
+        .skip(1)
+        .position(|argument| !argument.starts_with("--"))
+        .map(|offset| offset + 1);
+    let directory = match at {
+        Some(at) => std::path::PathBuf::from(&args[at]),
+        None => std::path::PathBuf::from("."),
+    };
+    if !directory.is_dir() {
+        return Ok(args);
+    }
+    let tests = directory.join(PACKAGE_TESTS_FILE);
+    let found = if tests.is_file() {
+        Some(tests)
+    } else if at.is_none() && !directory.join("guion.toml").is_file() {
+        return Err(format!(
+            "usage: guion test [path]; no path was given and this directory has no {PACKAGE_TESTS_FILE}, which is where a package keeps its tests"
+        ));
+    } else if at.is_none() {
+        Some(directory)
+    } else {
+        None
+    };
+    if let Some(found) = found {
+        let found = found.to_string_lossy().into_owned();
+        match at {
+            Some(at) => args[at] = found,
+            None => args.insert(1, found),
+        }
+    }
+    Ok(args)
 }
 
 fn run_tests(

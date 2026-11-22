@@ -6455,6 +6455,14 @@ impl Instance {
     pub fn take_program_stderr(&mut self) -> String {
         std::mem::take(&mut self.program_stderr)
     }
+    /// A note about the tape in use, for the person running it: set when a replay accepted a
+    /// program that differs from the recorded one and is matching calls instead.
+    pub fn tape_notice(&self) -> Option<String> {
+        self.tape
+            .as_ref()
+            .and_then(|tape| tape.notice().map(str::to_owned))
+    }
+
     /// Ends a recorded or replayed run: a recording writes its tape file, a replay checks that
     /// the program made every call on the tape. Does nothing when no tape is in use.
     pub fn finish_tape(&mut self) -> Result<(), RuntimeError> {

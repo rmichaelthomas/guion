@@ -294,16 +294,8 @@ fn fetch_json(url: Text) -> Result[Json, StdError]:
                     return Err(twine_error("E_TWINE_FETCH", f"{url} answered with text that is not JSON"))
 
 # One pulse of a chain by index (as text, e.g. "1000"), by CID, or "latest". Fetches only; check it
-# with twine_verify. The host answers some single-pulse requests (every one by CID, many by index)
-# zstd-compressed, which http_get cannot read (E_TWINE_FETCH, "not valid UTF-8"). A range answer is
-# always plain JSON, so an index is fetched as the range "<index>-<index>".
+# with twine_verify. The host may answer a single pulse zstd-compressed; http_get decodes that.
 pub fn twine_fetch_pulse(chain_cid: Text, which: Text) -> Result[TwineRecord, StdError]:
-    if is_ok(text_parse_int(which)):
-        let value = fetch_json(f"https://random.colorado.edu/api/chains/{chain_cid}/pulses/{which}-{which}")?
-        let found = twine_records_from_json(value)?
-        if len(found) != 1:
-            return Err(twine_error("E_TWINE_FETCH", f"the host did not answer with one pulse for index {which}"))
-        return Ok(found[0])
     let value = fetch_json(f"https://random.colorado.edu/api/chains/{chain_cid}/pulses/{which}")?
     return twine_record_from_json(value)
 
@@ -321,8 +313,8 @@ pub fn twine_fetch_chain(chain_cid: Text) -> Result[TwineRecord, StdError]:
             return Err(twine_error("E_TWINE_FETCH", f"the host lists no chain {chain_cid}"))
 
 # The same walk as twine_verify_links_in, fetching each earlier pulse as it goes. Needs the network
-# grant for random.colorado.edu. Only links[0] is followed; each earlier pulse is fetched by index
-# and must be the pulse links[0] names.
+# grant for random.colorado.edu. Only links[0] is followed; each earlier pulse is fetched by the CID
+# links[0] names and must be that pulse.
 pub fn twine_verify_links(chain: TwineRecord, record: TwineRecord, depth: Int) -> Result[Bool, StdError]:
     if not twine_verify(chain, record)?:
         return Ok(false)
@@ -331,7 +323,7 @@ pub fn twine_verify_links(chain: TwineRecord, record: TwineRecord, depth: Int) -
     while step < depth:
         if link_count(current) == 0:
             return Ok(true)
-        let previous = twine_fetch_pulse(chain.cid, int_to_text(index_of(current) - 1))?
+        let previous = twine_fetch_pulse(chain.cid, link_of(current, 0))?
         if not step_back(chain, current, previous)?:
             return Ok(false)
         set current = previous

@@ -12,6 +12,7 @@ The exact Rust dependency graph is recorded in [`Cargo.lock`](Cargo.lock). Relea
 
 - `flate2` 1.1.10 (MIT OR Apache-2.0), with its `miniz_oxide` 0.9.1 backend (MIT OR Zlib OR Apache-2.0), which in turn uses `adler2` 2.0.1 (0BSD OR MIT OR Apache-2.0), `simd-adler32` 0.3.10 (MIT) and `crc32fast` 1.5.2 (MIT OR Apache-2.0).
 - `tar` 0.4.46 (MIT OR Apache-2.0), with `filetime` 0.2.29 (MIT OR Apache-2.0).
+- `ruzstd` 0.9.1 (MIT), a zstd decoder with no dependencies and no C code, built with default features off (the content checksum is not verified; `http_get` callers that need integrity verify the content themselves, as `beacons` does with signatures). The native runtime uses it to read a `Content-Encoding: zstd` HTTP response body; the browser VM does not link it.
 
 ### Cryptography
 

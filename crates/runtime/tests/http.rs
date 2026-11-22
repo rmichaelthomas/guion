@@ -878,3 +878,67 @@ fn http_response_json_observes_configured_text_limit() {
         Value::Text("HTTP response exceeds the configured text byte limit".into())
     );
 }
+
+fn serve_raw_once(response: Vec<u8>) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request);
+        stream.write_all(&response).unwrap();
+    });
+    format!("http://{address}/zstd")
+}
+
+/// A zstd frame holding `hello` as one raw block (single segment, content size 5).
+const ZSTD_HELLO: [u8; 14] = [
+    0x28, 0xB5, 0x2F, 0xFD, 0x20, 0x05, 0x29, 0x00, 0x00, b'h', b'e', b'l', b'l', b'o',
+];
+
+fn zstd_response(frame: &[u8]) -> Vec<u8> {
+    let mut response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Encoding: zstd\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        frame.len()
+    )
+    .into_bytes();
+    response.extend_from_slice(frame);
+    response
+}
+
+fn fetch_text_with_cap(url: &str, cap: usize) -> Value {
+    let source = format!(
+        "fn response() -> Result[Text, HttpError]:\n    return http_get({url:?})\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("http-zstd.gu", &source).unwrap();
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), cap);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("response", vec![]).unwrap()
+}
+
+#[test]
+fn http_get_decodes_a_zstd_response_the_server_sent_unasked() {
+    let url = serve_raw_once(zstd_response(&ZSTD_HELLO));
+    assert_eq!(
+        fetch_text_with_cap(&url, 64),
+        Value::ResultOk(Box::new(Value::Text("hello".into())))
+    );
+}
+
+#[test]
+fn zstd_decoding_is_bounded_by_the_response_byte_limit() {
+    let url = serve_raw_once(zstd_response(&ZSTD_HELLO));
+    let error = fetch_text_with_cap(&url, 4);
+    assert!(format!("{error:?}").contains("R_HTTP_LIMIT"), "{error:?}");
+}
+
+#[test]
+fn a_corrupt_zstd_body_is_a_typed_error_not_a_panic() {
+    let url = serve_raw_once(zstd_response(&[0x28, 0xB5, 0x2F, 0xFD, 0x20, 0x05, 0xFF]));
+    let error = fetch_text_with_cap(&url, 64);
+    assert!(
+        format!("{error:?}").contains("R_HTTP_ENCODING"),
+        "{error:?}"
+    );
+}

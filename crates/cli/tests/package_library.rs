@@ -186,6 +186,57 @@ fn hosts_named_in_the_code_must_be_declared() {
 }
 
 #[test]
+fn hosts_are_recognised_in_every_literal_form_a_request_is_built_from() {
+    let dir = scratch("lib-host-forms");
+    let library = dir.join("fetcher");
+    let declare = |hosts: &str| format!("\n[capabilities]\nnetwork = [{hosts}]\n");
+
+    // Bare host names in a list, joined to a scheme and a path at run time.
+    let bare = "fn hosts() -> List[Text]:\n    return [\"api.one.example\", \"two.example\"]\n\npub fn fetch(path: Text) -> Bool:\n    let names = hosts()\n    return is_ok(http_get(f\"https://{names[0]}/{path}\"))\n";
+    write_library(
+        &library,
+        &declare("\"api.one.example\", \"two.example\""),
+        bare,
+    );
+    let checked = guion(&library, &["check", "tests.gu"]);
+    assert!(checked.status.success(), "{}", text(&checked));
+    assert!(!text(&checked).contains("warning"), "{}", text(&checked));
+
+    // A host with a path or a port in a bare literal.
+    let with_path = "pub fn fetch(path: Text) -> Bool:\n    let base = \"api.one.example/v2\"\n    return is_ok(http_get(f\"https://{base}/{path}\"))\n\npub fn other() -> Bool:\n    return is_ok(http_get(\"https://two.example:8443/x\"))\n";
+    write_library(
+        &library,
+        &declare("\"api.one.example\", \"two.example\""),
+        with_path,
+    );
+    let checked = guion(&library, &["check", "tests.gu"]);
+    assert!(checked.status.success(), "{}", text(&checked));
+    assert!(!text(&checked).contains("warning"), "{}", text(&checked));
+
+    // A literal base URL that a path is added to.
+    let base = "fn base() -> Text:\n    return \"https://api.one.example/api\"\n\npub fn fetch(path: Text) -> Bool:\n    return is_ok(http_get(base() + \"/\" + path))\n";
+    write_library(&library, &declare("\"api.one.example\""), base);
+    let checked = guion(&library, &["check", "tests.gu"]);
+    assert!(checked.status.success(), "{}", text(&checked));
+    assert!(!text(&checked).contains("warning"), "{}", text(&checked));
+
+    // A declared host that no literal names is reported by name, and the others are not.
+    write_library(
+        &library,
+        &declare("\"api.one.example\", \"never.example\""),
+        bare,
+    );
+    let unused = guion(&library, &["check", "tests.gu"]);
+    assert!(unused.status.success(), "{}", text(&unused));
+    assert!(
+        text(&unused).contains("`never.example`") && !text(&unused).contains("`api.one.example`"),
+        "{}",
+        text(&unused)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn an_update_that_widens_capabilities_needs_explicit_approval() {
     let dir = scratch("lib-widen");
     let library = dir.join("fetcher");

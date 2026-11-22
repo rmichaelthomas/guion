@@ -119,6 +119,48 @@ pub(crate) fn request_headers(
     Ok(result)
 }
 
+/// The client advertises no `Accept-Encoding`, yet some hosts answer with `Content-Encoding: zstd`
+/// anyway (their cache stores the compressed copy). A response in that one encoding is decoded here,
+/// so the program sees the body the host meant. The decoded size is held to the same response limit
+/// as the wire size, so a small frame cannot expand past it. `content-encoding` and `content-length`
+/// are dropped from the headers because they no longer describe the body.
+fn decode_content_encoding(
+    mut headers: BTreeMap<String, String>,
+    body: Vec<u8>,
+    limit: usize,
+) -> Result<(BTreeMap<String, String>, Vec<u8>), HttpErrorValue> {
+    let is_zstd = headers
+        .get("content-encoding")
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("zstd"));
+    if !is_zstd {
+        return Ok((headers, body));
+    }
+    let encoding_error = || {
+        http_error(
+            "R_HTTP_ENCODING",
+            "HTTP response body is not valid zstd data",
+        )
+    };
+    let mut decoder =
+        ruzstd::decoding::StreamingDecoder::new(body.as_slice()).map_err(|_| encoding_error())?;
+    let mut decoded = Vec::new();
+    // Read one byte past the limit so an over-limit body is told apart from one that fits exactly.
+    use std::io::Read as _;
+    (&mut decoder)
+        .take((limit as u64).saturating_add(1))
+        .read_to_end(&mut decoded)
+        .map_err(|_| encoding_error())?;
+    if decoded.len() > limit {
+        return Err(http_error(
+            "R_HTTP_LIMIT",
+            "HTTP response exceeds the configured byte limit",
+        ));
+    }
+    headers.remove("content-encoding");
+    headers.remove("content-length");
+    Ok((headers, decoded))
+}
+
 async fn execute_http_bytes(
     client: &reqwest::Client,
     policy: &HostPolicy,
@@ -273,6 +315,8 @@ async fn execute_http_bytes(
             }
             bytes.extend_from_slice(&chunk);
         }
+        let (response_headers, bytes) =
+            decode_content_encoding(response_headers, bytes, policy.max_http_response_bytes)?;
         return Ok(HttpBytesResponse {
             status: status.as_u16(),
             headers: response_headers,

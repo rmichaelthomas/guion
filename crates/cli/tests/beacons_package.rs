@@ -37,6 +37,10 @@ fn package_tests_pass_offline() {
     let tested = guion(&["test", "tests.gu"]);
     assert!(tested.status.success(), "{}", text(&tested));
     assert!(text(&tested).contains("tests passed"), "{}", text(&tested));
+    // And with no file: the package's tests.gu is found.
+    let bare = guion(&["test"]);
+    assert!(bare.status.success(), "{}", text(&bare));
+    assert!(text(&bare).contains("tests passed"), "{}", text(&bare));
 }
 
 #[test]
