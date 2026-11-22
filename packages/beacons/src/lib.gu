@@ -1,0 +1,6 @@
+# beacons: checking public randomness beacons (drand, and in later parts CURBy and NIST) in Guion.
+pub import "multiformats.gu"
+pub import "drand.gu"
+
+pub fn beacons_version() -> Text:
+    return "0.1.0"

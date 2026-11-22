@@ -1,0 +1,40 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "src/lib.gu"
+
+# Live check, recorded to tapes/drand-100.tape: fetch 100 consecutive quicknet rounds ending a minute
+# ago, check each with drand_verify, and open the Task 7 round-1000 fixture with tlock_open.
+#   guion run --allow-http-host api.drand.sh --allow-http-host drand.cloudflare.com --allow-clock \
+#       --record tapes/drand-100.tape live_drand.gu
+fn verified(chain: DrandChain, round: Int) -> Bool:
+    match drand_fetch(chain, round):
+        Ok(value):
+            match drand_verify(chain, value):
+                Ok(good):
+                    return good
+                Err(problem):
+                    return false
+        Err(problem):
+            print(problem.message)
+            return false
+
+fn main() -> Int:
+    let chain = drand_quicknet()
+    let last = drand_round_at(chain, unix_time_ms() // 1000 - 60)
+    var good = 0
+    var round = last - 99
+    while round <= last:
+        if verified(chain, round):
+            set good = good + 1
+        set round = round + 1
+    print(f"{good}/100 rounds verified, {last - 99}..{last}")
+    let armored = unwrap(text_from_bytes(unwrap(read_bytes("fixtures/round1000.age"))))
+    match tlock_open(chain, armored):
+        Ok(plain):
+            print("tlock_open: " + encoding_utf8_decode_lossy(plain))
+        Err(problem):
+            print("tlock_open failed: " + problem.code)
+    if good == 100:
+        return 0
+    return 1

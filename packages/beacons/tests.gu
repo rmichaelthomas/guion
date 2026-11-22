@@ -1,0 +1,222 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "src/lib.gu"
+
+fn main() -> Int:
+    return 0
+
+fn chain_fixture() -> DrandChain:
+    return drand_quicknet()
+
+fn sig_1000() -> Bytes:
+    return unwrap(hex_decode("b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39"))
+
+fn sig_34173416() -> Bytes:
+    return unwrap(hex_decode("b889e8224d9d10eafdd637a2cdc6042108bb8aac8a6e899e9bc0e8be88e8af2b359cc82b70447dac08b7f4f5f0deb832"))
+
+fn round_of(round: Int, signature: Bytes) -> DrandRound:
+    return DrandRound(round, crypto_sha256(signature), signature)
+
+fn is_true(result: Result[Bool, StdError]) -> Bool:
+    match result:
+        Ok(value):
+            return value
+        Err(problem):
+            return false
+
+fn code_of_bytes(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+fn code_of_text(result: Result[Text, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+# CURBy's two randomness chains, from the requirements spec (CIDv1, DAG-CBOR, SHA3-512).
+fn curby_q() -> Text:
+    return "bafyriqhijw5soalbtppuwwjbskfiriqy6swa5qd5trgbzx4nypnu7mp7iyhx7m2iin2nxnglmngvjgirzb7bvlisxq3uygoik7ozbybxnftiw"
+
+fn curby_rng() -> Text:
+    return "bafyriqci6f3st2mg7gq733ho4zvvth32zpy2mtiylixwmhoz6d627eo3jfpmbxepe54u2zdvymonq5sp3armtm4rodxsynsirr5g3xsbd3q4s"
+
+fn test_base32_known_values() -> Unit:
+    assert(base32_lower_encode(bytes_from_text("")) == "")
+    assert(base32_lower_encode(bytes_from_text("f")) == "my")
+    assert(base32_lower_encode(bytes_from_text("fo")) == "mzxq")
+    assert(base32_lower_encode(bytes_from_text("foobar")) == "mzxw6ytboi")
+    assert(unwrap(base32_lower_decode("mzxw6ytboi")) == bytes_from_text("foobar"))
+    assert(unwrap(base32_lower_decode("")) == bytes_from_text(""))
+
+fn test_base32_rejects_bad_text() -> Unit:
+    assert(code_of_bytes(base32_lower_decode("MZXQ")) == "E_BASE32")
+    assert(code_of_bytes(base32_lower_decode("mzx1")) == "E_BASE32")
+    assert(code_of_bytes(base32_lower_decode("m")) == "E_BASE32")
+
+fn test_base32_round_trip_every_length() -> Unit:
+    var data = bytes_from_ints([])
+    var n = 0
+    while n < 70:
+        assert(unwrap(base32_lower_decode(base32_lower_encode(data))) == data)
+        set data = bytes_join([data, bytes_from_ints([(n * 37 + 11) % 256])])
+        set n = n + 1
+
+fn test_varint() -> Unit:
+    assert(varint_encode(0) == bytes_from_ints([0]))
+    assert(varint_encode(1) == bytes_from_ints([1]))
+    assert(varint_encode(127) == bytes_from_ints([127]))
+    assert(varint_encode(128) == bytes_from_ints([128, 1]))
+    assert(varint_encode(300) == bytes_from_ints([172, 2]))
+    assert(varint_encode(113) == bytes_from_ints([113]))
+    assert(varint_encode(20) == bytes_from_ints([20]))
+
+fn test_cid_parse_curby_q() -> Unit:
+    let parts = unwrap(cid_parse(curby_q()))
+    assert(parts.version == 1)
+    assert(parts.codec == 113)
+    assert(parts.hash_code == 20)
+    assert(len(parts.digest) == 64)
+
+fn test_cid_round_trips_both_curby_cids() -> Unit:
+    let q = unwrap(cid_parse(curby_q()))
+    assert(cid_v1(q.codec, q.hash_code, q.digest) == curby_q())
+    let r = unwrap(cid_parse(curby_rng()))
+    assert(r.version == 1)
+    assert(r.codec == 113)
+    assert(r.hash_code == 20)
+    assert(cid_v1(r.codec, r.hash_code, r.digest) == curby_rng())
+
+fn test_cid_from_content() -> Unit:
+    let digest = crypto_sha3_512(bytes_from_text("abc"))
+    let text = cid_v1(113, 20, digest)
+    assert(text_slice(text, 0, 7) == "bafyriq")
+    assert(unwrap(cid_parse(text)).digest == digest)
+
+fn test_cid_parse_rejects() -> Unit:
+    assert(is_err_code(cid_parse(""), "E_CID"))
+    assert(is_err_code(cid_parse("zafyriq"), "E_CID"))
+    assert(is_err_code(cid_parse("bmzxq"), "E_CID"))
+    let short = "b" + base32_lower_encode(bytes_from_ints([1, 113, 20, 64, 1, 2]))
+    assert(is_err_code(cid_parse(short), "E_CID"))
+    let v0 = "b" + base32_lower_encode(bytes_from_ints([0, 113, 20, 1, 1]))
+    assert(is_err_code(cid_parse(v0), "E_CID"))
+
+fn is_err_code(result: Result[CidParts, StdError], code: Text) -> Bool:
+    match result:
+        Ok(parts):
+            return false
+        Err(problem):
+            return problem.code == code
+
+fn test_quicknet_constants() -> Unit:
+    let chain = chain_fixture()
+    assert(chain.hash == "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971")
+    assert(len(chain.public_key) == 96)
+    assert(chain.period == 3)
+    assert(chain.genesis_time == 1692803367)
+    assert(chain.scheme == "bls-unchained-g1-rfc9380")
+
+fn test_round_arithmetic() -> Unit:
+    let chain = chain_fixture()
+    assert(drand_round_at(chain, chain.genesis_time + 3 * 999) == 1000)
+    assert(drand_round_at(chain, chain.genesis_time + 3 * 999 + 2) == 1000)
+    assert(drand_round_at(chain, chain.genesis_time + 3 * 1000) == 1001)
+    assert(drand_round_at(chain, chain.genesis_time) == 1)
+    assert(drand_round_at(chain, chain.genesis_time - 100) == 1)
+    assert(drand_round_time(chain, 1) == chain.genesis_time)
+    assert(drand_round_time(chain, 1000) == chain.genesis_time + 3 * 999)
+    assert(drand_round_at(chain, drand_round_time(chain, 34173416)) == 34173416)
+
+fn test_verify_known_rounds() -> Unit:
+    let chain = chain_fixture()
+    assert(is_true(drand_verify(chain, round_of(1000, sig_1000()))))
+    assert(is_true(drand_verify(chain, round_of(34173416, sig_34173416()))))
+
+fn test_verify_refuses_a_swapped_signature() -> Unit:
+    let chain = chain_fixture()
+    assert(is_true(drand_verify(chain, round_of(1000, sig_34173416()))) == false)
+    assert(is_true(drand_verify(chain, round_of(34173416, sig_1000()))) == false)
+    assert(is_true(drand_verify(chain, round_of(1001, sig_1000()))) == false)
+
+fn test_verify_refuses_wrong_randomness() -> Unit:
+    let chain = chain_fixture()
+    let bad = DrandRound(1000, crypto_sha256(bytes_from_text("other")), sig_1000())
+    assert(is_true(drand_verify(chain, bad)) == false)
+
+fn test_verify_malformed_signature_is_an_error() -> Unit:
+    let chain = chain_fixture()
+    let short = bytes_slice(sig_1000(), 0, 47)
+    match drand_verify(chain, round_of(1000, short)):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_CRYPTO_INPUT")
+
+fn read_fixture(name: Text) -> Bytes:
+    return unwrap(read_bytes(name))
+
+fn fixture_armor() -> Text:
+    return unwrap(text_from_bytes(read_fixture("fixtures/round1000.age")))
+
+fn test_armor_chain_and_round() -> Unit:
+    assert(unwrap(tlock_armor_round(fixture_armor())) == 1000)
+    assert(unwrap(tlock_armor_chain(fixture_armor())) == chain_fixture().hash)
+
+fn test_open_with_round_gives_the_plaintext() -> Unit:
+    let chain = chain_fixture()
+    let opened = tlock_open_with(chain, fixture_armor(), round_of(1000, sig_1000()))
+    assert(unwrap(opened) == read_fixture("fixtures/plaintext.txt"))
+
+fn test_open_with_refuses_a_bad_round_value() -> Unit:
+    let chain = chain_fixture()
+    assert(code_of_bytes(tlock_open_with(chain, fixture_armor(), round_of(1000, sig_34173416()))) == "E_DRAND_VERIFY")
+    assert(code_of_bytes(tlock_open_with(chain, fixture_armor(), round_of(34173416, sig_34173416()))) == "E_DRAND_ROUND")
+
+fn test_open_too_early() -> Unit:
+    let chain = chain_fixture()
+    let now = unix_time_ms() // 1000
+    let target = drand_round_at(chain, now) + 1000
+    let sealed = unwrap(tlock_seal(chain, target, bytes_from_text("later")))
+    assert(unwrap(tlock_armor_round(sealed)) == target)
+    match tlock_open(chain, sealed):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TLOCK_TOO_EARLY")
+            assert(text_find(problem.message, int_to_text(target), 0) >= 0)
+            assert(text_find(problem.message, int_to_text(drand_round_time(chain, target)), 0) >= 0)
+
+fn test_open_the_future_fixture_is_too_early() -> Unit:
+    let chain = chain_fixture()
+    let armored = unwrap(text_from_bytes(read_fixture("fixtures/future.age")))
+    assert(code_of_bytes(tlock_open(chain, armored)) == "E_TLOCK_TOO_EARLY")
+
+fn test_open_refuses_another_chain() -> Unit:
+    let chain = chain_fixture()
+    let other = bytes_join([bytes_from_ints([170]), bytes_slice(crypto_sha256(bytes_from_text("x")), 1, 32)])
+    let now = unix_time_ms() // 1000
+    let target = drand_round_at(chain, now) + 1000
+    match crypto_tlock_encrypt(target, other, chain.public_key, bytes_from_text("hi")):
+        Ok(armored):
+            assert(unwrap(tlock_armor_chain(armored)) == hex_encode(other))
+            assert(code_of_bytes(tlock_open(chain, armored)) == "E_TLOCK_CHAIN")
+            assert(code_of_bytes(tlock_open_with(chain, armored, round_of(1000, sig_1000()))) == "E_TLOCK_CHAIN")
+        Err(problem):
+            assert(false)
+
+fn test_seal_rejects_a_round_before_genesis() -> Unit:
+    let chain = chain_fixture()
+    assert(code_of_text(tlock_seal(chain, 0, bytes_from_text("x"))) != "ok")
+
+fn test_seal_and_open_with_round() -> Unit:
+    let chain = chain_fixture()
+    let sealed = unwrap(tlock_seal(chain, 1000, bytes_from_text("round trip")))
+    assert(unwrap(tlock_armor_chain(sealed)) == chain.hash)
+    let opened = tlock_open_with(chain, sealed, round_of(1000, sig_1000()))
+    assert(unwrap(opened) == bytes_from_text("round trip"))
