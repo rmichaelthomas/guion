@@ -1405,15 +1405,31 @@ impl Parser {
         if self.cur().kind != Kind::Indent {
             return Err(diagnostic(
                 "E_BLOCK_EMPTY",
-                "expected an indented block",
+                "expected an indented block; write `pass` on its own line for a block that does nothing",
                 self.cur().span,
             ));
         }
         self.advance();
         let mut body = Vec::new();
+        let mut saw_pass = false;
         while self.cur().kind != Kind::Dedent && self.cur().kind != Kind::Eof {
             if self.cur().kind == Kind::Newline {
                 self.advance();
+                continue;
+            }
+            // `pass` on a line of its own is a statement that does nothing, so a block (a
+            // `match` arm most often) can be empty on purpose. It is contextual: `pass` followed
+            // by anything else is still an ordinary name.
+            if self.cur().text == "pass"
+                && self.cur().kind == Kind::Name
+                && self
+                    .tokens
+                    .get(self.at + 1)
+                    .is_some_and(|next| next.kind == Kind::Newline)
+            {
+                self.advance();
+                self.advance();
+                saw_pass = true;
                 continue;
             }
             body.push(self.statement()?);
@@ -1426,10 +1442,10 @@ impl Parser {
             ));
         }
         self.advance();
-        if body.is_empty() {
+        if body.is_empty() && !saw_pass {
             return Err(diagnostic(
                 "E_BLOCK_EMPTY",
-                "blocks must contain a statement",
+                "blocks must contain a statement; write `pass` for one that does nothing",
                 self.cur().span,
             ));
         }

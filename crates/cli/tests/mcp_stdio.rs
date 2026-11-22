@@ -149,3 +149,54 @@ fn mcp_eof_exits_zero() {
     let status = server.child.wait().unwrap();
     assert!(status.success(), "{status:?}");
 }
+
+#[test]
+fn mcp_wrong_typed_fields_get_error_replies_and_the_server_keeps_serving() {
+    let mut server = Server::start();
+    server.call(INITIALIZE);
+
+    // A `method` that is not text: Invalid Request, with the request's own id.
+    let reply = parse(&server.call(r#"{"jsonrpc":"2.0","id":11,"method":5}"#));
+    assert_eq!(reply["id"], 11);
+    assert_eq!(reply["error"]["code"], -32600);
+
+    // A request that is not an object at all: Invalid Request with a null id.
+    for line in ["[1,2,3]", "5", "\"ping\"", "null"] {
+        let reply = parse(&server.call(line));
+        assert_eq!(reply["id"], serde_json::Value::Null, "{line}");
+        assert_eq!(reply["error"]["code"], -32600, "{line}");
+    }
+
+    // Wrong-typed params: Invalid params.
+    let reply =
+        parse(&server.call(
+            r#"{"jsonrpc":"2.0","id":12,"method":"initialize","params":{"protocolVersion":7}}"#,
+        ));
+    assert_eq!(reply["id"], 12);
+    assert_eq!(reply["error"]["code"], -32602);
+    let reply = parse(&server.call(
+        r#"{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":3,"arguments":{"text":"x"}}}"#,
+    ));
+    assert_eq!(reply["id"], 13);
+    assert_eq!(reply["error"]["code"], -32602);
+    let reply = parse(&server.call(
+        r#"{"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"echo","arguments":{"text":false}}}"#,
+    ));
+    assert_eq!(reply["id"], 14);
+    assert_eq!(reply["error"]["code"], -32602);
+    let reply =
+        parse(&server.call(r#"{"jsonrpc":"2.0","id":15,"method":"tools/call","params":"echo"}"#));
+    assert_eq!(reply["error"]["code"], -32602);
+
+    // An invalid request with no id is still answered, with a null id (JSON-RPC 2.0, section 5).
+    let reply = parse(&server.call(r#"{"jsonrpc":"2.0","method":false}"#));
+    assert_eq!(reply["id"], serde_json::Value::Null);
+    assert_eq!(reply["error"]["code"], -32600);
+
+    // The server is still serving.
+    let reply = parse(&server.call(
+        r#"{"jsonrpc":"2.0","id":16,"method":"tools/call","params":{"name":"echo","arguments":{"text":"still here"}}}"#,
+    ));
+    assert_eq!(reply["id"], 16);
+    assert_eq!(reply["result"]["content"][0]["text"], "still here");
+}

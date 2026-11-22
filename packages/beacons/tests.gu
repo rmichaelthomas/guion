@@ -78,6 +78,10 @@ fn test_varint() -> Unit:
     assert(varint_encode(113) == bytes_from_ints([113]))
     assert(varint_encode(20) == bytes_from_ints([20]))
 
+fn test_varint_wide_values() -> Unit:
+    assert(varint_encode(1099511627776) == bytes_from_ints([128, 128, 128, 128, 128, 32]))
+    assert(varint_encode(9223372036854775807) == bytes_from_ints([255, 255, 255, 255, 255, 255, 255, 255, 127]))
+
 fn test_cid_parse_curby_q() -> Unit:
     let parts = unwrap(cid_parse(curby_q()))
     assert(parts.version == 1)

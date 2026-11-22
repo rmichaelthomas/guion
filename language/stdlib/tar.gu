@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 # std:tar: write, read and list tar archives, optionally gzip-compressed.
 #

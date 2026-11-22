@@ -1,6 +1,7 @@
 import "std:encoding"
 import "std:types"
 import "std:text"
+pub import "std:http_types"
 
 # std:crypto: HMAC-SHA-256, SHA-256, SHA-512, SHA3-512 and SHA-1 digests, and byte XOR.
 #

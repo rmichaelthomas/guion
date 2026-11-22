@@ -3816,7 +3816,12 @@ fn std_module_report(name: &str) -> Result<serde_json::Value, String> {
     let summary_prefix = format!("# std:{name}: ");
     if let Some(summary) = module_text
         .lines()
-        .take_while(|line| line.starts_with('#') || line.starts_with("import ") || line.is_empty())
+        .take_while(|line| {
+            line.starts_with('#')
+                || line.starts_with("import ")
+                || line.starts_with("pub import ")
+                || line.is_empty()
+        })
         .find_map(|line| line.strip_prefix(summary_prefix.as_str()))
     {
         report["summary"] = serde_json::json!(summary.trim());

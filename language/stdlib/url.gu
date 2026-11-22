@@ -1,5 +1,6 @@
 import "std:text"
 import "std:types"
+pub import "std:http_types"
 
 pub record Url:
     scheme: Text

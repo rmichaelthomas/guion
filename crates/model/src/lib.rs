@@ -1451,6 +1451,21 @@ mod tests {
     }
 
     #[test]
+    fn old_format_rejects_bit_operations() {
+        // The first format with the integer bit operations; they ride on `Op::Codec`.
+        const BIT_OPS_FIRST_FORMAT: u32 = 83;
+        for function in [
+            CodecFunction::IntAnd,
+            CodecFunction::IntOr,
+            CodecFunction::IntXor,
+            CodecFunction::IntShiftLeft,
+            CodecFunction::IntShiftRight,
+        ] {
+            assert_gated(Op::Codec(function), BIT_OPS_FIRST_FORMAT);
+        }
+    }
+
+    #[test]
     fn old_format_rejects_crypto_ops() {
         assert_gated(Op::Crypto(CryptoFunction::Sha512), 78);
         assert_gated(Op::Crypto(CryptoFunction::Sha3_512), 78);
@@ -3759,8 +3774,8 @@ impl MathFunction {
     }
 }
 
-/// Pure byte, text-encoding and percent-encoding functions behind `Op::Codec`. Codes are part of
-/// artifact format 53.
+/// Pure byte, text-encoding, percent-encoding and integer bit functions behind `Op::Codec`. Codes
+/// are part of artifact format 53 and append-only (see the format notes for each later addition).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CodecFunction {
     Base64Encode,
@@ -3781,10 +3796,20 @@ pub enum CodecFunction {
     BytesXor,
     /// SHA-256 digest of a byte string (format 67).
     Sha256,
+    /// Bitwise AND of two 64-bit signed integers (format 83).
+    IntAnd,
+    /// Bitwise OR of two 64-bit signed integers (format 83).
+    IntOr,
+    /// Bitwise XOR of two 64-bit signed integers (format 83).
+    IntXor,
+    /// Left shift of a 64-bit signed integer by 0 to 63 bits, without wrapping (format 83).
+    IntShiftLeft,
+    /// Arithmetic right shift of a 64-bit signed integer by 0 to 63 bits (format 83).
+    IntShiftRight,
 }
 
 impl CodecFunction {
-    const ALL: [CodecFunction; 15] = [
+    const ALL: [CodecFunction; 20] = [
         CodecFunction::Base64Encode,
         CodecFunction::Base64UrlEncode,
         CodecFunction::Base64Decode,
@@ -3800,6 +3825,11 @@ impl CodecFunction {
         CodecFunction::Sha1,
         CodecFunction::BytesXor,
         CodecFunction::Sha256,
+        CodecFunction::IntAnd,
+        CodecFunction::IntOr,
+        CodecFunction::IntXor,
+        CodecFunction::IntShiftLeft,
+        CodecFunction::IntShiftRight,
     ];
 
     pub fn code(self) -> u8 {
@@ -3831,6 +3861,11 @@ impl CodecFunction {
             CodecFunction::Sha1 => "CodecSha1",
             CodecFunction::BytesXor => "CodecBytesXor",
             CodecFunction::Sha256 => "CodecSha256",
+            CodecFunction::IntAnd => "CodecIntAnd",
+            CodecFunction::IntOr => "CodecIntOr",
+            CodecFunction::IntXor => "CodecIntXor",
+            CodecFunction::IntShiftLeft => "CodecIntShiftLeft",
+            CodecFunction::IntShiftRight => "CodecIntShiftRight",
         }
     }
 
@@ -3845,7 +3880,12 @@ impl CodecFunction {
     pub fn arity(self) -> usize {
         match self {
             CodecFunction::BytesSlice => 3,
-            CodecFunction::BytesXor => 2,
+            CodecFunction::BytesXor
+            | CodecFunction::IntAnd
+            | CodecFunction::IntOr
+            | CodecFunction::IntXor
+            | CodecFunction::IntShiftLeft
+            | CodecFunction::IntShiftRight => 2,
             _ => 1,
         }
     }
@@ -4746,7 +4786,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 82;
+    pub const CURRENT_VERSION: u32 = 83;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5118,6 +5158,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 83 && artifact_uses_int_bit_operations(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "integer bit operations require artifact format 83",
             ));
         }
         if self.format_version < 82 && artifact_uses_dagcbor_crypto(self) {
@@ -6001,10 +6047,16 @@ impl Artifact {
                                 "SHA-1 and byte XOR instructions require artifact format 59",
                             ));
                         }
-                        if code >= 14 && format_version < 67 {
+                        if code == 14 && format_version < 67 {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "SHA-256 instructions require artifact format 67",
+                            ));
+                        }
+                        if code >= 15 && format_version < 83 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "integer bit operations require artifact format 83",
                             ));
                         }
                         Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
@@ -6987,6 +7039,23 @@ fn artifact_uses_signature_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 79)
+        })
+    })
+}
+
+fn artifact_uses_int_bit_operations(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Codec(
+                    CodecFunction::IntAnd
+                        | CodecFunction::IntOr
+                        | CodecFunction::IntXor
+                        | CodecFunction::IntShiftLeft
+                        | CodecFunction::IntShiftRight
+                )
+            )
         })
     })
 }

@@ -7698,6 +7698,11 @@ fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
         CodecFunction::PercentDecode => (vec![Type::Text], option(Type::Text)),
         CodecFunction::Sha1 | CodecFunction::Sha256 => (vec![Type::Bytes], Type::Bytes),
         CodecFunction::BytesXor => (vec![Type::Bytes, Type::Bytes], Type::Bytes),
+        CodecFunction::IntAnd
+        | CodecFunction::IntOr
+        | CodecFunction::IntXor
+        | CodecFunction::IntShiftLeft
+        | CodecFunction::IntShiftRight => (vec![Type::Int, Type::Int], Type::Int),
     }
 }
 
@@ -7781,6 +7786,45 @@ fn hex_decode(text: &str) -> Option<Vec<u8>> {
         .chunks(2)
         .map(|pair| Some(nibble(pair[0])? << 4 | nibble(pair[1])?))
         .collect()
+}
+
+/// The integer bit operations on 64-bit two's-complement values. An operand outside the 64-bit
+/// range is `R_INTEGER_RANGE`; a shift count below 0 or above 63 is `R_SHIFT_RANGE`. Left shifts
+/// do not wrap: the result is exact, since integers have no fixed width.
+fn apply_int_bits(
+    function: CodecFunction,
+    left: &BigInt,
+    right: &BigInt,
+) -> Result<BigInt, (&'static str, &'static str)> {
+    const RANGE: (&str, &str) = (
+        "R_INTEGER_RANGE",
+        "bit operations require operands within the 64-bit signed integer range",
+    );
+    const SHIFT: (&str, &str) = ("R_SHIFT_RANGE", "a shift count must be between 0 and 63");
+    let left = left.to_i64().ok_or(RANGE)?;
+    match function {
+        CodecFunction::IntShiftLeft | CodecFunction::IntShiftRight => {
+            // A count that does not fit an i64 is just as out of range as a negative one.
+            let count = right.to_i64().ok_or(SHIFT)?;
+            if !(0..64).contains(&count) {
+                return Err(SHIFT);
+            }
+            if function == CodecFunction::IntShiftLeft {
+                let shifted = i128::from(left) << count;
+                BigInt::parse(&shifted.to_string()).map_err(|_| RANGE)
+            } else {
+                Ok(BigInt::from_i64(left >> count))
+            }
+        }
+        _ => {
+            let right = right.to_i64().ok_or(RANGE)?;
+            Ok(BigInt::from_i64(match function {
+                CodecFunction::IntAnd => left & right,
+                CodecFunction::IntOr => left | right,
+                _ => left ^ right,
+            }))
+        }
+    }
 }
 
 /// RFC 3986 component encoding: everything except unreserved characters is percent-encoded.
@@ -7979,6 +8023,21 @@ fn apply_codec(
                 "bytes_slice requires 0 <= start <= end <= len(bytes)",
             )),
         };
+    }
+    if matches!(
+        function,
+        CodecFunction::IntAnd
+            | CodecFunction::IntOr
+            | CodecFunction::IntXor
+            | CodecFunction::IntShiftLeft
+            | CodecFunction::IntShiftRight
+    ) {
+        let (Value::Int(right), Value::Int(left)) =
+            (operands.pop().ok_or(TYPE)?, operands.pop().ok_or(TYPE)?)
+        else {
+            return Err(TYPE);
+        };
+        return apply_int_bits(function, &left, &right).map(Value::Int);
     }
     if function == CodecFunction::BytesXor {
         let (Value::Bytes(key), Value::Bytes(data)) =

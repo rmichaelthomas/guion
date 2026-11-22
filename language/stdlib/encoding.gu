@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 pub fn base64_encode(data: Bytes) -> Text:
     return native_base64_encode(data)

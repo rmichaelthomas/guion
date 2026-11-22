@@ -2792,6 +2792,51 @@
       "operation": "NumberToText"
     },
     {
+      "name": "int_and",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntAnd"
+    },
+    {
+      "name": "int_or",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntOr"
+    },
+    {
+      "name": "int_xor",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntXor"
+    },
+    {
+      "name": "int_shift_left",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntShiftLeft"
+    },
+    {
+      "name": "int_shift_right",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntShiftRight"
+    },
+    {
       "name": "float_to_text",
       "parameters": [
         "Float64"

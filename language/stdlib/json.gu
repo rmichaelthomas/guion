@@ -24,3 +24,23 @@ pub fn json_bool_safe(value: Json) -> Result[Bool, JsonError]:
 
 pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]:
     return json_try_float(value)
+
+# The Result-returning counterpart of json_as_int_list: Err with E_JSON_SHAPE when the value is not
+# an array and E_JSON_TYPE when an element is not an integer; it never stops the program.
+pub fn json_int_list_safe(value: Json) -> Result[List[Int], JsonError]:
+    var items: List[Int] = []
+    var index = 0
+    while true:
+        match json_try_index(value, index):
+            Ok(element):
+                match json_try_int(element):
+                    Ok(number):
+                        set items = list_push(items, number)
+                    Err(problem):
+                        return Err(problem)
+            Err(problem):
+                if json_error_code(problem) == "E_JSON_INDEX":
+                    return Ok(items)
+                return Err(problem)
+        set index += 1
+    return Ok(items)

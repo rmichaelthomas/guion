@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 pub fn unicode_casefold(value: Text) -> Text:
     return native_text_casefold(value)

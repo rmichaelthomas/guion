@@ -1,5 +1,5 @@
 import "std:io"
-import "std:types"
+import "std:json"
 
 # A Model Context Protocol server over stdio: one JSON-RPC 2.0 message per line.
 # Tools: `echo`, which returns its `text` argument.
@@ -23,12 +23,22 @@ fn error_reply(id: Json, code: Int, message: Text) -> Json:
     set reply = json_set(reply, "error", problem)
     return reply
 
-fn initialize_result(request: Json) -> Json:
-    var version = "2024-11-05"
-    if json_has(request, "params"):
-        let params = json_get(request, "params")
-        if json_has(params, "protocolVersion"):
-            set version = json_as_text(json_get(params, "protocolVersion"))
+# The protocol version the client asked for, the default when it named none, or Err when `params`
+# or `protocolVersion` has the wrong type.
+fn requested_version(request: Json) -> Result[Text, JsonError]:
+    match json_get_safe(request, "params"):
+        Ok(params):
+            match json_get_safe(params, "protocolVersion"):
+                Ok(version):
+                    return json_text_safe(version)
+                Err(problem):
+                    if json_error_code(problem) == "E_JSON_MISSING":
+                        return Ok("2024-11-05")
+                    return Err(problem)
+        Err(problem):
+            return Ok("2024-11-05")
+
+fn initialize_result(version: Text) -> Json:
     var info = json_object()
     set info = json_set(info, "name", json_text("guion-example"))
     set info = json_set(info, "version", json_text("0.1.0"))
@@ -71,43 +81,66 @@ fn echo_result(text: Text) -> Json:
     set result = json_set(result, "content", content)
     return result
 
-# The `text` argument of a tools/call for `echo`, or None when the call is malformed.
+# The `text` argument of a tools/call for `echo`, or None when the call is malformed or has a
+# field of the wrong type. The safe accessors report that as an Err instead of stopping the server.
 fn echo_argument(request: Json) -> Option[Text]:
-    if not json_has(request, "params"):
-        return None
-    let params = json_get(request, "params")
-    if not json_has(params, "name"):
-        return None
-    if json_as_text(json_get(params, "name")) != "echo":
-        return None
-    if not json_has(params, "arguments"):
-        return None
-    let arguments = json_get(params, "arguments")
-    if not json_has(arguments, "text"):
-        return None
-    return Some(json_as_text(json_get(arguments, "text")))
+    match json_get_safe(request, "params"):
+        Ok(params):
+            match json_get_text_safe(params, "name"):
+                Ok(name):
+                    if name != "echo":
+                        return None
+                    match json_get_safe(params, "arguments"):
+                        Ok(arguments):
+                            match json_get_text_safe(arguments, "text"):
+                                Ok(text):
+                                    return Some(text)
+                                Err(problem):
+                                    return None
+                        Err(problem):
+                            return None
+                Err(problem):
+                    return None
+        Err(problem):
+            return None
 
-# One reply line per request; a notification (no `id`) gets none.
-fn handle(request: Json) -> Option[Json]:
-    if not json_has(request, "method"):
-        return Some(error_reply(json_null(), -32600, "Invalid Request"))
-    if not json_has(request, "id"):
-        return None
-    let id = json_get(request, "id")
-    let method = json_as_text(json_get(request, "method"))
+# The reply to one request that has an id.
+fn answer(id: Json, method: Text, request: Json) -> Json:
     if method == "initialize":
-        return Some(ok_reply(id, initialize_result(request)))
+        match requested_version(request):
+            Ok(version):
+                return ok_reply(id, initialize_result(version))
+            Err(problem):
+                return error_reply(id, -32602, "Invalid params")
     if method == "ping":
-        return Some(ok_reply(id, json_object()))
+        return ok_reply(id, json_object())
     if method == "tools/list":
-        return Some(ok_reply(id, tools_list_result()))
+        return ok_reply(id, tools_list_result())
     if method == "tools/call":
         match echo_argument(request):
             Some(text):
-                return Some(ok_reply(id, echo_result(text)))
+                return ok_reply(id, echo_result(text))
             None:
-                return Some(error_reply(id, -32602, "Unknown tool or bad arguments"))
-    return Some(error_reply(id, -32601, "Method not found"))
+                return error_reply(id, -32602, "Unknown tool or bad arguments")
+    return error_reply(id, -32601, "Method not found")
+
+# One reply line per request; a notification (a request without an `id`) gets none.
+fn handle(request: Json) -> Option[Json]:
+    var id = json_null()
+    var noted = false
+    match json_get_safe(request, "id"):
+        Ok(found):
+            set id = found
+            set noted = true
+        Err(problem):
+            pass
+    match json_get_text_safe(request, "method"):
+        Ok(method):
+            if noted:
+                return Some(answer(id, method, request))
+            return None
+        Err(problem):
+            return Some(error_reply(id, -32600, "Invalid Request"))
 
 fn main() -> Int:
     var going = true

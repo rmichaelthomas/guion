@@ -50,12 +50,10 @@ fn drand_error(code: Text, message: Text) -> StdError:
 # The 8 big-endian bytes of a round, the input of its message hash.
 fn round_bytes(round: Int) -> Bytes:
     var octets: List[Int] = []
-    var place = 72057594037927936
-    var count = 0
-    while count < 8:
-        set octets = list_push(octets, (round // place) % 256)
-        set place = place // 256
-        set count = count + 1
+    var shift = 56
+    while shift >= 0:
+        set octets = list_push(octets, int_and(int_shift_right(round, shift), 255))
+        set shift = shift - 8
     return bytes_from_ints(octets)
 
 fn round_message(round: Int) -> Bytes:

@@ -13,7 +13,7 @@ Generated from the current Guion language contract, builtin signature catalog, s
 
 ## Statements and expressions
 
-Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in list`, exhaustive `match` statements for `Option` and `Result`, and a call expression as a statement. `if` and `while` conditions must be `Bool`. `break` leaves the innermost enclosing `while` or `for` loop, and `continue` skips the rest of the loop body (in a `for`, it advances to the next item; in a `while`, it re-tests the condition). Each is a statement on its own line, valid only inside a loop body, including inside `if` and `match` arms nested in that loop; in a function with its own loops (such as a `parallel_map` worker) it binds to that function's loop. Outside any loop, `break` and `continue` are rejected with `E_NO_LOOP` ("`break` outside a loop" / "`continue` outside a loop"). `break` and `continue` are reserved words at the start of a statement. Resource handles such as a `FileReader` are not tied to a loop: leaving a loop early does not close one, and the runtime closes any handle still open at the end of the invocation. A function body is indented under its declaration. `else` aligns with `if`.
+Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in list`, exhaustive `match` statements for `Option` and `Result`, and a call expression as a statement. `if` and `while` conditions must be `Bool`. `break` leaves the innermost enclosing `while` or `for` loop, and `continue` skips the rest of the loop body (in a `for`, it advances to the next item; in a `while`, it re-tests the condition). Each is a statement on its own line, valid only inside a loop body, including inside `if` and `match` arms nested in that loop; in a function with its own loops (such as a `parallel_map` worker) it binds to that function's loop. Outside any loop, `break` and `continue` are rejected with `E_NO_LOOP` ("`break` outside a loop" / "`continue` outside a loop"). `break` and `continue` are reserved words at the start of a statement. `pass` on a line of its own is a statement that does nothing, so a `match` arm (or any block) can be empty on purpose: `None:` then an indented `pass`. A block with no statement is `E_BLOCK_EMPTY`, and its message names `pass`. `pass` is recognised only as the whole line, so it stays usable as a name. Resource handles such as a `FileReader` are not tied to a loop: leaving a loop early does not close one, and the runtime closes any handle still open at the end of the invocation. A function body is indented under its declaration. `else` aligns with `if`.
 
 Everyday forms: see `docs/reference.md`.
 
@@ -55,6 +55,7 @@ Everyday forms: see `docs/reference.md`.
 - Compression and archives (artifact format 71): `std:compress` has `gzip_compress(data: Bytes) -> Bytes` and `zlib_compress(data: Bytes) -> Bytes`, `gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]` and `zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]`, and the streamed file forms `gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the compressed size) and `gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the decompressed size); the file forms need the file-read and file-write grants (effects `filesystem.read` and `filesystem.write`), follow the `std:fs` path rules, stream through 64 KiB buffers and write the destination through a sibling temporary file renamed on success. Every inflate has an output ceiling: `max_output` for the in-memory forms, capped by `[runtime] decompress_limit_bytes` (default 1 GiB, a positive integer in `guion.toml`), which is the only ceiling of the file and tar forms. Output past the ceiling is `E_COMPRESS_LIMIT` after at most the ceiling has been produced, never a crash or an unbounded allocation; a negative `max_output` is `E_COMPRESS_ARGUMENT`; short or empty input is `E_COMPRESS_TRUNCATED`; a bad header, checksum or deflate data is `E_COMPRESS_CORRUPT`. A gzip input may hold several members and the output is their concatenation (the ceiling counts them together); bytes after the last gzip member that do not begin another member (zero padding included), or after a zlib stream, are `E_COMPRESS_TRAILING_DATA`, never ignored. `std:tar` has `tar_write(directory: Text, archive: Text) -> Result[Int, StdError]`, `tar_read(archive: Text, destination: Text) -> Result[Int, StdError]` and `tar_list(archive: Text) -> Result[List[Text], StdError]`. `tar_write` archives the directory's contents with names relative to it, sorted, with fixed metadata (so the same tree gives the same archive), gzip-compressed when the archive name ends in `.gz` or `.tgz` (what `tar -tzf` reads) and plain otherwise; a symbolic link in the tree, or an archive path inside the directory, is `E_TAR_UNSAFE_PATH`. `tar_read` and `tar_list` detect gzip by its magic number. `tar_read` applies the `std:fs` confinement rules to every entry: an absolute name, a `..` component, or a link whose target is absolute or contains `..` is `E_TAR_UNSAFE_PATH`, device and FIFO entries are `E_TAR_UNSUPPORTED_ENTRY`, and a damaged archive is `E_TAR_CORRUPT`; entries before a refused one stay extracted. The bytes extracted and inflated are capped by the same ceiling. The crates behind it are `flate2` (its pure-Rust `miniz_oxide` backend) and `tar`, in the runtime only; the browser VM gains nothing. New instructions `GzipCompress`, `GzipDecompress`, `ZlibCompress` and `ZlibDecompress` and `Fs` function codes 13 to 17; artifacts below format 71 that use them are rejected with `E_ARTIFACT_VERSION`. zstd is not part of this release.
 - Standard input (artifact format 77): `std:io` has `stdin_read_line() -> Result[Option[Text], StdError]` and `stdin_read_all() -> Result[Bytes, StdError]`, which read the program's own standard input. `stdin_read_line` returns the next line without its `\n` or `\r\n` as `Some(line)`, and `None` at the end of input; a final line with no terminator is returned. A line longer than `[runtime] stdin_line_limit_bytes` (a positive integer in `guion.toml`, default 1048576, counted without the line ending) is `E_STDIN_LINE_LIMIT` and a line that is not UTF-8 is `E_STDIN_UTF8`; either one consumes the whole offending line, so the next call reads the line after it. A failing read is `E_STDIN_READ`. `stdin_read_all` returns everything left as raw `Bytes`, at most `[runtime] max_file_bytes`; more is `E_STDIN_LIMIT`. Both calls wait for input or for the stream to close, share one buffered stream (a line read and a later `stdin_read_all` never read a byte twice), need no grant, and are reported by `guion inspect` as the effect `process.stdin`. `guion run --record` keeps what was read, so `--replay` needs no stdin. The browser VM refuses both with `R_HOST_UNSUPPORTED`.
 - Pure crypto (format 78 to 82; format 82 adds `dagcbor_encode` to `std:encoding`): `std:crypto` adds SHA-512 and SHA3-512 and, from format 79, `crypto_rsa_verify`, `crypto_ecdsa_p256_verify`, `crypto_x509_rsa_public_key`, `crypto_pem_decode` and `crypto_bls12381_verify_g1` and, from format 81, drand timelock encryption in age format (`crypto_tlock_encrypt`, `crypto_tlock_decrypt`, `crypto_tlock_round`) (`Result[_, StdError]`; a bad signature is `Ok(false)`). No grant.
+- Bit operations and visible errors (artifact format 83): `int_and`, `int_or`, `int_xor`, `int_shift_left` and `int_shift_right`, each `(Int, Int) -> Int`, work on 64-bit two's-complement values (they ride on the `Codec` instruction, codes 15 to 19, and run in the browser VM too). An operand outside the signed 64-bit range is `R_INTEGER_RANGE`; a shift count below 0 or above 63 is `R_SHIFT_RANGE`. `int_shift_right` is arithmetic (it copies the sign bit); `int_shift_left` does not wrap, so its result is the exact product with a power of two. An artifact below format 83 that uses one is `E_ARTIFACT_VERSION`. `StdError` (declared in `std:http_types`, no format change) is visible wherever a standard-library module returns it: each such module has `pub import "std:http_types"`, as `std:http` always did, so `import "std:crypto"` is enough to write `StdError` in a signature (`import "std:types"` still works, and importing it through two routes is not a clash). `std:types` still holds `std_error(code, message)`.
 - Request and response values: `std:http_response` (no format change) holds `Header`, `Request`, `Response`, `Body` and `Stream` values with the constructors and accessors listed in the signatures below; a header name that is not an HTTP token or a value with a control character other than tab is refused with `E_HTTP_HEADER_INVALID`. `std:http_server` adds `http_request_value(request) -> Result[Request, HttpFailure]` and `http_server_send_response(request, response) -> Result[Unit, HttpFailure]`, so a handler `fn(Request) -> Result[Response, HttpFailure]` names no socket. Details are in `docs/reference.md`. No new function names a handle type.
 - Cookies: `std:cookie` (no format change): `cookie_parse(header) -> Map[Text, Text]` never fails (malformed pairs dropped, values percent-decoded, first repeat wins). `Cookie(name, value, http_only, secure, same_site, path, domain, max_age: Option[Int], expires: Option[Instant])` comes from `cookie_new` (HttpOnly, `SameSite=Lax`, Secure off) and the setters `cookie_http_only`, `cookie_secure`, `cookie_same_site`, `cookie_path`, `cookie_domain`, `cookie_max_age`, `cookie_expires`; `cookie_serialize`, `cookie_parse_set` and `response_add_cookie(response, c)` finish the round trip. Bad names, attributes or a negative `Max-Age` are `E_COOKIE_*` `HttpFailure` values; `SameSite=None` without `Secure` is `E_COOKIE_SAMESITE_NONE_NEEDS_SECURE` at run time.
 - Request bodies: `std:http_body` (no format change): `form_parse` and `multipart_parse` with exact `BodyLimits` (over is a 413 naming the limit); uploads get random names under a caller root, never the client name.
@@ -261,8 +262,13 @@ http_request_bytes(Text, Text, Map[Text, Text], Bytes, Int) -> Result[Record[Htt
 http_request_with_timeout(Text, Text, Map[Text, Text], Text, Int) -> Result[Json, HttpError]
 http_response_json_bytes(Record[HttpResponse]) -> Result[Json, Record[StdError]]
 http_response_text(Record[HttpResponse]) -> Result[Text, HttpError]
+int_and(Int, Int) -> Int
+int_or(Int, Int) -> Int
+int_shift_left(Int, Int) -> Int
+int_shift_right(Int, Int) -> Int
 int_to_float(Int) -> Float64
 int_to_text(Int) -> Text
+int_xor(Int, Int) -> Int
 is_ok(Result[$T, $E]) -> Bool
 is_some(Option[$T]) -> Bool
 json_array() -> Json
@@ -618,6 +624,7 @@ std:json — pub fn json_stringify_pairs(values: Map[Text, List[Text]], key_fiel
 std:json — pub fn json_int_safe(value: Json) -> Result[Int, JsonError]
 std:json — pub fn json_bool_safe(value: Json) -> Result[Bool, JsonError]
 std:json — pub fn json_float_safe(value: Json) -> Result[Float64, JsonError]
+std:json — pub fn json_int_list_safe(value: Json) -> Result[List[Int], JsonError]
 std:jsonl — pub fn jsonl_open(path: Text) -> Result[FileReader, FileError]
 std:jsonl — pub fn jsonl_next(reader: FileReader) -> Result[Option[JsonlLine], FileError]
 std:jsonl — pub fn jsonl_close(reader: FileReader) -> Result[Unit, FileError]
@@ -1414,6 +1421,7 @@ R_INDEX_BOUNDS
 R_INDEX_INVALID
 R_INSTANCE_CLOSED
 R_INTEGER_LIMIT
+R_INTEGER_RANGE
 R_JSON_DEPTH
 R_JSON_DUPLICATE_KEY
 R_JSON_ENCODE
@@ -1461,6 +1469,7 @@ R_RESULT_ERROR
 R_RESULT_UNWRAP
 R_RETURN_INVALID
 R_ROOTS
+R_SHIFT_RANGE
 R_SORT_ORDER
 R_SQLITE_VALUE
 R_STACK_INVALID
@@ -1712,4 +1721,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:7f2195ad9864780c3d93cd9a17ad10df3393f7d459e8005f2d2cdf15bafe484a. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:44fd92888a02f3b5041692ca6cfd2cde189649426962331a5792367dc2090cb4. Validated by `cargo xtask agent-reference --check`. -->

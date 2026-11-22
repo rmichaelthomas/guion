@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 # std:compress: gzip (RFC 1952) and zlib (RFC 1950) over Bytes, and streamed gzip over files.
 #

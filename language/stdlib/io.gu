@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 # std:io: the program's own standard input.
 #
