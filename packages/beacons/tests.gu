@@ -1,6 +1,8 @@
 import "std:types"
 import "std:crypto"
 import "std:encoding"
+import "std:json"
+import "std:text"
 import "src/lib.gu"
 
 fn main() -> Int:
@@ -220,3 +222,230 @@ fn test_seal_and_open_with_round() -> Unit:
     assert(unwrap(tlock_armor_chain(sealed)) == chain.hash)
     let opened = tlock_open_with(chain, sealed, round_of(1000, sig_1000()))
     assert(unwrap(opened) == bytes_from_text("round trip"))
+
+
+# ---- Twine and CURBy (offline: fixtures saved live from random.colorado.edu) ----
+
+fn load_json(path: Text) -> Json:
+    let text = unwrap(text_from_bytes(read_fixture(path)))
+    return unwrap(json_parse(text))
+
+fn load_records(path: Text) -> List[TwineRecord]:
+    return unwrap(twine_records_from_json(load_json(path)))
+
+fn chain_named(cid: Text) -> TwineRecord:
+    return unwrap(twine_find(load_records("fixtures/twine-chains.json"), cid))
+
+fn weather_cid() -> Text:
+    return "bafyriqakpv26jtrxzfo5hf5ysmpj4vkhy62pvti4mryrjqf3ezgx4rgiw7iu3dnkh55hoi757al45jtq7rrfs2jv7ybhnqfhrkfbfebofgzdm"
+
+fn first_of(records: List[TwineRecord]) -> TwineRecord:
+    return records[0]
+
+fn replace_char(text: Text, index: Int, with_char: Text) -> Text:
+    return text_slice(text, 0, index) + with_char + text_slice(text, index + 1, len(text))
+
+# A different character from the one at `index`, in the base64url and base32 alphabets.
+fn other_char(text: Text, index: Int) -> Text:
+    if text[index] == "A":
+        return "B"
+    return "A"
+
+fn with_content(record: TwineRecord, content: Json) -> TwineRecord:
+    return TwineRecord(record.cid, content, record.signature)
+
+fn resealed(record: TwineRecord) -> TwineRecord:
+    let fixed = TwineRecord(unwrap(twine_cid(record)), record.content, record.signature)
+    return fixed
+
+fn test_curby_chain_cids_are_the_specs() -> Unit:
+    assert(curby_q_chain() == curby_q())
+    assert(curby_rng_chain() == curby_rng())
+
+fn test_chain_records_recompute_and_verify_themselves() -> Unit:
+    let chains = load_records("fixtures/twine-chains.json")
+    assert(len(chains) == 7)
+    var i = 0
+    while i < len(chains):
+        assert(unwrap(twine_cid(chains[i])) == chains[i].cid)
+        assert(is_true(twine_verify(chains[i], chains[i])))
+        set i = i + 1
+
+fn test_latest_curby_q_pulse_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    assert(pulses[0].cid == unwrap(twine_cid(pulses[0])))
+    assert(is_true(twine_verify(chain, pulses[0])))
+    var i = 0
+    while i < len(pulses):
+        assert(is_true(twine_verify(chain, pulses[i])))
+        set i = i + 1
+
+fn test_latest_curby_rng_pulse_verifies() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    var i = 0
+    while i < len(pulses):
+        assert(is_true(twine_verify(chain, pulses[i])))
+        set i = i + 1
+
+fn test_weather_chain_verifies_with_es256() -> Unit:
+    let chain = chain_named(weather_cid())
+    assert(json_get(chain.content, "key") != json_null())
+    assert(json_as_text(json_get(json_get(chain.content, "key"), "alg")) == "ES256")
+    let pulses = load_records("fixtures/twine-weather-pulses.json")
+    var i = 0
+    while i < len(pulses):
+        assert(is_true(twine_verify(chain, pulses[i])))
+        set i = i + 1
+
+fn test_links_to_depth_five_on_both_curby_chains() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let qp = load_records("fixtures/curby-q-pulses.json")
+    assert(is_true(twine_verify_links_in(q, qp[0], 5, qp)))
+    assert(is_true(twine_verify_links_in(q, qp[0], 17, qp)))
+    let r = chain_named(curby_rng_chain())
+    let rp = load_records("fixtures/curby-rng-pulses.json")
+    assert(is_true(twine_verify_links_in(r, rp[0], 5, rp)))
+    let w = chain_named(weather_cid())
+    let wp = load_records("fixtures/twine-weather-pulses.json")
+    assert(is_true(twine_verify_links_in(w, wp[0], 5, wp)))
+
+fn test_links_past_the_pool_are_an_error_not_true() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let qp = load_records("fixtures/curby-q-pulses.json")
+    assert(not is_true(twine_verify_links_in(q, qp[0], 40, qp)))
+
+fn test_links_refuse_a_pool_missing_the_previous_pulse() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let qp = load_records("fixtures/curby-q-pulses.json")
+    let gap = [qp[0], qp[2], qp[3], qp[4], qp[5], qp[6], qp[7]]
+    assert(not is_true(twine_verify_links_in(q, qp[0], 5, gap)))
+
+fn test_flipped_content_byte_never_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let edited = with_content(pulse, json_set(pulse.content, "source", json_text("elsewhere")))
+    assert(not is_true(twine_verify(chain, edited)))
+    let index = json_as_int(json_get(pulse.content, "index"))
+    let bumped = with_content(pulse, json_set(pulse.content, "index", json_int(index + 1)))
+    assert(not is_true(twine_verify(chain, bumped)))
+
+fn test_flipped_content_with_the_cid_recomputed_still_fails() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let edited = resealed(with_content(pulse, json_set(pulse.content, "source", json_text("elsewhere"))))
+    assert(edited.cid != pulse.cid)
+    assert(unwrap(twine_cid(edited)) == edited.cid)
+    assert(not is_true(twine_verify(chain, edited)))
+
+fn test_flipped_signature_byte_never_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let parts = text_split(pulse.signature, ".")
+    let tail = parts[2]
+    let bad_tail = replace_char(tail, 40, other_char(tail, 40))
+    let edited = TwineRecord(pulse.cid, pulse.content, parts[0] + "." + parts[1] + "." + bad_tail)
+    assert(not is_true(twine_verify(chain, edited)))
+    assert(not is_true(twine_verify(chain, resealed(edited))))
+
+fn test_flipped_signature_on_es256_never_verifies() -> Unit:
+    let chain = chain_named(weather_cid())
+    let pulse = load_records("fixtures/twine-weather-pulses.json")[0]
+    let parts = text_split(pulse.signature, ".")
+    let tail = parts[2]
+    let bad_tail = replace_char(tail, 10, other_char(tail, 10))
+    let edited = TwineRecord(pulse.cid, pulse.content, parts[0] + "." + parts[1] + "." + bad_tail)
+    assert(not is_true(twine_verify(chain, edited)))
+    assert(not is_true(twine_verify(chain, resealed(edited))))
+
+fn test_edited_cid_never_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let edited = TwineRecord(replace_char(pulse.cid, 30, other_char(pulse.cid, 30)), pulse.content, pulse.signature)
+    assert(not is_true(twine_verify(chain, edited)))
+    let other = load_records("fixtures/curby-q-pulses.json")[1]
+    assert(not is_true(twine_verify(chain, TwineRecord(other.cid, pulse.content, pulse.signature))))
+
+fn test_a_pulse_of_another_chain_does_not_verify() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let rng_pulse = load_records("fixtures/curby-rng-pulses.json")[0]
+    assert(not is_true(twine_verify(q, rng_pulse)))
+
+fn test_a_swapped_chain_key_does_not_verify() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let w = chain_named(weather_cid())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let forged_chain = TwineRecord(q.cid, json_set(q.content, "key", json_get(w.content, "key")), q.signature)
+    assert(not is_true(twine_verify(forged_chain, pulse)))
+
+fn test_unknown_algorithm_is_e_twine_alg() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let parts = text_split(pulse.signature, ".")
+    let header = base64url_encode(bytes_from_text("{\"alg\":\"HS256\"}"))
+    let edited = resealed(TwineRecord(pulse.cid, pulse.content, text_replace(header, "=", "") + "." + parts[1] + "." + parts[2]))
+    match twine_verify(chain, edited):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_ALG")
+
+fn test_malformed_records_are_errors() -> Unit:
+    match twine_record_from_json(json_object()):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_FORMAT")
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let one_part = resealed(TwineRecord(pulse.cid, pulse.content, "abc"))
+    match twine_verify(chain, one_part):
+        Ok(value):
+            assert(not value)
+        Err(problem):
+            assert(problem.code == "E_TWINE_JWS")
+
+fn test_curby_randomness_is_64_bytes() -> Unit:
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    let chain = chain_named(curby_q_chain())
+    var found = 0
+    var i = 0
+    while i < len(pulses):
+        let stage = json_as_text(json_get(json_get(pulses[i].content, "payload"), "stage"))
+        if stage == "randomness":
+            let bits = unwrap(curby_randomness(pulses[i]))
+            assert(len(bits) == 64)
+            set found = found + 1
+        else:
+            assert(code_of_bytes(curby_randomness(pulses[i])) == "E_CURBY_STAGE")
+        set i = i + 1
+    assert(found >= 1)
+
+fn test_curby_randomness_of_the_second_pulse_known_value() -> Unit:
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    let bits = unwrap(curby_randomness(pulses[1]))
+    assert(hex_encode(bits) == "61c307b2dcedea8f5ce9a3c68e387f78df126d4a6a45924aa86457c49885966891ba507e0c9b4f9069ecbb4a9e85f925c3c1dbb84b7478909e916c3911de42a9")
+
+fn test_curby_rng_randomness_checks_the_precommitment() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    let bits = unwrap(curby_rng_randomness(chain, pulses[0], pulses[1]))
+    assert(len(bits) == 64)
+    assert(code_of_bytes(curby_randomness(pulses[0])) == "E_CURBY_NEEDS_PREVIOUS")
+    # not the previous pulse
+    assert(code_of_bytes(curby_rng_randomness(chain, pulses[0], pulses[2])) != "ok")
+    # a salt edited (and the CID and signature no longer match)
+    let payload = json_get(pulses[0].content, "payload")
+    let other_salt = json_get(pulses[1].content, "payload")
+    let edited = with_content(pulses[0], json_set(pulses[0].content, "payload", json_set(payload, "salt", json_get(other_salt, "salt"))))
+    assert(code_of_bytes(curby_rng_randomness(chain, edited, pulses[1])) != "ok")
+
+# The reference client (@buff-beacon-project/curby-client 's Client.randomness(1616432) and
+# DIRNGClient.latest() for round 28297) gave these same bytes.
+fn test_curby_randomness_matches_the_reference_client() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    assert(json_as_int(json_get(pulses[0].content, "index")) == 1616432)
+    let bits = unwrap(curby_rng_randomness(chain, pulses[0], pulses[1]))
+    assert(hex_encode(bits) == "14d681647739d2211c6e3b0f6d42060ec086e8ade622ef8d29180b5bbaa7ffc63a86ce93be33225de816c561f6e2c482b44bfc8c09d32bd2960d026d62b26bba")

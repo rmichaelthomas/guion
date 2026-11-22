@@ -1,0 +1,81 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "src/lib.gu"
+
+# Live check, recorded to tapes/curby-live.tape: fetch CURBy-Q's and CURBy-RNG's chains and latest
+# pulses from random.colorado.edu, verify them, walk 5 pulses back by fetching, and read randomness.
+#   guion run --allow-http-host random.colorado.edu --record tapes/curby-live.tape live_curby.gu
+fn stage_of(pulse: TwineRecord) -> Text:
+    match json_try_text(json_get(json_get(pulse.content, "payload"), "stage")):
+        Ok(value):
+            return value
+        Err(problem):
+            return ""
+
+fn index_text(pulse: TwineRecord) -> Text:
+    return int_to_text(json_as_int(json_get(pulse.content, "index")))
+
+fn report(label: Text, result: Result[Bool, StdError]) -> Bool:
+    match result:
+        Ok(value):
+            var verdict = "false"
+            if value:
+                set verdict = "true"
+            print(label + ": " + verdict)
+            return value
+        Err(problem):
+            print(f"{label}: error {problem.code} {problem.message}")
+            return false
+
+fn fetched(result: Result[TwineRecord, StdError]) -> TwineRecord:
+    match result:
+        Ok(value):
+            return value
+        Err(problem):
+            print(f"fetch failed: {problem.code} {problem.message}")
+            return TwineRecord("", json_object(), "")
+
+fn main() -> Int:
+    var good = 0
+    let q = fetched(twine_fetch_chain(curby_q_chain()))
+    let r = fetched(twine_fetch_chain(curby_rng_chain()))
+    if report("CURBy-Q chain", twine_verify(q, q)):
+        set good = good + 1
+    if report("CURBy-RNG chain", twine_verify(r, r)):
+        set good = good + 1
+    let q_latest = fetched(twine_fetch_latest(q.cid))
+    print("CURBy-Q latest pulse index " + index_text(q_latest) + " stage " + stage_of(q_latest))
+    if report("CURBy-Q latest verifies", twine_verify(q, q_latest)):
+        set good = good + 1
+    if report("CURBy-Q links depth 5", twine_verify_links(q, q_latest, 5)):
+        set good = good + 1
+    var randomness_pulse = q_latest
+    var back = 0
+    while stage_of(randomness_pulse) != "randomness" and back < 3:
+        set randomness_pulse = fetched(twine_fetch_pulse(q.cid, int_to_text(json_as_int(json_get(randomness_pulse.content, "index")) - 1)))
+        set back = back + 1
+    match curby_randomness(randomness_pulse):
+        Ok(bits):
+            print("CURBy-Q randomness (pulse " + index_text(randomness_pulse) + "): " + hex_encode(bits))
+            set good = good + 1
+        Err(problem):
+            print("CURBy-Q randomness: " + problem.code + " " + problem.message)
+    let r_latest = fetched(twine_fetch_latest(r.cid))
+    print("CURBy-RNG latest pulse index " + index_text(r_latest))
+    if report("CURBy-RNG latest verifies", twine_verify(r, r_latest)):
+        set good = good + 1
+    if report("CURBy-RNG links depth 5", twine_verify_links(r, r_latest, 5)):
+        set good = good + 1
+    let r_previous = fetched(twine_fetch_pulse(r.cid, int_to_text(json_as_int(json_get(r_latest.content, "index")) - 1)))
+    match curby_rng_randomness(r, r_latest, r_previous):
+        Ok(bits):
+            print("CURBy-RNG randomness (pulse " + index_text(r_latest) + "): " + hex_encode(bits))
+            set good = good + 1
+        Err(problem):
+            print("CURBy-RNG randomness: " + problem.code + " " + problem.message)
+    print(f"{good}/8 checks passed")
+    if good == 8:
+        return 0
+    return 1

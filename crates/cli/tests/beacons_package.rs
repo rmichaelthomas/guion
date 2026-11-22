@@ -1,5 +1,6 @@
-//! The `beacons` package (packages/beacons): its own tests, and the recorded live check of 100
-//! consecutive drand quicknet rounds replayed with no network, clock or file grant.
+//! The `beacons` package (packages/beacons): its own tests, the recorded live check of 100
+//! consecutive drand quicknet rounds, and the recorded CURBy check, each replayed with no network,
+//! clock or file grant.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -46,6 +47,18 @@ fn the_recorded_hundred_rounds_replay_as_verified() {
     assert!(out.contains("100/100 rounds verified"), "{out}");
     assert!(
         out.contains("tlock_open: guion tlock fixture plaintext"),
+        "{out}"
+    );
+}
+
+#[test]
+fn the_recorded_curby_check_replays_as_verified() {
+    let replayed = guion(&["run", "--replay", "tapes/curby-live.tape", "live_curby.gu"]);
+    let out = text(&replayed);
+    assert!(replayed.status.success(), "{out}");
+    assert!(out.contains("8/8 checks passed"), "{out}");
+    assert!(
+        out.contains("CURBy-Q randomness (pulse 84646): 61c307b2"),
         "{out}"
     );
 }

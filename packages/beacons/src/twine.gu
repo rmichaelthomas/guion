@@ -1,0 +1,339 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "std:text"
+import "multiformats.gu"
+
+# Twine for beacons: fetching and checking Twine records (https://twine.world), the format CURBy
+# publishes its chains and pulses in.
+#
+# A record is {cid, data: {content, signature}}. TwineRecord holds the three parts a check needs:
+# the CID text, `data.content` as Json, and `data.signature` (a compact JWS).
+#
+# What twine_verify checks (it takes records already fetched; fetching is separate):
+#  1. The CID. A record's CID is CIDv1, codec 0x71 (DAG-CBOR), multihash 0x14 (SHA3-512) over the
+#     DAG-CBOR of the whole `data` object ({content, signature}), so the CID recomputes from the
+#     record itself and any edit to content or signature changes it.
+#  2. The JWS payload is the multihash (0x14 0x40 then 64 bytes) of SHA3-512 over the DAG-CBOR of
+#     `data.content` alone: the signature covers the content, not the signature text.
+#  3. The JWS signature (RS256, PS256 or ES256) verifies under the JWK in the chain's content.
+#     RS256 and PS256 are RSA PKCS#1 v1.5 and PSS with SHA-256; ES256 is ECDSA P-256 with SHA-256,
+#     signature r||s (64 bytes). Any other `alg` is E_TWINE_ALG.
+#  The chain record is checked the same way against its own key, so a swapped key is caught. A pulse
+#  must also name this chain in `content.chain`. Callers pin the chain's CID themselves (for CURBy,
+#  curby_q_chain and curby_rng_chain in curby.gu).
+#
+# Errors: E_TWINE_FORMAT (not a record), E_TWINE_JWS (not a compact JWS), E_TWINE_ALG (algorithm
+# unsupported), E_TWINE_KEY (the JWK does not suit the algorithm), E_TWINE_MISSING (a linked pulse is
+# not in the pool), E_TWINE_FETCH (the network or the answer), plus encoding and CID codes.
+# A record that is well formed but does not check is Ok(false), never an error and never true.
+
+pub record TwineRecord:
+    cid: Text
+    content: Json
+    signature: Text
+
+# json_has raises on a non-object; a record fetched from the network may be anything.
+pub fn has_key(value: Json, key: Text) -> Bool:
+    return is_ok(json_try_get(value, key))
+
+fn twine_error(code: Text, message: Text) -> StdError:
+    return std_error(code, message)
+
+fn api() -> Text:
+    return "https://random.colorado.edu/api"
+
+# Reads one {cid, data: {content, signature}} value.
+pub fn twine_record_from_json(value: Json) -> Result[TwineRecord, StdError]:
+    if not has_key(value, "cid") or not has_key(value, "data"):
+        return Err(twine_error("E_TWINE_FORMAT", "a Twine record has cid and data"))
+    let data = json_get(value, "data")
+    if not has_key(data, "content") or not has_key(data, "signature"):
+        return Err(twine_error("E_TWINE_FORMAT", "a Twine record's data has content and signature"))
+    let cid = json_get(json_get(value, "cid"), "/")
+    match json_try_text(cid):
+        Err(problem):
+            return Err(twine_error("E_TWINE_FORMAT", "a Twine record's cid is {\"/\": text}"))
+        Ok(cid_text):
+            match json_try_text(json_get(data, "signature")):
+                Err(problem):
+                    return Err(twine_error("E_TWINE_FORMAT", "a Twine record's signature is text"))
+                Ok(signature):
+                    return Ok(TwineRecord(cid_text, json_get(data, "content"), signature))
+
+# Reads a JSON array of records, or a single record, as a list.
+pub fn twine_records_from_json(value: Json) -> Result[List[TwineRecord], StdError]:
+    var records: List[TwineRecord] = []
+    if has_key(value, "cid"):
+        let one = twine_record_from_json(value)?
+        return Ok([one])
+    var i = 0
+    while i < json_len(value):
+        let one = twine_record_from_json(json_index(value, i))?
+        set records = list_push(records, one)
+        set i = i + 1
+    return Ok(records)
+
+pub fn twine_find(records: List[TwineRecord], cid: Text) -> Result[TwineRecord, StdError]:
+    var i = 0
+    while i < len(records):
+        if records[i].cid == cid:
+            return Ok(records[i])
+        set i = i + 1
+    return Err(twine_error("E_TWINE_MISSING", f"no record {cid}"))
+
+fn data_of(record: TwineRecord) -> Json:
+    return json_set(json_set(json_object(), "content", record.content), "signature", json_text(record.signature))
+
+# The CID the record's data hashes to.
+pub fn twine_cid(record: TwineRecord) -> Result[Text, StdError]:
+    let encoded = dagcbor_encode(data_of(record))?
+    return Ok(cid_v1(113, 20, crypto_sha3_512(encoded)))
+
+# The multihash the JWS payload must equal: 0x14 0x40 then SHA3-512 of the content's DAG-CBOR.
+fn content_multihash(record: TwineRecord) -> Result[Bytes, StdError]:
+    let encoded = dagcbor_encode(record.content)?
+    return Ok(bytes_join([bytes_from_ints([20, 64]), crypto_sha3_512(encoded)]))
+
+# base64url without padding (JWS, JWK) to bytes. The std decoder wants padding, so add it.
+pub fn base64url_nopad_decode(text: Text) -> Result[Bytes, StdError]:
+    if text_find(text, "=", 0) >= 0 or len(text) % 4 == 1:
+        return Err(twine_error("E_BASE64_INVALID", "not unpadded base64url"))
+    var padded = text
+    if len(text) % 4 == 2:
+        set padded = text + "=="
+    if len(text) % 4 == 3:
+        set padded = text + "="
+    return base64url_decode(padded)
+
+# Standard base64 without padding (DAG-JSON bytes) to bytes.
+pub fn base64_nopad_decode(text: Text) -> Result[Bytes, StdError]:
+    if text_find(text, "=", 0) >= 0 or len(text) % 4 == 1:
+        return Err(twine_error("E_BASE64_INVALID", "not unpadded base64"))
+    var padded = text
+    if len(text) % 4 == 2:
+        set padded = text + "=="
+    if len(text) % 4 == 3:
+        set padded = text + "="
+    return base64_decode(padded)
+
+fn jwk_text(key: Json, name: Text) -> Result[Text, StdError]:
+    match json_try_text(json_get(key, name)):
+        Ok(value):
+            return Ok(value)
+        Err(problem):
+            return Err(twine_error("E_TWINE_KEY", f"the JWK has no text member {name}"))
+
+fn jwk_bytes(key: Json, name: Text) -> Result[Bytes, StdError]:
+    let text = jwk_text(key, name)?
+    match base64url_nopad_decode(text):
+        Ok(value):
+            return Ok(value)
+        Err(problem):
+            return Err(twine_error("E_TWINE_KEY", f"the JWK member {name} is not base64url"))
+
+# Checks the JWS signature part under the JWK. `scheme` comes from the JWS header's alg.
+fn signature_holds(alg: Text, key: Json, message: Bytes, signature: Bytes) -> Result[Bool, StdError]:
+    if alg == "RS256" or alg == "PS256":
+        if jwk_text(key, "kty")? != "RSA":
+            return Err(twine_error("E_TWINE_KEY", f"{alg} needs an RSA key"))
+        let modulus = jwk_bytes(key, "n")?
+        let exponent = jwk_bytes(key, "e")?
+        var scheme = "pkcs1v15-sha256"
+        if alg == "PS256":
+            set scheme = "pss-sha256"
+        return crypto_rsa_verify(modulus, exponent, message, signature, scheme)
+    if jwk_text(key, "kty")? != "EC" or jwk_text(key, "crv")? != "P-256":
+        return Err(twine_error("E_TWINE_KEY", "ES256 needs a P-256 EC key"))
+    let x = jwk_bytes(key, "x")?
+    let y = jwk_bytes(key, "y")?
+    if len(x) != 32 or len(y) != 32:
+        return Err(twine_error("E_TWINE_KEY", "a P-256 JWK has 32-byte x and y"))
+    return crypto_ecdsa_p256_verify(bytes_join([bytes_from_ints([4]), x, y]), message, signature)
+
+# The CID, the JWS payload and the JWS signature of one record, against one key.
+fn record_holds(record: TwineRecord, key: Json) -> Result[Bool, StdError]:
+    if twine_cid(record)? != record.cid:
+        return Ok(false)
+    let parts = text_split(record.signature, ".")
+    if len(parts) != 3:
+        return Err(twine_error("E_TWINE_JWS", "a compact JWS has three parts"))
+    let header_bytes = base64url_nopad_decode(parts[0])?
+    var header = json_null()
+    match json_parse(encoding_utf8_decode_lossy(header_bytes)):
+        Ok(value):
+            set header = value
+        Err(problem):
+            return Err(twine_error("E_TWINE_JWS", "the JWS header is not JSON"))
+    match json_try_text(json_get(header, "alg")):
+        Err(problem):
+            return Err(twine_error("E_TWINE_ALG", "the JWS header has no alg"))
+        Ok(alg):
+            if alg != "RS256" and alg != "PS256" and alg != "ES256":
+                return Err(twine_error("E_TWINE_ALG", f"unsupported JWS algorithm {alg}"))
+            if has_key(key, "alg") and json_get(key, "alg") != json_text(alg):
+                return Ok(false)
+            let payload = base64url_nopad_decode(parts[1])?
+            if payload != content_multihash(record)?:
+                return Ok(false)
+            let signature = base64url_nopad_decode(parts[2])?
+            let message = bytes_from_text(parts[0] + "." + parts[1])
+            return signature_holds(alg, key, message, signature)
+
+fn chain_link_of(pulse: TwineRecord) -> Text:
+    match json_try_text(json_get(json_get(pulse.content, "chain"), "/")):
+        Ok(value):
+            return value
+        Err(problem):
+            return ""
+
+# Is `record` (a pulse of `chain`, or `chain` itself) intact and signed by the chain's key? The
+# chain is checked against its own key first.
+pub fn twine_verify(chain: TwineRecord, record: TwineRecord) -> Result[Bool, StdError]:
+    let key = json_get(chain.content, "key")
+    if not record_holds(chain, key)?:
+        return Ok(false)
+    if has_key(record.content, "chain"):
+        if chain_link_of(record) != chain.cid:
+            return Ok(false)
+    else:
+        if record.cid != chain.cid:
+            return Ok(false)
+    return record_holds(record, key)
+
+fn index_of(pulse: TwineRecord) -> Int:
+    match json_try_int(json_get(pulse.content, "index")):
+        Ok(value):
+            return value
+        Err(problem):
+            return -1
+
+fn link_of(pulse: TwineRecord, position: Int) -> Text:
+    match json_try_text(json_get(json_index(json_get(pulse.content, "links"), position), "/")):
+        Ok(value):
+            return value
+        Err(problem):
+            return ""
+
+fn link_count(pulse: TwineRecord) -> Int:
+    if not has_key(pulse.content, "links"):
+        return 0
+    return json_len(json_get(pulse.content, "links"))
+
+# One step back: `previous` must be the pulse `current` links to first, verify, and sit one index
+# lower.
+fn step_back(chain: TwineRecord, current: TwineRecord, previous: TwineRecord) -> Result[Bool, StdError]:
+    if previous.cid != link_of(current, 0):
+        return Ok(false)
+    if index_of(previous) != index_of(current) - 1:
+        return Ok(false)
+    return twine_verify(chain, previous)
+
+fn pow_radix(radix: Int, power: Int) -> Int:
+    var out = 1
+    var i = 0
+    while i < power:
+        set out = out * radix
+        set i = i + 1
+    return out
+
+# A pulse at index n links to n-1, then to floor((n-1) / radix^k) * radix^k for k = 1, 2, ... while
+# radix^k <= n-1 (links_radix is 32 for CURBy). Links to pulses in the pool must sit at those indices.
+fn skip_links_hold(chain: TwineRecord, current: TwineRecord, pool: List[TwineRecord]) -> Bool:
+    var radix = 0
+    match json_try_int(json_get(chain.content, "links_radix")):
+        Ok(value):
+            set radix = value
+        Err(problem):
+            return false
+    if radix < 2:
+        return true
+    var k = 1
+    while k < link_count(current):
+        let scale = pow_radix(radix, k)
+        let expected = (index_of(current) - 1) // scale * scale
+        match twine_find(pool, link_of(current, k)):
+            Ok(found):
+                if index_of(found) != expected:
+                    return false
+            Err(problem):
+                set k = k
+        set k = k + 1
+    return true
+
+# Walks `depth` pulses back from `record` through links[0], using pulses already fetched (the pool).
+# Every pulse on the walk, `record` included, must verify. Reaching the first pulse (no links)
+# early is fine. A pulse missing from the pool is E_TWINE_MISSING, not true.
+pub fn twine_verify_links_in(chain: TwineRecord, record: TwineRecord, depth: Int, pool: List[TwineRecord]) -> Result[Bool, StdError]:
+    if not twine_verify(chain, record)?:
+        return Ok(false)
+    var current = record
+    var step = 0
+    while step < depth:
+        if link_count(current) == 0:
+            return Ok(true)
+        if not skip_links_hold(chain, current, pool):
+            return Ok(false)
+        let previous = twine_find(pool, link_of(current, 0))?
+        if not step_back(chain, current, previous)?:
+            return Ok(false)
+        set current = previous
+        set step = step + 1
+    return Ok(true)
+
+fn fetch_json(url: Text) -> Result[Json, StdError]:
+    match http_get(url):
+        Err(failure):
+            return Err(twine_error("E_TWINE_FETCH", f"{url}: {http_error_message(failure)}"))
+        Ok(body):
+            match json_parse(body):
+                Ok(value):
+                    return Ok(value)
+                Err(problem):
+                    return Err(twine_error("E_TWINE_FETCH", f"{url} answered with text that is not JSON"))
+
+# One pulse of a chain by index (as text, e.g. "1000"), by CID, or "latest". Fetches only; check it
+# with twine_verify. The host answers some single-pulse requests (every one by CID, many by index)
+# zstd-compressed, which http_get cannot read (E_TWINE_FETCH, "not valid UTF-8"). A range answer is
+# always plain JSON, so an index is fetched as the range "<index>-<index>".
+pub fn twine_fetch_pulse(chain_cid: Text, which: Text) -> Result[TwineRecord, StdError]:
+    if is_ok(text_parse_int(which)):
+        let value = fetch_json(f"https://random.colorado.edu/api/chains/{chain_cid}/pulses/{which}-{which}")?
+        let found = twine_records_from_json(value)?
+        if len(found) != 1:
+            return Err(twine_error("E_TWINE_FETCH", f"the host did not answer with one pulse for index {which}"))
+        return Ok(found[0])
+    let value = fetch_json(f"https://random.colorado.edu/api/chains/{chain_cid}/pulses/{which}")?
+    return twine_record_from_json(value)
+
+pub fn twine_fetch_latest(chain_cid: Text) -> Result[TwineRecord, StdError]:
+    return twine_fetch_pulse(chain_cid, "latest")
+
+# The chain record, from the host's list of chains (its own /chains/<cid> answer is zstd-compressed).
+pub fn twine_fetch_chain(chain_cid: Text) -> Result[TwineRecord, StdError]:
+    let value = fetch_json("https://random.colorado.edu/api/chains")?
+    let chains = twine_records_from_json(value)?
+    match twine_find(chains, chain_cid):
+        Ok(found):
+            return Ok(found)
+        Err(problem):
+            return Err(twine_error("E_TWINE_FETCH", f"the host lists no chain {chain_cid}"))
+
+# The same walk as twine_verify_links_in, fetching each earlier pulse as it goes. Needs the network
+# grant for random.colorado.edu. Only links[0] is followed; each earlier pulse is fetched by index
+# and must be the pulse links[0] names.
+pub fn twine_verify_links(chain: TwineRecord, record: TwineRecord, depth: Int) -> Result[Bool, StdError]:
+    if not twine_verify(chain, record)?:
+        return Ok(false)
+    var current = record
+    var step = 0
+    while step < depth:
+        if link_count(current) == 0:
+            return Ok(true)
+        let previous = twine_fetch_pulse(chain.cid, int_to_text(index_of(current) - 1))?
+        if not step_back(chain, current, previous)?:
+            return Ok(false)
+        set current = previous
+        set step = step + 1
+    return Ok(true)
