@@ -13,6 +13,22 @@ use std::collections::VecDeque;
 /// count alone, unverified.
 pub(crate) const VERIFIED_BYTES_PER_RUN: usize = 1024 * 1024;
 
+/// Appends the front of `text`, one flush of a stream's output, to `kept` (what is kept for
+/// comparison), up to `cap` bytes in all. `before` is how many bytes the stream had written before
+/// this flush. The kept text is always a prefix of the written output and ends on a character
+/// boundary: once the cap or a boundary cuts a flush, nothing later is kept, and the rest of the
+/// run is skipped by count (`ReplaySkip::expect`).
+pub(crate) fn keep_written(kept: &mut Vec<u8>, before: usize, text: &str, cap: usize) {
+    if kept.len() != before {
+        return;
+    }
+    let mut take = text.len().min(cap.saturating_sub(kept.len()));
+    while !text.is_char_boundary(take) {
+        take -= 1;
+    }
+    kept.extend_from_slice(&text.as_bytes()[..take]);
+}
+
 #[derive(Debug)]
 enum Segment {
     /// Bytes that were written; the replay must match them.
@@ -161,5 +177,36 @@ mod tests {
         let (rest, mismatch) = skip.filter("\u{e8}");
         assert!(mismatch);
         assert_eq!(rest, "\u{e8}");
+    }
+
+    #[test]
+    fn a_cap_inside_a_multibyte_character_does_not_print_the_replay_twice() {
+        // 4 bytes cap; "ab" + "é" (2 bytes) + "cd\n" is written in two flushes, the cap falls inside é.
+        let flushes = ["ab\u{e9}", "cd\n"];
+        let mut kept = Vec::new();
+        let mut before = 0;
+        for flush in flushes {
+            keep_written(&mut kept, before, flush, 3);
+            before += flush.len();
+        }
+        assert_eq!(kept, b"ab");
+        let mut skip = ReplaySkip::default();
+        skip.expect(&kept, before);
+        // The VM replays the same output: nothing is written a second time, and no mismatch.
+        assert_eq!(skip.filter("ab\u{e9}"), ("", false));
+        assert_eq!(skip.filter("cd\n"), ("", false));
+        assert!(skip.is_empty());
+        // Output after the replay is written.
+        assert_eq!(skip.filter("next\n"), ("next\n", false));
+    }
+
+    #[test]
+    fn nothing_is_kept_after_a_cut_even_when_room_is_left() {
+        let mut kept = Vec::new();
+        keep_written(&mut kept, 0, "a\u{e9}", 2);
+        assert_eq!(kept, b"a");
+        // One byte of room remains, but the next flush follows bytes that were not kept.
+        keep_written(&mut kept, 3, "bc", 2);
+        assert_eq!(kept, b"a");
     }
 }

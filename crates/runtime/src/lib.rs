@@ -5870,6 +5870,10 @@ impl Instance {
         let errors = std::mem::take(&mut arena.pending_stderr);
         arena.pending_stderr_bytes = 0;
         arena.last_flush = Some(std::time::Instant::now());
+        // Bytes of each stream written before this flush: kept text is only extended while it holds
+        // every one of them, so it is always a prefix of what was written.
+        let stdout_before = arena.flushed_stdout;
+        let mut stderr_before = arena.flushed_stderr;
         arena.flushed_stdout = arena.flushed_stdout.saturating_add(output.len());
         arena.flushed_stderr = arena.flushed_stderr.saturating_add(
             errors
@@ -5879,14 +5883,13 @@ impl Instance {
         );
         if self.policy.streaming_output {
             // Kept so a later VM replay of this function can be compared with it.
-            let keep = |kept: &mut Vec<u8>, text: &str| {
-                let room = replay_skip::VERIFIED_BYTES_PER_RUN.saturating_sub(kept.len());
-                let take = text.len().min(room);
-                kept.extend_from_slice(&text.as_bytes()[..take]);
+            let keep = |kept: &mut Vec<u8>, before: usize, text: &str| {
+                replay_skip::keep_written(kept, before, text, replay_skip::VERIFIED_BYTES_PER_RUN);
             };
-            keep(&mut arena.flushed_stdout_text, &output);
+            keep(&mut arena.flushed_stdout_text, stdout_before, &output);
             for (_, text, _) in &errors {
-                keep(&mut arena.flushed_stderr_text, text);
+                keep(&mut arena.flushed_stderr_text, stderr_before, text);
+                stderr_before = stderr_before.saturating_add(text.len());
             }
         }
         arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(output.len());
