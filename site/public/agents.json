@@ -28,7 +28,7 @@
     }
   ],
   "cli": {
-    "version": "guion 0.7.0 (artifact format 84, timezone data 2026c)",
+    "version": "guion 0.7.0 (artifact format 85, timezone data 2026c)",
     "commands": [
       "new",
       "check",
