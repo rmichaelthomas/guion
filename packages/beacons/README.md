@@ -128,15 +128,19 @@ Functions:
   `listValues` that is not an array of `{type, value}`, or a number the signed serialization cannot hold: 4-byte fields
   0 to 2^32 - 1, `chainIndex` and `pulseIndex` 0 to 2^63 - 1).
 - `nist_verify(pulse, certificate_pem: Text) -> Result[Bool, StdError]`: `Ok(true)` only for NIST's own pulse. All of
-  these must hold: `certificateId` is SHA-512 of the certificate's DER **and is one of the known NIST beacon
-  certificates** (`nist_known_certificate_ids()`); the certificate was issued by the **pinned issuer** (below); its
-  SubjectAltName includes `nist_beacon_host()` (`engine.beacon.nist.gov`, read from the live certificate); the pulse's
-  `timeStamp` lies within the certificate's `notBefore` and `notAfter`; the RSA signature verifies under its key; and
-  `outputValue` is the hash of the serialization and signature. The issuer alone is not enough: it is a public TLS CA
+  these must hold: `certificateId` is SHA-512 of the certificate's DER **and is in one of four pinned id lists**
+  (`nist_known_certificate_ids()`, `nist_legacy_certificate_ids()`, `nist_chain1_global_ca_g2_certificate_ids()`,
+  `nist_chain1_secure_server_certificate_ids()`); the certificate was issued by **the one issuer paired with that list**
+  (`nist_pinned_issuer_pem()`, `nist_legacy_issuer_pem()`, `nist_chain1_global_ca_g2_issuer_pem()`,
+  `nist_chain1_secure_server_issuer_pem()`) and by no other; its SubjectAltName includes `nist_beacon_host()`
+  (`engine.beacon.nist.gov`, read from the live certificate); the pulse's `timeStamp` lies within the certificate's
+  `notBefore` and its `notAfter`, except that chain 1's first certificate is accepted until `nist_validity_end(id, notAfter)`
+  (`nist_validity_extension(id)`, 2019-08-16T14:11:00Z, 0 for every other id); the RSA PKCS#1 v1.5 / SHA-512 signature
+  verifies; and `outputValue` is the hash of the serialization and signature. The issuer alone is not enough: it is a public TLS CA
   that signs certificates for any customer. This takes the certificate PEM as a second argument (the brief's
-  one-argument form cannot work offline). `Ok(false)` on any mismatch, never true for a tampered or forged pulse;
+  one-argument form cannot work offline). `Ok(false)` on any mismatch;
   `E_NIST_SUITE` for a cipher suite other than 0, `E_NIST_FORMAT` for a number the serialization cannot hold or a
-  `timeStamp` that is not ISO 8601 UTC.
+  `timeStamp` that is not an ISO 8601 UTC time.
 - `nist_verify_pinned(pulse, certificate_pem, issuer_pem, host, known_ids: List[Text])`: the same checks with the issuer,
   the host name and the known certificate ids named by the caller (the tests use it to give each check a certificate
   that satisfies all the others).
@@ -148,8 +152,8 @@ Functions:
 - `nist_fetch_last()`, `nist_fetch(chain, pulse)`, `nist_fetch_certificate(pulse)`: fetch only (`E_NIST_FETCH`).
 - `nist_signed_bytes(pulse)`, `nist_output_value(pulse)`: the serialization and the recomputed output value.
 
-**Two pins (and an older certificate with its own issuer), and how to refresh them.** The issuer pin alone would accept a certificate DigiCert issued to anyone, so
-`nist_verify` also requires a known certificate id, the host name and the validity window. Each known id is paired with the one issuer that must have signed it, so no pinned issuer stands for another issuer's ids: `nist_known_certificate_ids()` go with `nist_pinned_issuer_pem()`, and `nist_legacy_certificate_ids()` go with `nist_legacy_issuer_pem()` (below). A pulse naming a legacy id is checked against the legacy issuer only, any other id against the current issuer only.
+**Four issuer pins (current, legacy, chain 1 Global CA G2, chain 1 Secure Server), and how to refresh them.** The issuer pin alone would accept a certificate DigiCert issued to anyone, so
+`nist_verify` also requires a known certificate id, the host name and the validity window. Each known id is paired with the one issuer that must have signed it, so no pinned issuer stands for another issuer's ids: `nist_known_certificate_ids()` go with `nist_pinned_issuer_pem()`, and `nist_legacy_certificate_ids()` go with `nist_legacy_issuer_pem()` (below). A pulse is checked against the issuer paired with the list its id is in (current, legacy, chain 1 Global CA G2 or chain 1 Secure Server, below), and against that issuer only.
 
 *The known certificate ids* are in `fixtures/nist-certificate-ids.txt` (one SHA-512 of a certificate's DER per line,
 with the validity dates in comments) and copied into `nist_known_certificate_ids()` in `src/nist.gu`; a test keeps the

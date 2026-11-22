@@ -853,9 +853,33 @@ fn test_nist_the_first_certificate_was_used_after_it_expired() -> Unit:
     assert(code_of_bool(nist_verify(chain1_pulse(220395), chain1_cert(1))) == "true")
     # without the extension the plain check is false for it, so the extension is what lets it through
     assert(code_of_bool(nist_verify_pinned(chain1_pulse(220395), chain1_cert(1), nist_chain1_global_ca_g2_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids())) == "false")
-    # the extension stops at the last pulse that used it (2019-08-16T14:11:00Z): a later time is false
-    let late = chain1_tampered(220395, "timeStamp", json_text("2019-08-16T14:12:00.000Z"))
-    assert(code_of_bool(nist_verify(late, chain1_cert(1))) == "false")
+    # the extension is bounded: it ends at the last pulse that used the certificate, before the next
+    # certificate's first pulse, and only for certificate 1
+    let first = nist_chain1_global_ca_g2_certificate_ids()[0]
+    let not_after = 1547208000
+    assert(nist_validity_extension(first) == 1565964660)
+    assert(nist_validity_end(first, not_after) == 1565964660)
+    assert(nist_validity_end(first, not_after) < 1565964840)
+    # 502025 is 2019-08-16T14:14:00Z = 1565964840
+    assert(chain1_pulse(502025).time_stamp == "2019-08-16T14:14:00.000Z")
+    assert(chain1_pulse(220395).time_stamp == "2019-01-28T13:25:00.000Z")
+
+fn test_nist_no_other_id_gets_a_validity_extension() -> Unit:
+    var lists: List[List[Text]] = [nist_known_certificate_ids(), nist_legacy_certificate_ids(), nist_chain1_global_ca_g2_certificate_ids(), nist_chain1_secure_server_certificate_ids()]
+    var seen = 0
+    var l = 0
+    while l < len(lists):
+        var i = 0
+        while i < len(lists[l]):
+            if lists[l][i] == nist_chain1_global_ca_g2_certificate_ids()[0]:
+                assert(nist_validity_extension(lists[l][i]) == 1565964660)
+            else:
+                assert(nist_validity_extension(lists[l][i]) == 0)
+                assert(nist_validity_end(lists[l][i], 1000) == 1000)
+            set seen = seen + 1
+            set i = i + 1
+        set l = l + 1
+    assert(seen == 10)
 
 fn test_nist_chain_1_certificate_ids_are_the_saved_fixture() -> Unit:
     var g2: List[Text] = []

@@ -224,7 +224,8 @@ pub fn nist_chain1_secure_server_certificate_ids() -> List[Text]:
 # until pulse 502024 (2019-08-16T14:11:00Z); pulse 502025 names the next one. These pulses are genuine and their
 # signatures verify, so for this one id the validity window is extended to that last pulse (unix seconds), and
 # no further. Every other id keeps the certificate's own notAfter. 0 means no extension.
-fn nist_validity_extension(certificate_id: Text) -> Int:
+# nist_validity_end gives the last unix second a pulse under the id may carry.
+pub fn nist_validity_extension(certificate_id: Text) -> Int:
     if certificate_id == "5501e3d72bc42f3b96e16de4dcadcb16768e109662bd16d667d5fd9aee585af31bbdc5dd4f53592276064b53dddd76c8f3604b2a41db6e09f78f82bb5d6569e7":
         return 1565964660
     return 0
@@ -351,6 +352,14 @@ fn numbers_fit(pulse: NistPulse) -> Bool:
 pub fn nist_verify_pinned(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text]) -> Result[Bool, StdError]:
     return verify_core(pulse, certificate_pem, issuer_pem, host, known_ids, 0)
 
+fn nist_validity_end_with(not_after: Int, extension: Int) -> Int:
+    if extension > not_after:
+        return extension
+    return not_after
+
+pub fn nist_validity_end(certificate_id: Text, not_after: Int) -> Int:
+    return nist_validity_end_with(not_after, nist_validity_extension(certificate_id))
+
 # nist_verify_pinned with a validity extension: a pulse made after the certificate's notAfter but no later than
 # `extended_until` (unix seconds; 0 for none) still counts as within its validity. Only nist_verify's own pins use it.
 fn verify_core(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text], extended_until: Int) -> Result[Bool, StdError]:
@@ -370,7 +379,7 @@ fn verify_core(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: 
     if not list_has(crypto_x509_dns_names(der)?, host):
         return Ok(false)
     let window = crypto_x509_validity(der)?
-    if made < window[0] or (made > window[1] and made > extended_until):
+    if made < window[0] or made > nist_validity_end_with(window[1], extended_until):
         return Ok(false)
     let key = crypto_x509_rsa_public_key(der)?
     let signed = crypto_rsa_verify(key[0], key[1], nist_signed_bytes(pulse), pulse.signature, "pkcs1v15-sha512")?
@@ -379,12 +388,15 @@ fn verify_core(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: 
     return Ok(nist_output_value(pulse) == pulse.output_value)
 
 # Checks a pulse against the certificate PEM it names. Ok(true) only for NIST's own: the pulse names
-# a known NIST beacon certificate (nist_known_certificate_ids), the certificate was issued by the
-# pinned DigiCert issuer for that id (nist_pinned_issuer_pem, or the legacy / chain 1 issuers for the older certificates), it names nist_beacon_host, the pulse's timeStamp
-# lies within its validity, the RSA PKCS#1 v1.5 / SHA-512 signature verifies under its key, and
-# outputValue is the hash of the serialization and signature. Ok(false) on any mismatch, including a
-# certificate the pinned issuer did not sign, one issued to another name, one that had expired or not
-# begun, or one NIST is not known to use.
+# a certificate this package pins (nist_known_certificate_ids, nist_legacy_certificate_ids,
+# nist_chain1_global_ca_g2_certificate_ids or nist_chain1_secure_server_certificate_ids), and the certificate
+# was issued by the one issuer paired with that list (nist_pinned_issuer_pem, nist_legacy_issuer_pem,
+# nist_chain1_global_ca_g2_issuer_pem or nist_chain1_secure_server_issuer_pem), never by another list's. It
+# names nist_beacon_host, the pulse's timeStamp lies within its validity (its notAfter, or for chain 1's first
+# certificate nist_validity_end, see nist_validity_extension), the RSA PKCS#1 v1.5 / SHA-512 signature
+# verifies under its key, and outputValue is the hash of the serialization and signature. Ok(false) on any
+# mismatch, including a certificate the paired issuer did not sign, one issued to another name, one that had
+# expired or not begun, or one NIST is not known to use.
 pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
     # Each certificateId is paired with the one issuer that must have signed it: an id one list names is
     # checked against that list's issuer only, every other id against the current issuer only, so no pinned
