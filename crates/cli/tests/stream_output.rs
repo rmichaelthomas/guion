@@ -217,3 +217,51 @@ fn native_main_that_falls_back_after_printing_does_not_print_twice() {
         "10419797182.625711\n123456\n-7\n10000000000000000000\n"
     );
 }
+
+// A stdio server prints a reply and then waits for the next request. A function that reads input
+// never runs natively (it calls a host operation), so the reply comes from a native function that has
+// returned, and its held lines are written when it returns, before main blocks on input.
+fn blocking_server() -> &'static str {
+    "import \"std:io\"\nfn reply(n: Int) -> Int:\n    var i = 0\n    var total = 0\n    while i < n:\n        set total = (total + i * 3) % 1000003\n        set i = i + 1\n    print(\"reply\")\n    print(\"reply2\")\n    return total\n\nfn main() -> Int:\n    print(reply(2000000))\n    match stdin_read_line():\n        Ok(got):\n            match got:\n                Some(line):\n                    print(line)\n                None:\n                    print(\"eof\")\n        Err(problem):\n            print(problem.code)\n    return 0\n"
+}
+
+#[test]
+fn a_native_function_writes_its_lines_before_the_program_blocks_on_stdin() {
+    let main = blocking_server();
+    let project = project("instruction_limit = 100000000000\n", main);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", project.0.to_str().unwrap()])
+        .env("GUION_NO_PROMPT", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut lines = BufReader::new(stdout).lines();
+        while let Some(Ok(line)) = lines.next() {
+            if sender.send(line).is_err() {
+                break;
+            }
+        }
+    });
+    // Nothing has been written to stdin yet: both lines must arrive anyway.
+    for expected in ["reply", "reply2", "63"] {
+        let line = receiver
+            .recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|_| {
+                let _ = child.kill();
+                panic!("{expected} did not arrive while the program waited for input")
+            });
+        assert_eq!(line, expected);
+    }
+    use std::io::Write;
+    child.stdin.take().unwrap().write_all(b"next\n").unwrap();
+    assert_eq!(
+        receiver.recv_timeout(Duration::from_secs(10)).unwrap(),
+        "next"
+    );
+    assert!(child.wait().unwrap().success());
+}
