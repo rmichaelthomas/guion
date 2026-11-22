@@ -209,6 +209,35 @@ legacy pin (it only needs it if NIST's certificate history is re-read or a pulse
    legacy ones and a branch for it in `nist_verify`, so the new issuer is paired with its own ids only;
 4. save a real pulse that names the certificate as `fixtures/nist-pulse-<n>.json` and add a test that it verifies.
 
+**Chain 1 (2018-07-23 to 2022-04-29, 1801851 pulses), and its four certificates.** `nist_fetch(1, n)` reaches NIST's first
+chain, which ended when chain 2 began; its pulses are serialized exactly as chain 2's (the signature and `outputValue`
+of pulses under each of its certificates were checked with openssl against the layout above), so `nist_verify` handles
+them with the same code. Its certificates (found by a binary search on `certificateId` from the first pulse to the
+last, then fetching each from `/beacon/2.0/certificate/<id>`; all four name `engine.beacon.nist.gov` and each hashes to its id):
+
+| pulses | valid | issuer (chain) | pin |
+|---|---|---|---|
+| 1 to 502024 | 2018-01-10 to 2019-01-11 | DigiCert Global CA G2 (Global Root G2) | `nist_chain1_global_ca_g2_*` |
+| 502025 to 926636 | 2019-06-11 to 2020-06-11 | DigiCert Global CA G2 (Global Root G2) | `nist_chain1_global_ca_g2_*` |
+| 926637 to 1414537 | 2020-06-10 to 2021-06-11 | DigiCert SHA2 Secure Server CA (Global Root CA) | `nist_chain1_secure_server_*` |
+| 1414538 to 1801851 | 2021-06-08 to 2022-06-22 | DigiCert TLS RSA SHA256 2020 CA1 (Global Root CA) | the legacy pin |
+
+Each id is paired as above: its ids go with its own issuer only (`fixtures/nist-chain1-certificate-ids.txt`, which holds the
+first two groups, and `nist-legacy-certificate-ids.txt`; `fixtures/nist-chain1-issuer-*.pem`; a test keeps every list and
+PEM equal to its fixture). **The first certificate had expired when it was last used.** It lapsed on 2019-01-11T12:00Z; the
+beacon paused from 2018-12-26 to 2019-01-28 (pulses 220394 and 220395), then went on signing with it until pulse 502024
+(2019-08-16T14:11:00Z), and pulse 502025 names the next one. Those pulses are genuine and verify, so the "valid when the
+pulse was made" check of `nist_verify` takes a per-id extension: for that one id the window ends at 2019-08-16T14:11:00Z
+(`nist_validity_extension` in `src/nist.gu`) instead of the certificate's `notAfter`, and for every other id it ends at
+`notAfter`. `nist_verify_pinned` has no extension, so called by hand it is `false` for those pulses.
+To refresh or re-read chain 1: take pulses at both ends and at each change (binary search on `certificateId` at
+`/beacon/2.0/chain/1/pulse/<n>`; the coarse sample step used was 20000 pulses, so a certificate used for fewer pulses than
+that and then replaced by the same one again would be missed), then run steps 1 to 4 of "The oldest certificate"
+above for each new id, and also compare each `timeStamp` with the certificate's `notBefore` and `notAfter` (`openssl x509 -noout -dates`):
+a pulse outside them needs an extension like the one above, bounded to the last pulse seen under that certificate and
+only after checking the signature with openssl. Save a real pulse per certificate as `fixtures/nist-chain1-pulse-<n>.json`
+and add it to `test_nist_chain_1_pulses_verify_under_each_of_its_certificates`.
+
 NIST tests run offline on fixtures saved live (`nist-pulse-2038647/2038648/2038144/2038145.json`,
 `nist-certificate.pem`, and `nist-pulse-1.json` with `nist-legacy-certificate.pem` for the oldest certificate): the last pulse, two consecutive pulses, a pair across the 2026-11-21/22 UTC midnight, a
 tampered `localRandomValue` (false), and other tampering. Forged-but-validly-issued pulses

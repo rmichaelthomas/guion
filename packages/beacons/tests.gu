@@ -768,6 +768,121 @@ fn test_nist_legacy_certificate_ids_are_the_saved_fixture() -> Unit:
         set i = i + 1
     assert(saved == nist_legacy_certificate_ids())
 
+# ---- NIST chain 1 (2018 to 2022): four certificates from three DigiCert intermediates ----
+# Fixtures saved live: pulses 1 and 220395 (certificate 1; 220395 is the first pulse after it expired),
+# 502025 (certificate 2), 926637 (certificate 3) and 1414538 (certificate 4), with the four certificates and
+# the two chain 1 issuers (certificate 4 is issued by the legacy issuer).
+
+fn chain1_doc(index: Int) -> Json:
+    return unwrap(json_parse(unwrap(text_from_bytes(read_fixture(f"fixtures/nist-chain1-pulse-{index}.json")))))
+
+fn chain1_pulse(index: Int) -> NistPulse:
+    return unwrap(nist_pulse_from_json(chain1_doc(index)))
+
+fn chain1_cert(number: Int) -> Text:
+    return pem_fixture(f"fixtures/nist-chain1-certificate-{number}.pem")
+
+fn chain1_tampered(index: Int, field: Text, value: Json) -> NistPulse:
+    let doc = chain1_doc(index)
+    return unwrap(nist_pulse_from_json(json_set(doc, "pulse", json_set(json_get(doc, "pulse"), field, value))))
+
+fn test_nist_chain_1_pulses_verify_under_each_of_its_certificates() -> Unit:
+    assert(chain1_pulse(1).chain_index == 1)
+    assert(code_of_bool(nist_verify(chain1_pulse(1), chain1_cert(1))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(220395), chain1_cert(1))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(502025), chain1_cert(2))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(926637), chain1_cert(3))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(1414538), chain1_cert(4))) == "true")
+
+fn test_nist_a_tampered_chain_1_pulse_is_false() -> Unit:
+    let n = [1, 220395, 502025, 926637, 1414538]
+    let certs = [1, 1, 2, 3, 4]
+    var i = 0
+    while i < len(n):
+        let altered = chain1_tampered(n[i], "localRandomValue", json_text("00" + text_slice(hex_encode(chain1_pulse(n[i]).local_random_value), 2, 128)))
+        assert(code_of_bool(nist_verify(altered, chain1_cert(certs[i]))) == "false")
+        let moved = chain1_tampered(n[i], "timeStamp", json_text("2019-02-01T00:00:00.000Z"))
+        assert(code_of_bool(nist_verify(moved, chain1_cert(certs[i]))) == "false")
+        set i = i + 1
+
+fn test_nist_chain_1_issuers_are_the_saved_fixtures_and_chain_to_digicert() -> Unit:
+    assert(nist_chain1_global_ca_g2_issuer_pem() == pem_fixture("fixtures/nist-chain1-issuer-global-ca-g2.pem"))
+    assert(nist_chain1_secure_server_issuer_pem() == pem_fixture("fixtures/nist-chain1-issuer-sha2-secure-server.pem"))
+    assert(is_true(nist_verify_certificate(chain1_cert(1), nist_chain1_global_ca_g2_issuer_pem())))
+    assert(is_true(nist_verify_certificate(chain1_cert(2), nist_chain1_global_ca_g2_issuer_pem())))
+    assert(is_true(nist_verify_certificate(chain1_cert(3), nist_chain1_secure_server_issuer_pem())))
+    assert(is_true(nist_verify_certificate(chain1_cert(4), nist_legacy_issuer_pem())))
+    # the issuers hang from DigiCert roots: Global Root G2 for Global CA G2, Global Root CA for the others
+    assert(is_true(nist_verify_certificate(nist_chain1_global_ca_g2_issuer_pem(), pem_fixture("fixtures/nist-issuer-root.pem"))))
+    assert(is_true(nist_verify_certificate(nist_chain1_secure_server_issuer_pem(), pem_fixture("fixtures/nist-legacy-root.pem"))))
+
+fn test_nist_each_chain_1_certificate_is_checked_against_its_own_issuer_only() -> Unit:
+    # a certificate under another chain 1 issuer does not chain
+    assert(not is_true(nist_verify_certificate(chain1_cert(1), nist_chain1_secure_server_issuer_pem())))
+    assert(not is_true(nist_verify_certificate(chain1_cert(3), nist_chain1_global_ca_g2_issuer_pem())))
+    assert(not is_true(nist_verify_certificate(chain1_cert(2), nist_pinned_issuer_pem())))
+    # the lists are disjoint
+    let g2 = nist_chain1_global_ca_g2_certificate_ids()
+    let server = nist_chain1_secure_server_certificate_ids()
+    var i = 0
+    while i < len(g2):
+        assert(not list_contains_text(server, g2[i]))
+        assert(not list_contains_text(nist_known_certificate_ids(), g2[i]))
+        assert(not list_contains_text(nist_legacy_certificate_ids(), g2[i]))
+        set i = i + 1
+    assert(not list_contains_text(nist_known_certificate_ids(), server[0]))
+    assert(not list_contains_text(nist_legacy_certificate_ids(), server[0]))
+    # a pulse paired with the wrong pin or the wrong certificate is false
+    assert(code_of_bool(nist_verify_pinned(chain1_pulse(1), chain1_cert(1), nist_chain1_secure_server_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids())) == "false")
+    assert(code_of_bool(nist_verify(chain1_pulse(1), chain1_cert(2))) == "false")
+    assert(code_of_bool(nist_verify(chain1_pulse(926637), chain1_cert(1))) == "false")
+    assert(code_of_bool(nist_verify(chain1_pulse(1414538), chain1_cert(3))) == "false")
+
+fn test_nist_chain_1_certificates_name_the_beacon_host() -> Unit:
+    var n = 1
+    while n <= 4:
+        let der = unwrap(crypto_pem_decode(chain1_cert(n)))
+        assert(unwrap(crypto_x509_dns_names(der)) == [nist_beacon_host()])
+        set n = n + 1
+
+fn test_nist_the_first_certificate_was_used_after_it_expired() -> Unit:
+    # certificate 1's notAfter is 2019-01-11T12:00Z (1547208000); pulse 220395 is 2019-01-28, genuine, and verifies
+    let der = unwrap(crypto_pem_decode(chain1_cert(1)))
+    let window = unwrap(crypto_x509_validity(der))
+    assert(window[1] == 1547208000)
+    assert(code_of_bool(nist_verify(chain1_pulse(220395), chain1_cert(1))) == "true")
+    # without the extension the plain check is false for it, so the extension is what lets it through
+    assert(code_of_bool(nist_verify_pinned(chain1_pulse(220395), chain1_cert(1), nist_chain1_global_ca_g2_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids())) == "false")
+    # the extension stops at the last pulse that used it (2019-08-16T14:11:00Z): a later time is false
+    let late = chain1_tampered(220395, "timeStamp", json_text("2019-08-16T14:12:00.000Z"))
+    assert(code_of_bool(nist_verify(late, chain1_cert(1))) == "false")
+
+fn test_nist_chain_1_certificate_ids_are_the_saved_fixture() -> Unit:
+    var g2: List[Text] = []
+    var server: List[Text] = []
+    var group = ""
+    let lines = text_split(pem_fixture("fixtures/nist-chain1-certificate-ids.txt"), "\n")
+    var i = 0
+    while i < len(lines):
+        let line = text_trim(lines[i])
+        if line == "[global-ca-g2]" or line == "[sha2-secure-server]":
+            set group = line
+        else:
+            if len(line) > 0 and text_slice(line, 0, 1) != "#":
+                if group == "[global-ca-g2]":
+                    set g2 = list_push(g2, line)
+                else:
+                    set server = list_push(server, line)
+        set i = i + 1
+    assert(g2 == nist_chain1_global_ca_g2_certificate_ids())
+    assert(server == nist_chain1_secure_server_certificate_ids())
+    assert(len(g2) == 2)
+    assert(len(server) == 1)
+    assert(hex_encode(chain1_pulse(1).certificate_id) == g2[0])
+    assert(hex_encode(chain1_pulse(502025).certificate_id) == g2[1])
+    assert(hex_encode(chain1_pulse(926637).certificate_id) == server[0])
+    assert(hex_encode(chain1_pulse(1414538).certificate_id) == nist_legacy_certificate_ids()[1])
+
 fn list_contains_text(items: List[Text], wanted: Text) -> Bool:
     var i = 0
     while i < len(items):

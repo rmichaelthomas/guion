@@ -23,6 +23,8 @@ import "twine.gu"
 # SHA-512(localRandomValue[n+1]), and pulse n+1's previous is pulse n's outputValue.
 # NISTIR 8213 (draft) writes the length prefixes as 8 bytes and external.statusCode as 8; the live
 # service uses 4 and 4. The README records how this was found.
+# Chain 1 (2018 to 2022) is serialized the same way as chain 2: checked with openssl on pulses under each of its
+# four certificates, the signature and outputValue both verify under this layout.
 #
 # Verifiers take an already-fetched pulse (and the certificate PEM); the fetch functions only fetch.
 # Needs the network grant for beacon.nist.gov for the fetch functions.
@@ -185,9 +187,47 @@ pub fn nist_pinned_issuer_pem() -> Text:
 pub fn nist_legacy_issuer_pem() -> Text:
     return "-----BEGIN CERTIFICATE-----\nMIIEvjCCA6agAwIBAgIQBtjZBNVYQ0b2ii+nVCJ+xDANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD\nQTAeFw0yMTA0MTQwMDAwMDBaFw0zMTA0MTMyMzU5NTlaME8xCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxKTAnBgNVBAMTIERpZ2lDZXJ0IFRMUyBS\nU0EgU0hBMjU2IDIwMjAgQ0ExMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC\nAQEAwUuzZUdwvN1PWNvsnO3DZuUfMRNUrUpmRh8sCuxkB+Uu3Ny5CiDt3+PE0J6a\nqXodgojlEVbbHp9YwlHnLDQNLtKS4VbL8Xlfs7uHyiUDe5pSQWYQYE9XE0nw6Ddn\ng9/n00tnTCJRpt8OmRDtV1F0JuJ9x8piLhMbfyOIJVNvwTRYAIuE//i+p1hJInuW\nraKImxW8oHzf6VGo1bDtN+I2tIJLYrVJmuzHZ9bjPvXj1hJeRPG/cUJ9WIQDgLGB\nAfr5yjK7tI4nhyfFK3TUqNaX3sNk+crOU6JWvHgXjkkDKa77SU+kFbnO8lwZV21r\neacroicgE7XQPUDTITAHk+qZ9QIDAQABo4IBgjCCAX4wEgYDVR0TAQH/BAgwBgEB\n/wIBADAdBgNVHQ4EFgQUt2ui6qiqhIx56rTaD5iyxZV2ufQwHwYDVR0jBBgwFoAU\nA95QNVbRTLtm8KPiGxvDl7I90VUwDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQG\nCCsGAQUFBwMBBggrBgEFBQcDAjB2BggrBgEFBQcBAQRqMGgwJAYIKwYBBQUHMAGG\nGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBABggrBgEFBQcwAoY0aHR0cDovL2Nh\nY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0R2xvYmFsUm9vdENBLmNydDBCBgNV\nHR8EOzA5MDegNaAzhjFodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRH\nbG9iYWxSb290Q0EuY3JsMD0GA1UdIAQ2MDQwCwYJYIZIAYb9bAIBMAcGBWeBDAEB\nMAgGBmeBDAECATAIBgZngQwBAgIwCAYGZ4EMAQIDMA0GCSqGSIb3DQEBCwUAA4IB\nAQCAMs5eC91uWg0Kr+HWhMvAjvqFcO3aXbMM9yt1QP6FCvrzMXi3cEsaiVi6gL3z\nax3pfs8LulicWdSQ0/1s/dCYbbdxglvPbQtaCdB73sRD2Cqk3p5BJl+7j5nL3a7h\nqG+fh/50tx8bIKuxT8b1Z11dmzzp/2n3YWzW2fP9NsarA4h20ksudYbj/NhVfSbC\nEXffPgK2fPOre3qGNm+499iTcc+G33Mw+nur7SpZyEKEOxEXGlLzyQ4UfaJbcme6\nce1XR2bFuAJKZTRei9AqPCCcUZlM51Ke92sRKw2Sfh3oius2FkOH6ipjv3U/697E\nA7sKPPcw7+uvTPyLNhBzPvOk\n-----END CERTIFICATE-----\n"
 
-# The certificateId values the legacy issuer signed (fixtures/nist-legacy-certificate-ids.txt).
+# The certificateId values the legacy issuer signed (fixtures/nist-legacy-certificate-ids.txt): chain 2's
+# first certificate, and the last certificate of chain 1 (2021-06 to 2022-06; the same intermediate, DigiCert
+# TLS RSA SHA256 2020 CA1, whose key signed it).
 pub fn nist_legacy_certificate_ids() -> List[Text]:
-    return ["ed8e1b9745e337e38745a54579d97b21562cb703e44926666a1d6499a9e3399448cdf6b1403ec056314c129910e82b0e8af48c1e062a88828e178dfc82983c2b"]
+    return ["ed8e1b9745e337e38745a54579d97b21562cb703e44926666a1d6499a9e3399448cdf6b1403ec056314c129910e82b0e8af48c1e062a88828e178dfc82983c2b", "ebcfbf3cb148288266e2cde0d71de23b0a2739c30356e32de68e040b82dec384359763f72905ba16a2a474040ed5db47ee1baa0327aeae94f231ffe67276d1cb"]
+
+# NIST's first chain (chain 1, 2018-07-23 to 2022-04-29, pulses 1 to 1801851) used four certificates in a row,
+# from three DigiCert intermediates. The last one is issued by the legacy issuer above (its id is in
+# nist_legacy_certificate_ids). The other three each have a pinned issuer of their own, trusted only for
+# their own ids (fixtures/nist-chain1-*.pem; tests keep the PEMs and the id lists equal to the fixtures).
+
+# "DigiCert Global CA G2", an intermediate issued by DigiCert Global Root G2, valid until 2028-08-01 (SHA-256
+# fingerprint 8F:AC:57:64:39:C9:FD:3E:F1:53:B5:1F:9E:DD:0D:38:1B:5D:F7:B8:75:59:CE:BE:CA:04:29:7D:D4:4A:63:9B). It signed
+# NIST's first two chain 1 certificates (pulses 1 to 926636).
+pub fn nist_chain1_global_ca_g2_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIEizCCA3OgAwIBAgIQDI7gyQ1qiRWIBAYe4kH5rzANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\nMjAeFw0xMzA4MDExMjAwMDBaFw0yODA4MDExMjAwMDBaMEQxCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxHjAcBgNVBAMTFURpZ2lDZXJ0IEdsb2Jh\nbCBDQSBHMjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANNIfL7zBYZd\nW9UvhU5L4IatFaxhz1uvPmoKR/uadpFgC4przc/cV35gmAvkVNlW7SHMArZagV+X\nau4CLyMnuG3UsOcGAngLH1ypmTb+u6wbBfpXzYEQQGfWMItYNdSWYb7QjHqXnxr5\nIuYUL6nG6AEfq/gmD6yOTSwyOR2Bm40cZbIc22GoiS9g5+vCShjEbyrpEJIJ7RfR\nACvmfe8EiRROM6GyD5eHn7OgzS+8LOy4g2gxPR/VSpAQGQuBldYpdlH5NnbQtwl6\nOErXb4y/E3w57bqukPyV93t4CTZedJMeJfD/1K2uaGvG/w/VNfFVbkhJ+Pi474j4\n8V4Rd6rfArMCAwEAAaOCAVowggFWMBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0P\nAQH/BAQDAgGGMDQGCCsGAQUFBwEBBCgwJjAkBggrBgEFBQcwAYYYaHR0cDovL29j\nc3AuZGlnaWNlcnQuY29tMHsGA1UdHwR0MHIwN6A1oDOGMWh0dHA6Ly9jcmw0LmRp\nZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMi5jcmwwN6A1oDOGMWh0dHA6\nLy9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMi5jcmwwPQYD\nVR0gBDYwNDAyBgRVHSAAMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8vd3d3LmRpZ2lj\nZXJ0LmNvbS9DUFMwHQYDVR0OBBYEFCRuKy3QapJRUSVpAaqaR6aJ50AgMB8GA1Ud\nIwQYMBaAFE4iVCAYlebjbuYP+vq5Eu0GF485MA0GCSqGSIb3DQEBCwUAA4IBAQAL\nOYSR+ZfrqoGvhOlaOJL84mxZvzbIRacxAxHhBsCsMsdaVSnaT0AC9aHesO3ewPj2\ndZ12uYf+QYB6z13jAMZbAuabeGLJ3LhimnftiQjXS8X9Q9ViIyfEBFltcT8jW+rZ\n8uckJ2/0lYDblizkVIvP6hnZf1WZUXoOLRg9eFhSvGNoVwvdRLNXSmDmyHBwW4co\natc7TlJFGa8kBpJIERqLrqwYElesA8u49L3KJg6nwd3jM+/AVTANlVlOnAM2BvjA\njxSZnE0qnsHhfTuvcqdFuhOWKU4Z0BqYBvQ3lBetoxi6PrABDJXWKTUgNX31EGDk\n92hiHuwZ4STyhxGs6QiA\n-----END CERTIFICATE-----\n"
+
+# The certificateId values of the two certificates "DigiCert Global CA G2" signed: valid 2018-01-10 to 2019-01-11,
+# and 2019-06-11 to 2020-06-11.
+pub fn nist_chain1_global_ca_g2_certificate_ids() -> List[Text]:
+    return ["5501e3d72bc42f3b96e16de4dcadcb16768e109662bd16d667d5fd9aee585af31bbdc5dd4f53592276064b53dddd76c8f3604b2a41db6e09f78f82bb5d6569e7", "02288edbdc04bdeeb1c8140a41a1ad40ab2ea7ad27fdd316946f3ec5aff1a7129f1fb5078202d75d42c201878b06d79c45bf37adb55f83aa213200834792b1da"]
+
+# "DigiCert SHA2 Secure Server CA", an intermediate issued by DigiCert Global Root CA, valid until 2023-03-08
+# (SHA-256 fingerprint 15:4C:43:3C:49:19:29:C5:EF:68:6E:83:8E:32:36:64:A0:0E:6A:0D:82:2C:CC:95:8F:B4:DA:B0:3E:49:A0:8F).
+# It signed NIST's third chain 1 certificate (pulses 926637 to 1414537).
+pub fn nist_chain1_secure_server_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIElDCCA3ygAwIBAgIQAf2j627KdciIQ4tyS8+8kTANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD\nQTAeFw0xMzAzMDgxMjAwMDBaFw0yMzAzMDgxMjAwMDBaME0xCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxJzAlBgNVBAMTHkRpZ2lDZXJ0IFNIQTIg\nU2VjdXJlIFNlcnZlciBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB\nANyuWJBNwcQwFZA1W248ghX1LFy949v/cUP6ZCWA1O4Yok3wZtAKc24RmDYXZK83\nnf36QYSvx6+M/hpzTc8zl5CilodTgyu5pnVILR1WN3vaMTIa16yrBvSqXUu3R0bd\nKpPDkC55gIDvEwRqFDu1m5K+wgdlTvza/P96rtxcflUxDOg5B6TXvi/TC2rSsd9f\n/ld0Uzs1gN2ujkSYs58O09rg1/RrKatEp0tYhG2SS4HD2nOLEpdIkARFdRrdNzGX\nkujNVA075ME/OV4uuPNcfhCOhkEAjUVmR7ChZc6gqikJTvOX6+guqw9ypzAO+sf0\n/RR3w6RbKFfCs/mC/bdFWJsCAwEAAaOCAVowggFWMBIGA1UdEwEB/wQIMAYBAf8C\nAQAwDgYDVR0PAQH/BAQDAgGGMDQGCCsGAQUFBwEBBCgwJjAkBggrBgEFBQcwAYYY\naHR0cDovL29jc3AuZGlnaWNlcnQuY29tMHsGA1UdHwR0MHIwN6A1oDOGMWh0dHA6\nLy9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RDQS5jcmwwN6A1\noDOGMWh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RD\nQS5jcmwwPQYDVR0gBDYwNDAyBgRVHSAAMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8v\nd3d3LmRpZ2ljZXJ0LmNvbS9DUFMwHQYDVR0OBBYEFA+AYRyCMWHVLyjnjUY4tCzh\nxtniMB8GA1UdIwQYMBaAFAPeUDVW0Uy7ZvCj4hsbw5eyPdFVMA0GCSqGSIb3DQEB\nCwUAA4IBAQAjPt9L0jFCpbZ+QlwaRMxp0Wi0XUvgBCFsS+JtzLHgl4+mUwnNqipl\n5TlPHoOlblyYoiQm5vuh7ZPHLgLGTUq/sELfeNqzqPlt/yGFUzZgTHbO7Djc1lGA\n8MXW5dRNJ2Srm8c+cftIl7gzbckTB+6WohsYFfZcTEDts8Ls/3HB40f/1LkAtDdC\n2iDJ6m6K7hQGrn2iWZiIqBtvLfTyyRRfJs8sjX7tN8Cp1Tm5gr8ZDOo0rwAhaPit\nc+LJMto4JQtV05od8GiG7S5BNO98pVAdvzr508EIDObtHopYJeS4d60tbvVS3bR0\nj6tJLp07kzQoH3jOlOrHvdPJbRzeXDLz\n-----END CERTIFICATE-----\n"
+
+# The certificateId of the certificate "DigiCert SHA2 Secure Server CA" signed: valid 2020-06-10 to 2021-06-11.
+pub fn nist_chain1_secure_server_certificate_ids() -> List[Text]:
+    return ["a2898303d179a120f622e7df9da92bff3f41cecb9f174aedf0b9915728823e7cb180464cb3019f5ce9386c116ed26e53a39df17f0ca88f04e36d8c7470ecc3a4"]
+
+# NIST kept signing with its first chain 1 certificate after it expired (notAfter 2019-01-11T12:00Z): the
+# beacon stopped from 2018-12-26 to 2019-01-28 (pulses 220394 and 220395), then ran under the same certificate
+# until pulse 502024 (2019-08-16T14:11:00Z); pulse 502025 names the next one. These pulses are genuine and their
+# signatures verify, so for this one id the validity window is extended to that last pulse (unix seconds), and
+# no further. Every other id keeps the certificate's own notAfter. 0 means no extension.
+fn nist_validity_extension(certificate_id: Text) -> Int:
+    if certificate_id == "5501e3d72bc42f3b96e16de4dcadcb16768e109662bd16d667d5fd9aee585af31bbdc5dd4f53592276064b53dddd76c8f3604b2a41db6e09f78f82bb5d6569e7":
+        return 1565964660
+    return 0
 
 # True when the certificate (PEM) was signed by the key of the issuer certificate (PEM) and names it
 # as its issuer. One link only: no validity dates, no CA flag, no revocation. Err for text that is
@@ -309,6 +349,11 @@ fn numbers_fit(pulse: NistPulse) -> Bool:
 # a number the serialization cannot hold or a timeStamp that is not an ISO 8601 UTC time. This is how
 # the tests prove each check on its own with a certificate that satisfies the others.
 pub fn nist_verify_pinned(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text]) -> Result[Bool, StdError]:
+    return verify_core(pulse, certificate_pem, issuer_pem, host, known_ids, 0)
+
+# nist_verify_pinned with a validity extension: a pulse made after the certificate's notAfter but no later than
+# `extended_until` (unix seconds; 0 for none) still counts as within its validity. Only nist_verify's own pins use it.
+fn verify_core(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text], extended_until: Int) -> Result[Bool, StdError]:
     if pulse.cipher_suite != 0:
         return Err(nist_error("E_NIST_SUITE", f"cipher suite {pulse.cipher_suite} is not defined; only 0 is"))
     if not numbers_fit(pulse):
@@ -325,7 +370,7 @@ pub fn nist_verify_pinned(pulse: NistPulse, certificate_pem: Text, issuer_pem: T
     if not list_has(crypto_x509_dns_names(der)?, host):
         return Ok(false)
     let window = crypto_x509_validity(der)?
-    if made < window[0] or made > window[1]:
+    if made < window[0] or (made > window[1] and made > extended_until):
         return Ok(false)
     let key = crypto_x509_rsa_public_key(der)?
     let signed = crypto_rsa_verify(key[0], key[1], nist_signed_bytes(pulse), pulse.signature, "pkcs1v15-sha512")?
@@ -335,18 +380,24 @@ pub fn nist_verify_pinned(pulse: NistPulse, certificate_pem: Text, issuer_pem: T
 
 # Checks a pulse against the certificate PEM it names. Ok(true) only for NIST's own: the pulse names
 # a known NIST beacon certificate (nist_known_certificate_ids), the certificate was issued by the
-# pinned DigiCert issuer for that id (nist_pinned_issuer_pem, or nist_legacy_issuer_pem for the oldest certificate), it names nist_beacon_host, the pulse's timeStamp
+# pinned DigiCert issuer for that id (nist_pinned_issuer_pem, or the legacy / chain 1 issuers for the older certificates), it names nist_beacon_host, the pulse's timeStamp
 # lies within its validity, the RSA PKCS#1 v1.5 / SHA-512 signature verifies under its key, and
 # outputValue is the hash of the serialization and signature. Ok(false) on any mismatch, including a
 # certificate the pinned issuer did not sign, one issued to another name, one that had expired or not
 # begun, or one NIST is not known to use.
 pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
-    # Each certificateId is paired with the one issuer that must have signed it: an id the legacy list
-    # names is checked against the legacy issuer only, every other id against the current issuer only,
-    # so neither pinned issuer stands for the other's certificates.
-    if list_has(nist_legacy_certificate_ids(), hex_encode(pulse.certificate_id)):
-        return nist_verify_pinned(pulse, certificate_pem, nist_legacy_issuer_pem(), nist_beacon_host(), nist_legacy_certificate_ids())
-    return nist_verify_pinned(pulse, certificate_pem, nist_pinned_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids())
+    # Each certificateId is paired with the one issuer that must have signed it: an id one list names is
+    # checked against that list's issuer only, every other id against the current issuer only, so no pinned
+    # issuer stands for another's certificates.
+    let id = hex_encode(pulse.certificate_id)
+    let extension = nist_validity_extension(id)
+    if list_has(nist_legacy_certificate_ids(), id):
+        return verify_core(pulse, certificate_pem, nist_legacy_issuer_pem(), nist_beacon_host(), nist_legacy_certificate_ids(), extension)
+    if list_has(nist_chain1_global_ca_g2_certificate_ids(), id):
+        return verify_core(pulse, certificate_pem, nist_chain1_global_ca_g2_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids(), extension)
+    if list_has(nist_chain1_secure_server_certificate_ids(), id):
+        return verify_core(pulse, certificate_pem, nist_chain1_secure_server_issuer_pem(), nist_beacon_host(), nist_chain1_secure_server_certificate_ids(), extension)
+    return verify_core(pulse, certificate_pem, nist_pinned_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids(), extension)
 
 # True when `current` is the pulse right after `previous` in the same chain, names it as its
 # previous, and previous's precommitmentValue is SHA-512 of current's localRandomValue. It does
@@ -373,7 +424,7 @@ fn fetch_pulse(url: Text) -> Result[NistPulse, StdError]:
 pub fn nist_fetch_last() -> Result[NistPulse, StdError]:
     return fetch_pulse("https://beacon.nist.gov/beacon/2.0/pulse/last")
 
-# A pulse by chain and index (the live chain is 2). Fetches only.
+# A pulse by chain and index (the live chain is 2; chain 1, 2018 to 2022, verifies too). Fetches only.
 pub fn nist_fetch(chain: Int, pulse: Int) -> Result[NistPulse, StdError]:
     return fetch_pulse(f"https://beacon.nist.gov/beacon/2.0/chain/{chain}/pulse/{pulse}")
 
