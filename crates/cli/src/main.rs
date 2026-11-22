@@ -1331,6 +1331,10 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                     }
                 }
             }
+            // Each print reaches the terminal or pipe as it happens; a JSON report keeps it.
+            if !json_run {
+                policy = policy.with_streaming_output(true);
+            }
             let runtime_load_started = phase_timings_enabled.then(Instant::now);
             let mut instance = match runtime.load(artifact.clone(), policy) {
                 Ok(instance) => instance,

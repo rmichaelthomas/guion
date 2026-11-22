@@ -99,7 +99,7 @@ The current-format feed-digest workload in `evaluation/development/guion_feed_di
 
 Runtime errors go to stderr and return a failing process status. Output produced before a runtime error is preserved on stdout. Diagnostics include stable error codes and source line/column locations.
 
-`print(value)` writes program output to stdout. `eprint(value)` writes program diagnostics to stderr. Both are captured independently by `guion run --json`, reported as distinct effects, and charged to the combined output limit. `eprint` requires artifact format 28.
+`print(value)` writes program output to stdout. `eprint(value)` writes program diagnostics to stderr. Both are captured independently by `guion run --json`, reported as distinct effects, and charged to the combined output limit. `eprint` requires artifact format 28. Under plain `guion run`, each `print` and `eprint` is written to the process's stdout or stderr and flushed as it runs, so a reader on a pipe sees a line while the program is still working; nothing is held until the end. Streamed bytes count against `output_limit_bytes` exactly as buffered ones do (`R_OUTPUT_LIMIT`). If the reader closes the pipe, the next write stops the program with `R_OUTPUT_CLOSED`. `guion run --json`, `guion test`, `guion serve` and embedders using `HostPolicy` keep output in memory; an embedder opts in with `HostPolicy::with_streaming_output(true)`.
 
 ## Current limits
 

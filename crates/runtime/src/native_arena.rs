@@ -1672,6 +1672,9 @@ impl NativeListArena {
                 let text = text.clone();
                 let output_bytes = text.len().saturating_add(1);
                 let instance = unsafe { &mut *runtime.instance };
+                if instance.policy.streaming_output {
+                    return None;
+                }
                 if instance
                     .program_output_bytes()
                     .saturating_add(self.pending_output.len())
@@ -1684,7 +1687,7 @@ impl NativeListArena {
                 let mut rendered = String::with_capacity(output_bytes);
                 rendered.push_str(&text);
                 rendered.push('\n');
-                instance.commit_native_output(self);
+                instance.commit_native_output(self).ok()?;
                 instance
                     .write_program_output(OutputStream::Stderr, &rendered, instruction.span)
                     .ok()?;
@@ -2659,7 +2662,20 @@ impl NativeListArena {
         }
     }
 
+    /// Whether the program's output goes straight to the process (`guion run`).
+    pub(crate) fn streams_output(&self) -> bool {
+        self.runtime_context.as_ref().is_some_and(|context| {
+            // SAFETY: the instance outlives the arena that was attached to it.
+            unsafe { &*context.instance }.policy.streaming_output
+        })
+    }
+
     pub(crate) fn print(&mut self, value: i64, kind: i64) -> bool {
+        // Native code that deoptimizes is replayed from its start by the VM, so output it has
+        // already shown could not be taken back. Under streaming output, the VM does the print.
+        if self.streams_output() {
+            return false;
+        }
         let rendered = match kind {
             1 => value.to_string(),
             2 => {

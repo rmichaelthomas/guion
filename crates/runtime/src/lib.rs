@@ -275,6 +275,10 @@ pub struct HostPolicy {
     pub allocation_limit_bytes: usize,
     pub call_depth_limit: usize,
     pub output_limit_bytes: usize,
+    /// Write each `print` and `print_err` to the process's standard output or error as it
+    /// happens, instead of keeping it for `take_output`. `output_limit_bytes` still counts every
+    /// streamed byte. A closed pipe is `R_OUTPUT_CLOSED`. Off by default.
+    pub streaming_output: bool,
     pub max_integer_digits: usize,
     pub max_text_bytes: usize,
     pub max_collection_items: usize,
@@ -339,6 +343,7 @@ impl Default for HostPolicy {
             allocation_limit_bytes: DEFAULT_ALLOCATION_LIMIT_BYTES,
             call_depth_limit: 128,
             output_limit_bytes: 1_000_000,
+            streaming_output: false,
             max_integer_digits: 4096,
             max_text_bytes: 16 * 1024 * 1024,
             max_collection_items: 1_000_000,
@@ -380,6 +385,12 @@ impl Default for HostPolicy {
     }
 }
 impl HostPolicy {
+    /// Turns write-through output on or off (see [`HostPolicy::streaming_output`]).
+    pub fn with_streaming_output(mut self, streaming: bool) -> Self {
+        self.streaming_output = streaming;
+        self
+    }
+
     pub fn with_file_access(mut self, root: impl Into<PathBuf>, read: bool, write: bool) -> Self {
         self.file_root = Some(root.into());
         self.allow_file_read = read;
@@ -659,6 +670,7 @@ impl Runtime {
             policy,
             output: String::new(),
             program_stderr: String::new(),
+            streamed_bytes: 0,
             closed: false,
             worker_threads: HashSet::new(),
             cancelled: None,
@@ -708,6 +720,9 @@ pub struct Instance {
     toml_documents: stdlib_services::TomlRegistry,
     output: String,
     program_stderr: String,
+    /// Bytes already written through to the process under `streaming_output`; they count
+    /// against `output_limit_bytes` but are not kept.
+    streamed_bytes: usize,
     closed: bool,
     worker_threads: HashSet<String>,
     cancelled: Option<Arc<AtomicBool>>,
@@ -724,6 +739,50 @@ pub struct Instance {
     channels: Arc<tasks::ChannelTable>,
     /// The commands this instance started in the background.
     processes: background::ProcessTable,
+}
+
+impl Instance {
+    /// Standard output so far: what is kept plus what was streamed.
+    fn stdout_bytes(&self) -> usize {
+        self.output.len().saturating_add(self.streamed_bytes)
+    }
+
+    /// Adds output a worker, task, native run or Python call produced to standard output,
+    /// writing it through when streaming.
+    fn append_stdout(&mut self, text: &str) -> Result<(), RuntimeError> {
+        if self.policy.streaming_output {
+            self.stream_text(OutputStream::Stdout, text)
+        } else {
+            self.output.push_str(text);
+            Ok(())
+        }
+    }
+
+    fn stream_text(&mut self, stream: OutputStream, text: &str) -> Result<(), RuntimeError> {
+        use std::io::Write;
+        let written = match stream {
+            OutputStream::Stdout => {
+                let mut handle = std::io::stdout().lock();
+                handle
+                    .write_all(text.as_bytes())
+                    .and_then(|()| handle.flush())
+            }
+            OutputStream::Stderr => {
+                let mut handle = std::io::stderr().lock();
+                handle
+                    .write_all(text.as_bytes())
+                    .and_then(|()| handle.flush())
+            }
+        };
+        self.streamed_bytes = self.streamed_bytes.saturating_add(text.len());
+        written.map_err(|error| {
+            RuntimeError::new(
+                "R_OUTPUT_CLOSED",
+                format!("the program's output could not be written: {error}"),
+                Span::default(),
+            )
+        })
+    }
 }
 
 impl HostPolicy {
@@ -1064,20 +1123,40 @@ impl VmHost for Instance {
     }
 
     fn program_output_bytes(&self) -> usize {
-        self.output.len().saturating_add(self.program_stderr.len())
+        self.stdout_bytes()
+            .saturating_add(self.program_stderr.len())
     }
 
     fn write_program_output(
         &mut self,
         stream: OutputStream,
         text: &str,
-        _span: Span,
+        span: Span,
     ) -> Result<(), RuntimeError> {
-        let (destination, kind) = match stream {
-            OutputStream::Stdout => (&mut self.output, EffectKind::ProgramOutput),
-            OutputStream::Stderr => (&mut self.program_stderr, EffectKind::ProgramErrorOutput),
+        let kind = match stream {
+            OutputStream::Stdout => EffectKind::ProgramOutput,
+            OutputStream::Stderr => EffectKind::ProgramErrorOutput,
         };
-        destination.push_str(text);
+        if self.policy.streaming_output {
+            if self.program_output_bytes().saturating_add(text.len())
+                > self.policy.output_limit_bytes
+            {
+                return Err(RuntimeError::new(
+                    "R_OUTPUT_LIMIT",
+                    "program output exceeds the configured limit",
+                    span,
+                ));
+            }
+            self.stream_text(stream, text).map_err(|mut error| {
+                error.trace = vec![span];
+                error
+            })?;
+        } else {
+            match stream {
+                OutputStream::Stdout => self.output.push_str(text),
+                OutputStream::Stderr => self.program_stderr.push_str(text),
+            }
+        }
         let effect = self.begin_effect(kind, format!("{} bytes", text.len()));
         self.finish_effect(effect, EffectOutcome::Returned);
         Ok(())
@@ -6168,6 +6247,7 @@ impl Instance {
         };
         self.output.clear();
         self.program_stderr.clear();
+        self.streamed_bytes = 0;
         self.host_stderr.clear();
         self.effect_report.clear();
         self.omitted_effects = 0;
@@ -6341,6 +6421,7 @@ impl Instance {
         self.http = None;
         self.output.clear();
         self.program_stderr.clear();
+        self.streamed_bytes = 0;
         self.host_stderr.clear();
         #[cfg(feature = "python-interop")]
         if let Some(bridge) = &mut self.python_bridge {
@@ -6496,14 +6577,15 @@ impl Instance {
         }
     }
 
-    fn commit_native_output(&mut self, arena: &mut NativeListArena) {
+    fn commit_native_output(&mut self, arena: &mut NativeListArena) -> Result<(), RuntimeError> {
         let output = std::mem::take(&mut arena.pending_output);
         arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(output.len());
-        self.output.push_str(&output);
+        let written = self.append_stdout(&output);
         for bytes in std::mem::take(&mut arena.pending_print_bytes) {
             let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
             self.finish_effect(effect, EffectOutcome::Returned);
         }
+        written
     }
 
     fn sort_by_left_before_or_equal(
@@ -6579,7 +6661,7 @@ impl Instance {
             Arc::as_ptr(&budget),
             self.policy.max_collection_items,
             self.policy.output_limit_bytes,
-            self.output.len().saturating_add(self.program_stderr.len()),
+            self.program_output_bytes(),
             budget.runtime_profile.clone(),
         );
         native_arena.attach_runtime_context(
@@ -6875,7 +6957,7 @@ impl Instance {
                 // A native failure ends the program, so what it printed first must still reach
                 // the output, as it does in the VM. A plain deoptimization replays instead.
                 if outcome.status >= 2 || native_arena.host_error.is_some() {
-                    self.commit_native_output(&mut native_arena);
+                    self.commit_native_output(&mut native_arena)?;
                 }
                 let fault_frame = self
                     .artifact
@@ -7175,7 +7257,7 @@ impl Instance {
                                     )
                                 })?,
                         };
-                        self.commit_native_output(&mut native_arena);
+                        self.commit_native_output(&mut native_arena)?;
                         return Ok(FrameStart::Returned(value));
                     }
                     1 => {
@@ -7190,7 +7272,7 @@ impl Instance {
                             .entry((outcome.fault_function, outcome.fault_ip))
                             .or_default() += 1;
                         if !outcome.continuations.is_empty() {
-                            self.commit_native_output(&mut native_arena);
+                            self.commit_native_output(&mut native_arena)?;
                             if let Some(deepest) = outcome.continuations.last_mut() {
                                 deepest.call_site = call_site;
                             }
@@ -7421,7 +7503,7 @@ impl Instance {
                             .saturating_add(result.stderr.len()),
                         span,
                     )?;
-                    if self.output.len().saturating_add(result.stdout.len())
+                    if self.stdout_bytes().saturating_add(result.stdout.len())
                         > self.policy.output_limit_bytes
                     {
                         return Err(RuntimeError::new(
@@ -7430,7 +7512,7 @@ impl Instance {
                             span,
                         ));
                     }
-                    self.output.push_str(&result.stdout);
+                    self.append_stdout(&result.stdout)?;
                     if self.host_stderr.len().saturating_add(result.stderr.len())
                         > self.policy.output_limit_bytes
                     {
@@ -7449,10 +7531,10 @@ impl Instance {
                     Ok(result.value)
                 }
                 Err(error) => {
-                    if self.output.len().saturating_add(error.stdout.len())
+                    if self.stdout_bytes().saturating_add(error.stdout.len())
                         <= self.policy.output_limit_bytes
                     {
-                        self.output.push_str(&error.stdout);
+                        let _ = self.append_stdout(&error.stdout);
                     }
                     if self.host_stderr.len().saturating_add(error.stderr.len())
                         <= self.policy.output_limit_bytes
@@ -7565,7 +7647,9 @@ impl Instance {
         let artifact = Arc::clone(&self.artifact);
         let registers = Arc::clone(&self.registers);
         let native_constants = Arc::clone(&self.native_constants);
-        let policy = self.policy.clone();
+        // Workers keep their output for the parent to merge, in order.
+        let mut policy = self.policy.clone();
+        policy.streaming_output = false;
         let native_enabled = self.native_enabled;
         let native_code = self.native_code.clone();
         let values = Arc::new(values);
@@ -7704,6 +7788,7 @@ impl Instance {
                         toml_documents: stdlib_services::TomlRegistry::new(policy.max_text_bytes),
                         output: String::new(),
                         program_stderr: String::new(),
+                        streamed_bytes: 0,
                         closed: false,
                         worker_threads: HashSet::new(),
                         cancelled: Some(cancelled.clone()),
@@ -7821,14 +7906,15 @@ impl Instance {
                         String::new(),
                     )
                 });
-                if self.output.len().saturating_add(output.len()) > self.policy.output_limit_bytes {
+                if self.stdout_bytes().saturating_add(output.len()) > self.policy.output_limit_bytes
+                {
                     return Err(RuntimeError::new(
                         "R_OUTPUT_LIMIT",
                         "parallel worker output exceeds the configured limit",
                         span,
                     ));
                 }
-                self.output.push_str(&output);
+                self.append_stdout(&output)?;
                 items.push(result.map_err(|error| {
                     let mut trace = error.trace;
                     trace.push(span);
@@ -7855,14 +7941,14 @@ impl Instance {
             let Some((result, output)) = item else {
                 continue;
             };
-            if self.output.len().saturating_add(output.len()) > self.policy.output_limit_bytes {
+            if self.stdout_bytes().saturating_add(output.len()) > self.policy.output_limit_bytes {
                 return Err(RuntimeError::new(
                     "R_OUTPUT_LIMIT",
                     "parallel worker output exceeds the configured limit",
                     span,
                 ));
             }
-            self.output.push_str(&output);
+            self.append_stdout(&output)?;
             match result {
                 Ok(value) => results.push(value),
                 Err(error) => {

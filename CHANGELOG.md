@@ -2,6 +2,10 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## 0.8.0 (unreleased)
+
+- `guion run` writes each `print` and `eprint` as it happens instead of after `main` returns, so a program used as a stdio tool or read through a pipe delivers lines at once. `output_limit_bytes` still counts every byte. A reader that closes the pipe stops the program with the new stable code `R_OUTPUT_CLOSED`. `guion run --json`, `guion test`, `guion serve` and embedders keep buffering; `HostPolicy::with_streaming_output(true)` turns streaming on for an embedder.
+
 ## 0.7.0 — 2026-11-15
 
 Additions only, plus the artifact format going from 75 to 76 (older artifacts still load; a program that uses `together:`, channels, background commands, `try_parallel_map` or `core_count` needs this runtime). Nothing is removed or re-signed.
