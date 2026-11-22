@@ -38,3 +38,13 @@ pub fn encoding_utf8_decode_lossy(data: Bytes) -> Text:
 
 pub fn encoding_utf8_encode(text: Text) -> Bytes:
     return bytes_from_text(text)
+
+# dagcbor_encode turns a Json value into canonical DAG-CBOR bytes (artifact format 82), the encoding
+# behind IPLD and Twine record CIDs. Integers (a number written without a point or exponent, from -2^64
+# to 2^64 - 1) use the shortest CBOR integer form; any other number is a 64-bit float, and NaN or an
+# infinity is E_DAGCBOR_VALUE, as is nesting deeper than 128 levels or an integer out of range. Map keys
+# are sorted by encoded length, then bytes. {"/": "<cid>"} (multibase base32 CIDv1) becomes a CID link
+# and {"/": {"bytes": "<base64>"}} a byte string; an object with a "/" key in any other shape, or a
+# malformed CID or base64, is E_DAGCBOR_LINK.
+pub fn dagcbor_encode(value: Json) -> Result[Bytes, StdError]:
+    return native_crypto_dagcbor_encode(value)

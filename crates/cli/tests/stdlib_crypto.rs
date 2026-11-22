@@ -619,3 +619,66 @@ fn old_format_rejects_tlock_ops() {
         "E_ARTIFACT_VERSION"
     );
 }
+
+/// The first artifact format with DAG-CBOR encoding.
+const DAGCBOR_FIRST_FORMAT: u32 = 82;
+
+const DAGCBOR_PROGRAM: &str = r#"import "std:encoding"
+import "std:types"
+
+fn encoded(text: Text) -> Text:
+    match dagcbor_encode(unwrap(json_parse(text))):
+        Ok(bytes):
+            return hex_encode(bytes)
+        Err(problem):
+            return problem.code
+
+fn main() -> Int:
+    assert(encoded("{\"b\":1,\"a\":[true,null,-1.5],\"aa\":\"x\"}") == "a3616183f5f6fbbff80000000000006162016261616178")
+    assert(encoded("256") == "190100")
+    assert(encoded("1e999") == "E_DAGCBOR_VALUE")
+    assert(encoded("18446744073709551615") == "1bffffffffffffffff")
+    assert(encoded("18446744073709551616") == "E_DAGCBOR_VALUE")
+    assert(encoded("{\"/\":{\"bytes\":\"AQID\"}}") == "43010203")
+    assert(encoded("{\"/\":\"not a cid\"}") == "E_DAGCBOR_LINK")
+    assert(encoded("{\"/\":1,\"x\":2}") == "E_DAGCBOR_LINK")
+    return 0
+"#;
+
+#[test]
+fn dagcbor_encode_runs_from_a_program() {
+    let scratch = Scratch::new("dagcbor-wrapper");
+    let output = run_with_root(&scratch, DAGCBOR_PROGRAM);
+    assert_success(&output);
+}
+
+#[test]
+fn old_format_rejects_dagcbor_op() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("dagcbor-old-format");
+    std::fs::write(scratch.0.join("main.gu"), DAGCBOR_PROGRAM).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
+    // Code 9 arrived in format 82; format 81 still holds codes 0 to 8.
+    let previous = DAGCBOR_FIRST_FORMAT - 1;
+    assert_eq!(previous, TLOCK_FIRST_FORMAT);
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}

@@ -892,6 +892,7 @@ dependencies = [
  "hmac",
  "p256",
  "rsa",
+ "serde_json",
  "sha2",
  "sha3",
  "x509-cert",

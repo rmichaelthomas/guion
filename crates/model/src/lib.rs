@@ -1403,6 +1403,9 @@ mod tests {
     /// The first artifact format with the timelock encryption crypto functions.
     const TLOCK_FIRST_FORMAT: u32 = 81;
 
+    /// The first artifact format with DAG-CBOR encoding.
+    const DAGCBOR_FIRST_FORMAT: u32 = 82;
+
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
@@ -1456,6 +1459,14 @@ mod tests {
     #[test]
     fn old_format_rejects_bls_crypto_ops() {
         assert_gated(Op::Crypto(CryptoFunction::Bls12381VerifyG1), 80);
+    }
+
+    #[test]
+    fn old_format_rejects_dagcbor_crypto_op() {
+        assert_gated(
+            Op::Crypto(CryptoFunction::DagCborEncode),
+            DAGCBOR_FIRST_FORMAT,
+        );
     }
 
     #[test]
@@ -3841,7 +3852,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact formats 78 to 81 (see `first_format`) and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 to 82 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3866,10 +3877,12 @@ pub enum CryptoFunction {
     TlockDecrypt,
     /// The round named by an armored tlock file's stanza (code 8, format 81).
     TlockRound,
+    /// DAG-CBOR encoding of a `Json` value (code 9, format 82).
+    DagCborEncode,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 9] = [
+    const ALL: [CryptoFunction; 10] = [
         CryptoFunction::Sha512,
         CryptoFunction::Sha3_512,
         CryptoFunction::RsaVerify,
@@ -3879,6 +3892,7 @@ impl CryptoFunction {
         CryptoFunction::TlockEncrypt,
         CryptoFunction::TlockDecrypt,
         CryptoFunction::TlockRound,
+        CryptoFunction::DagCborEncode,
     ];
 
     /// The first artifact format that may carry this function; older formats reject it.
@@ -3892,6 +3906,7 @@ impl CryptoFunction {
             CryptoFunction::TlockEncrypt
             | CryptoFunction::TlockDecrypt
             | CryptoFunction::TlockRound => 81,
+            CryptoFunction::DagCborEncode => 82,
         }
     }
 
@@ -3918,6 +3933,7 @@ impl CryptoFunction {
             CryptoFunction::TlockEncrypt => "CryptoTlockEncrypt",
             CryptoFunction::TlockDecrypt => "CryptoTlockDecrypt",
             CryptoFunction::TlockRound => "CryptoTlockRound",
+            CryptoFunction::DagCborEncode => "CryptoDagCborEncode",
         }
     }
 
@@ -3940,6 +3956,7 @@ impl CryptoFunction {
             CryptoFunction::TlockEncrypt => 5,
             CryptoFunction::TlockDecrypt => 2,
             CryptoFunction::TlockRound => 1,
+            CryptoFunction::DagCborEncode => 1,
         }
     }
 }
@@ -4729,7 +4746,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 81;
+    pub const CURRENT_VERSION: u32 = 82;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5101,6 +5118,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 82 && artifact_uses_dagcbor_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "DAG-CBOR encoding requires artifact format 82",
             ));
         }
         if self.format_version < 81 && artifact_uses_tlock_crypto(self) {
@@ -6947,7 +6970,15 @@ fn artifact_uses_bls_crypto(artifact: &Artifact) -> bool {
 fn artifact_uses_tlock_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
-            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 81)
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 81)
+        })
+    })
+}
+
+fn artifact_uses_dagcbor_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 82)
         })
     })
 }

@@ -7507,6 +7507,7 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
             crypto_result_type(Type::Bytes),
         ),
         CryptoFunction::TlockRound => (vec![Type::Text], crypto_result_type(Type::Int)),
+        CryptoFunction::DagCborEncode => (vec![Type::Json], crypto_result_type(Type::Bytes)),
     }
 }
 
@@ -7643,6 +7644,15 @@ fn apply_crypto(
             Ok(crypto_result(
                 guion_crypto::tlock_decrypt(&armored, &signature)
                     .map(|plain| Value::Bytes(Shared::new(plain))),
+            ))
+        }
+        CryptoFunction::DagCborEncode => {
+            let Value::Json(json) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::dagcbor_encode(&json.to_serde())
+                    .map(|bytes| Value::Bytes(Shared::new(bytes))),
             ))
         }
         CryptoFunction::TlockRound => {

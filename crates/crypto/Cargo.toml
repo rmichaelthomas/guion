@@ -33,6 +33,9 @@ ark-serialize.workspace = true
 hkdf.workspace = true
 hmac.workspace = true
 chacha20poly1305.workspace = true
+# DAG-CBOR encodes a `serde_json::Value`. The workspace turns on `arbitrary_precision`, so a number keeps
+# its source text and integers beyond 64 bits are told apart from floats.
+serde_json.workspace = true
 
 # rsa 0.9 has the Marvin timing side channel (RUSTSEC-2023-0071) in private-key operations; this
 # crate only verifies signatures with public keys and never decrypts or signs, so it is not reachable.

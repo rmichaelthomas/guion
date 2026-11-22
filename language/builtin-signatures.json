@@ -3041,6 +3041,14 @@
       "operation": "CryptoTlockRound"
     },
     {
+      "name": "native_crypto_dagcbor_encode",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoDagCborEncode"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"
