@@ -22,6 +22,7 @@ The exact Rust dependency graph is recorded in [`Cargo.lock`](Cargo.lock). Relea
 - `rsa` 0.9.10 (MIT OR Apache-2.0), with `num-bigint-dig`, `pkcs1` and `pkcs8` (Apache-2.0 OR MIT). Used only to verify signatures against public keys; the Marvin timing advisory RUSTSEC-2023-0071 concerns private-key decryption and signing, which Guion never does.
 - `p256` 0.13.2 and `ecdsa` 0.16.9 (Apache-2.0 OR MIT), with `elliptic-curve`, `crypto-bigint`, `sec1` and `signature`. ECDSA P-256 verification.
 - `x509-cert` 0.2.5 (Apache-2.0 OR MIT), with `der`, `spki` and `const-oid`. Reads the public key of a DER certificate.
+- `ark-bls12-381`, `ark-ec`, `ark-ff` and `ark-serialize` 0.5.0 (MIT OR Apache-2.0), with `ark-std`, `ark-poly` and their helper crates (`educe`, `itertools`, `num-bigint`, `arrayvec`, `hashbrown`, `ahash`, `paste`). BLS12-381 pairing, hash to curve and point decoding for `crypto_bls12381_verify_g1`; built without the `std` feature so there is no random-number source.
 
 ## Other bundled or evaluated components
 

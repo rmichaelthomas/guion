@@ -20,7 +20,11 @@ import "std:text"
 # "pkcs1v15-sha256", "pkcs1v15-sha512" or "pss-sha256". crypto_ecdsa_p256_verify takes a SEC1
 # public key (65 bytes uncompressed) and the raw 64-byte r||s signature over SHA-256 of the
 # message, as JWS writes it. crypto_x509_rsa_public_key reads a DER certificate and gives
-# [modulus, exponent]. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
+# [modulus, exponent]. crypto_bls12381_verify_g1 (artifact format 80) checks a BLS12-381
+# min-signature: a 96-byte compressed G2 public key, the message bytes, a 48-byte compressed G1
+# signature and the caller's domain separation tag (drand quicknet signs SHA-256 of the round as
+# 8 big-endian bytes under "BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_"); a point that is
+# malformed or outside the subgroup is E_CRYPTO_INPUT. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
 # exactly one well-formed BEGIN/END block is E_CRYPTO_INPUT.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
@@ -59,6 +63,9 @@ pub fn crypto_rsa_verify(modulus: Bytes, exponent: Bytes, message: Bytes, signat
 
 pub fn crypto_ecdsa_p256_verify(public_key: Bytes, message: Bytes, signature: Bytes) -> Result[Bool, StdError]:
     return native_crypto_ecdsa_p256_verify(public_key, message, signature)
+
+pub fn crypto_bls12381_verify_g1(public_key: Bytes, message: Bytes, signature: Bytes, dst: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_bls12381_verify_g1(public_key, message, signature, dst)
 
 pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
     return native_crypto_x509_rsa_public_key(der)

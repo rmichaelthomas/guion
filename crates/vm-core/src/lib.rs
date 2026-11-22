@@ -7488,6 +7488,10 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
             vec![Type::Bytes],
             crypto_result_type(Type::List(Box::new(Type::Bytes))),
         ),
+        CryptoFunction::Bls12381VerifyG1 => (
+            vec![Type::Bytes, Type::Bytes, Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
     }
 }
 
@@ -7567,6 +7571,19 @@ fn apply_crypto(
             }
             Ok(crypto_result(
                 guion_crypto::ecdsa_p256_verify(&parts[2], &parts[1], &parts[0]).map(Value::Bool),
+            ))
+        }
+        CryptoFunction::Bls12381VerifyG1 => {
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            Ok(crypto_result(
+                guion_crypto::bls12381_verify_g1(&parts[3], &parts[2], &parts[1], &parts[0])
+                    .map(Value::Bool),
             ))
         }
         CryptoFunction::X509RsaPublicKey => {

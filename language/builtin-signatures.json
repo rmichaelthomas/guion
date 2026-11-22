@@ -3001,6 +3001,17 @@
       "operation": "CryptoEcdsaP256Verify"
     },
     {
+      "name": "native_crypto_bls12381_verify_g1",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoBls12381VerifyG1"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"

@@ -227,6 +227,7 @@ fn main() -> Int:
 
 const CRYPTO_FIRST_FORMAT: u32 = 78;
 const SIGNATURE_FIRST_FORMAT: u32 = 79;
+const BLS_FIRST_FORMAT: u32 = 80;
 
 const SHA512_ABC: &str = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f";
 const SHA3_512_ABC: &str = "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0";
@@ -463,6 +464,65 @@ fn old_format_rejects_signature_codes_but_keeps_hashes() {
     // Function codes 2 to 4 arrived in format 79; format 78 still holds codes 0 and 1.
     let previous = SIGNATURE_FIRST_FORMAT - 1;
     assert_eq!(previous, CRYPTO_FIRST_FORMAT);
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}
+
+const QUICKNET_KEY: &str = "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a";
+const QUICKNET_SIG_1000: &str = "b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39";
+
+fn bls_program() -> String {
+    // The quicknet message for round 1000 is SHA-256 of the round as 8 big-endian bytes.
+    format!(
+        r#"{prelude}fn main() -> Int:
+    let key = h("{QUICKNET_KEY}")
+    let sig = h("{QUICKNET_SIG_1000}")
+    let dst = bytes_from_text("BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_")
+    let message = crypto_sha256(bytes_from_ints([0, 0, 0, 0, 0, 0, 3, 232]))
+    assert(verdict(crypto_bls12381_verify_g1(key, message, sig, dst)) == "true")
+    assert(verdict(crypto_bls12381_verify_g1(key, flip(message, 0), sig, dst)) == "false")
+    assert(verdict(crypto_bls12381_verify_g1(key, message, h("{short}"), dst)) == "E_CRYPTO_INPUT")
+    return 0
+"#,
+        prelude = signature_prelude(),
+        short = &QUICKNET_SIG_1000[..94],
+    )
+}
+
+#[test]
+fn bls12381_verify_g1_runs_from_a_program() {
+    let scratch = Scratch::new("bls-verify");
+    let output = run_with_root(&scratch, &bls_program());
+    assert_success(&output);
+}
+
+#[test]
+fn old_format_rejects_bls_ops() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("bls-old-format");
+    std::fs::write(scratch.0.join("main.gu"), bls_program()).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
+    // Code 5 arrived in format 80; format 79 still holds codes 0 to 4.
+    let previous = BLS_FIRST_FORMAT - 1;
+    assert_eq!(previous, SIGNATURE_FIRST_FORMAT);
     artifact.format_version = previous;
     assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
     let mut old = current;

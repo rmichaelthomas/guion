@@ -1451,6 +1451,11 @@ mod tests {
     }
 
     #[test]
+    fn old_format_rejects_bls_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::Bls12381VerifyG1), 80);
+    }
+
+    #[test]
     fn old_format_rejects_signature_crypto_ops() {
         assert_gated(Op::Crypto(CryptoFunction::RsaVerify), 79);
         assert_gated(Op::Crypto(CryptoFunction::EcdsaP256Verify), 79);
@@ -3826,7 +3831,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact formats 78 and 79 (see `first_format`) and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 to 80 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3841,22 +3846,29 @@ pub enum CryptoFunction {
     EcdsaP256Verify,
     /// The RSA modulus and exponent of a DER X.509 certificate (code 4, format 79).
     X509RsaPublicKey,
+    /// BLS12-381 min-signature verification over compressed G2 public key, message, compressed
+    /// G1 signature and domain separation tag (code 5, format 80).
+    Bls12381VerifyG1,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 5] = [
+    const ALL: [CryptoFunction; 6] = [
         CryptoFunction::Sha512,
         CryptoFunction::Sha3_512,
         CryptoFunction::RsaVerify,
         CryptoFunction::EcdsaP256Verify,
         CryptoFunction::X509RsaPublicKey,
+        CryptoFunction::Bls12381VerifyG1,
     ];
 
     /// The first artifact format that may carry this function; older formats reject it.
     pub fn first_format(self) -> u32 {
         match self {
             CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => 78,
-            _ => 79,
+            CryptoFunction::RsaVerify
+            | CryptoFunction::EcdsaP256Verify
+            | CryptoFunction::X509RsaPublicKey => 79,
+            CryptoFunction::Bls12381VerifyG1 => 80,
         }
     }
 
@@ -3879,6 +3891,7 @@ impl CryptoFunction {
             CryptoFunction::RsaVerify => "CryptoRsaVerify",
             CryptoFunction::EcdsaP256Verify => "CryptoEcdsaP256Verify",
             CryptoFunction::X509RsaPublicKey => "CryptoX509RsaPublicKey",
+            CryptoFunction::Bls12381VerifyG1 => "CryptoBls12381VerifyG1",
         }
     }
 
@@ -3897,6 +3910,7 @@ impl CryptoFunction {
             | CryptoFunction::X509RsaPublicKey => 1,
             CryptoFunction::EcdsaP256Verify => 3,
             CryptoFunction::RsaVerify => 5,
+            CryptoFunction::Bls12381VerifyG1 => 4,
         }
     }
 }
@@ -4686,7 +4700,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 79;
+    pub const CURRENT_VERSION: u32 = 80;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5052,6 +5066,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "signature verification and X.509 instructions require artifact format 79",
+            ));
+        }
+        if self.format_version < 80 && artifact_uses_bls_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "BLS signature verification requires artifact format 80",
             ));
         }
         if self.format_version < 77 && artifact_uses_stdin(self) {
@@ -6878,6 +6898,14 @@ fn artifact_uses_crypto(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Crypto(_)))
+    })
+}
+
+fn artifact_uses_bls_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 80)
+        })
     })
 }
 
