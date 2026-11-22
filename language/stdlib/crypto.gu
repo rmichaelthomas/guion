@@ -27,6 +27,14 @@ pub import "std:http_types"
 # 8 big-endian bytes under "BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_"); a point that is
 # malformed or outside the subgroup is E_CRYPTO_INPUT.
 #
+# crypto_x509_verify_issued_by(certificate_der, issuer_der) (artifact format 84) is true when the
+# certificate's issuer name is the issuer certificate's subject name and the certificate's signature
+# verifies under the issuer's key: RSA PKCS#1 v1.5 or PSS with SHA-256, SHA-384 or SHA-512, and ECDSA
+# with SHA-256, SHA-384 or SHA-512 under a P-256 or P-384 key, whichever the certificate names. A
+# name mismatch, a key of the wrong type or a signature that does not verify is Ok(false); input that
+# is not DER X.509 is E_X509; any other algorithm (SHA-1, P-521, Ed25519) is E_X509_ALG. It checks one
+# link only: not validity dates, extensions such as CA:TRUE, or revocation.
+#
 # crypto_tlock_encrypt, crypto_tlock_decrypt and crypto_tlock_round are drand timelock encryption
 # (artifact format 81) in the age format, interoperable with drand's `tle` and tlock-js on a
 # G1-signature network such as quicknet. crypto_tlock_encrypt(round, chain_hash, public_key,
@@ -36,7 +44,9 @@ pub import "std:http_types"
 # compressed G1 signature drand publishes for the round: a wrong signature or any change to the file
 # is E_TLOCK_DECRYPT, malformed armor or header is E_TLOCK_FORMAT, a bad key or signature length or
 # point is E_CRYPTO_INPUT. crypto_tlock_round reads the round from the file's header (unauthenticated).
-# They are pure: fetching the signature is the caller's job. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
+# crypto_tlock_chain_hash (artifact format 84) reads the 32-byte chain hash from the same header
+# (also unauthenticated; E_TLOCK_FORMAT for a malformed file) so a caller can check it against the network it
+# means to decrypt for. They are pure: fetching the signature is the caller's job. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
 # exactly one well-formed BEGIN/END block is E_CRYPTO_INPUT.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
@@ -91,6 +101,12 @@ pub fn crypto_tlock_decrypt(armored: Text, round_signature: Bytes) -> Result[Byt
 
 pub fn crypto_tlock_round(armored: Text) -> Result[Int, StdError]:
     return native_crypto_tlock_round(armored)
+
+pub fn crypto_tlock_chain_hash(armored: Text) -> Result[Bytes, StdError]:
+    return native_crypto_tlock_chain_hash(armored)
+
+pub fn crypto_x509_verify_issued_by(certificate_der: Bytes, issuer_der: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_x509_verify_issued_by(certificate_der, issuer_der)
 
 pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
     return native_crypto_x509_rsa_public_key(der)

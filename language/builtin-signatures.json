@@ -3094,6 +3094,23 @@
       "operation": "CryptoDagCborEncode"
     },
     {
+      "name": "native_crypto_tlock_chain_hash",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoTlockChainHash"
+    },
+    {
+      "name": "native_crypto_x509_verify_issued_by",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoX509VerifyIssuedBy"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"

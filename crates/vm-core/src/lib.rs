@@ -7508,6 +7508,11 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
         ),
         CryptoFunction::TlockRound => (vec![Type::Text], crypto_result_type(Type::Int)),
         CryptoFunction::DagCborEncode => (vec![Type::Json], crypto_result_type(Type::Bytes)),
+        CryptoFunction::TlockChainHash => (vec![Type::Text], crypto_result_type(Type::Bytes)),
+        CryptoFunction::X509VerifyIssuedBy => (
+            vec![Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
     }
 }
 
@@ -7653,6 +7658,27 @@ fn apply_crypto(
             Ok(crypto_result(
                 guion_crypto::dagcbor_encode(&json.to_serde())
                     .map(|bytes| Value::Bytes(Shared::new(bytes))),
+            ))
+        }
+        CryptoFunction::TlockChainHash => {
+            let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tlock_chain_hash(&armored)
+                    .map(|hash| Value::Bytes(Shared::new(hash))),
+            ))
+        }
+        CryptoFunction::X509VerifyIssuedBy => {
+            // Popped in reverse: issuer, then certificate.
+            let Value::Bytes(issuer) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Bytes(certificate) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::x509_verify_issued_by(&certificate, &issuer).map(Value::Bool),
             ))
         }
         CryptoFunction::TlockRound => {

@@ -682,3 +682,98 @@ fn old_format_rejects_dagcbor_op() {
         "E_ARTIFACT_VERSION"
     );
 }
+
+/// The first artifact format with the tlock chain hash and the X.509 issuer check.
+const CHAIN_ISSUER_FIRST_FORMAT: u32 = 84;
+
+fn x509_fixture_hex(name: &str) -> String {
+    let path = format!(
+        "{}/../crypto/tests/fixtures/x509/{name}.der",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    hex(&std::fs::read(&path).unwrap_or_else(|error| panic!("{path}: {error}")))
+}
+
+fn chain_issuer_program() -> String {
+    format!(
+        r#"{prelude}fn flag(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn main() -> Int:
+    let chain = h("{QUICKNET_CHAIN}")
+    let key = h("{QUICKNET_KEY}")
+    match crypto_tlock_encrypt(1000, chain, key, bytes_from_text("x")):
+        Ok(armored):
+            match crypto_tlock_chain_hash(armored):
+                Ok(found):
+                    assert(found == chain)
+                Err(problem):
+                    assert(false)
+        Err(problem):
+            assert(false)
+    match crypto_tlock_chain_hash("not an age file"):
+        Ok(found):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TLOCK_FORMAT")
+    let leaf = h("{leaf}")
+    let issuer = h("{issuer}")
+    let root = h("{root}")
+    assert(flag(crypto_x509_verify_issued_by(leaf, issuer)) == "true")
+    assert(flag(crypto_x509_verify_issued_by(issuer, root)) == "true")
+    assert(flag(crypto_x509_verify_issued_by(leaf, root)) == "false")
+    assert(flag(crypto_x509_verify_issued_by(h("{sha1_leaf}"), h("{rsa_ca}"))) == "E_X509_ALG")
+    assert(flag(crypto_x509_verify_issued_by(h("00"), issuer)) == "E_X509")
+    return 0
+"#,
+        prelude = signature_prelude(),
+        leaf = x509_fixture_hex("nist-leaf"),
+        issuer = x509_fixture_hex("nist-issuer"),
+        root = x509_fixture_hex("nist-root"),
+        sha1_leaf = x509_fixture_hex("leaf-rsa-sha1"),
+        rsa_ca = x509_fixture_hex("rsa-ca"),
+    )
+}
+
+#[test]
+fn chain_hash_and_issuer_check_run_from_a_program() {
+    let scratch = Scratch::new("chain-issuer-wrappers");
+    let output = run_with_root(&scratch, &chain_issuer_program());
+    assert_success(&output);
+}
+
+#[test]
+fn old_format_rejects_chain_hash_and_issuer_ops() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("chain-issuer-old-format");
+    std::fs::write(scratch.0.join("main.gu"), chain_issuer_program()).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
+    // Format 83 still holds codes 0 to 9.
+    let previous = CHAIN_ISSUER_FIRST_FORMAT - 1;
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}

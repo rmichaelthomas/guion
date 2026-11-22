@@ -194,6 +194,12 @@ pub fn tlock_round(armored: &str) -> Result<(u64, Vec<u8>), CryptoError> {
     Ok((round, chain_hash))
 }
 
+/// The chain hash (32 bytes) named by the armored file's `tlock` stanza; the same unauthenticated
+/// header read as [`tlock_round`]. A malformed file is `E_TLOCK_FORMAT`.
+pub fn tlock_chain_hash(armored: &str) -> Result<Vec<u8>, CryptoError> {
+    tlock_round(armored).map(|(_, chain_hash)| chain_hash)
+}
+
 /// Decrypts armored tlock age with the round's 48-byte compressed G1 signature. A wrong
 /// signature, a modified header or a modified payload is `E_TLOCK_DECRYPT`.
 pub fn tlock_decrypt(armored: &str, round_signature_g1: &[u8]) -> Result<Vec<u8>, CryptoError> {

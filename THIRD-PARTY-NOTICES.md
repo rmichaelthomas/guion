@@ -22,6 +22,7 @@ The exact Rust dependency graph is recorded in [`Cargo.lock`](Cargo.lock). Relea
 - `sha3` 0.10.8 (MIT OR Apache-2.0), with `keccak` 0.1.6 (Apache-2.0 OR MIT).
 - `rsa` 0.9.10 (MIT OR Apache-2.0), with `num-bigint-dig`, `pkcs1` and `pkcs8` (Apache-2.0 OR MIT). Used only to verify signatures against public keys; the Marvin timing advisory RUSTSEC-2023-0071 concerns private-key decryption and signing, which Guion never does.
 - `p256` 0.13.2 and `ecdsa` 0.16.9 (Apache-2.0 OR MIT), with `elliptic-curve`, `crypto-bigint`, `sec1` and `signature`. ECDSA P-256 verification.
+- `p384` 0.13.1 (Apache-2.0 OR MIT), the NIST P-384 curve on the same `elliptic-curve` and `ecdsa` versions. ECDSA P-384 verification of certificate signatures (`crypto_x509_verify_issued_by`).
 - `x509-cert` 0.2.5 (Apache-2.0 OR MIT), with `der`, `spki` and `const-oid`. Reads the public key of a DER certificate.
 - `hkdf` 0.12.4 (MIT OR Apache-2.0), with `hmac`. HKDF-SHA-256 for the age header MAC key, payload key and the timelock randomness derivation.
 - `chacha20poly1305` 0.10.1 (Apache-2.0 OR MIT), with `chacha20`, `poly1305`, `cipher`, `aead`, `universal-hash`, `inout` and `opaque-debug`; built without the `getrandom` feature. ChaCha20-Poly1305 for the age payload in `crypto_tlock_encrypt` and `crypto_tlock_decrypt`.

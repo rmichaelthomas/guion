@@ -250,3 +250,25 @@ fn tle_decrypts_guion_output() {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[test]
+fn chain_hash_reads_stanza() {
+    assert_eq!(
+        guion_crypto::tlock_chain_hash(&fixture_text("round1000.age")).unwrap(),
+        unhex(CHAIN_HASH)
+    );
+    assert_eq!(
+        guion_crypto::tlock_chain_hash(&fixture_text("future.age")).unwrap(),
+        unhex(CHAIN_HASH)
+    );
+    for case in [
+        "",
+        "not armor",
+        "-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n-----END AGE ENCRYPTED FILE-----\n",
+    ] {
+        assert_eq!(
+            guion_crypto::tlock_chain_hash(case).unwrap_err().code,
+            "E_TLOCK_FORMAT"
+        );
+    }
+}
