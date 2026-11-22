@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 76. The current writer emits 76. |
+| Format version | `u32` | Reader accepts versions 14 through 77. The current writer emits 77. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
@@ -303,6 +303,8 @@ Every instruction is its span followed by a one-byte opcode tag and the listed o
 | 218 | `ChannelClose` | — (format 76: pops a channel, closes it and pushes `Unit`) |
 | 219 | `FirstReady` | record (format 76: pops a time limit in milliseconds (negative for none) and a `List[Task[T]]` and pushes `Option[R]`, where the operand is a record `R` with fields `Int` and `Result[T, TaskError]`: the position of the first task that is finished, earliest in the list when several are, and what `TaskWait` gives for it, or `None` when time runs out) |
 | 220 | `FirstValue` | record (format 76: as `FirstReady` for a `List[Channel[T]]` with a record of `Int` and `Option[T]`; a channel is ready when it holds a value or is closed, and the value is taken in the same step, as `ChannelReceive` would) |
+| 221 | `StdinReadLine` | — (format 77: pushes `Result[Option[Text], StdError]`: the next line of the program's own standard input without its `\n` or `\r\n` as `Some`, `None` at end of input, and a final unterminated line is returned; a line over the host's `stdin_line_limit_bytes` is `Err` with code `E_STDIN_LINE_LIMIT`, one that is not UTF-8 is `E_STDIN_UTF8`, both having consumed the whole line, and a failing read is `E_STDIN_READ`; needs no grant, reported as the effect `process.stdin`; a reader rejects tag 221 below format 77) |
+| 222 | `StdinReadAll` | — (format 77: pushes `Result[Bytes, StdError]`: everything left on the program's own standard input as raw bytes, at most the host's `max_file_bytes`, more is `Err` with code `E_STDIN_LIMIT`, a failing read is `E_STDIN_READ`; needs no grant, reported as the effect `process.stdin`; a reader rejects tag 222 below format 77) |
 
 Opcode tags are append-only within a format version. Tags 73–132 were added by successive format versions; format-version checks reject artifacts that use an instruction newer than their declared version. Format 36 adds stable generic sorting; the named comparator has signature `(T, T) -> Int` and must have a pure transitive call graph. Format 37 adds Unicode normalization/case mapping, exact-byte HMAC, instance-owned SQLite/TOML resources, and iCalendar parsing. Native resource type tag 17 is valid in format 37; resource handles remain non-serializable values. Format 38 adds byte-preserving HTTP request and response bodies through `http_request_bytes`. Format 39 adds explicit-grant wall-clock access through `unix_time_ms()` and `time_today_local()`.
 
@@ -349,6 +351,8 @@ Format 75 adds type tag 20, `Map[Int, T]`. It needs no new instruction: `MakeMap
 Format 73 adds `Fs` function codes 18 (`read_range`) and 19 (`confined_path`) for `std:http_static`. An artifact below format 73 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 72 remain readable.
 
 Format 76 adds `Process` function codes 3 (`core_count`) and 4 to 8 (background commands), `HigherOrder` kinds 11 (`TryParallelMap`) and 12 (`StartTask`) and instruction tags 211 to 220 for `together:` blocks and channels, and type tag 21 (`Channel[T]`). No new instruction tag is used. An artifact below format 76 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 75 remain readable.
+
+Format 77 adds `StdinReadLine` (tag 221) and `StdinReadAll` (tag 222) for `stdin_read_line` and `stdin_read_all` in `std:io`. An artifact below format 77 that uses either is rejected with `E_ARTIFACT_VERSION`, on read and on write; formats 14 through 76 remain readable. A program that uses them is not reproducible from its source alone; a recorded tape replays what was read.
 
 ## Build metadata and reproducibility
 

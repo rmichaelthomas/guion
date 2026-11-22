@@ -1,0 +1,25 @@
+import "std:types"
+
+# std:io: the program's own standard input.
+#
+# stdin_read_line gives the next line without its `\n` or `\r\n`, as `Ok(Some(line))`, and
+# `Ok(None)` at the end of input. A final line with no terminator is returned. A line longer
+# than `[runtime] stdin_line_limit_bytes` (default 1048576, a positive integer in guion.toml,
+# counted without the line ending) is `Err` with code E_STDIN_LINE_LIMIT, and a line that is not
+# UTF-8 is E_STDIN_UTF8; both consume the whole offending line, so the next call reads the line
+# after it. A failing read is E_STDIN_READ.
+#
+# stdin_read_all gives everything left on standard input as raw Bytes. It holds at most
+# `[runtime] max_file_bytes`; more than that is `Err` with code E_STDIN_LIMIT.
+#
+# Both calls wait until input arrives or the stream closes, read the one stream the whole process
+# shares, and need no grant: `guion inspect` reports the effect `process.stdin`, like
+# `process.arguments`. A program that reads standard input is not reproducible from its source
+# alone; `guion run --record` keeps what was read, so a replay needs no stdin. The browser VM
+# refuses both with R_HOST_UNSUPPORTED.
+
+pub fn stdin_read_line() -> Result[Option[Text], StdError]:
+    return native_stdin_read_line()
+
+pub fn stdin_read_all() -> Result[Bytes, StdError]:
+    return native_stdin_read_all()

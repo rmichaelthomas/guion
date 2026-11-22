@@ -1455,6 +1455,12 @@ mod tests {
     }
 
     #[test]
+    fn stdin_instructions_are_gated_on_format_77() {
+        assert_gated(Op::StdinReadLine, 77);
+        assert_gated(Op::StdinReadAll, 77);
+    }
+
+    #[test]
     fn sqlite_begin_read_instruction_is_gated_on_format_69() {
         assert_gated(Op::SqliteBeginRead, 69);
     }
@@ -4383,6 +4389,8 @@ pub enum Op {
     ChannelClose,
     FirstReady(usize),
     FirstValue(usize),
+    StdinReadLine,
+    StdinReadAll,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4587,7 +4595,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 76;
+    pub const CURRENT_VERSION: u32 = 77;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4941,6 +4949,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "random bytes require artifact format 68",
+            ));
+        }
+        if self.format_version < 77 && artifact_uses_stdin(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "standard input reads require artifact format 77",
             ));
         }
         if self.format_version < 76 && artifact_uses_core_count(self) {
@@ -5308,6 +5322,8 @@ impl Artifact {
                         w.u8(220);
                         w.count(*record)?;
                     }
+                    Op::StdinReadLine => w.u8(221),
+                    Op::StdinReadAll => w.u8(222),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -5896,6 +5912,14 @@ impl Artifact {
                     218 => Op::ChannelClose,
                     219 => Op::FirstReady(r.count()?),
                     220 => Op::FirstValue(r.count()?),
+                    221 | 222 if format_version < 77 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "standard input reads require artifact format 77",
+                        ));
+                    }
+                    221 => Op::StdinReadLine,
+                    222 => Op::StdinReadAll,
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -6716,6 +6740,15 @@ fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_stdin(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::StdinReadLine | Op::StdinReadAll))
+    })
+}
+
 fn artifact_uses_core_count(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -7263,6 +7296,8 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::CsvReadColumns
                         | Op::FsWalk
                         | Op::RandomBytes
+                        | Op::StdinReadLine
+                        | Op::StdinReadAll
                         | Op::HigherOrder(HigherOrderKind::ParallelMap)
                         | Op::HigherOrder(HigherOrderKind::TryParallelMap)
                         | Op::ParallelMap(_) => {

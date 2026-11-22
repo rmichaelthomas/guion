@@ -2013,6 +2013,18 @@
       "operation": "RandomBytes"
     },
     {
+      "name": "native_stdin_read_line",
+      "parameters": [],
+      "result": "Result[Option[Text], Record[StdError]]",
+      "operation": "StdinReadLine"
+    },
+    {
+      "name": "native_stdin_read_all",
+      "parameters": [],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "StdinReadAll"
+    },
+    {
       "name": "native_log_append",
       "parameters": [
         "Text",

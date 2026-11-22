@@ -54,6 +54,7 @@ mod yaml;
 
 mod background;
 mod entropy;
+mod stdin_ops;
 mod tape;
 mod tasks;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
@@ -249,6 +250,7 @@ pub enum EffectKind {
     ClockRead,
     ProcessSpawn,
     NetworkSocket,
+    StdinRead,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -290,6 +292,9 @@ pub struct HostPolicy {
     pub allow_file_read: bool,
     pub allow_file_write: bool,
     pub max_file_bytes: usize,
+    /// The longest line `stdin_read_line` returns, in bytes without the line ending. From
+    /// `[runtime] stdin_line_limit_bytes`.
+    pub stdin_line_limit_bytes: usize,
     /// Ceiling on the bytes any inflate path may produce: `gzip_decompress`, `zlib_decompress`,
     /// the streamed file variants and `tar_read`. From `[runtime] decompress_limit_bytes`.
     pub decompress_limit_bytes: usize,
@@ -355,6 +360,7 @@ impl Default for HostPolicy {
             allow_file_read: false,
             allow_file_write: false,
             max_file_bytes: 16 * 1024 * 1024,
+            stdin_line_limit_bytes: 1024 * 1024,
             decompress_limit_bytes: 1024 * 1024 * 1024,
             arguments: Vec::new(),
             allowed_environment_variables: HashSet::new(),
@@ -3784,6 +3790,60 @@ impl Instance {
                     ))),
                 };
                 push_stack!(outcome);
+            }
+            Op::StdinReadLine => {
+                let effect = self.begin_effect(EffectKind::StdinRead, "stdin");
+                let outcome = stdin_ops::read_line(
+                    &mut std::io::stdin().lock(),
+                    self.policy.stdin_line_limit_bytes,
+                );
+                let value = match outcome {
+                    Ok(Some(line)) => {
+                        charge_allocation(budget.as_ref(), line.len(), instruction.span)?;
+                        Value::ResultOk(Box::new(Value::OptionSome(Box::new(Value::Text(
+                            line.into(),
+                        )))))
+                    }
+                    Ok(None) => Value::ResultOk(Box::new(Value::OptionNone)),
+                    Err(error) => {
+                        Value::ResultErr(Box::new(entropy_error_value(error.code, error.message)))
+                    }
+                };
+                self.finish_effect(
+                    effect,
+                    if matches!(value, Value::ResultErr(_)) {
+                        EffectOutcome::ReturnedError
+                    } else {
+                        EffectOutcome::Returned
+                    },
+                );
+                if let Some(error) = value_limit_error(&value, &self.policy, instruction.span) {
+                    return Err(error);
+                }
+                push_stack!(value);
+            }
+            Op::StdinReadAll => {
+                let effect = self.begin_effect(EffectKind::StdinRead, "stdin");
+                let outcome =
+                    stdin_ops::read_all(&mut std::io::stdin().lock(), self.policy.max_file_bytes);
+                let value = match outcome {
+                    Ok(bytes) => {
+                        charge_allocation(budget.as_ref(), bytes.len(), instruction.span)?;
+                        Value::ResultOk(Box::new(Value::Bytes(Shared::new(bytes))))
+                    }
+                    Err(error) => {
+                        Value::ResultErr(Box::new(entropy_error_value(error.code, error.message)))
+                    }
+                };
+                self.finish_effect(
+                    effect,
+                    if matches!(value, Value::ResultErr(_)) {
+                        EffectOutcome::ReturnedError
+                    } else {
+                        EffectOutcome::Returned
+                    },
+                );
+                push_stack!(value);
             }
             Op::TextNormalize => {
                 let form = match pop!() {

@@ -155,6 +155,28 @@ fn hello_runs_through_the_shared_vm() {
 }
 
 #[test]
+fn browser_vm_reports_unsupported() {
+    // Standard input is a host operation the browser VM does not have: both reads are refused
+    // with the portable code, never skipped.
+    for (source, op) in [
+        (
+            "fn main() -> Int:\n    let line = native_stdin_read_line()\n    return 0\n",
+            "StdinReadLine",
+        ),
+        (
+            "fn main() -> Int:\n    let rest = native_stdin_read_all()\n    return 0\n",
+            "StdinReadAll",
+        ),
+    ] {
+        let error = run_artifact(&gub(source), 100).unwrap_err();
+        assert!(
+            error.contains("R_HOST_UNSUPPORTED") && error.contains(op),
+            "{error}"
+        );
+    }
+}
+
+#[test]
 fn failures_report_clear_errors() {
     let spin = gub(
         "fn main() -> Int:\n    var i = 0\n    while true:\n        set i = i + 1\n    return i\n",

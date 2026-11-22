@@ -2078,6 +2078,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 ));
             }
             Op::LogDefaultLevel => state.stack.push(Type::Text),
+            Op::StdinReadLine => {
+                state.stack.push(Type::Result(
+                    Box::new(Type::Option(Box::new(Type::Text))),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::StdinReadAll => {
+                state.stack.push(Type::Result(
+                    Box::new(Type::Bytes),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
             Op::GzipCompress | Op::ZlibCompress => {
                 if pop_type(&mut state.stack, pc)? != Type::Bytes {
                     return Err(format!(

@@ -1401,6 +1401,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         EffectKind::ClockRead => "clock_read",
                         EffectKind::ProcessSpawn => "process_spawn",
                         EffectKind::NetworkSocket => "network_socket",
+                        EffectKind::StdinRead => "stdin_read",
                     };
                     let outcome = match effect.outcome {
                         EffectOutcome::Started => "started",
@@ -3102,6 +3103,9 @@ fn inspection_report(
                 Op::Args | Op::ArgsFrom => {
                     direct_effects[function_index].insert("process.arguments".into());
                 }
+                Op::StdinReadLine | Op::StdinReadAll => {
+                    direct_effects[function_index].insert("process.stdin".into());
+                }
                 Op::Environment => {
                     direct_effects[function_index].insert("process.environment".into());
                 }
@@ -4540,6 +4544,7 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             "max_collection_items",
             "decompress_limit_bytes",
             "max_file_bytes",
+            "stdin_line_limit_bytes",
             "max_integer_digits",
             "max_parallelism",
             "max_text_bytes",
@@ -4572,6 +4577,11 @@ fn runtime_policy(root: &std::path::Path) -> Result<HostPolicy, String> {
             ));
         }
         policy.max_file_bytes = runtime_usize(runtime, "max_file_bytes", policy.max_file_bytes)?;
+        policy.stdin_line_limit_bytes = runtime_usize(
+            runtime,
+            "stdin_line_limit_bytes",
+            policy.stdin_line_limit_bytes,
+        )?;
         policy.decompress_limit_bytes = runtime_usize(
             runtime,
             "decompress_limit_bytes",

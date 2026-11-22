@@ -5138,6 +5138,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::MakeClosure(..) => "MakeClosure",
         Op::CallFn(_) => "CallFn",
         Op::RandomBytes => "RandomBytes",
+        Op::StdinReadLine => "StdinReadLine",
+        Op::StdinReadAll => "StdinReadAll",
         Op::HigherOrder(_) => "HigherOrder",
         Op::TogetherEnter => "TogetherEnter",
         Op::TogetherExit => "TogetherExit",

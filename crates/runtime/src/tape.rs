@@ -821,5 +821,7 @@ pub(crate) fn is_world_operation(op: &guion_model::Op) -> bool {
             | Op::HttpRequestWithTimeout
             | Op::HttpRequestBytes
             | Op::RandomBytes
+            | Op::StdinReadLine
+            | Op::StdinReadAll
     )
 }

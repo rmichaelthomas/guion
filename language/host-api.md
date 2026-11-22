@@ -43,6 +43,8 @@ Each operation has an explicit failure result. Host failures carry a stable code
 | output | `print(value: Any) -> Unit` | UTF-8 text, bounded per invocation | Implemented |
 | arguments | `args() -> List[Text]` | Read only process arguments after the source path | Implemented |
 | argument suffix | `args_from(start: Int) -> List[Text]` | Zero-based suffix of process arguments; negative or past-end index returns `R_ARGUMENT_INDEX` | Implemented in artifact format 22 |
+| standard input line | `stdin_read_line() -> Result[Option[Text], StdError]` | No grant; reported as the effect `process.stdin`; a line is bounded by `[runtime] stdin_line_limit_bytes`; unavailable in the browser VM (`R_HOST_UNSUPPORTED`) | Implemented in artifact format 77 |
+| standard input remainder | `stdin_read_all() -> Result[Bytes, StdError]` | No grant; reported as the effect `process.stdin`; bounded by `max_file_bytes`; unavailable in the browser VM (`R_HOST_UNSUPPORTED`) | Implemented in artifact format 77 |
 | environment | `env(name: Text) -> Option[Text]` | Exact variable-name grant in `[environment].variables`; unset values return `None`; ungranted names return `R_ENV_DENIED` | Implemented in artifact format 24 |
 | read text | `read_text(path: Text) -> Result[Text, FileError]` | Read grant; relative path under root; bounded bytes; UTF-8 required | Implemented; policy size-limit failures remain runtime errors |
 | write text | `write_text(path: Text, content: Text) -> Result[Unit, FileError]` | Write grant; relative path under root; bounded bytes | Implemented; uses direct filesystem write, so failure can leave a partial file |
