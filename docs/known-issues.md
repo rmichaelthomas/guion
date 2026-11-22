@@ -42,6 +42,6 @@ This list covers open problems only. Each row has a status. When an item is fixe
 | 36 | The CURBy-Q beacon has been idle since 2025-08-22: its latest pulse is a request stage, so there are no fresh pulses to verify against. | open, upstream; nothing to fix in Guion |
 | 37 | NIST beacon live serialization differs from the NISTIR 8213 draft: 4-byte length prefixes, a 4-byte `statusCode`, and the raw signature appended in the `outputValue` hash input. The `beacons` README documents the real layout. | documented; the code follows the live layout |
 | 38 | PS256 verification is implemented, but no live beacon chain uses it, so it has only been tested against generated vectors. | open; untested live |
-| 39 | Bit operations take signed 64-bit operands only; an operand outside that range is an error. | open |
+| 39 | The bit operations (`int_and`, `int_or`, `int_xor` and the shifts) work on signed 64-bit `Int` operands only; there are no wider or unsigned forms. | open |
 | 40 | Tape replay is relaxed by default when only program code changed: it accepts the tape when every external call matches in kind, argument hash and order. `--replay-strict` restores exact replay. | by design; `--replay-strict` available |
 | 41 | The browser VM runs receipt checks only when `limits.allowRaisedSteps` is set, because they need more steps than the default browser limit. | open; documented option |
