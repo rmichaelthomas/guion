@@ -74,3 +74,13 @@ fn malformed_der_is_e_x509_and_never_panics() {
         assert_eq!(x509_validity(&case).unwrap_err().code, "E_X509");
     }
 }
+
+#[test]
+fn a_generalizedtime_validity_from_2050_on_is_read() {
+    // leaf-gentime.der (make_generalizedtime_fixture.sh): notBefore 2049-12-31T23:59:59Z is a
+    // UTCTime, notAfter 2055-01-01T00:00:00Z is a GeneralizedTime (DER requires it from 2050).
+    assert_eq!(
+        x509_validity(&der("leaf-gentime")).unwrap(),
+        [2524607999, 2682374400]
+    );
+}
