@@ -8,7 +8,7 @@
   "whereGuionIsBehind": [
     {
       "heading": "Libraries and packages",
-      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 35 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. The registry is live and holds two packages: frames, a data-frame library, and web, for web applications with sessions, protection against forged requests, checked templates and a router."
+      "body": "Python has hundreds of thousands of packages and decades of libraries behind it. Guion ships 36 standard-library modules and a package manager that installs from a local path, a checksummed URL or the Guion package registry, whose log is signed and checked on install. The registry is live and holds two packages: frames, a data-frame library, and web, for web applications with sessions, protection against forged requests, checked templates and a router."
     },
     {
       "heading": "Arrays and data science",
@@ -28,7 +28,7 @@
     }
   ],
   "cli": {
-    "version": "guion 0.7.0 (artifact format 76, timezone data 2026c)",
+    "version": "guion 0.7.0 (artifact format 84, timezone data 2026c)",
     "commands": [
       "new",
       "check",
