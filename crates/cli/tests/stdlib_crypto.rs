@@ -228,6 +228,7 @@ fn main() -> Int:
 const CRYPTO_FIRST_FORMAT: u32 = 78;
 const SIGNATURE_FIRST_FORMAT: u32 = 79;
 const BLS_FIRST_FORMAT: u32 = 80;
+const TLOCK_FIRST_FORMAT: u32 = 81;
 
 const SHA512_ABC: &str = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f";
 const SHA3_512_ABC: &str = "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0";
@@ -523,6 +524,92 @@ fn old_format_rejects_bls_ops() {
     // Code 5 arrived in format 80; format 79 still holds codes 0 to 4.
     let previous = BLS_FIRST_FORMAT - 1;
     assert_eq!(previous, SIGNATURE_FIRST_FORMAT);
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}
+
+const QUICKNET_CHAIN: &str = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
+const QUICKNET_SIG_1001: &str = "b33bf3667cbd5a82de3a24b4e0e9fe5513cc1a0e840368c6e31f5fcfa79bea03f73896b25883abf2853d10337fb8fa41";
+
+fn tlock_program() -> String {
+    format!(
+        r#"{prelude}fn code_of(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return hex_encode(value)
+        Err(problem):
+            return problem.code
+
+fn main() -> Int:
+    let key = h("{QUICKNET_KEY}")
+    let chain = h("{QUICKNET_CHAIN}")
+    let sig = h("{QUICKNET_SIG_1000}")
+    let message = bytes_from_text("the sealed bid is 41")
+    match crypto_tlock_encrypt(1000, chain, key, message):
+        Ok(armored):
+            assert(text_slice(armored, 0, 34) == "-----BEGIN AGE ENCRYPTED FILE-----")
+            assert(code_of(crypto_tlock_decrypt(armored, sig)) == hex_encode(message))
+            assert(code_of(crypto_tlock_decrypt(armored, h("{QUICKNET_SIG_1001}"))) == "E_TLOCK_DECRYPT")
+            assert(code_of(crypto_tlock_decrypt(armored, h("{short}"))) == "E_CRYPTO_INPUT")
+            match crypto_tlock_round(armored):
+                Ok(round):
+                    assert(round == 1000)
+                Err(problem):
+                    assert(false)
+        Err(problem):
+            assert(false)
+    assert(code_of(crypto_tlock_decrypt("not an age file", sig)) == "E_TLOCK_FORMAT")
+    match crypto_tlock_round("-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n-----END AGE ENCRYPTED FILE-----\n"):
+        Ok(round):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TLOCK_FORMAT")
+    match crypto_tlock_encrypt(1000, chain, h("{short}"), message):
+        Ok(armored):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_CRYPTO_INPUT")
+    return 0
+"#,
+        prelude = signature_prelude(),
+        short = &QUICKNET_SIG_1000[..94],
+    )
+}
+
+#[test]
+fn tlock_round_trips_through_the_wrappers() {
+    let scratch = Scratch::new("tlock-wrappers");
+    let output = run_with_root(&scratch, &tlock_program());
+    assert_success(&output);
+}
+
+#[test]
+fn old_format_rejects_tlock_ops() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("tlock-old-format");
+    std::fs::write(scratch.0.join("main.gu"), tlock_program()).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(_)))));
+    // Codes 6 to 8 arrived in format 81; format 80 still holds codes 0 to 5.
+    let previous = TLOCK_FIRST_FORMAT - 1;
+    assert_eq!(previous, BLS_FIRST_FORMAT);
     artifact.format_version = previous;
     assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
     let mut old = current;

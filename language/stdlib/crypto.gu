@@ -24,7 +24,18 @@ import "std:text"
 # min-signature: a 96-byte compressed G2 public key, the message bytes, a 48-byte compressed G1
 # signature and the caller's domain separation tag (drand quicknet signs SHA-256 of the round as
 # 8 big-endian bytes under "BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_"); a point that is
-# malformed or outside the subgroup is E_CRYPTO_INPUT. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
+# malformed or outside the subgroup is E_CRYPTO_INPUT.
+#
+# crypto_tlock_encrypt, crypto_tlock_decrypt and crypto_tlock_round are drand timelock encryption
+# (artifact format 81) in the age format, interoperable with drand's `tle` and tlock-js on a
+# G1-signature network such as quicknet. crypto_tlock_encrypt(round, chain_hash, public_key,
+# plaintext) takes the 32-byte chain hash and 96-byte compressed G2 network key and returns armored
+# age text that only the signature of that round can open; it draws 48 random bytes from the same
+# source as crypto_random_bytes. crypto_tlock_decrypt(armored, round_signature) takes the 48-byte
+# compressed G1 signature drand publishes for the round: a wrong signature or any change to the file
+# is E_TLOCK_DECRYPT, malformed armor or header is E_TLOCK_FORMAT, a bad key or signature length or
+# point is E_CRYPTO_INPUT. crypto_tlock_round reads the round from the file's header (unauthenticated).
+# They are pure: fetching the signature is the caller's job. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
 # exactly one well-formed BEGIN/END block is E_CRYPTO_INPUT.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
@@ -66,6 +77,19 @@ pub fn crypto_ecdsa_p256_verify(public_key: Bytes, message: Bytes, signature: By
 
 pub fn crypto_bls12381_verify_g1(public_key: Bytes, message: Bytes, signature: Bytes, dst: Bytes) -> Result[Bool, StdError]:
     return native_crypto_bls12381_verify_g1(public_key, message, signature, dst)
+
+pub fn crypto_tlock_encrypt(round: Int, chain_hash: Bytes, public_key: Bytes, plaintext: Bytes) -> Result[Text, StdError]:
+    match native_crypto_random_bytes(48):
+        Ok(randomness):
+            return native_crypto_tlock_encrypt(round, chain_hash, public_key, plaintext, randomness)
+        Err(problem):
+            return Err(problem)
+
+pub fn crypto_tlock_decrypt(armored: Text, round_signature: Bytes) -> Result[Bytes, StdError]:
+    return native_crypto_tlock_decrypt(armored, round_signature)
+
+pub fn crypto_tlock_round(armored: Text) -> Result[Int, StdError]:
+    return native_crypto_tlock_round(armored)
 
 pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
     return native_crypto_x509_rsa_public_key(der)

@@ -54,7 +54,7 @@ Everyday forms: see `docs/reference.md`.
 - Logging (artifact format 70): `std:log` writes one JSON object per line to a file. `log_open(root: Text, level: Text) -> Result[Logger, StdError]` returns a `Logger` value holding the log file path (`root`, inside a granted file root, created if missing, appended to) and the minimum level; there is no global logger. Levels are `debug` < `info` < `warn` < `error`; an unknown level is `E_LOG_LEVEL`, a path outside the file grant is the file error `R_HOST_DENIED`, and an empty level takes `[log] level` from `guion.toml` (`info` when absent; any other value or key under `[log]` is a manifest error). `log_debug`, `log_info`, `log_warn` and `log_error(logger, msg: Text, fields: Map[Text, Json]) -> Result[Unit, StdError]` write `{"level":..,"msg":..,<fields in sorted key order>}`; a field named `ts`, `level` or `msg` is written as `field.ts`, `field.level` or `field.msg`. These never read the clock, so the record has no `ts` and its schema does not depend on grants. `log_info_at(logger, instant, msg, fields)` puts `"ts"` first from a caller-supplied `Instant`; `log_info_now(logger, msg, fields)` reads the clock and so carries the effect `clock.read`. Effects are enforced when an operation runs, not before the program starts: without the clock grant `log_info_now` fails with `R_CLOCK_DENIED` at the call and writes nothing, and `guion inspect --json` reports `clock_grant.required_for_entry`. A record below the logger's level returns `Ok` without reading or formatting its fields. Field values are `Json`, so newline, quote, NUL and other control characters are escaped and a record is always one line; a lone surrogate cannot reach a field because `json_parse` rejects it. Two instructions, `LogAppend` and `LogDefaultLevel`, are new; artifacts below format 70 that use them are rejected with `E_ARTIFACT_VERSION`.
 - Compression and archives (artifact format 71): `std:compress` has `gzip_compress(data: Bytes) -> Bytes` and `zlib_compress(data: Bytes) -> Bytes`, `gzip_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]` and `zlib_decompress(data: Bytes, max_output: Int) -> Result[Bytes, StdError]`, and the streamed file forms `gzip_compress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the compressed size) and `gzip_decompress_file(source: Text, destination: Text) -> Result[Int, StdError]` (the decompressed size); the file forms need the file-read and file-write grants (effects `filesystem.read` and `filesystem.write`), follow the `std:fs` path rules, stream through 64 KiB buffers and write the destination through a sibling temporary file renamed on success. Every inflate has an output ceiling: `max_output` for the in-memory forms, capped by `[runtime] decompress_limit_bytes` (default 1 GiB, a positive integer in `guion.toml`), which is the only ceiling of the file and tar forms. Output past the ceiling is `E_COMPRESS_LIMIT` after at most the ceiling has been produced, never a crash or an unbounded allocation; a negative `max_output` is `E_COMPRESS_ARGUMENT`; short or empty input is `E_COMPRESS_TRUNCATED`; a bad header, checksum or deflate data is `E_COMPRESS_CORRUPT`. A gzip input may hold several members and the output is their concatenation (the ceiling counts them together); bytes after the last gzip member that do not begin another member (zero padding included), or after a zlib stream, are `E_COMPRESS_TRAILING_DATA`, never ignored. `std:tar` has `tar_write(directory: Text, archive: Text) -> Result[Int, StdError]`, `tar_read(archive: Text, destination: Text) -> Result[Int, StdError]` and `tar_list(archive: Text) -> Result[List[Text], StdError]`. `tar_write` archives the directory's contents with names relative to it, sorted, with fixed metadata (so the same tree gives the same archive), gzip-compressed when the archive name ends in `.gz` or `.tgz` (what `tar -tzf` reads) and plain otherwise; a symbolic link in the tree, or an archive path inside the directory, is `E_TAR_UNSAFE_PATH`. `tar_read` and `tar_list` detect gzip by its magic number. `tar_read` applies the `std:fs` confinement rules to every entry: an absolute name, a `..` component, or a link whose target is absolute or contains `..` is `E_TAR_UNSAFE_PATH`, device and FIFO entries are `E_TAR_UNSUPPORTED_ENTRY`, and a damaged archive is `E_TAR_CORRUPT`; entries before a refused one stay extracted. The bytes extracted and inflated are capped by the same ceiling. The crates behind it are `flate2` (its pure-Rust `miniz_oxide` backend) and `tar`, in the runtime only; the browser VM gains nothing. New instructions `GzipCompress`, `GzipDecompress`, `ZlibCompress` and `ZlibDecompress` and `Fs` function codes 13 to 17; artifacts below format 71 that use them are rejected with `E_ARTIFACT_VERSION`. zstd is not part of this release.
 - Standard input (artifact format 77): `std:io` has `stdin_read_line() -> Result[Option[Text], StdError]` and `stdin_read_all() -> Result[Bytes, StdError]`, which read the program's own standard input. `stdin_read_line` returns the next line without its `\n` or `\r\n` as `Some(line)`, and `None` at the end of input; a final line with no terminator is returned. A line longer than `[runtime] stdin_line_limit_bytes` (a positive integer in `guion.toml`, default 1048576, counted without the line ending) is `E_STDIN_LINE_LIMIT` and a line that is not UTF-8 is `E_STDIN_UTF8`; either one consumes the whole offending line, so the next call reads the line after it. A failing read is `E_STDIN_READ`. `stdin_read_all` returns everything left as raw `Bytes`, at most `[runtime] max_file_bytes`; more is `E_STDIN_LIMIT`. Both calls wait for input or for the stream to close, share one buffered stream (a line read and a later `stdin_read_all` never read a byte twice), need no grant, and are reported by `guion inspect` as the effect `process.stdin`. `guion run --record` keeps what was read, so `--replay` needs no stdin. The browser VM refuses both with `R_HOST_UNSUPPORTED`.
-- Pure crypto (format 78 to 80): `std:crypto` adds SHA-512 and SHA3-512 and, from format 79, `crypto_rsa_verify`, `crypto_ecdsa_p256_verify`, `crypto_x509_rsa_public_key`, `crypto_pem_decode` and `crypto_bls12381_verify_g1` (`Result[_, StdError]`; a bad signature is `Ok(false)`). No grant.
+- Pure crypto (format 78 to 81): `std:crypto` adds SHA-512 and SHA3-512 and, from format 79, `crypto_rsa_verify`, `crypto_ecdsa_p256_verify`, `crypto_x509_rsa_public_key`, `crypto_pem_decode` and `crypto_bls12381_verify_g1` and, from format 81, drand timelock encryption in age format (`crypto_tlock_encrypt`, `crypto_tlock_decrypt`, `crypto_tlock_round`) (`Result[_, StdError]`; a bad signature is `Ok(false)`). No grant.
 - Request and response values: `std:http_response` (no format change) holds `Header`, `Request`, `Response`, `Body` and `Stream` values with the constructors and accessors listed in the signatures below; a header name that is not an HTTP token or a value with a control character other than tab is refused with `E_HTTP_HEADER_INVALID`. `std:http_server` adds `http_request_value(request) -> Result[Request, HttpFailure]` and `http_server_send_response(request, response) -> Result[Unit, HttpFailure]`, so a handler `fn(Request) -> Result[Response, HttpFailure]` names no socket. Details are in `docs/reference.md`. No new function names a handle type.
 - Cookies: `std:cookie` (no format change): `cookie_parse(header) -> Map[Text, Text]` never fails (malformed pairs dropped, values percent-decoded, first repeat wins). `Cookie(name, value, http_only, secure, same_site, path, domain, max_age: Option[Int], expires: Option[Instant])` comes from `cookie_new` (HttpOnly, `SameSite=Lax`, Secure off) and the setters `cookie_http_only`, `cookie_secure`, `cookie_same_site`, `cookie_path`, `cookie_domain`, `cookie_max_age`, `cookie_expires`; `cookie_serialize`, `cookie_parse_set` and `response_add_cookie(response, c)` finish the round trip. Bad names, attributes or a negative `Max-Age` are `E_COOKIE_*` `HttpFailure` values; `SameSite=None` without `Secure` is `E_COOKIE_SAMESITE_NONE_NEEDS_SECURE` at run time.
 - Request bodies: `std:http_body` (no format change): `form_parse` and `multipart_parse` with exact `BodyLimits` (over is a 413 naming the limit); uploads get random names under a caller root, never the client name.
@@ -326,6 +326,9 @@ native_crypto_rsa_verify(Bytes, Bytes, Bytes, Bytes, Text) -> Result[Bool, Recor
 native_crypto_sha256(Bytes) -> Bytes
 native_crypto_sha3_512(Bytes) -> Bytes
 native_crypto_sha512(Bytes) -> Bytes
+native_crypto_tlock_decrypt(Text, Bytes) -> Result[Bytes, Record[StdError]]
+native_crypto_tlock_encrypt(Int, Bytes, Bytes, Bytes, Bytes) -> Result[Text, Record[StdError]]
+native_crypto_tlock_round(Text) -> Result[Int, Record[StdError]]
 native_crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 native_crypto_x509_rsa_public_key(Bytes) -> Result[List[Bytes], Record[StdError]]
 native_fs_confined_path(Text, Text) -> Result[Text, FileError]
@@ -515,6 +518,9 @@ std:crypto — pub fn crypto_sha3_512(data: Bytes) -> Bytes
 std:crypto — pub fn crypto_rsa_verify(modulus: Bytes, exponent: Bytes, message: Bytes, signature: Bytes, scheme: Text) -> Result[Bool, StdError]
 std:crypto — pub fn crypto_ecdsa_p256_verify(public_key: Bytes, message: Bytes, signature: Bytes) -> Result[Bool, StdError]
 std:crypto — pub fn crypto_bls12381_verify_g1(public_key: Bytes, message: Bytes, signature: Bytes, dst: Bytes) -> Result[Bool, StdError]
+std:crypto — pub fn crypto_tlock_encrypt(round: Int, chain_hash: Bytes, public_key: Bytes, plaintext: Bytes) -> Result[Text, StdError]
+std:crypto — pub fn crypto_tlock_decrypt(armored: Text, round_signature: Bytes) -> Result[Bytes, StdError]
+std:crypto — pub fn crypto_tlock_round(armored: Text) -> Result[Int, StdError]
 std:crypto — pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]
 std:crypto — pub fn crypto_pem_decode(text: Text) -> Result[Bytes, StdError]
 std:crypto — pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]
@@ -879,6 +885,8 @@ TOML parsing preserves the original source bytes for an unedited document. Typed
 Codes below are collected from compiler/runtime source and self-hosted language files. Host error codes are also documented beside their operations in the host API contract.
 
 ```text
+E_1000
+E_1001
 E_ABI_ARTIFACT
 E_ABI_ENTRY
 E_ABI_LIMIT
@@ -1100,6 +1108,8 @@ E_JSON_MISSING
 E_JSON_SHAPE
 E_JSON_TYPE
 E_KEY
+E_KEY_LEN
+E_LEN
 E_LIMIT
 E_LIST_BOOL_KIND
 E_LIST_FLOAT_KIND
@@ -1291,6 +1301,8 @@ E_TIMEZONE_UNKNOWN
 E_TIME_INPUT
 E_TIME_RANGE
 E_TIMINGS
+E_TLOCK_DECRYPT
+E_TLOCK_FORMAT
 E_TLS
 E_TLS_ARGUMENT
 E_TLS_CERTIFICATE
@@ -1346,6 +1358,7 @@ R_ARRAY_SHAPE
 R_ARTIFACT_INVALID
 R_ARTIFACT_VERSION
 R_ASSERTION
+R_BEGIN
 R_BUILD_ID
 R_BYTES
 R_BYTE_RANGE
@@ -1364,6 +1377,7 @@ R_COLLECTION_LIMIT
 R_CSV_MALFORMED
 R_DEADLINE
 R_DIV_ZERO
+R_END
 R_ENV_DENIED
 R_ENV_ENCODING
 R_EXPORT_UNKNOWN
@@ -1403,6 +1417,7 @@ R_JSON_INDEX
 R_JSON_KEY
 R_JSON_PARSE
 R_JSON_TYPE
+R_LINE
 R_LIST_INDEX
 R_LOCAL_UNINITIALIZED
 R_MAP_DUPLICATE_KEY
@@ -1691,4 +1706,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:394d25e081d61a7c2c6db9ba8d1ad4d0e0dc1ac5fb1f3a94b3135cc8ea0a7fe5. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:40796a1be4626060b6193ab207cd170713216931730b9ebf0d8348ac5363182e. Validated by `cargo xtask agent-reference --check`. -->

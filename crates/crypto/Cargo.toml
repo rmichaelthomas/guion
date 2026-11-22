@@ -16,6 +16,9 @@ license.workspace = true
 #   rsa       =0.9.10   digest 0.10, pkcs8/spki/der 0.7
 #   p256      =0.13.2   ecdsa 0.16, digest 0.10, pkcs8/spki/der 0.7
 #   x509-cert =0.2.5    der/spki 0.7
+#   hkdf      =0.12.4   hmac 0.12, digest 0.10
+#   hmac      =0.12.1   digest 0.10
+#   chacha20poly1305 =0.10.1, default-features = false (no getrandom), alloc only
 #   ark-*     =0.5.0    (bls12-381, ec, ff, serialize) digest 0.10, no `std` feature so no getrandom or rayon
 [dependencies]
 sha2 = { workspace = true, features = ["oid"] }
@@ -27,6 +30,9 @@ ark-bls12-381.workspace = true
 ark-ec.workspace = true
 ark-ff.workspace = true
 ark-serialize.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+chacha20poly1305.workspace = true
 
 # rsa 0.9 has the Marvin timing side channel (RUSTSEC-2023-0071) in private-key operations; this
 # crate only verifies signatures with public keys and never decrypts or signs, so it is not reachable.

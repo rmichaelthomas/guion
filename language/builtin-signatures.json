@@ -3012,6 +3012,35 @@
       "operation": "CryptoBls12381VerifyG1"
     },
     {
+      "name": "native_crypto_tlock_encrypt",
+      "parameters": [
+        "Int",
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Text, Record[StdError]]",
+      "operation": "CryptoTlockEncrypt"
+    },
+    {
+      "name": "native_crypto_tlock_decrypt",
+      "parameters": [
+        "Text",
+        "Bytes"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoTlockDecrypt"
+    },
+    {
+      "name": "native_crypto_tlock_round",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, Record[StdError]]",
+      "operation": "CryptoTlockRound"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"

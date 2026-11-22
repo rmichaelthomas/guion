@@ -9,13 +9,16 @@
 //! To add a function: write it here, add a `CryptoFunction` variant in `guion-model`, a dispatch
 //! arm in `guion_vm_core::apply_crypto` and a wrapper in `language/stdlib/crypto.gu`.
 
+mod age;
 pub mod bls;
 mod hash;
 mod signature;
+mod tlock;
 
 pub use bls::bls12381_verify_g1;
 pub use hash::{sha3_512, sha512};
 pub use signature::{ecdsa_p256_verify, rsa_verify, x509_rsa_public_key, RsaScheme};
+pub use tlock::{tlock_decrypt, tlock_encrypt, tlock_round};
 
 /// A failed cryptographic operation: a stable machine-readable `code` and a human `message`.
 #[derive(Clone, Debug, PartialEq, Eq)]

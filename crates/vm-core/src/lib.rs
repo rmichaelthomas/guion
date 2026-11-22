@@ -7492,6 +7492,21 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
             vec![Type::Bytes, Type::Bytes, Type::Bytes, Type::Bytes],
             crypto_result_type(Type::Bool),
         ),
+        CryptoFunction::TlockEncrypt => (
+            vec![
+                Type::Int,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+            ],
+            crypto_result_type(Type::Text),
+        ),
+        CryptoFunction::TlockDecrypt => (
+            vec![Type::Text, Type::Bytes],
+            crypto_result_type(Type::Bytes),
+        ),
+        CryptoFunction::TlockRound => (vec![Type::Text], crypto_result_type(Type::Int)),
     }
 }
 
@@ -7584,6 +7599,59 @@ fn apply_crypto(
             Ok(crypto_result(
                 guion_crypto::bls12381_verify_g1(&parts[3], &parts[2], &parts[1], &parts[0])
                     .map(Value::Bool),
+            ))
+        }
+        CryptoFunction::TlockEncrypt => {
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            let Value::Int(round) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            // Popped in reverse: randomness, plaintext, public key, chain hash.
+            let outcome = u64::try_from(round.to_i64().unwrap_or(-1))
+                .map_err(|_| {
+                    guion_crypto::CryptoError::new(
+                        "E_CRYPTO_INPUT",
+                        "a round is a non-negative integer that fits 63 bits",
+                    )
+                })
+                .and_then(|round| {
+                    let randomness: [u8; 48] = parts[0].as_slice().try_into().map_err(|_| {
+                        guion_crypto::CryptoError::new(
+                            "E_CRYPTO_INPUT",
+                            "timelock randomness is 48 bytes",
+                        )
+                    })?;
+                    guion_crypto::tlock_encrypt(round, &parts[3], &parts[2], &parts[1], &randomness)
+                });
+            Ok(crypto_result(outcome.map(|armored| {
+                Value::Text(SharedText::from(armored.as_str()))
+            })))
+        }
+        CryptoFunction::TlockDecrypt => {
+            let Value::Bytes(signature) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tlock_decrypt(&armored, &signature)
+                    .map(|plain| Value::Bytes(Shared::new(plain))),
+            ))
+        }
+        CryptoFunction::TlockRound => {
+            let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tlock_round(&armored)
+                    .map(|(round, _)| Value::Int(BigInt::from_u64(round))),
             ))
         }
         CryptoFunction::X509RsaPublicKey => {

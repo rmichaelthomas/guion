@@ -1400,6 +1400,9 @@ mod tests {
         );
     }
 
+    /// The first artifact format with the timelock encryption crypto functions.
+    const TLOCK_FIRST_FORMAT: u32 = 81;
+
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
@@ -1453,6 +1456,13 @@ mod tests {
     #[test]
     fn old_format_rejects_bls_crypto_ops() {
         assert_gated(Op::Crypto(CryptoFunction::Bls12381VerifyG1), 80);
+    }
+
+    #[test]
+    fn old_format_rejects_tlock_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::TlockEncrypt), TLOCK_FIRST_FORMAT);
+        assert_gated(Op::Crypto(CryptoFunction::TlockDecrypt), TLOCK_FIRST_FORMAT);
+        assert_gated(Op::Crypto(CryptoFunction::TlockRound), TLOCK_FIRST_FORMAT);
     }
 
     #[test]
@@ -3831,7 +3841,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact formats 78 to 80 (see `first_format`) and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 to 81 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3849,16 +3859,26 @@ pub enum CryptoFunction {
     /// BLS12-381 min-signature verification over compressed G2 public key, message, compressed
     /// G1 signature and domain separation tag (code 5, format 80).
     Bls12381VerifyG1,
+    /// drand timelock encryption to a round, armored age, with the randomness as an argument
+    /// (code 6, format 81).
+    TlockEncrypt,
+    /// Decryption of armored tlock age with the round signature (code 7, format 81).
+    TlockDecrypt,
+    /// The round named by an armored tlock file's stanza (code 8, format 81).
+    TlockRound,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 6] = [
+    const ALL: [CryptoFunction; 9] = [
         CryptoFunction::Sha512,
         CryptoFunction::Sha3_512,
         CryptoFunction::RsaVerify,
         CryptoFunction::EcdsaP256Verify,
         CryptoFunction::X509RsaPublicKey,
         CryptoFunction::Bls12381VerifyG1,
+        CryptoFunction::TlockEncrypt,
+        CryptoFunction::TlockDecrypt,
+        CryptoFunction::TlockRound,
     ];
 
     /// The first artifact format that may carry this function; older formats reject it.
@@ -3869,6 +3889,9 @@ impl CryptoFunction {
             | CryptoFunction::EcdsaP256Verify
             | CryptoFunction::X509RsaPublicKey => 79,
             CryptoFunction::Bls12381VerifyG1 => 80,
+            CryptoFunction::TlockEncrypt
+            | CryptoFunction::TlockDecrypt
+            | CryptoFunction::TlockRound => 81,
         }
     }
 
@@ -3892,6 +3915,9 @@ impl CryptoFunction {
             CryptoFunction::EcdsaP256Verify => "CryptoEcdsaP256Verify",
             CryptoFunction::X509RsaPublicKey => "CryptoX509RsaPublicKey",
             CryptoFunction::Bls12381VerifyG1 => "CryptoBls12381VerifyG1",
+            CryptoFunction::TlockEncrypt => "CryptoTlockEncrypt",
+            CryptoFunction::TlockDecrypt => "CryptoTlockDecrypt",
+            CryptoFunction::TlockRound => "CryptoTlockRound",
         }
     }
 
@@ -3911,6 +3937,9 @@ impl CryptoFunction {
             CryptoFunction::EcdsaP256Verify => 3,
             CryptoFunction::RsaVerify => 5,
             CryptoFunction::Bls12381VerifyG1 => 4,
+            CryptoFunction::TlockEncrypt => 5,
+            CryptoFunction::TlockDecrypt => 2,
+            CryptoFunction::TlockRound => 1,
         }
     }
 }
@@ -4700,7 +4729,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 80;
+    pub const CURRENT_VERSION: u32 = 81;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5072,6 +5101,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 81 && artifact_uses_tlock_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "timelock encryption requires artifact format 81",
             ));
         }
         if self.format_version < 77 && artifact_uses_stdin(self) {
@@ -6904,7 +6939,15 @@ fn artifact_uses_crypto(artifact: &Artifact) -> bool {
 fn artifact_uses_bls_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
-            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 80)
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 80)
+        })
+    })
+}
+
+fn artifact_uses_tlock_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 81)
         })
     })
 }
