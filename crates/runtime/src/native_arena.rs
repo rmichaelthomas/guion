@@ -109,7 +109,8 @@ pub(crate) struct NativeListArena {
     pub(crate) initial_output_bytes: usize,
     pub(crate) committed_output_bytes: usize,
     pub(crate) pending_output: String,
-    pub(crate) pending_print_bytes: Vec<usize>,
+    /// Each pending print as (end offset in `pending_output`, bytes), for effect records in order.
+    pub(crate) pending_print_bytes: Vec<(usize, usize)>,
     /// Standard-error lines native code printed, each with how much of `pending_output` came before it.
     pub(crate) pending_stderr: Vec<(usize, String, Span)>,
     pub(crate) pending_stderr_bytes: usize,
@@ -2714,7 +2715,8 @@ impl NativeListArena {
         }
         self.pending_output.push_str(&rendered);
         self.pending_output.push('\n');
-        self.pending_print_bytes.push(bytes);
+        self.pending_print_bytes
+            .push((self.pending_output.len(), bytes));
         self.flush_if_due()
     }
 

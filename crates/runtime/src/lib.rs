@@ -6699,6 +6699,9 @@ impl Instance {
                 .fold(0usize, usize::saturating_add),
         );
         arena.committed_output_bytes = arena.committed_output_bytes.saturating_add(output.len());
+        let mut prints = std::mem::take(&mut arena.pending_print_bytes)
+            .into_iter()
+            .peekable();
         let mut written = Ok(());
         let mut done = 0;
         for (offset, text, span) in errors {
@@ -6707,6 +6710,15 @@ impl Instance {
                 written = self.append_stdout(&output[done..offset]);
             }
             done = offset;
+            // The effects of the prints that came before this line, then the line's own.
+            while let Some(&(end, bytes)) = prints.peek() {
+                if end > offset {
+                    break;
+                }
+                prints.next();
+                let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
+                self.finish_effect(effect, EffectOutcome::Returned);
+            }
             if written.is_ok() {
                 written = self.write_program_output(OutputStream::Stderr, &text, span);
             }
@@ -6715,7 +6727,7 @@ impl Instance {
         if written.is_ok() {
             written = self.append_stdout(&output[done..]);
         }
-        for bytes in std::mem::take(&mut arena.pending_print_bytes) {
+        for (_, bytes) in prints {
             let effect = self.begin_effect(EffectKind::ProgramOutput, format!("{bytes} bytes"));
             self.finish_effect(effect, EffectOutcome::Returned);
         }
