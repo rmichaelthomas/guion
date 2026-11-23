@@ -23,6 +23,8 @@ Function parameters and return types are explicit; local types are inferred. Use
 
 Import `std:time` and call `today_local() -> Date` when an application needs the current local calendar date. Clock access is denied by default. Enable it for a project with `[clock] enabled = true` in `guion.toml`, or for one run with `guion run --allow-clock`. The returned date follows the host process time zone and its daylight-saving database. The lower-level `unix_time_ms() -> Int` returns milliseconds since the Unix epoch. See the installed `language/host-api.md` for the exact capability contract.
 
+`sleep_ms(ms: Int) -> Unit` (artifact format 88) waits for at least `ms` milliseconds, from 0 to 86400000 (a day); anything else is `R_SLEEP_RANGE`. It needs no grant and `guion inspect` reports it as `clock.sleep`. Use it in a service's loop: `sleep_ms(1000)` between polls. A task in `together:` that reaches its `wait_within` deadline stops sleeping within about 10 ms, and so does a run that is stopped with Ctrl-C. A recording leaves the sleep off the tape, and a replay does not wait. The browser VM refuses it with `R_HOST_UNSUPPORTED`. A function that calls it is not compiled to machine code, which costs nothing because it spends its time waiting.
+
 ## Commands
 
 The default build is the Python-free core. Core commands do not discover or launch Python or uv. The Python bridge and managed Python dependency manager are available only in a build made with the explicit `python-interop` feature.

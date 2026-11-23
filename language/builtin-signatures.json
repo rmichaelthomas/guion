@@ -2570,6 +2570,14 @@
       "operation": "UnixTimeMs"
     },
     {
+      "name": "sleep_ms",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Unit",
+      "operation": "Sleep"
+    },
+    {
       "name": "unwrap",
       "parameters": [
         "Result[$T, $E]|Option[$T]"

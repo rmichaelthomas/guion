@@ -1583,6 +1583,11 @@ mod tests {
     }
 
     #[test]
+    fn sleep_instruction_is_gated_on_format_88() {
+        assert_gated(Op::Sleep, 88);
+    }
+
+    #[test]
     fn stdin_instructions_are_gated_on_format_77() {
         assert_gated(Op::StdinReadLine, 77);
         assert_gated(Op::StdinReadAll, 77);
@@ -4719,6 +4724,7 @@ pub enum Op {
     StdinReadLine,
     StdinReadAll,
     Crypto(CryptoFunction),
+    Sleep,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4923,7 +4929,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 87;
+    pub const CURRENT_VERSION: u32 = 88;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5295,6 +5301,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 88 && artifact_uses_sleep(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the sleep instruction requires artifact format 88",
             ));
         }
         if self.format_version < 87 && artifact_uses_tsa_crypto(self) {
@@ -5716,6 +5728,7 @@ impl Artifact {
                         w.u8(223);
                         w.u8(function.code());
                     }
+                    Op::Sleep => w.u8(224),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -6343,6 +6356,13 @@ impl Artifact {
                     }
                     221 => Op::StdinReadLine,
                     222 => Op::StdinReadAll,
+                    224 if format_version >= 88 => Op::Sleep,
+                    224 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "the sleep instruction requires artifact format 88",
+                        ));
+                    }
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -7204,6 +7224,15 @@ fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_sleep(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Sleep))
+    })
+}
+
 fn artifact_uses_tsa_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -7809,6 +7838,7 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::CsvReadColumns
                         | Op::FsWalk
                         | Op::RandomBytes
+                        | Op::Sleep
                         | Op::StdinReadLine
                         | Op::StdinReadAll
                         | Op::HigherOrder(HigherOrderKind::ParallelMap)

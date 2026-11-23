@@ -121,7 +121,7 @@ ABI 1.0 grants no capabilities. `capabilities` must be `[]`; any other value ret
 4. clock (the current time and date)
 5. process (running programs, standard error output, and the rest of the process surface)
 
-Other host-backed operations that the portable host does not implement fail the same way. The module does not inherit permissions from `guion.toml` or the command line, and nothing is skipped silently.
+Other host-backed operations that the portable host does not implement fail the same way. `sleep_ms` is one of them: a page cannot block, so it returns `R_HOST_UNSUPPORTED`. The module does not inherit permissions from `guion.toml` or the command line, and nothing is skipped silently.
 
 ## What the browser VM does not have
 

@@ -3,12 +3,12 @@
   "adapterCargoLockSha256": "5fcc38e64c8ea229200ff43163203767f34f049d4b4084ac977a370eb6057e63",
   "files": {
     "guion_compiler.wasm": {
-      "bytes": 944574,
-      "sha256": "e61ee646d6825c1523c35bc3bfb390e4975f5749ea09490fc02fa941c904dca1"
+      "bytes": 945009,
+      "sha256": "ad41e84f88a9660cbe35669d5228ddf7f87c4c47f9c3f242dc0c6f9556e24b32"
     },
     "guion_vm.wasm": {
-      "bytes": 4763088,
-      "sha256": "1e3f5c9d8e7c573591051c59b23b9152c98bea3c309c6b93fea61e82a86bf88b"
+      "bytes": 4763616,
+      "sha256": "cda8b843d67e1cbbcf303ed5e73f6a0528c6af6eebd90fbb371b1e985bc7f4f4"
     }
   }
 }

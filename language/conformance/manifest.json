@@ -11436,6 +11436,64 @@
           "owner_task": 6
         }
       }
+    },
+    {
+      "id": "host_operation-sleep",
+      "kind": "host_operation",
+      "name": "sleep",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.sleep.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.sleep.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.sleep.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`sleep_ms(ms: Int) -> Unit`",
+      "declared_status": "Implemented in artifact format 88; no grant, effect clock.sleep"
+    },
+    {
+      "id": "opcode-sleep",
+      "kind": "opcode",
+      "name": "Sleep",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-sleep.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-sleep.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-sleep.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
     }
   ],
   "regression_applications": [

@@ -1418,6 +1418,7 @@ fn execute(args: Vec<String>) -> Result<ExitCode, String> {
                         EffectKind::PythonCall => "python_call",
                         EffectKind::EnvironmentRead => "environment_read",
                         EffectKind::ClockRead => "clock_read",
+                        EffectKind::ClockSleep => "clock_sleep",
                         EffectKind::ProcessSpawn => "process_spawn",
                         EffectKind::NetworkSocket => "network_socket",
                         EffectKind::StdinRead => "stdin_read",
@@ -3164,6 +3165,9 @@ fn inspection_report(
                 }
                 Op::UnixTimeMs | Op::TimeTodayLocal => {
                     direct_effects[function_index].insert("clock.read".into());
+                }
+                Op::Sleep => {
+                    direct_effects[function_index].insert("clock.sleep".into());
                 }
                 Op::HttpGet
                 | Op::HttpRequest

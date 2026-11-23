@@ -397,6 +397,17 @@ pub(crate) fn signal_poll() -> &'static str {
     }
 }
 
+/// Whether a signal is waiting to be read by `signal_poll`, without clearing it.
+#[cfg(unix)]
+pub(crate) fn signal_pending() -> bool {
+    PENDING_SIGNAL.load(Ordering::SeqCst) != 0
+}
+
+#[cfg(not(unix))]
+pub(crate) fn signal_pending() -> bool {
+    false
+}
+
 #[cfg(not(unix))]
 pub(crate) fn signal_poll() -> &'static str {
     ""

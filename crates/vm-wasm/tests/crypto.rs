@@ -542,3 +542,15 @@ fn main() -> Int:\n    return 0\n",
         );
     }
 }
+
+/// `sleep_ms` blocks a thread, which the browser VM does not have.
+#[test]
+fn browser_is_unsupported() {
+    let artifact = gub_project(
+        "sleep",
+        "fn main() -> Int:\n    sleep_ms(1)\n    return 0\n",
+    );
+    let response = browser_response(&artifact, "main", 1000);
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+}
