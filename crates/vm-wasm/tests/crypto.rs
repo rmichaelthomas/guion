@@ -554,3 +554,527 @@ fn browser_is_unsupported() {
     assert_eq!(response["ok"], false, "{response}");
     assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
 }
+
+// ---- Ed25519 and RFC 3161 timestamps: every Task 1 and Task 2 vector, browser against native ----
+
+fn json_fixture(name: &str) -> Vec<serde_json::Value> {
+    serde_json::from_slice(&crypto_fixture(name)).unwrap()
+}
+
+fn field(case: &serde_json::Value, name: &str) -> Vec<u8> {
+    hex_to_bytes(case[name].as_str().unwrap().as_bytes())
+}
+
+/// What a `Result[Bool, _]` becomes in the transcript.
+fn flag_text(result: Result<bool, guion_crypto::CryptoError>) -> String {
+    match result {
+        Ok(value) => value.to_string(),
+        Err(error) => error.code.to_owned(),
+    }
+}
+
+fn bytes_text(result: Result<impl AsRef<[u8]>, guion_crypto::CryptoError>) -> String {
+    match result {
+        Ok(value) => hex(value.as_ref()),
+        Err(error) => error.code.to_owned(),
+    }
+}
+
+/// One timestamp case: a response, the message whose digest it must stamp, and the certificates.
+struct TsaCase {
+    name: &'static str,
+    response: &'static str,
+    message: &'static str,
+    tsa: &'static str,
+    issuer: &'static str,
+}
+
+const fn tsa_case(
+    name: &'static str,
+    response: &'static str,
+    message: &'static str,
+    tsa: &'static str,
+    issuer: &'static str,
+) -> TsaCase {
+    TsaCase {
+        name,
+        response,
+        message,
+        tsa,
+        issuer,
+    }
+}
+
+fn tsa_cases() -> Vec<TsaCase> {
+    let (m, m2, t1, ca) = ("message.txt", "message2.txt", "tsa1.pem", "ca.pem");
+    vec![
+        tsa_case("good v2", "good-v2.tsr", m, t1, ca),
+        tsa_case("good v1 ess", "good-v1.tsr", m, t1, ca),
+        tsa_case("rebuilt", "rebuilt.tsr", m, t1, ca),
+        tsa_case("accuracy", "accuracy.tsr", m, t1, ca),
+        tsa_case("six digit fraction", "precision6.tsr", m, t1, ca),
+        tsa_case("rsa sha384", "rsa-sha384.tsr", m, t1, ca),
+        tsa_case("rsa sha512", "rsa-sha512.tsr", m, t1, ca),
+        tsa_case("pss", "pss.tsr", m, t1, ca),
+        tsa_case("p256", "p256.tsr", m, "tsa-p256.pem", ca),
+        tsa_case("p384", "p384.tsr", m, "tsa-p384.pem", ca),
+        tsa_case("other digest", "other-digest.tsr", m, t1, ca),
+        tsa_case("good token, other message", "good-v2.tsr", m2, t1, ca),
+        tsa_case("sha256 imprint", "sha256-imprint.tsr", m, t1, ca),
+        tsa_case("second tsa certificate", "good-v2.tsr", m, "tsa2.pem", ca),
+        tsa_case("second tsa token", "tsa2.tsr", m, t1, ca),
+        tsa_case("other issuer", "good-v2.tsr", m, t1, "other-ca.pem"),
+        tsa_case("tsa as issuer", "good-v2.tsr", m, t1, t1),
+        tsa_case("no eku", "noeku.tsr", m, "tsa-noeku.pem", ca),
+        tsa_case("expired tsa", "expired.tsr", m, "tsa-expired.pem", ca),
+        tsa_case("ess mismatch", "ess-mismatch.tsr", m, t1, ca),
+        tsa_case("no ess", "no-ess.tsr", m, t1, ca),
+        tsa_case("sha1 signer", "sha1-signer.tsr", m, t1, ca),
+        tsa_case("p256 token, rsa certificate", "p256.tsr", m, t1, ca),
+        tsa_case(
+            "rsa token, p256 certificate",
+            "good-v2.tsr",
+            m,
+            "tsa-p256.pem",
+            ca,
+        ),
+        tsa_case("rejection", "rejection.tsr", m, t1, ca),
+    ]
+}
+
+/// What `tsa_verify` gives, as the transcript spells it.
+fn tsa_text(response: &[u8], digest: &[u8], tsa: &[u8], issuer: &[u8]) -> String {
+    let token = match guion_crypto::tsa_response_token(response) {
+        Ok(token) => token,
+        Err(error) => return error.code.to_owned(),
+    };
+    match guion_crypto::tsa_verify(&token, digest, tsa, issuer) {
+        Ok(Some(stamp)) => format!(
+            "{},{},{},{}",
+            stamp.gen_time_ms,
+            hex(&stamp.serial),
+            stamp.policy,
+            stamp.accuracy_ms
+        ),
+        Ok(None) => "none".to_owned(),
+        Err(error) => error.code.to_owned(),
+    }
+}
+
+fn ed25519_and_tsa_program(cases: &[TsaCase]) -> (String, Vec<String>) {
+    use std::collections::BTreeSet;
+    let mut out = String::from(
+        "import \"std:crypto\"\nimport \"std:encoding\"\nimport \"std:types\"\nimport \"std:text\"\n",
+    );
+    out.push_str(include_str!("fixtures/crypto_vectors_helpers.gu"));
+    let mut expected = Vec::new();
+    let mut body = String::from("fn transcript() -> Text:\n    var out = \"\"\n");
+    let mut line = |label: &str, call: &str, answer: String| {
+        body.push_str(&format!("    set out = out + line(\"{label}\", {call})\n"));
+        expected.push(format!("{label}={answer}"));
+    };
+
+    // Ed25519: RFC 8032 section 7.1, every vector through all three codes.
+    for (index, case) in json_fixture("ed25519/rfc8032_section_7_1.json")
+        .iter()
+        .enumerate()
+    {
+        let (seed, key, message, signature) = (
+            field(case, "seed"),
+            field(case, "public_key"),
+            field(case, "message"),
+            field(case, "signature"),
+        );
+        let (hk, hm, hs, hseed) = (hex(&key), hex(&message), hex(&signature), hex(&seed));
+        let answer = bytes_text(guion_crypto::ed25519_public_key(&seed));
+        line(
+            &format!("rfc {index} public key"),
+            &format!("octets(crypto_ed25519_public_key(h(\"{hseed}\")))"),
+            answer,
+        );
+        let answer = bytes_text(guion_crypto::ed25519_sign(&seed, &message));
+        line(
+            &format!("rfc {index} sign"),
+            &format!("octets(crypto_ed25519_sign(h(\"{hseed}\"), h(\"{hm}\")))"),
+            answer,
+        );
+        let answer = flag_text(guion_crypto::ed25519_verify(&key, &message, &signature));
+        assert_eq!(answer, "true", "rfc {index}");
+        line(
+            &format!("rfc {index} verify"),
+            &format!("flag(crypto_ed25519_verify(h(\"{hk}\"), h(\"{hm}\"), h(\"{hs}\")))"),
+            answer,
+        );
+        let mut tampered = signature.clone();
+        tampered[10] ^= 1;
+        let answer = flag_text(guion_crypto::ed25519_verify(&key, &message, &tampered));
+        assert_eq!(answer, "false", "rfc {index} tampered");
+        line(
+            &format!("rfc {index} tampered"),
+            &format!(
+                "flag(crypto_ed25519_verify(h(\"{hk}\"), h(\"{hm}\"), h(\"{}\")))",
+                hex(&tampered)
+            ),
+            answer,
+        );
+    }
+    // The twelve cases of "Taming the Many EdDSAs": small-order, non-canonical and mixed-order
+    // inputs. Only case 3 verifies under strict verification.
+    for case in json_fixture("ed25519/speccheck_cases.json") {
+        let number = case["number"].as_u64().unwrap();
+        let (key, message, signature) = (
+            field(&case, "pub_key"),
+            field(&case, "message"),
+            field(&case, "signature"),
+        );
+        let answer = flag_text(guion_crypto::ed25519_verify(&key, &message, &signature));
+        assert_eq!(answer, case["verify_strict"].to_string(), "case {number}");
+        line(
+            &format!("speccheck {number}"),
+            &format!(
+                "flag(crypto_ed25519_verify(h(\"{}\"), h(\"{}\"), h(\"{}\")))",
+                hex(&key),
+                hex(&message),
+                hex(&signature)
+            ),
+            answer,
+        );
+    }
+    // Wrong lengths and a key that is not a curve point.
+    let rfc = &json_fixture("ed25519/rfc8032_section_7_1.json")[0];
+    let (seed, key, signature) = (
+        field(rfc, "seed"),
+        field(rfc, "public_key"),
+        field(rfc, "signature"),
+    );
+    for length in [0usize, 31, 33] {
+        let bad = vec![7u8; length];
+        let answer = bytes_text(guion_crypto::ed25519_public_key(&bad));
+        line(
+            &format!("seed of {length}"),
+            &format!("octets(crypto_ed25519_public_key(h(\"{}\")))", hex(&bad)),
+            answer,
+        );
+        let answer = bytes_text(guion_crypto::ed25519_sign(&bad, b""));
+        line(
+            &format!("sign seed of {length}"),
+            &format!("octets(crypto_ed25519_sign(h(\"{}\"), h(\"\")))", hex(&bad)),
+            answer,
+        );
+    }
+    for length in [31usize, 33] {
+        let bad = vec![1u8; length];
+        let answer = flag_text(guion_crypto::ed25519_verify(&bad, b"", &signature));
+        line(
+            &format!("key of {length}"),
+            &format!(
+                "flag(crypto_ed25519_verify(h(\"{}\"), h(\"\"), h(\"{}\")))",
+                hex(&bad),
+                hex(&signature)
+            ),
+            answer,
+        );
+    }
+    for length in [63usize, 65] {
+        let bad = vec![1u8; length];
+        let answer = flag_text(guion_crypto::ed25519_verify(&key, b"", &bad));
+        line(
+            &format!("signature of {length}"),
+            &format!(
+                "flag(crypto_ed25519_verify(h(\"{}\"), h(\"\"), h(\"{}\")))",
+                hex(&key),
+                hex(&bad)
+            ),
+            answer,
+        );
+    }
+    let off_curve = [0xffu8; 32];
+    let answer = flag_text(guion_crypto::ed25519_verify(&off_curve, b"", &signature));
+    line(
+        "key off the curve",
+        &format!(
+            "flag(crypto_ed25519_verify(h(\"{}\"), h(\"\"), h(\"{}\")))",
+            hex(&off_curve),
+            hex(&signature)
+        ),
+        answer,
+    );
+    let _ = seed;
+
+    // RFC 3161: requests.
+    let message = crypto_fixture("tsa/local/message.txt");
+    let digest = guion_crypto::sha512(&message);
+    let nonce = [0x01u8, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+    let answer = bytes_text(guion_crypto::tsa_request(&digest, &[]));
+    assert_eq!(answer, hex(&crypto_fixture("tsa/local/request.tsq")));
+    line(
+        "request",
+        "octets(crypto_tsa_request(crypto_sha512(m0()), h(\"\")))",
+        answer,
+    );
+    let answer = bytes_text(guion_crypto::tsa_request(&digest, &nonce));
+    line(
+        "request nonce",
+        &format!(
+            "octets(crypto_tsa_request(crypto_sha512(m0()), h(\"{}\")))",
+            hex(&nonce)
+        ),
+        answer,
+    );
+    for length in [0usize, 20, 32, 63, 65] {
+        let bad = vec![3u8; length];
+        let answer = bytes_text(guion_crypto::tsa_request(&bad, &[]));
+        line(
+            &format!("request digest of {length}"),
+            &format!("octets(crypto_tsa_request(h(\"{}\"), h(\"\")))", hex(&bad)),
+            answer,
+        );
+    }
+    for (name, bad) in [
+        ("of 32", vec![0x7fu8; 32]),
+        ("of 33", vec![0x7fu8; 33]),
+        ("starting 0", vec![0u8, 1]),
+        ("starting 0x80", vec![0x80u8, 1]),
+    ] {
+        let answer = bytes_text(guion_crypto::tsa_request(&digest, &bad));
+        line(
+            &format!("request nonce {name}"),
+            &format!(
+                "octets(crypto_tsa_request(crypto_sha512(m0()), h(\"{}\")))",
+                hex(&bad)
+            ),
+            answer,
+        );
+    }
+
+    // RFC 3161: tokens, certificates, refusals and every Ok(None) path.
+    let mut files = BTreeSet::new();
+    for case in cases {
+        files.insert(format!("tsa/local/{}", case.response));
+        files.insert(format!("tsa/local/{}", case.message));
+    }
+    let _ = files;
+    for case in cases {
+        let response = crypto_fixture(&format!("tsa/local/{}", case.response));
+        let message = crypto_fixture(&format!("tsa/local/{}", case.message));
+        let tsa = pem_fixture(&format!("tsa/local/{}", case.tsa));
+        let issuer = pem_fixture(&format!("tsa/local/{}", case.issuer));
+        let digest = guion_crypto::sha512(&message);
+        let answer = tsa_text(&response, &digest, &tsa, &issuer);
+        line(
+            &format!("tsa {}", case.name),
+            &format!(
+                "tsa_case(h(\"{}\"), h(\"{}\"), h(\"{}\"), h(\"{}\"))",
+                hex(&response),
+                hex(&digest),
+                hex(&tsa),
+                hex(&issuer)
+            ),
+            answer,
+        );
+    }
+    // The refusal is reported by the response step, with the status in the message.
+    let rejection = crypto_fixture("tsa/local/rejection.tsr");
+    let answer = bytes_text(guion_crypto::tsa_response_token(&rejection));
+    assert_eq!(answer, "E_TSA_STATUS");
+    line(
+        "tsa rejection token",
+        &format!(
+            "octets(crypto_tsa_response_token(h(\"{}\")))",
+            hex(&rejection)
+        ),
+        answer,
+    );
+    let good = crypto_fixture("tsa/local/good-v2.tsr");
+    let tsa = pem_fixture("tsa/local/tsa1.pem");
+    let ca = pem_fixture("tsa/local/ca.pem");
+    let token = guion_crypto::tsa_response_token(&good).unwrap();
+    for (name, bytes) in [
+        ("empty", Vec::new()),
+        ("zero", vec![0u8]),
+        ("truncated", good[..good.len() / 2].to_vec()),
+    ] {
+        let answer = bytes_text(guion_crypto::tsa_response_token(&bytes));
+        line(
+            &format!("tsa response {name}"),
+            &format!("octets(crypto_tsa_response_token(h(\"{}\")))", hex(&bytes)),
+            answer,
+        );
+        let answer = tsa_text(&bytes, &digest, &tsa, &ca);
+        let _ = answer;
+    }
+    let certificates = guion_crypto::tsa_certificates(&token).unwrap();
+    line(
+        "tsa certificates",
+        &format!("certificate_hashes(h(\"{}\"))", hex(&token)),
+        certificates
+            .iter()
+            .map(|der| hex(&guion_crypto::sha512(der)))
+            .collect::<Vec<_>>()
+            .join(","),
+    );
+    let answer = match guion_crypto::tsa_certificates(&[0u8]) {
+        Ok(_) => "ok".to_owned(),
+        Err(error) => error.code.to_owned(),
+    };
+    line(
+        "tsa certificates garbage",
+        "certificate_hashes(h(\"00\"))",
+        answer,
+    );
+    for (name, tsa_bytes, issuer_bytes) in [
+        ("tsa certificate garbage", vec![0u8], ca.clone()),
+        ("issuer certificate garbage", tsa.clone(), vec![0u8]),
+    ] {
+        let answer = tsa_text(&good, &digest, &tsa_bytes, &issuer_bytes);
+        line(
+            &format!("tsa {name}"),
+            &format!(
+                "tsa_case(h(\"{}\"), h(\"{}\"), h(\"{}\"), h(\"{}\"))",
+                hex(&good),
+                hex(&digest),
+                hex(&tsa_bytes),
+                hex(&issuer_bytes)
+            ),
+            answer,
+        );
+    }
+    let answer = {
+        let verified = guion_crypto::tsa_verify(&token, &digest[..32], &tsa, &ca);
+        match verified {
+            Ok(Some(_)) => "some".to_owned(),
+            Ok(None) => "none".to_owned(),
+            Err(error) => error.code.to_owned(),
+        }
+    };
+    line(
+        "tsa digest of 32",
+        &format!(
+            "tsa_case(h(\"{}\"), h(\"{}\"), h(\"{}\"), h(\"{}\"))",
+            hex(&good),
+            hex(&digest[..32]),
+            hex(&tsa),
+            hex(&ca)
+        ),
+        answer,
+    );
+    body.push_str("    return out\n\nfn main() -> Int:\n    return 0\n");
+
+    // The message is shared by the request lines.
+    out.push_str(&format!(
+        "fn m0() -> Bytes:\n    return h(\"{}\")\n",
+        hex(&crypto_fixture("tsa/local/message.txt"))
+    ));
+    out.push_str(&body);
+    (out, expected)
+}
+
+/// The steps one verify costs: its entry less the same entry without the call.
+fn steps_of(artifact: &[u8], entry: &str) -> u64 {
+    let response = browser_response(artifact, entry, u64::from(MAX_BROWSER_STEPS));
+    assert_eq!(response["ok"], true, "{entry}: {response}");
+    response["steps"].as_u64().unwrap()
+}
+
+const TRANSCRIPT_STEP_BUDGET: u64 = 2_000_000;
+
+#[test]
+fn browser_ed25519_and_tsa_match_native() {
+    let cases = tsa_cases();
+    let (source, expected) = ed25519_and_tsa_program(&cases);
+    let artifact = gub_project("ed25519-tsa", &source);
+    assert!(
+        artifact.len() <= MAX_ARTIFACT_BYTES,
+        "{} bytes",
+        artifact.len()
+    );
+
+    // The browser, the native runtime and the crypto crate called directly all agree, line for
+    // line, on every value and every error code.
+    let native_run = native(&artifact, "transcript");
+    // The whole transcript is many verifications, so the page opts in to a raised budget.
+    let response = browser_response(&artifact, "transcript", TRANSCRIPT_STEP_BUDGET);
+    assert_eq!(response["ok"], true, "{response}");
+    let browser_run = Outcome::Text(response["value"]["value"].as_str().unwrap().to_owned());
+    assert_eq!(browser_run, native_run, "the transcripts differ");
+    eprintln!(
+        "transcript: {} checks, {} steps, {} artifact bytes",
+        expected.len(),
+        response["steps"],
+        artifact.len()
+    );
+    let Outcome::Text(transcript) = browser_run else {
+        panic!("the transcript must be text");
+    };
+    let lines: Vec<&str> = transcript.lines().collect();
+    assert_eq!(lines.len(), expected.len(), "{transcript}");
+    for (got, want) in lines.iter().zip(&expected) {
+        assert_eq!(got, want, "in:\n{transcript}");
+    }
+
+    // The spelled-out outcomes the brief asks for: a rejection, the Ok(None) cases, the errors.
+    for want in [
+        "tsa rejection=E_TSA_STATUS",
+        "tsa rejection token=E_TSA_STATUS",
+        "tsa other digest=none",
+        "tsa good token, other message=none",
+        "tsa sha256 imprint=none",
+        "tsa second tsa certificate=none",
+        "tsa second tsa token=none",
+        "tsa other issuer=none",
+        "tsa no eku=none",
+        "tsa ess mismatch=none",
+        "tsa p256 token, rsa certificate=none",
+        "tsa tsa certificate garbage=E_X509",
+        "tsa response empty=E_TSA_FORMAT",
+        "request digest of 32=E_TSA_DIGEST",
+        "request nonce of 33=E_TSA_NONCE",
+        "speccheck 3=true",
+        "speccheck 0=false",
+        "key off the curve=false",
+    ] {
+        assert!(lines.contains(&want), "missing `{want}` in:\n{transcript}");
+    }
+    let good = lines
+        .iter()
+        .find(|line| line.starts_with("tsa good v2="))
+        .unwrap();
+    assert!(good.contains("1795463311000"), "{good}");
+
+    // Steps, measured: the entry with the call less the same entry without it.
+    let digest = hex(&guion_crypto::sha512(&crypto_fixture(
+        "tsa/local/message.txt",
+    )));
+    let response = hex(&crypto_fixture("tsa/local/good-v2.tsr"));
+    let (tsa, ca) = (
+        hex(&pem_fixture("tsa/local/tsa1.pem")),
+        hex(&pem_fixture("tsa/local/ca.pem")),
+    );
+    let rfc = &json_fixture("ed25519/rfc8032_section_7_1.json")[0];
+    let (key, signature) = (
+        hex(&field(rfc, "public_key")),
+        hex(&field(rfc, "signature")),
+    );
+    let measuring = gub_project(
+        "ed25519-tsa-steps",
+        &format!(
+            "import \"std:crypto\"\nimport \"std:encoding\"\nimport \"std:types\"\n{}\
+fn tsa_inputs() -> Bytes:\n    return h(\"{response}\")\n\
+fn tsa_with() -> Int:\n    match crypto_tsa_response_token(tsa_inputs()):\n        Ok(token):\n            match crypto_tsa_verify(token, h(\"{digest}\"), h(\"{tsa}\"), h(\"{ca}\")):\n                Ok(found):\n                    return 1\n                Err(problem):\n                    return 2\n        Err(problem):\n            return 3\n\
+fn tsa_without() -> Int:\n    return len(tsa_inputs()) + len(h(\"{digest}\")) + len(h(\"{tsa}\")) + len(h(\"{ca}\"))\n\
+fn ed_with() -> Int:\n    match crypto_ed25519_verify(h(\"{key}\"), h(\"\"), h(\"{signature}\")):\n        Ok(ok):\n            return 1\n        Err(problem):\n            return 2\n\
+fn ed_without() -> Int:\n    return len(h(\"{key}\")) + len(h(\"\")) + len(h(\"{signature}\"))\n\
+fn main() -> Int:\n    return 0\n",
+            include_str!("fixtures/crypto_vectors_helpers.gu")
+        ),
+    );
+    let tsa_steps = steps_of(&measuring, "tsa_with") - steps_of(&measuring, "tsa_without");
+    let ed_steps = steps_of(&measuring, "ed_with") - steps_of(&measuring, "ed_without");
+    eprintln!(
+        "steps: crypto_tsa_response_token plus crypto_tsa_verify, with the result matched, {tsa_steps}; one crypto_ed25519_verify, with the result matched, {ed_steps} (each beyond decoding its inputs from hex)"
+    );
+    // A crypto call is one instruction however long the verification takes (the timestamp figure is
+    // mostly the std:crypto wrapper building the TsaToken record), so both are far below the
+    // default browser budget of MAX_BROWSER_STEPS.
+    assert!(tsa_steps < 300 && ed_steps < 50, "{tsa_steps} {ed_steps}");
+}

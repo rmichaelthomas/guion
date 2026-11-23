@@ -1019,6 +1019,7 @@ version = "0.7.0"
 dependencies = [
  "base64",
  "guion-compiler",
+ "guion-crypto",
  "guion-model",
  "guion-runtime",
  "guion-vm-core",

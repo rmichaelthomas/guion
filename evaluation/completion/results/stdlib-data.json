@@ -1,12 +1,12 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:0332add5b99b3a42f03e3ed5e4ae8d48ba8634a021c86c2b3154b36fd38b0dd1",
-    "compiler_seed": "sha256:60278ee1e65a9e24505f74af4a8854c96fbc7e5abf96d2968418553d38673d82",
-    "compiler_seed_manifest": "sha256:3138fe5038de87da0c70f24293846734e0d110cfb854e637f3c2cb9f11ae9dff",
-    "runtime": "sha256:0e431433b7a05055ccae3effb5d75db336713b6f6c424ab3e2962da8353b52f0",
-    "stdlib": "sha256:5142f14ccc1d83c67f061cdab710a5c75b72ebe93c79e9340fd7c5f13e3d67da"
+    "artifact_schema": "sha256:c57152c4faa35b7d5c2f47c9fa4bd81face18ac3049611d6f503bee9278967b0",
+    "compiler_seed": "sha256:40b820c55b7215ca1167a55f5a8418654385b41d1116c7fbfd003d8b07167470",
+    "compiler_seed_manifest": "sha256:121842d02a77f1cfabb40b707e17cdd89ac611bab99ba3969a98c56eb7622051",
+    "runtime": "sha256:61c6362f259dce042a9daae1da45734bad9865e641973220f0e716cfd86ccf70",
+    "stdlib": "sha256:128ce0f8a35985656291f9a0e879184bdd193fd48cef480d2f5ced0a0fb85140"
   },
-  "changed_path_count": 0,
+  "changed_path_count": 8,
   "checks": [
     {
       "command": [
@@ -16,7 +16,7 @@
       ],
       "exit_status": 0,
       "id": "artifact-format-test-audit",
-      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (84)",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (88)",
       "status": "passed"
     },
     {
@@ -32,7 +32,7 @@
       ],
       "exit_status": 0,
       "id": "stdlib-data",
-      "output": "\nrunning 38 tests\ntest cli_option_map_distinguishes_missing_from_supplied_empty ... ok\ntest csv_read_columns_closes_its_effect_when_the_result_breaks_a_limit ... ok\ntest csv_read_columns_needs_the_file_read_capability ... ok\ntest csv_read_columns_infers_kinds_at_the_boundaries ... ok\ntest csv_read_columns_splits_quoted_fields_like_csv_next ... ok\ntest csv_read_columns_drops_a_bom_and_skips_blank_lines ... ok\ntest csv_read_columns_fixes_kinds_by_name_and_reports_bad_values ... ok\ntest csv_read_columns_reads_a_blank_line_as_a_missing_value_in_a_one_column_file ... ok\ntest format_utc_date_uses_the_utc_calendar_day_including_pre_epoch_instants ... ok\ntest csv_reader_plain_records_match_the_general_parser ... ok\ntest csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok\ntest csv_read_columns_treats_quoted_empty_as_text_in_text_columns_only ... ok\ntest json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok\ntest invalid_data_keeps_existing_output_untouched ... ok\ntest csv_read_columns_charges_the_allocation_budget_and_names_the_setting ... ok\ntest fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok\ntest merge_sorted_by_int_key_is_stable_across_feeds ... ok\ntest merge_sorted_by_int_key_rejects_unsorted_feeds ... ok\ntest guion_line_and_csv_builtins_stream_records_through_owned_handles ... ok\ntest reader_handles_are_owned_typed_and_closed_with_registry ... ok\ntest semver_supports_huge_components_and_full_prerelease_precedence ... ok\ntest line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok\ntest sort_by_int_key_is_stable_and_preserves_original_values ... ok\ntest native_timezone_candidate_enumeration_covers_fractional_and_non_hour_transitions ... ok\ntest sort_by_int_key_large_reverse_list_fits_log_linear_instruction_budget ... ok\ntest fs_read_text_returns_content_and_preserves_missing_path_in_std_error ... ok\ntest sort_by_int_key_rejects_transitive_effects ... ok\ntest local_time_resolver_reports_exact_gap_fold_and_typed_errors_without_capabilities ... ok\ntest sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok\ntest native_text_list_parameters_match_the_vm ... ok\ntest sort_by_large_list_is_stable_and_preserves_original_values ... ok\ntest strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok\ntest streaming_reads_ignore_max_file_bytes_but_whole_file_reads_keep_it ... ok\ntest sort_by_large_reverse_list_fits_log_linear_instruction_budget ... ok\ntest csv_read_columns_charges_the_text_pass_in_addition_to_the_numeric_pass ... ok\ntest every_shipped_data_module_compiles_as_an_independent_std_import ... ok\ntest csv_read_columns_reads_files_larger_than_its_buffer_and_rereads_late_text ... ok\ntest csv_read_columns_closes_its_effect_when_the_result_does_not_fit_the_budget ... ok\n\ntest result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s\n\n\n   Compiling guion-runtime v0.7.0 (/Users/rmichaelthomas/guion-beacons/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 1.64s\n     Running tests/stdlib_data.rs (target/debug/deps/stdlib_data-2c13d5d51c36b855)\n",
+      "output": "\nrunning 38 tests\ntest cli_option_map_distinguishes_missing_from_supplied_empty ... ok\ntest csv_read_columns_needs_the_file_read_capability ... ok\ntest csv_read_columns_closes_its_effect_when_the_result_breaks_a_limit ... ok\ntest csv_read_columns_drops_a_bom_and_skips_blank_lines ... ok\ntest csv_read_columns_reads_a_blank_line_as_a_missing_value_in_a_one_column_file ... ok\ntest csv_read_columns_splits_quoted_fields_like_csv_next ... ok\ntest csv_read_columns_treats_quoted_empty_as_text_in_text_columns_only ... ok\ntest format_utc_date_uses_the_utc_calendar_day_including_pre_epoch_instants ... ok\ntest csv_reader_handles_multiline_quotes_empty_fields_and_malformed_rows ... ok\ntest csv_read_columns_infers_kinds_at_the_boundaries ... ok\ntest csv_reader_plain_records_match_the_general_parser ... ok\ntest csv_read_columns_fixes_kinds_by_name_and_reports_bad_values ... ok\ntest json_safe_accessors_keep_missing_null_and_boolean_types_distinct ... ok\ntest csv_read_columns_charges_the_allocation_budget_and_names_the_setting ... ok\ntest invalid_data_keeps_existing_output_untouched ... ok\ntest fs_walk_is_sorted_bounded_and_does_not_follow_symlink_directories ... ok\ntest merge_sorted_by_int_key_is_stable_across_feeds ... ok\ntest merge_sorted_by_int_key_rejects_unsorted_feeds ... ok\ntest guion_line_and_csv_builtins_stream_records_through_owned_handles ... ok\ntest native_timezone_candidate_enumeration_covers_fractional_and_non_hour_transitions ... ok\ntest semver_supports_huge_components_and_full_prerelease_precedence ... ok\ntest sort_by_int_key_is_stable_and_preserves_original_values ... ok\ntest line_reader_is_incremental_strict_utf8_and_tracks_physical_lines ... ok\ntest reader_handles_are_owned_typed_and_closed_with_registry ... ok\ntest fs_read_text_returns_content_and_preserves_missing_path_in_std_error ... ok\ntest sort_by_int_key_rejects_transitive_effects ... ok\ntest sort_by_int_key_large_reverse_list_fits_log_linear_instruction_budget ... ok\ntest sort_by_is_stable_preserves_aliases_and_rejects_transitive_effects ... ok\ntest local_time_resolver_reports_exact_gap_fold_and_typed_errors_without_capabilities ... ok\ntest strict_timestamps_validate_gregorian_dates_and_normalize_offsets_exactly ... ok\ntest streaming_reads_ignore_max_file_bytes_but_whole_file_reads_keep_it ... ok\ntest sort_by_large_list_is_stable_and_preserves_original_values ... ok\ntest sort_by_large_reverse_list_fits_log_linear_instruction_budget ... ok\ntest native_text_list_parameters_match_the_vm ... ok\ntest csv_read_columns_charges_the_text_pass_in_addition_to_the_numeric_pass ... ok\ntest every_shipped_data_module_compiles_as_an_independent_std_import ... ok\ntest csv_read_columns_reads_files_larger_than_its_buffer_and_rereads_late_text ... ok\ntest csv_read_columns_closes_its_effect_when_the_result_does_not_fit_the_budget ... ok\n\ntest result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s\n\n\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.13s\n     Running tests/stdlib_data.rs (target/debug/deps/stdlib_data-b3b2e42482ce4d3d)\n",
       "status": "passed"
     },
     {
@@ -48,7 +48,7 @@
       ],
       "exit_status": 0,
       "id": "stdlib-data-embedded-selfhost",
-      "output": "\nrunning 3 tests\ntest cli_reports_native_local_time_exact_gap_fold_and_errors ... ok\ntest cli_calendar_parse_preserves_ambiguous_times_and_event_identity ... ok\ntest embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s\n\n\n   Compiling guion-cli v0.7.0 (/Users/rmichaelthomas/guion-beacons/crates/cli)\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.50s\n     Running tests/stdlib_data.rs (target/debug/deps/stdlib_data-2a8e18722b4febea)\n",
+      "output": "\nrunning 3 tests\ntest cli_reports_native_local_time_exact_gap_fold_and_errors ... ok\ntest cli_calendar_parse_preserves_ambiguous_times_and_event_identity ... ok\ntest embedded_self_host_compiler_runs_shipped_data_modules_and_streams ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s\n\n\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.13s\n     Running tests/stdlib_data.rs (target/debug/deps/stdlib_data-eba1fb07ad2972ac)\n",
       "status": "passed"
     }
   ],
@@ -65,14 +65,14 @@
   "required_targets": [
     "macos-aarch64"
   ],
-  "runtime_hash": "sha256:0e431433b7a05055ccae3effb5d75db336713b6f6c424ab3e2962da8353b52f0",
+  "runtime_hash": "sha256:61c6362f259dce042a9daae1da45734bad9865e641973220f0e716cfd86ccf70",
   "schema_version": 1,
-  "seed_hash": "sha256:60278ee1e65a9e24505f74af4a8854c96fbc7e5abf96d2968418553d38673d82",
+  "seed_hash": "sha256:40b820c55b7215ca1167a55f5a8418654385b41d1116c7fbfd003d8b07167470",
   "skipped_targets": [],
-  "source_revision": "43a8e451b02f813d8422f53fcfc021b37133570c",
+  "source_revision": "7eec09dc7a0aaab46ed59e1f797955d4842e8486",
   "status": "passed",
-  "stdlib_hash": "sha256:5142f14ccc1d83c67f061cdab710a5c75b72ebe93c79e9340fd7c5f13e3d67da",
+  "stdlib_hash": "sha256:128ce0f8a35985656291f9a0e879184bdd193fd48cef480d2f5ced0a0fb85140",
   "target": "macos-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  "working_tree_digest": "sha256:9a6d08ec1719b98913c18688fdc78af02f4a0eae543b0dd9e3346581a309a202"
 }
