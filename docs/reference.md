@@ -15,7 +15,7 @@ fn main() -> Int:
 
 Function parameters and return types are explicit; local types are inferred. Use `var` for a binding that changes and `set` to update it. `let` is immutable. Function calls are statically resolved. `print` writes one line.
 
-`List[T]` holds same-typed values. Use `[first, second]` for a literal, `values[index]` for zero-based indexing, `for value in values:` to iterate, and `len(values)` to count. Text length and indexing count Unicode scalar values; `text_chars(text)` materializes those scalars as a bounded `List[Text]` for linear scans.
+`List[T]` holds same-typed values. Use `[first, second]` for a literal, `values[index]` for zero-based indexing, `for value in values:` to iterate, and `len(values)` to count. Text length and indexing count Unicode scalar values; `text_chars(text)` materializes those scalars as a bounded `List[Text]` for linear scans. `Bytes` index by byte (artifact format 89): `data[i]` is the byte at zero-based `i` as an `Int` from 0 to 255, `len(data)` counts bytes, and an index outside `0` to `len(data) - 1` is `R_INDEX_BOUNDS` (a negative one `R_INDEX_INVALID`), as for a list.
 
 `Option[T]` represents a value that may be absent. Return `Some(value)` or `None` from a function declared as `Option[T]`, test presence with `is_some`, and use `unwrap` after that check. `guion run language/examples/option.gu` demonstrates the flow.
 
@@ -302,7 +302,7 @@ See `language/examples/modules_main.gu` and `language/examples/modules_math.gu`.
 
 ## Option and Result matching
 
-`match` is a statement for `Option[T]`, `Result[T, E]` and your own enums. It requires exactly one arm for each variant, allows the arms in either order, and scopes each bound name to its arm. Wildcard arms, nested patterns, other matched types, and match expressions are not supported yet.
+`match` is a statement for `Option[T]`, `Result[T, E]` and your own enums. It requires exactly one arm for each variant, allows the arms in either order, and scopes each bound name to its arm. Wildcard arms, other matched types, and match expressions are not supported yet.
 
 ```guion
 match calculation:
@@ -311,6 +311,20 @@ match calculation:
     Err(message):
         print(message)
 ```
+
+Patterns nest inside `Some`, `Ok` and `Err`, so a `Result[Option[T], E]` takes one `match` instead of a `match` in each arm:
+
+```guion
+match crypto_tsa_verify(token, digest, tsa, issuer):
+    Ok(Some(stamp)):
+        print(stamp.gen_time_ms)
+    Ok(None):
+        print("not this TSA's token for this message")
+    Err(problem):
+        print(problem.code)
+```
+
+The inner pattern can be `Some(p)`, `None`, `Ok(p)`, `Err(p)`, an enum variant (`Some(Red)`, `Some(Circle(r))`), or a name, which binds the value (`_` binds nothing); a name that is a declared enum variant means the variant. Every value must match exactly one arm. A combination no arm covers is `E_MATCH_NONEXHAUSTIVE` and the message names it (``match does not handle `Ok(None)` ``); a missing enum variant is `E_MATCH_MISSING_VARIANT`. Two arms that match the same value are `E_MATCH_DUPLICATE`, and so is a name beside variants at the same place (`Ok(Some(x))` with `Ok(y)`): name the variants in every arm. Enum variant values are `Int`, `Float64`, `Bool`, `Text` or lists, so inside a variant only names are allowed. Nested patterns need no newer artifact format: the compiler lowers them to single-level matches.
 
 See `language/examples/matching.gu` for both variants and both arm orders.
 

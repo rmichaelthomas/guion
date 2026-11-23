@@ -1,7 +1,7 @@
 pub use guion_model::Diagnostic;
 use guion_model::{
-    Artifact, BigInt, ExternalFunction, Float64, Function, HigherOrderKind, Instruction, Op,
-    RecordDefinition, RecordField, Span, Type, Value,
+    Artifact, BigInt, CodecFunction, ExternalFunction, Float64, Function, HigherOrderKind,
+    Instruction, Op, RecordDefinition, RecordField, Span, Type, Value,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -696,6 +696,26 @@ enum MatchPattern {
     Err(String, Span),
     /// A user enum variant with its positional bindings (`_` binds nothing).
     Variant(String, Vec<(String, Span)>, Span),
+    /// A pattern with a constructor inside a constructor (`Ok(Some(x))`, `Ok(None)`,
+    /// `Some(Red)`); `desugar_block` lowers it to nested single-level matches.
+    Nested(Pattern),
+}
+
+/// One node of a match pattern: a constructor with its sub-patterns, or a name that binds the
+/// value (`_` binds nothing). A bare name inside a constructor that is a declared enum variant is
+/// that variant, not a binding.
+#[derive(Clone, Debug)]
+enum Pattern {
+    Constructor(String, Vec<Pattern>, Span),
+    Name(String, Span),
+}
+
+impl Pattern {
+    fn span(&self) -> Span {
+        match self {
+            Pattern::Constructor(_, _, span) | Pattern::Name(_, span) => *span,
+        }
+    }
 }
 #[derive(Clone, Debug)]
 enum Expr {
@@ -891,6 +911,36 @@ impl Parser {
             parts.push(FormatPart::Literal(literal));
         }
         Ok(Expr::Interpolated(parts, token.span))
+    }
+    /// `Some(p)`, `Ok(p)`, `Err(p)`, `None`, `Variant`, `Variant(p, ...)` or a binding name.
+    /// `Some`, `Ok` and `Err` take exactly one pattern; `None` takes none.
+    fn match_pattern(&mut self) -> Result<Pattern, Diagnostic> {
+        let head = self.name()?;
+        match head.text.as_str() {
+            "None" => Ok(Pattern::Constructor(head.text, Vec::new(), head.span)),
+            "Some" | "Ok" | "Err" => {
+                self.expect("(")?;
+                let inner = self.match_pattern()?;
+                self.expect(")")?;
+                Ok(Pattern::Constructor(head.text, vec![inner], head.span))
+            }
+            _ => {
+                if self.eat("(").is_none() {
+                    return Ok(Pattern::Name(head.text, head.span));
+                }
+                let mut parts = Vec::new();
+                if self.cur().text != ")" {
+                    loop {
+                        parts.push(self.match_pattern()?);
+                        if self.eat(",").is_none() {
+                            break;
+                        }
+                    }
+                }
+                self.expect(")")?;
+                Ok(Pattern::Constructor(head.text, parts, head.span))
+            }
+        }
     }
     fn name(&mut self) -> Result<Token, Diagnostic> {
         if self.cur().kind == Kind::Name {
@@ -1622,34 +1672,39 @@ impl Parser {
                         self.advance();
                         continue;
                     }
-                    let variant = self.name()?;
-                    let pattern = match variant.text.as_str() {
-                        "Some" | "Ok" | "Err" => {
-                            self.expect("(")?;
-                            let binding = self.name()?;
-                            self.expect(")")?;
-                            match variant.text.as_str() {
-                                "Some" => MatchPattern::Some(binding.text, binding.span),
-                                "Ok" => MatchPattern::Ok(binding.text, binding.span),
-                                _ => MatchPattern::Err(binding.text, binding.span),
-                            }
-                        }
-                        "None" => MatchPattern::None,
-                        _ => {
-                            let mut bindings = Vec::new();
-                            if self.eat("(").is_some() {
-                                if self.cur().text != ")" {
-                                    loop {
-                                        let binding = self.name()?;
-                                        bindings.push((binding.text, binding.span));
-                                        if self.eat(",").is_none() {
-                                            break;
-                                        }
-                                    }
+                    let variant = self.cur().clone();
+                    let pattern = match self.match_pattern()? {
+                        // A bare name at the top of an arm is a variant without values.
+                        Pattern::Name(name, span) => MatchPattern::Variant(name, Vec::new(), span),
+                        Pattern::Constructor(name, parts, span) => {
+                            let names: Option<Vec<(String, Span)>> = parts
+                                .iter()
+                                .map(|part| match part {
+                                    Pattern::Name(name, span) => Some((name.clone(), *span)),
+                                    Pattern::Constructor(..) => None,
+                                })
+                                .collect();
+                            match (name.as_str(), names) {
+                                ("None", _) => MatchPattern::None,
+                                ("Some", Some(mut names)) => {
+                                    let (name, span) = names.remove(0);
+                                    MatchPattern::Some(name, span)
                                 }
-                                self.expect(")")?;
+                                ("Ok", Some(mut names)) => {
+                                    let (name, span) = names.remove(0);
+                                    MatchPattern::Ok(name, span)
+                                }
+                                ("Err", Some(mut names)) => {
+                                    let (name, span) = names.remove(0);
+                                    MatchPattern::Err(name, span)
+                                }
+                                (_, Some(names))
+                                    if !matches!(name.as_str(), "Some" | "Ok" | "Err") =>
+                                {
+                                    MatchPattern::Variant(name, names, span)
+                                }
+                                _ => MatchPattern::Nested(Pattern::Constructor(name, parts, span)),
                             }
-                            MatchPattern::Variant(variant.text.clone(), bindings, variant.span)
                         }
                     };
                     self.expect(":")?;
@@ -1984,9 +2039,6 @@ fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
 /// Lowers every `enum` to its record and rewrites variant constructors and variant `match`
 /// statements, so the type checker only ever sees records, `if` and field reads.
 fn desugar_enums(program: &mut Program) -> Result<(), Diagnostic> {
-    if program.enums.is_empty() {
-        return Ok(());
-    }
     // variant name -> (enum index, variant index)
     let mut variants: HashMap<String, (usize, usize)> = HashMap::new();
     for (enum_index, declared) in program.enums.iter().enumerate() {
@@ -2207,10 +2259,30 @@ fn desugar_block(
                 for arm in &mut arms {
                     desugar_block(&mut arm.body, enums, variants, counter)?;
                 }
+                let names_variant = |name: &str| variants.contains_key(name);
+                let nested = arms.iter().any(|arm| match &arm.pattern {
+                    MatchPattern::Nested(_) => true,
+                    MatchPattern::Some(name, _)
+                    | MatchPattern::Ok(name, _)
+                    | MatchPattern::Err(name, _) => names_variant(name),
+                    MatchPattern::Variant(_, names, _) => {
+                        names.iter().any(|(name, _)| names_variant(name))
+                    }
+                    MatchPattern::None => false,
+                });
+                if nested {
+                    let rows = arms
+                        .into_iter()
+                        .map(|arm| (arm_pattern(arm.pattern, variants), arm.body, arm.span))
+                        .collect();
+                    lower_pattern_rows(body, value, rows, span, "{}", enums, variants, counter)?;
+                    continue;
+                }
                 let has_variant = arms
                     .iter()
                     .any(|arm| matches!(arm.pattern, MatchPattern::Variant(..)));
-                if !has_variant {
+                // Without enums a variant arm is left for the type checker to reject.
+                if !has_variant || variants.is_empty() {
                     body.push(Stmt::Match(value, arms, span));
                     continue;
                 }
@@ -2219,6 +2291,243 @@ fn desugar_block(
             other => body.push(other),
         }
     }
+    Ok(())
+}
+
+/// An arm's pattern as a [`Pattern`] tree, with every bare name inside a constructor that is a
+/// declared enum variant read as that variant.
+fn arm_pattern(pattern: MatchPattern, variants: &HashMap<String, (usize, usize)>) -> Pattern {
+    fn resolve(pattern: Pattern, variants: &HashMap<String, (usize, usize)>) -> Pattern {
+        match pattern {
+            Pattern::Name(name, span) if variants.contains_key(&name) => {
+                Pattern::Constructor(name, Vec::new(), span)
+            }
+            Pattern::Constructor(name, parts, span) => Pattern::Constructor(
+                name,
+                parts
+                    .into_iter()
+                    .map(|part| resolve(part, variants))
+                    .collect(),
+                span,
+            ),
+            other => other,
+        }
+    }
+    let tree = match pattern {
+        MatchPattern::Some(name, span) => {
+            Pattern::Constructor("Some".into(), vec![Pattern::Name(name, span)], span)
+        }
+        MatchPattern::Ok(name, span) => {
+            Pattern::Constructor("Ok".into(), vec![Pattern::Name(name, span)], span)
+        }
+        MatchPattern::Err(name, span) => {
+            Pattern::Constructor("Err".into(), vec![Pattern::Name(name, span)], span)
+        }
+        MatchPattern::None => Pattern::Constructor("None".into(), Vec::new(), Span::default()),
+        MatchPattern::Variant(name, names, span) => Pattern::Constructor(
+            name,
+            names
+                .into_iter()
+                .map(|(name, span)| Pattern::Name(name, span))
+                .collect(),
+            span,
+        ),
+        MatchPattern::Nested(tree) => tree,
+    };
+    resolve(tree, variants)
+}
+
+/// Lowers the arms of a match with nested patterns to single-level matches, one per constructor
+/// position, so the type checker sees only `Some`/`None`, `Ok`/`Err` and enum matches. Every value
+/// must be matched by exactly one arm: two arms that overlap (including a name beside a
+/// constructor at the same position) are `E_MATCH_DUPLICATE`, and a constructor no arm covers is
+/// `E_MATCH_NONEXHAUSTIVE` (or `E_MATCH_MISSING_VARIANT` for an enum). `context` is the pattern
+/// that leads here, with `{}` for this position, for the messages.
+#[allow(clippy::too_many_arguments)]
+fn lower_pattern_rows(
+    out: &mut Vec<Stmt>,
+    scrutinee: Expr,
+    rows: Vec<(Pattern, Vec<Stmt>, Span)>,
+    span: Span,
+    context: &str,
+    enums: &[EnumAst],
+    variants: &HashMap<String, (usize, usize)>,
+    counter: &mut usize,
+) -> Result<(), Diagnostic> {
+    let at = |inner: &str| format!("`{}`", context.replace("{}", inner));
+    if rows
+        .iter()
+        .all(|(pattern, _, _)| matches!(pattern, Pattern::Name(..)))
+    {
+        let mut rows = rows.into_iter();
+        let (pattern, arm_body, _) = rows.next().expect("a match has at least one arm");
+        if let Some((_, _, arm_span)) = rows.next() {
+            return Err(diagnostic(
+                "E_MATCH_DUPLICATE",
+                format!("two arms match the same values ({})", at("_")),
+                arm_span,
+            ));
+        }
+        let Pattern::Name(name, name_span) = pattern else {
+            unreachable!("checked above")
+        };
+        if name != "_" {
+            out.push(Stmt::Let(name, false, None, scrutinee, name_span));
+        }
+        out.extend(arm_body);
+        return Ok(());
+    }
+    if let Some((Pattern::Name(name, name_span), _, _)) = rows
+        .iter()
+        .find(|(pattern, _, _)| matches!(pattern, Pattern::Name(..)))
+    {
+        return Err(diagnostic(
+            "E_MATCH_DUPLICATE",
+            format!(
+                "`{name}` at {} overlaps the arms that name a variant there; name a variant in every arm",
+                at("_")
+            ),
+            *name_span,
+        ));
+    }
+    let constructor = |pattern: &Pattern| match pattern {
+        Pattern::Constructor(name, _, _) => name.clone(),
+        Pattern::Name(..) => unreachable!("checked above"),
+    };
+    let first = constructor(&rows[0].0);
+    let family: &[(&str, usize)] = match first.as_str() {
+        "Some" | "None" => &[("Some", 1), ("None", 0)],
+        "Ok" | "Err" => &[("Ok", 1), ("Err", 1)],
+        other if variants.contains_key(other) => &[],
+        other => {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                format!("`{other}` is not a variant of any enum; expected Some, None, Ok, Err or an enum variant"),
+                rows[0].0.span(),
+            ))
+        }
+    };
+    if family.is_empty() {
+        // An enum: its variants hold Int, Float64, Bool, Text or lists, so they take names only,
+        // and `lower_enum_match` checks the rest.
+        let mut arms = Vec::new();
+        for (pattern, arm_body, arm_span) in rows {
+            let Pattern::Constructor(name, parts, name_span) = pattern else {
+                unreachable!("checked above")
+            };
+            if matches!(name.as_str(), "Some" | "None" | "Ok" | "Err") {
+                return Err(diagnostic(
+                    "E_MATCH_PATTERN",
+                    format!("`{name}` and `{first}` cannot match the same value"),
+                    name_span,
+                ));
+            }
+            let mut names = Vec::new();
+            for part in parts {
+                match part {
+                    Pattern::Name(name, span) => names.push((name, span)),
+                    Pattern::Constructor(_, _, span) => {
+                        return Err(diagnostic(
+                            "E_MATCH_PATTERN",
+                            "enum variant values are Int, Float64, Bool, Text or lists of those; bind them to names",
+                            span,
+                        ))
+                    }
+                }
+            }
+            arms.push(MatchArm {
+                pattern: MatchPattern::Variant(name, names, name_span),
+                body: arm_body,
+                span: arm_span,
+            });
+        }
+        return lower_enum_match(out, scrutinee, arms, span, enums, variants, counter);
+    }
+    for (pattern, _, _) in &rows {
+        let name = constructor(pattern);
+        if !family.iter().any(|(member, _)| *member == name) {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                format!("`{name}` and `{first}` cannot match the same value"),
+                pattern.span(),
+            ));
+        }
+    }
+    let mut arms = Vec::new();
+    for (member, arity) in family {
+        let mut matching = Vec::new();
+        let mut arm_span = None;
+        for (pattern, arm_body, row_span) in &rows {
+            if let Pattern::Constructor(name, parts, _) = pattern {
+                if name == member {
+                    arm_span.get_or_insert(*row_span);
+                    matching.push((parts.first().cloned(), arm_body.clone(), *row_span));
+                }
+            }
+        }
+        let Some(arm_span) = arm_span else {
+            let missing = if *arity == 1 {
+                format!("{member}(_)")
+            } else {
+                (*member).to_owned()
+            };
+            return Err(diagnostic(
+                "E_MATCH_NONEXHAUSTIVE",
+                format!("match does not handle {}", at(&missing)),
+                span,
+            ));
+        };
+        if *arity == 0 {
+            if let Some((_, _, duplicate)) = matching.get(1) {
+                return Err(diagnostic(
+                    "E_MATCH_DUPLICATE",
+                    format!("two arms match {}", at(member)),
+                    *duplicate,
+                ));
+            }
+            arms.push(MatchArm {
+                pattern: MatchPattern::None,
+                body: matching.remove(0).1,
+                span: arm_span,
+            });
+            continue;
+        }
+        let (binding, binding_span, arm_body) = match matching.as_slice() {
+            [(Some(Pattern::Name(name, name_span)), arm_body, _)] if name != "_" => {
+                (name.clone(), *name_span, arm_body.clone())
+            }
+            _ => {
+                *counter += 1;
+                let temp = format!("__match_part_{counter}");
+                let mut inner = Vec::new();
+                let sub_rows = matching
+                    .into_iter()
+                    .map(|(part, arm_body, row_span)| (part.expect("arity 1"), arm_body, row_span))
+                    .collect();
+                lower_pattern_rows(
+                    &mut inner,
+                    Expr::Name(temp.clone(), arm_span),
+                    sub_rows,
+                    arm_span,
+                    &context.replace("{}", &format!("{member}({{}})")),
+                    enums,
+                    variants,
+                    counter,
+                )?;
+                (temp, arm_span, inner)
+            }
+        };
+        arms.push(MatchArm {
+            pattern: match *member {
+                "Some" => MatchPattern::Some(binding, binding_span),
+                "Ok" => MatchPattern::Ok(binding, binding_span),
+                _ => MatchPattern::Err(binding, binding_span),
+            },
+            body: arm_body,
+            span: arm_span,
+        });
+    }
+    out.push(Stmt::Match(scrutinee, arms, span));
     Ok(())
 }
 
@@ -2473,6 +2782,17 @@ fn mentioned_in_block(body: &[Stmt], out: &mut Vec<String>, bound: &mut Vec<Stri
                         | MatchPattern::Err(name, _) => bound.push(name.clone()),
                         MatchPattern::Variant(_, names, _) => {
                             bound.extend(names.iter().map(|(name, _)| name.clone()))
+                        }
+                        MatchPattern::Nested(tree) => {
+                            fn names(pattern: &Pattern, bound: &mut Vec<String>) {
+                                match pattern {
+                                    Pattern::Name(name, _) => bound.push(name.clone()),
+                                    Pattern::Constructor(_, parts, _) => {
+                                        parts.iter().for_each(|part| names(part, bound))
+                                    }
+                                }
+                            }
+                            names(tree, bound);
                         }
                         MatchPattern::None => {}
                     }
@@ -4125,10 +4445,22 @@ impl<'a> FnCompiler<'a> {
                         }
                         Type::Text
                     }
+                    Type::Bytes => {
+                        if self.expr(index)? != Type::Int {
+                            return Err(diagnostic(
+                                "E_TYPE_INDEX",
+                                "bytes index must be Int",
+                                index.span(),
+                            ));
+                        }
+                        // The byte as an Int from 0 to 255 (artifact format 89).
+                        self.emit(Op::Codec(CodecFunction::BytesAt), *span);
+                        return Ok(Type::Int);
+                    }
                     _ => {
                         return Err(diagnostic(
                             "E_TYPE_INDEX",
-                            "indexing requires a List, Map, or Text",
+                            "indexing requires a List, Map, Text or Bytes",
                             values.span(),
                         ))
                     }

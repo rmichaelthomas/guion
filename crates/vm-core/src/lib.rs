@@ -2799,6 +2799,20 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                     operands.push(pop!());
                 }
                 operands.reverse();
+                if let (CodecFunction::BytesAt, [Value::Bytes(bytes), Value::Int(index)]) =
+                    (function, operands.as_slice())
+                {
+                    if let Some(index) = index.to_usize().filter(|index| *index >= bytes.len()) {
+                        return Err(RuntimeError::new(
+                            "R_INDEX_BOUNDS",
+                            format!(
+                                "bytes index {index} is out of range for length {}",
+                                bytes.len()
+                            ),
+                            instruction.span,
+                        ));
+                    }
+                }
                 let value = apply_codec(function, operands).map_err(|(code, message)| {
                     RuntimeError::new(code, message, instruction.span)
                 })?;
@@ -7897,6 +7911,7 @@ fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
         | CodecFunction::IntXor
         | CodecFunction::IntShiftLeft
         | CodecFunction::IntShiftRight => (vec![Type::Int, Type::Int], Type::Int),
+        CodecFunction::BytesAt => (vec![Type::Bytes, Type::Int], Type::Int),
     }
 }
 
@@ -8199,6 +8214,26 @@ fn apply_codec(
         Some(value) => Value::OptionSome(Box::new(value)),
         None => Value::OptionNone,
     };
+    if function == CodecFunction::BytesAt {
+        let (Value::Int(index), Value::Bytes(bytes)) =
+            (operands.pop().ok_or(TYPE)?, operands.pop().ok_or(TYPE)?)
+        else {
+            return Err(TYPE);
+        };
+        let Some(index) = index.to_usize() else {
+            return Err((
+                "R_INDEX_INVALID",
+                "bytes index must be a non-negative machine-sized integer",
+            ));
+        };
+        return match bytes.get(index) {
+            Some(byte) => Ok(Value::Int(BigInt::from_i64(i64::from(*byte)))),
+            None => Err((
+                "R_INDEX_BOUNDS",
+                "bytes index is out of range: it must be 0 to len(bytes) - 1",
+            )),
+        };
+    }
     if function == CodecFunction::BytesSlice {
         let (Value::Int(end), Value::Int(start), Value::Bytes(bytes)) = (
             operands.pop().ok_or(TYPE)?,

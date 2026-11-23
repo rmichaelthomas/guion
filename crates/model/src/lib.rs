@@ -1583,6 +1583,15 @@ mod tests {
     }
 
     #[test]
+    fn bytes_index_is_gated_on_format_89() {
+        // The first format with `Bytes` indexing (`data[i]`), which rides on `Op::Codec`.
+        const BYTES_INDEX_FIRST_FORMAT: u32 = 89;
+        assert_gated(Op::Codec(CodecFunction::BytesAt), BYTES_INDEX_FIRST_FORMAT);
+        // The bit operations keep their own first format.
+        assert_gated(Op::Codec(CodecFunction::IntShiftRight), 83);
+    }
+
+    #[test]
     fn sleep_instruction_is_gated_on_format_88() {
         assert_gated(Op::Sleep, 88);
     }
@@ -3884,10 +3893,12 @@ pub enum CodecFunction {
     IntShiftLeft,
     /// Arithmetic right shift of a 64-bit signed integer by 0 to 63 bits (format 83).
     IntShiftRight,
+    /// The byte at an index of a byte string, as an `Int` 0 to 255 (`data[i]`, format 89).
+    BytesAt,
 }
 
 impl CodecFunction {
-    const ALL: [CodecFunction; 20] = [
+    const ALL: [CodecFunction; 21] = [
         CodecFunction::Base64Encode,
         CodecFunction::Base64UrlEncode,
         CodecFunction::Base64Decode,
@@ -3908,6 +3919,7 @@ impl CodecFunction {
         CodecFunction::IntXor,
         CodecFunction::IntShiftLeft,
         CodecFunction::IntShiftRight,
+        CodecFunction::BytesAt,
     ];
 
     pub fn code(self) -> u8 {
@@ -3944,6 +3956,7 @@ impl CodecFunction {
             CodecFunction::IntXor => "CodecIntXor",
             CodecFunction::IntShiftLeft => "CodecIntShiftLeft",
             CodecFunction::IntShiftRight => "CodecIntShiftRight",
+            CodecFunction::BytesAt => "CodecBytesAt",
         }
     }
 
@@ -3963,7 +3976,8 @@ impl CodecFunction {
             | CodecFunction::IntOr
             | CodecFunction::IntXor
             | CodecFunction::IntShiftLeft
-            | CodecFunction::IntShiftRight => 2,
+            | CodecFunction::IntShiftRight
+            | CodecFunction::BytesAt => 2,
             _ => 1,
         }
     }
@@ -4929,7 +4943,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 88;
+    pub const CURRENT_VERSION: u32 = 89;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5331,6 +5345,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "the tlock chain hash and the X.509 issuer check require artifact format 84",
+            ));
+        }
+        if self.format_version < 89 && artifact_uses_bytes_index(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "bytes indexing requires artifact format 89",
             ));
         }
         if self.format_version < 83 && artifact_uses_int_bit_operations(self) {
@@ -6227,10 +6247,16 @@ impl Artifact {
                                 "SHA-256 instructions require artifact format 67",
                             ));
                         }
-                        if code >= 15 && format_version < 83 {
+                        if (15..=19).contains(&code) && format_version < 83 {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "integer bit operations require artifact format 83",
+                            ));
+                        }
+                        if code == 20 && format_version < 89 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "bytes indexing requires artifact format 89",
                             ));
                         }
                         Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
@@ -7262,6 +7288,15 @@ fn artifact_uses_signature_crypto(artifact: &Artifact) -> bool {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 79)
         })
+    })
+}
+
+fn artifact_uses_bytes_index(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Codec(CodecFunction::BytesAt)))
     })
 }
 

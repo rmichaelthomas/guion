@@ -292,6 +292,30 @@ fn main() -> Int:\n    return 0\n",
 }
 
 #[test]
+fn browser_bytes_index_and_nested_match_match_native() {
+    let artifact = gub(
+        "fn data() -> Bytes:\n    return bytes_from_ints([0, 7, 255])\n\
+fn sum() -> Int:\n    let d = data()\n    return d[0] + d[1] + d[2]\n\
+fn past() -> Int:\n    return data()[3]\n\
+fn negative() -> Int:\n    return data()[0 - 1]\n\
+fn look(n: Int) -> Result[Option[Int], Text]:\n    if n < 0:\n        return Err(\"low\")\n    return Ok(half(n))\n\
+fn half(n: Int) -> Option[Int]:\n    if n == 0:\n        return None\n    return Some(n // 2)\n\
+fn label(n: Int) -> Text:\n    match look(n):\n        Ok(Some(x)):\n            return int_to_text(x)\n        Ok(None):\n            return \"none\"\n        Err(e):\n            return e\n\
+fn labels() -> Text:\n    return label(8) + \",\" + label(0) + \",\" + label(0 - 1)\n\
+fn main() -> Int:\n    return 0\n",
+    );
+    for (entry, expected) in [
+        ("sum", Outcome::Int("262".to_owned())),
+        ("past", Outcome::Error("R_INDEX_BOUNDS".to_owned())),
+        ("negative", Outcome::Error("R_INDEX_INVALID".to_owned())),
+        ("labels", Outcome::Text("4,none,low".to_owned())),
+    ] {
+        assert_eq!(native(&artifact, entry), expected, "native {entry}");
+        assert_eq!(browser(&artifact, entry), expected, "browser {entry}");
+    }
+}
+
+#[test]
 fn browser_runs_the_pass_statement() {
     let artifact =
         gub("fn idle() -> Int:\n    pass\n    return 7\n\nfn main() -> Int:\n    return 0\n");
@@ -900,8 +924,6 @@ fn ed25519_and_tsa_program(cases: &[TsaCase]) -> (String, Vec<String>) {
             &format!("octets(crypto_tsa_response_token(h(\"{}\")))", hex(&bytes)),
             answer,
         );
-        let answer = tsa_text(&bytes, &digest, &tsa, &ca);
-        let _ = answer;
     }
     let certificates = guion_crypto::tsa_certificates(&token).unwrap();
     line(

@@ -34,8 +34,7 @@ fn certificate(pem: Text) -> Bytes:
 # Eight random bytes whose first byte is 0x01 to 0x7f.
 fn make_nonce() -> Bytes:
     let drawn = unwrap(crypto_random_bytes(8))
-    let first = bytes_to_ints(bytes_slice(drawn, 0, 1))[0]
-    let forced = int_or(int_and(first, 127), 1)
+    let forced = int_or(int_and(drawn[0], 127), 1)
     return bytes_join([bytes_from_ints([forced]), bytes_slice(drawn, 1, 8)])
 
 # POST the request to DigiCert and return the token from its answer.
@@ -60,18 +59,16 @@ fn report(token: Bytes, digest: Bytes, nonce: Bytes) -> Int:
     match crypto_tsa_verify(token, digest, tsa, issuer):
         Err(problem):
             return fail(problem.code + " " + problem.message)
-        Ok(found):
-            match found:
-                None:
-                    return fail("the token is not a DigiCert timestamp of this message")
-                Some(stamp):
-                    if stamp.nonce != nonce:
-                        return fail("the token does not echo our nonce")
-                    print("verified: the token is DigiCert's, for this message, with our nonce")
-                    print("time: " + int_to_text(stamp.gen_time_ms) + " ms since 1970 (UTC)")
-                    print("policy: " + stamp.policy)
-                    print("serial: " + hex_encode(stamp.serial))
-                    return 0
+        Ok(None):
+            return fail("the token is not a DigiCert timestamp of this message")
+        Ok(Some(stamp)):
+            if stamp.nonce != nonce:
+                return fail("the token does not echo our nonce")
+            print("verified: the token is DigiCert's, for this message, with our nonce")
+            print("time: " + int_to_text(stamp.gen_time_ms) + " ms since 1970 (UTC)")
+            print("policy: " + stamp.policy)
+            print("serial: " + hex_encode(stamp.serial))
+            return 0
 
 fn main() -> Int:
     let message = bytes_from_text("The Lotcast draw for round 1 was sealed before the numbers were known.")
