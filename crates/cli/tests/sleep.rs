@@ -128,16 +128,45 @@ fn deadline_stops_sleeping_task() {
 
 #[cfg(unix)]
 fn spawn_and_interrupt(name: &str, source: &str) -> (Output, Duration) {
+    spawn_and_interrupt_with(name, &[], source)
+}
+
+#[cfg(unix)]
+fn spawn_and_interrupt_with(name: &str, flags: &[&str], source: &str) -> (Output, Duration) {
     let scratch = Scratch::new(name);
     scratch.write(source);
-    let child = Command::new(env!("CARGO_BIN_EXE_guion"))
-        .args(["run", "main.gu"])
+    let mut args = vec!["run"];
+    args.extend_from_slice(flags);
+    args.push("main.gu");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(&args)
         .current_dir(&scratch.0)
         .env("GUION_NO_PROMPT", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("guion starts");
+    let mut early = String::new();
+    if source.contains("print(\"ready\")") {
+        // A program that polls says so first; the signal must come after its handlers exist,
+        // however long the build and start take on a loaded machine.
+        use std::io::BufRead;
+        let mut reader = std::io::BufReader::new(child.stdout.take().unwrap());
+        reader.read_line(&mut early).unwrap();
+        assert_eq!(early.trim(), "ready");
+        early.clear();
+        std::thread::sleep(Duration::from_millis(200));
+        let interrupted = Instant::now();
+        // SAFETY: the pid is the child this test started and still owns.
+        unsafe {
+            libc::kill(child.id() as i32, libc::SIGINT);
+        }
+        use std::io::Read;
+        reader.read_to_string(&mut early).unwrap();
+        let mut output = child.wait_with_output().unwrap();
+        output.stdout = early.into_bytes();
+        return (output, interrupted.elapsed());
+    }
     std::thread::sleep(Duration::from_millis(400));
     let interrupted = Instant::now();
     // SAFETY: the pid is the child this test started and still owns.
@@ -163,11 +192,37 @@ fn ctrl_c_interrupts_sleep() {
     // A program that polls for signals owns them: the sleep ends at once and the program reads it.
     let (output, took) = spawn_and_interrupt(
         "ctrl-c-polling",
-        "import \"std:process\"\n\nfn main() -> Int:\n    let first = process_signal_poll()\n    sleep_ms(10000)\n    print(process_signal_poll())\n    return 0\n",
+        "import \"std:process\"\n\nfn main() -> Int:\n    let first = process_signal_poll()\n    print(\"ready\")\n    sleep_ms(10000)\n    print(process_signal_poll())\n    return 0\n",
     );
     assert!(took < Duration::from_secs(1), "took {took:?}");
     assert!(output.status.success(), "{}", stderr(&output));
     assert_eq!(stdout(&output), "INT");
+}
+
+#[cfg(unix)]
+#[test]
+fn one_signal_wakes_only_one_sleep() {
+    // The signal arrives during the first sleep and is left unread: that sleep ends early, the
+    // next one runs its full time, and the signal is still there for the poll afterwards.
+    let (output, took) = spawn_and_interrupt_with(
+        "one-wake",
+        &["--allow-clock"],
+        "import \"std:process\"\n\nfn main() -> Int:\n    let first = process_signal_poll()\n    print(\"ready\")\n    sleep_ms(10000)\n    let before = unix_time_ms()\n    sleep_ms(600)\n    let after = unix_time_ms()\n    print(after - before)\n    print(process_signal_poll())\n    return 0\n",
+    );
+    assert!(
+        output.status.success(),
+        "{:?} {} {}",
+        output.status,
+        stdout(&output),
+        stderr(&output)
+    );
+    let text = stdout(&output);
+    let mut lines = text.lines();
+    let second: i64 = lines.next().unwrap().parse().unwrap();
+    assert!(second >= 600, "the second sleep took {second} ms");
+    assert_eq!(lines.next(), Some("INT"), "{text}");
+    assert!(took >= Duration::from_millis(600), "took {took:?}");
+    assert!(took < Duration::from_secs(5), "took {took:?}");
 }
 
 #[test]

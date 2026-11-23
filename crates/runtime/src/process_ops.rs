@@ -227,6 +227,12 @@ pub(crate) fn run(policy: &HostPolicy, command: &str, arguments: &[String], stdi
 /// The pending-signal slot: 0 when none, otherwise the signal number.
 static PENDING_SIGNAL: AtomicI32 = AtomicI32::new(0);
 
+/// Set when a signal arrives and cleared by the first `sleep_ms` it wakes or by `signal_poll`, so
+/// one arrival ends at most one sleep early (a later sleep runs its full time even while the
+/// signal waits, unread, in [`PENDING_SIGNAL`]).
+#[cfg(unix)]
+static SIGNAL_WAKES_SLEEP: AtomicBool = AtomicBool::new(false);
+
 /// Set once a program polls for signals: from then on a signal is the program's to handle, and
 /// ending its `together:` block (or the program) is what stops the commands it started.
 static SIGNALS_POLLED: AtomicBool = AtomicBool::new(false);
@@ -372,6 +378,7 @@ mod windows_jobs {
 #[cfg(unix)]
 extern "C" fn record_signal(signal: libc::c_int) {
     PENDING_SIGNAL.store(signal, Ordering::SeqCst);
+    SIGNAL_WAKES_SLEEP.store(true, Ordering::SeqCst);
 }
 
 /// Installs handlers for `INT`, `TERM` and `HUP` the first time a program polls, then returns
@@ -388,6 +395,7 @@ pub(crate) fn signal_poll() -> &'static str {
             }
         }
     });
+    SIGNAL_WAKES_SLEEP.store(false, Ordering::SeqCst);
     match PENDING_SIGNAL.swap(0, Ordering::SeqCst) {
         0 => "",
         signal if signal == libc::SIGINT => "INT",
@@ -397,14 +405,16 @@ pub(crate) fn signal_poll() -> &'static str {
     }
 }
 
-/// Whether a signal is waiting to be read by `signal_poll`, without clearing it.
+/// Whether a polled signal arrived that has not yet woken a sleep nor been read by
+/// `signal_poll`. Taking it marks it seen: the signal itself stays pending for `signal_poll`, but it
+/// wakes only this one sleep.
 #[cfg(unix)]
-pub(crate) fn signal_pending() -> bool {
-    PENDING_SIGNAL.load(Ordering::SeqCst) != 0
+pub(crate) fn take_signal_wake() -> bool {
+    SIGNAL_WAKES_SLEEP.swap(false, Ordering::SeqCst)
 }
 
 #[cfg(not(unix))]
-pub(crate) fn signal_pending() -> bool {
+pub(crate) fn take_signal_wake() -> bool {
     false
 }
 

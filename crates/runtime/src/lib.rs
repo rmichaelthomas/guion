@@ -481,12 +481,14 @@ const MAX_SLEEP_MS: i64 = 86_400_000;
 const SLEEP_SLICE_MS: u64 = 10;
 
 /// Waits at least `milliseconds`, in slices of at most [`SLEEP_SLICE_MS`], and gives up early
-/// when `stopped` says so or when a signal the program polls for is pending (the program reads
-/// it with `signal_poll`). Returns whether the full time passed.
+/// when `stopped` says so or when a signal the program polls for arrives (the program reads it
+/// with `signal_poll`). Each arrival ends at most one sleep early: a signal that already woke a
+/// sleep, or that `signal_poll` read, does not end the next one. Returns whether the full time
+/// passed.
 fn sleep_in_slices(milliseconds: u64, stopped: impl Fn() -> bool) -> bool {
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(milliseconds);
     loop {
-        if stopped() || process_ops::signal_pending() {
+        if stopped() || process_ops::take_signal_wake() {
             return false;
         }
         let now = std::time::Instant::now();
