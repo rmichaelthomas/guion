@@ -3154,6 +3154,42 @@
       "operation": "CryptoEd25519Verify"
     },
     {
+      "name": "native_crypto_tsa_request",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoTsaRequest"
+    },
+    {
+      "name": "native_crypto_tsa_response_token",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoTsaResponseToken"
+    },
+    {
+      "name": "native_crypto_tsa_verify",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Json, Record[StdError]]",
+      "operation": "CryptoTsaVerify"
+    },
+    {
+      "name": "native_crypto_tsa_certificates",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Bytes], Record[StdError]]",
+      "operation": "CryptoTsaCertificates"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"

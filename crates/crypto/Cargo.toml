@@ -13,6 +13,7 @@ license.workspace = true
 # newer major of any of them, they would pull a second `digest`/`der`/`spki`):
 #   sha2      =0.10.9   digest 0.10
 #   sha3      =0.10.8   digest 0.10
+#   sha1      =0.10.6   digest 0.10, no default features (ESSCertID hash only)
 #   rsa       =0.9.10   digest 0.10, pkcs8/spki/der 0.7
 #   p256      =0.13.2   ecdsa 0.16, digest 0.10, pkcs8/spki/der 0.7
 #   p384      =0.13.1   same family as p256 (elliptic-curve 0.13, ecdsa 0.16, digest 0.10)
@@ -25,6 +26,8 @@ license.workspace = true
 [dependencies]
 sha2 = { workspace = true, features = ["oid"] }
 sha3.workspace = true
+# SHA-1 only for the RFC 3161 ESSCertID hash (RFC 2634), never for a signature.
+sha1.workspace = true
 rsa.workspace = true
 p256.workspace = true
 p384.workspace = true

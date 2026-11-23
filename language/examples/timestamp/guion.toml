@@ -1,0 +1,8 @@
+[project]
+name = "timestamp"
+version = "0.1.0"
+entry = "main.gu"
+
+# The one network host the example talks to.
+[network]
+hosts = ["timestamp.digicert.com"]

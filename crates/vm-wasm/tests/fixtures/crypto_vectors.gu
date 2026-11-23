@@ -97,6 +97,34 @@ fn encrypt_bad_key() -> Text:
         Err(problem):
             return problem.code
 
+fn tsa_token() -> Bytes:
+    match crypto_tsa_response_token(tsa_response()):
+        Ok(token):
+            return token
+        Err(problem):
+            return bytes_from_text("")
+
+fn tsa_digest() -> Bytes:
+    return crypto_sha512(tsa_message())
+
+fn tsa_verified(token: Bytes, digest: Bytes, cert: Bytes, issuer: Bytes) -> Text:
+    match crypto_tsa_verify(token, digest, cert, issuer):
+        Ok(found):
+            match found:
+                Some(stamp):
+                    return f"{int_to_text(stamp.gen_time_ms)},{hex_encode(stamp.serial)},{stamp.policy}"
+                None:
+                    return "none"
+        Err(problem):
+            return problem.code
+
+fn tsa_certificate_count() -> Text:
+    match crypto_tsa_certificates(tsa_token()):
+        Ok(certs):
+            return f"{len(certs)} {bool_text(certs[0] == tsa_cert())}"
+        Err(problem):
+            return problem.code
+
 fn bool_text(value: Bool) -> Text:
     if value:
         return "true"
@@ -163,6 +191,17 @@ fn vectors() -> Text:
     set out = out + line("ed25519 verify", flag(crypto_ed25519_verify(h("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"), h(""), h("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"))))
     set out = out + line("ed25519 other message", flag(crypto_ed25519_verify(h("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"), h("00"), h("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"))))
     set out = out + line("ed25519 short seed", octets(crypto_ed25519_public_key(h("00"))))
+    set out = out + line("tsa request", bool_text(octets(crypto_tsa_request(tsa_digest(), nothing)) == hex_encode(tsa_request())))
+    set out = out + line("tsa request bad digest", octets(crypto_tsa_request(short(nothing), nothing)))
+    set out = out + line("tsa request bad nonce", octets(crypto_tsa_request(tsa_digest(), bytes_from_ints([128]))))
+    set out = out + line("tsa token", bool_text(len(tsa_token()) > 100))
+    set out = out + line("tsa certificates", tsa_certificate_count())
+    set out = out + line("tsa verify", tsa_verified(tsa_token(), tsa_digest(), tsa_cert(), tsa_ca()))
+    set out = out + line("tsa verify other digest", tsa_verified(tsa_token(), flip(tsa_digest()), tsa_cert(), tsa_ca()))
+    set out = out + line("tsa verify wrong issuer", tsa_verified(tsa_token(), tsa_digest(), tsa_cert(), tsa_cert()))
+    set out = out + line("tsa verify garbage", tsa_verified(h("00"), tsa_digest(), tsa_cert(), tsa_ca()))
+    set out = out + line("tsa verify bad certificate", tsa_verified(tsa_token(), tsa_digest(), h("00"), tsa_ca()))
+    set out = out + line("tsa response garbage", octets(crypto_tsa_response_token(h("00"))))
     set out = out + line("and", int_to_text(int_and(12, 10)))
     set out = out + line("or", int_to_text(int_or(12, 10)))
     set out = out + line("xor", int_to_text(int_xor(12, 10)))

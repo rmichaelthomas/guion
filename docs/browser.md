@@ -101,7 +101,7 @@ The pure cryptography of `std:crypto` and `std:encoding` runs in the browser VM,
 | Available in the browser | Functions |
 |---|---|
 | Hashes | `crypto_sha256`, `crypto_sha512`, `crypto_sha3_512`, `crypto_sha1` |
-| Signatures and certificates | `crypto_rsa_verify` (PKCS#1 v1.5 and PSS), `crypto_ecdsa_p256_verify`, `crypto_bls12381_verify_g1`, `crypto_x509_rsa_public_key`, `crypto_x509_verify_issued_by`, `crypto_pem_decode`, `crypto_ed25519_public_key`, `crypto_ed25519_sign` (the caller supplies the 32-byte seed), `crypto_ed25519_verify` |
+| Signatures and certificates | `crypto_rsa_verify` (PKCS#1 v1.5 and PSS), `crypto_ecdsa_p256_verify`, `crypto_bls12381_verify_g1`, `crypto_x509_rsa_public_key`, `crypto_x509_verify_issued_by`, `crypto_pem_decode`, `crypto_ed25519_public_key`, `crypto_ed25519_sign` (the caller supplies the 32-byte seed), `crypto_ed25519_verify`, `crypto_tsa_request`, `crypto_tsa_response_token`, `crypto_tsa_verify` (RFC 3161 timestamps; the network round trip is the program's), `crypto_tsa_certificates` |
 | Timelock (drand tlock, age format) | `crypto_tlock_decrypt`, `crypto_tlock_round`, `crypto_tlock_chain_hash`, `crypto_x509_dns_names`, `crypto_x509_validity`, and encryption through `native_crypto_tlock_encrypt` when the caller supplies the 48 bytes of randomness |
 | Encoding | `dagcbor_encode`, `hex_encode`/`hex_decode`, `base64_*`, `bytes_xor_key` |
 | Bit operations | `int_and`, `int_or`, `int_xor`, `int_shift_left`, `int_shift_right` (64-bit; `R_INTEGER_RANGE` and `R_SHIFT_RANGE` as natively) |

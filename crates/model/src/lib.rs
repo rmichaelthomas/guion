@@ -1415,6 +1415,9 @@ mod tests {
     /// The first artifact format with the Ed25519 reads and signatures.
     const ED25519_FIRST_FORMAT: u32 = 86;
 
+    /// The first artifact format with the RFC 3161 timestamp request and token functions.
+    const TSA_FIRST_FORMAT: u32 = 87;
+
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
@@ -1541,6 +1544,24 @@ mod tests {
         assert_eq!(CryptoFunction::Ed25519PublicKey.code(), 14);
         assert_eq!(CryptoFunction::Ed25519Sign.code(), 15);
         assert_eq!(CryptoFunction::Ed25519Verify.code(), 16);
+    }
+
+    #[test]
+    fn old_format_rejects_tsa_crypto_ops() {
+        for (function, code) in [
+            (CryptoFunction::TsaRequest, 17),
+            (CryptoFunction::TsaResponseToken, 18),
+            (CryptoFunction::TsaVerify, 19),
+            (CryptoFunction::TsaCertificates, 20),
+        ] {
+            assert_gated(Op::Crypto(function), TSA_FIRST_FORMAT);
+            assert_eq!(function.code(), code);
+        }
+        // Ed25519 stays at 86: the new gate does not move it.
+        assert_gated(
+            Op::Crypto(CryptoFunction::Ed25519Verify),
+            ED25519_FIRST_FORMAT,
+        );
     }
 
     #[test]
@@ -3944,7 +3965,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact formats 78 to 86 (see `first_format`) and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 to 87 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3987,10 +4008,18 @@ pub enum CryptoFunction {
     Ed25519Sign,
     /// Strict Ed25519 verification (code 16, format 86).
     Ed25519Verify,
+    /// An RFC 3161 `TimeStampReq` for a SHA-512 digest and an optional nonce (code 17, format 87).
+    TsaRequest,
+    /// The `timeStampToken` of an RFC 3161 `TimeStampResp` (code 18, format 87).
+    TsaResponseToken,
+    /// Verification of an RFC 3161 token against a digest and a pinned TSA certificate (code 19, format 87).
+    TsaVerify,
+    /// The certificates embedded in an RFC 3161 token (code 20, format 87).
+    TsaCertificates,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 17] = [
+    const ALL: [CryptoFunction; 21] = [
         CryptoFunction::Sha512,
         CryptoFunction::Sha3_512,
         CryptoFunction::RsaVerify,
@@ -4008,6 +4037,10 @@ impl CryptoFunction {
         CryptoFunction::Ed25519PublicKey,
         CryptoFunction::Ed25519Sign,
         CryptoFunction::Ed25519Verify,
+        CryptoFunction::TsaRequest,
+        CryptoFunction::TsaResponseToken,
+        CryptoFunction::TsaVerify,
+        CryptoFunction::TsaCertificates,
     ];
 
     /// The first artifact format that may carry this function; older formats reject it.
@@ -4027,6 +4060,10 @@ impl CryptoFunction {
             CryptoFunction::Ed25519PublicKey
             | CryptoFunction::Ed25519Sign
             | CryptoFunction::Ed25519Verify => 86,
+            CryptoFunction::TsaRequest
+            | CryptoFunction::TsaResponseToken
+            | CryptoFunction::TsaVerify
+            | CryptoFunction::TsaCertificates => 87,
         }
     }
 
@@ -4061,6 +4098,10 @@ impl CryptoFunction {
             CryptoFunction::Ed25519PublicKey => "CryptoEd25519PublicKey",
             CryptoFunction::Ed25519Sign => "CryptoEd25519Sign",
             CryptoFunction::Ed25519Verify => "CryptoEd25519Verify",
+            CryptoFunction::TsaRequest => "CryptoTsaRequest",
+            CryptoFunction::TsaResponseToken => "CryptoTsaResponseToken",
+            CryptoFunction::TsaVerify => "CryptoTsaVerify",
+            CryptoFunction::TsaCertificates => "CryptoTsaCertificates",
         }
     }
 
@@ -4090,6 +4131,9 @@ impl CryptoFunction {
             CryptoFunction::Ed25519PublicKey => 1,
             CryptoFunction::Ed25519Sign => 2,
             CryptoFunction::Ed25519Verify => 3,
+            CryptoFunction::TsaRequest => 2,
+            CryptoFunction::TsaResponseToken | CryptoFunction::TsaCertificates => 1,
+            CryptoFunction::TsaVerify => 4,
         }
     }
 }
@@ -4879,7 +4923,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 86;
+    pub const CURRENT_VERSION: u32 = 87;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5251,6 +5295,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 87 && artifact_uses_tsa_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the RFC 3161 timestamp instructions require artifact format 87",
             ));
         }
         if self.format_version < 86 && artifact_uses_ed25519_crypto(self) {
@@ -7150,6 +7200,14 @@ fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 84)
+        })
+    })
+}
+
+fn artifact_uses_tsa_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 87)
         })
     })
 }

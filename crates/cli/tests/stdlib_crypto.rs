@@ -915,3 +915,170 @@ fn old_format_rejects_ed25519_codes() {
         "E_ARTIFACT_VERSION"
     );
 }
+
+/// The first artifact format with RFC 3161 timestamps.
+const TSA_FIRST_FORMAT: u32 = 87;
+
+const TSA_PROGRAM: &str = r#"import "std:crypto"
+import "std:encoding"
+import "std:types"
+
+fn main() -> Int:
+    let message = unwrap(read_bytes("message.txt"))
+    let digest = crypto_sha512(message)
+    let request = unwrap(crypto_tsa_request(digest, bytes_from_text("")))
+    if request != unwrap(read_bytes("request.tsq")):
+        print("request differs from openssl")
+    let token = unwrap(crypto_tsa_response_token(unwrap(read_bytes("response.tsr"))))
+    let tsa = unwrap(crypto_pem_decode(unwrap(read_text("tsa.pem"))))
+    let issuer = unwrap(crypto_pem_decode(unwrap(read_text("issuer.pem"))))
+    match crypto_tsa_verify(token, digest, tsa, issuer):
+        Ok(found):
+            match found:
+                Some(stamp):
+                    print(int_to_text(stamp.gen_time_ms))
+                    print(int_to_text(stamp.accuracy_ms))
+                    print(hex_encode(stamp.serial))
+                    print(stamp.policy)
+                    print(int_to_text(len(stamp.nonce)))
+                None:
+                    print("none")
+        Err(problem):
+            print(problem.code)
+    # Another digest: well-formed, so Ok(None).
+    match crypto_tsa_verify(token, crypto_sha512(bytes_from_text("other")), tsa, issuer):
+        Ok(found):
+            match found:
+                Some(stamp):
+                    print("some")
+                None:
+                    print("none")
+        Err(problem):
+            print(problem.code)
+    match crypto_tsa_verify(token, digest, bytes_from_text("not a certificate"), issuer):
+        Ok(found):
+            print("ok")
+        Err(problem):
+            print(problem.code)
+    match crypto_tsa_request(bytes_from_text("short"), bytes_from_text("")):
+        Ok(unused):
+            print("ok")
+        Err(problem):
+            print(problem.code)
+    match crypto_tsa_request(digest, bytes_from_ints([128])):
+        Ok(unused):
+            print("ok")
+        Err(problem):
+            print(problem.code)
+    match crypto_tsa_response_token(bytes_from_text("garbage")):
+        Ok(unused):
+            print("ok")
+        Err(problem):
+            print(problem.code)
+    print(int_to_text(len(unwrap(crypto_tsa_certificates(token)))))
+    return 0
+"#;
+
+fn copy_tsa_fixtures(scratch: &Scratch, provider: &str) {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../crypto/tests/fixtures/tsa")
+        .join(provider);
+    for name in [
+        "message.txt",
+        "request.tsq",
+        "response.tsr",
+        "tsa.pem",
+        "issuer.pem",
+    ] {
+        std::fs::copy(source.join(name), scratch.root().join(name)).unwrap();
+    }
+}
+
+#[test]
+fn tsa_verify_from_guion() {
+    let scratch = Scratch::new("tsa-program");
+    copy_tsa_fixtures(&scratch, "digicert");
+    let output = run_with_root(&scratch, TSA_PROGRAM);
+    assert_success(&output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines,
+        [
+            // Nov 23 19:40:59 2026 GMT
+            "1795462859000",
+            "0",
+            "33a1b07c58ab304d70f5dc92fe4a5ae5",
+            "2.16.840.1.114412.7.1",
+            "0",
+            "none",
+            "E_X509",
+            "E_TSA_DIGEST",
+            "E_TSA_NONCE",
+            "E_TSA_FORMAT",
+            "3",
+        ]
+    );
+}
+
+#[test]
+fn old_format_rejects_tsa_codes() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("tsa-old-format");
+    std::fs::write(scratch.0.join("main.gu"), TSA_PROGRAM).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.format_version >= TSA_FIRST_FORMAT);
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(crypto) if crypto.first_format() == TSA_FIRST_FORMAT))));
+    // Format 86 still holds codes 0 to 16 but not 17 to 20.
+    let previous = TSA_FIRST_FORMAT - 1;
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}
+
+/// `language/examples/timestamp`: the recorded DigiCert round trip, replayed with no network.
+#[test]
+fn timestamp_example_replays_offline() {
+    let example = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../language/examples/timestamp");
+    let replayed = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["run", "--replay", "tapes/tsa-live.tape", "main.gu"])
+        .current_dir(&example)
+        .output()
+        .expect("guion starts");
+    assert_success(&replayed);
+    let stdout = String::from_utf8_lossy(&replayed.stdout);
+    assert_eq!(
+        stdout.lines().collect::<Vec<_>>(),
+        [
+            "verified: the token is DigiCert's, for this message, with our nonce",
+            // Nov 23 19:53:02 2026 GMT
+            "time: 1795463582000 ms since 1970 (UTC)",
+            "policy: 2.16.840.1.114412.7.1",
+            "serial: c9d70976e962891fe755d52dc5c0a0f7",
+        ]
+    );
+    // The program checks cleanly and reports its one network host.
+    let checked = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["check", "main.gu"])
+        .current_dir(&example)
+        .output()
+        .expect("guion starts");
+    assert_success(&checked);
+    assert!(!String::from_utf8_lossy(&checked.stderr).contains("warning"));
+}

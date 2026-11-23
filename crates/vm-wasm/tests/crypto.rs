@@ -42,6 +42,21 @@ fn crypto_fixture(name: &str) -> Vec<u8> {
     std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
 }
 
+/// The DER of the first certificate in a PEM fixture.
+fn pem_fixture(name: &str) -> Vec<u8> {
+    use base64::Engine;
+    let text = String::from_utf8(crypto_fixture(name)).unwrap();
+    let body: String = text
+        .lines()
+        .skip_while(|line| !line.starts_with("-----BEGIN"))
+        .skip(1)
+        .take_while(|line| !line.starts_with("-----END"))
+        .collect();
+    base64::engine::general_purpose::STANDARD
+        .decode(body)
+        .unwrap()
+}
+
 fn beacon_fixture(name: &str) -> Vec<u8> {
     let path = repository().join("packages/beacons/fixtures").join(name);
     std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
@@ -114,6 +129,11 @@ fn program() -> String {
         ("rsa_ca", crypto_fixture("x509/rsa-ca.der")),
         ("san_leaf", crypto_fixture("x509/leaf-san.der")),
         ("dated_leaf", crypto_fixture("x509/leaf-dated.der")),
+        ("tsa_response", crypto_fixture("tsa/local/good-v2.tsr")),
+        ("tsa_request", crypto_fixture("tsa/local/request.tsq")),
+        ("tsa_message", crypto_fixture("tsa/local/message.txt")),
+        ("tsa_cert", pem_fixture("tsa/local/tsa1.pem")),
+        ("tsa_ca", pem_fixture("tsa/local/ca.pem")),
         ("modulus", hex_to_bytes(&crypto_fixture("rsa_modulus.hex"))),
         (
             "exponent",
@@ -218,6 +238,18 @@ fn browser_crypto_vectors_match_native() {
         "ed25519 verify=true",
         "ed25519 other message=false",
         "ed25519 short seed=E_CRYPTO_INPUT",
+        // codes 17 to 20
+        "tsa request=true",
+        "tsa request bad digest=E_TSA_DIGEST",
+        "tsa request bad nonce=E_TSA_NONCE",
+        "tsa token=true",
+        "tsa certificates=2 true",
+        "tsa verify=1795463311000,02,1.2.3.4.1",
+        "tsa verify other digest=none",
+        "tsa verify wrong issuer=none",
+        "tsa verify garbage=E_TSA_FORMAT",
+        "tsa verify bad certificate=E_X509",
+        "tsa response garbage=E_TSA_FORMAT",
         // codec 15 to 19
         "and=8",
         "or=14",

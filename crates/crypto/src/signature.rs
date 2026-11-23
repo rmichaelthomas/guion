@@ -236,14 +236,14 @@ const SHA512_OID: &str = "2.16.840.1.101.3.4.2.3";
 
 /// A hash named by an X.509 signature algorithm.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CertHash {
+pub(crate) enum CertHash {
     Sha256,
     Sha384,
     Sha512,
 }
 
 impl CertHash {
-    fn from_oid(oid: &str) -> Option<CertHash> {
+    pub(crate) fn from_oid(oid: &str) -> Option<CertHash> {
         match oid {
             SHA256_OID => Some(CertHash::Sha256),
             SHA384_OID => Some(CertHash::Sha384),
@@ -252,7 +252,7 @@ impl CertHash {
         }
     }
 
-    fn digest(self, message: &[u8]) -> Vec<u8> {
+    pub(crate) fn digest(self, message: &[u8]) -> Vec<u8> {
         match self {
             CertHash::Sha256 => Sha256::digest(message).to_vec(),
             CertHash::Sha384 => Sha384::digest(message).to_vec(),
@@ -262,22 +262,22 @@ impl CertHash {
 }
 
 /// How a certificate says it was signed.
-enum CertSignature {
+pub(crate) enum CertSignature {
     RsaPkcs1v15(CertHash),
     /// RSASSA-PSS with the hash and the `saltLength` the certificate's parameters name.
     RsaPss(CertHash, usize),
     Ecdsa(CertHash),
 }
 
-fn x509_error(message: impl Into<String>) -> CryptoError {
+pub(crate) fn x509_error(message: impl Into<String>) -> CryptoError {
     CryptoError::new("E_X509", message)
 }
 
-fn x509_alg(message: impl Into<String>) -> CryptoError {
+pub(crate) fn x509_alg(message: impl Into<String>) -> CryptoError {
     CryptoError::new("E_X509_ALG", message)
 }
 
-fn certificate_signature_algorithm(
+pub(crate) fn certificate_signature_algorithm(
     algorithm: &x509_cert::spki::AlgorithmIdentifierOwned,
 ) -> Result<CertSignature, CryptoError> {
     use rsa::pkcs1::der::Encode;
@@ -353,50 +353,12 @@ fn raw_tbs_certificate(der: &[u8]) -> Option<&[u8]> {
     inner.get(..inner_header.checked_add(content)?)
 }
 
-/// Whether `certificate_der` was signed by the key in `issuer_der`: the certificate's issuer name
-/// is the issuer certificate's subject name, and the signature over the certificate's
-/// `tbsCertificate` verifies under the issuer's public key. Both must be DER X.509 certificates
-/// (`E_X509` if not). The algorithm is the one the certificate names: RSA PKCS#1 v1.5 or PSS with
-/// SHA-256, SHA-384 or SHA-512 under an RSA issuer key; ECDSA with SHA-256, SHA-384 or SHA-512
-/// under a P-256 or P-384 issuer key. Any other algorithm or key type (SHA-1, P-521, Ed25519) is
-/// `E_X509_ALG`. A name that does not match, a key of the wrong type for the algorithm or a
-/// signature that does not verify is `Ok(false)`, as is a certificate whose outer `signatureAlgorithm`
-/// differs from the one inside its `tbsCertificate` (RFC 5280 4.1.1.2). For RSASSA-PSS the
-/// `saltLength` in the certificate's parameters is honoured and a `trailerField` other than 1 is
-/// `E_X509`. Validity dates, extensions and revocation are
-/// not examined.
-pub fn x509_verify_issued_by(
-    certificate_der: &[u8],
-    issuer_der: &[u8],
-) -> Result<bool, CryptoError> {
-    use rsa::pkcs1::der::Encode;
-    let certificate = Certificate::from_der(certificate_der)
-        .map_err(|error| x509_error(format!("not a valid DER X.509 certificate: {error}")))?;
-    let issuer = Certificate::from_der(issuer_der).map_err(|error| {
-        x509_error(format!(
-            "issuer is not a valid DER X.509 certificate: {error}"
-        ))
-    })?;
-    let tbs = raw_tbs_certificate(certificate_der)
-        .ok_or_else(|| x509_error("certificate structure is malformed"))?;
-    // RFC 5280 4.1.1.2: the outer signatureAlgorithm must equal the one inside tbsCertificate.
-    if certificate.signature_algorithm != certificate.tbs_certificate.signature {
-        return Ok(false);
-    }
-    let algorithm = certificate_signature_algorithm(&certificate.signature_algorithm)?;
-    let issuer_name = certificate
-        .tbs_certificate
-        .issuer
-        .to_der()
-        .map_err(|error| x509_error(format!("certificate issuer name: {error}")))?;
-    let subject_name = issuer
-        .tbs_certificate
-        .subject
-        .to_der()
-        .map_err(|error| x509_error(format!("issuer subject name: {error}")))?;
-    let info = &issuer.tbs_certificate.subject_public_key_info;
+/// The curve OID of an EC key (`Some`, P-256 or P-384 only) or `None` for an RSA key; any other key
+/// algorithm or curve is `E_X509_ALG`.
+pub(crate) fn key_curve(
+    info: &x509_cert::spki::SubjectPublicKeyInfoOwned,
+) -> Result<Option<String>, CryptoError> {
     let key_oid = info.algorithm.oid.to_string();
-    // Reject algorithms and curves outside the supported set before saying anything about names.
     let curve = if key_oid == EC_PUBLIC_KEY_OID {
         let parameters = info
             .algorithm
@@ -420,13 +382,21 @@ pub fn x509_verify_issued_by(
             "issuer key algorithm {key_oid} is not supported (RSA, P-256 and P-384 are)"
         )));
     };
-    if issuer_name != subject_name {
-        return Ok(false);
-    }
-    let signature = certificate
-        .signature
-        .as_bytes()
-        .ok_or_else(|| x509_error("certificate signature is not a whole number of bytes"))?;
+    Ok(curve)
+}
+
+/// Verifies `signature` over `message` with the public key of the certificate `key_der` (whose
+/// `SubjectPublicKeyInfo` is `info` and whose curve, from [`key_curve`], is `curve`) under the
+/// algorithm a certificate or CMS structure named. A key of the wrong type for the algorithm, or a
+/// signature that does not verify, is `Ok(false)`.
+pub(crate) fn verify_under_key(
+    issuer_der: &[u8],
+    info: &x509_cert::spki::SubjectPublicKeyInfoOwned,
+    algorithm: CertSignature,
+    curve: Option<String>,
+    tbs: &[u8],
+    signature: &[u8],
+) -> Result<bool, CryptoError> {
     match (algorithm, curve) {
         (rsa_algorithm @ (CertSignature::RsaPkcs1v15(_) | CertSignature::RsaPss(..)), None) => {
             let (scheme, salt_len) = match rsa_algorithm {
@@ -471,6 +441,60 @@ pub fn x509_verify_issued_by(
         // An RSA algorithm under an EC key, or the other way round, cannot have been signed by it.
         _ => Ok(false),
     }
+}
+
+/// Whether `certificate_der` was signed by the key in `issuer_der`: the certificate's issuer name
+/// is the issuer certificate's subject name, and the signature over the certificate's
+/// `tbsCertificate` verifies under the issuer's public key. Both must be DER X.509 certificates
+/// (`E_X509` if not). The algorithm is the one the certificate names: RSA PKCS#1 v1.5 or PSS with
+/// SHA-256, SHA-384 or SHA-512 under an RSA issuer key; ECDSA with SHA-256, SHA-384 or SHA-512
+/// under a P-256 or P-384 issuer key. Any other algorithm or key type (SHA-1, P-521, Ed25519) is
+/// `E_X509_ALG`. A name that does not match, a key of the wrong type for the algorithm or a
+/// signature that does not verify is `Ok(false)`, as is a certificate whose outer `signatureAlgorithm`
+/// differs from the one inside its `tbsCertificate` (RFC 5280 4.1.1.2). For RSASSA-PSS the
+/// `saltLength` in the certificate's parameters is honoured and a `trailerField` other than 1 is
+/// `E_X509`. Validity dates, extensions and revocation are
+/// not examined.
+pub fn x509_verify_issued_by(
+    certificate_der: &[u8],
+    issuer_der: &[u8],
+) -> Result<bool, CryptoError> {
+    use rsa::pkcs1::der::Encode;
+    let certificate = Certificate::from_der(certificate_der)
+        .map_err(|error| x509_error(format!("not a valid DER X.509 certificate: {error}")))?;
+    let issuer = Certificate::from_der(issuer_der).map_err(|error| {
+        x509_error(format!(
+            "issuer is not a valid DER X.509 certificate: {error}"
+        ))
+    })?;
+    let tbs = raw_tbs_certificate(certificate_der)
+        .ok_or_else(|| x509_error("certificate structure is malformed"))?;
+    // RFC 5280 4.1.1.2: the outer signatureAlgorithm must equal the one inside tbsCertificate.
+    if certificate.signature_algorithm != certificate.tbs_certificate.signature {
+        return Ok(false);
+    }
+    let algorithm = certificate_signature_algorithm(&certificate.signature_algorithm)?;
+    let issuer_name = certificate
+        .tbs_certificate
+        .issuer
+        .to_der()
+        .map_err(|error| x509_error(format!("certificate issuer name: {error}")))?;
+    let subject_name = issuer
+        .tbs_certificate
+        .subject
+        .to_der()
+        .map_err(|error| x509_error(format!("issuer subject name: {error}")))?;
+    let info = &issuer.tbs_certificate.subject_public_key_info;
+    // Reject algorithms and curves outside the supported set before saying anything about names.
+    let curve = key_curve(info)?;
+    if issuer_name != subject_name {
+        return Ok(false);
+    }
+    let signature = certificate
+        .signature
+        .as_bytes()
+        .ok_or_else(|| x509_error("certificate signature is not a whole number of bytes"))?;
+    verify_under_key(issuer_der, info, algorithm, curve, tbs, signature)
 }
 
 /// The DNS names an X.509 certificate (DER) is valid for: every `dNSName` entry of its

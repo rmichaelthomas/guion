@@ -7537,6 +7537,19 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
             vec![Type::Bytes, Type::Bytes, Type::Bytes],
             crypto_result_type(Type::Bool),
         ),
+        CryptoFunction::TsaRequest => (
+            vec![Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bytes),
+        ),
+        CryptoFunction::TsaResponseToken => (vec![Type::Bytes], crypto_result_type(Type::Bytes)),
+        CryptoFunction::TsaVerify => (
+            vec![Type::Bytes, Type::Bytes, Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Json),
+        ),
+        CryptoFunction::TsaCertificates => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Bytes))),
+        ),
     }
 }
 
@@ -7566,6 +7579,10 @@ fn crypto_result(outcome: Result<Value, guion_crypto::CryptoError>) -> Value {
         Ok(value) => Value::ResultOk(Box::new(value)),
         Err(error) => Value::ResultErr(Box::new(crypto_error_value(error))),
     }
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 /// Runs a crypto function over its operands (in push order). A wrong operand type is a runtime
@@ -7767,6 +7784,69 @@ fn apply_crypto(
             Ok(crypto_result(
                 guion_crypto::ed25519_verify(&public_key, &message, &signature).map(Value::Bool),
             ))
+        }
+        CryptoFunction::TsaRequest => {
+            let Value::Bytes(nonce) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Bytes(digest) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tsa_request(&digest, &nonce)
+                    .map(|request| Value::Bytes(Shared::new(request))),
+            ))
+        }
+        CryptoFunction::TsaResponseToken => {
+            let Value::Bytes(response) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tsa_response_token(&response)
+                    .map(|token| Value::Bytes(Shared::new(token))),
+            ))
+        }
+        CryptoFunction::TsaVerify => {
+            // Popped in reverse: issuer, TSA certificate, digest, token.
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            Ok(crypto_result(
+                guion_crypto::tsa_verify(&parts[3], &parts[2], &parts[1], &parts[0]).map(
+                    |verified| {
+                        let json = match verified {
+                            None => serde_json::Value::Null,
+                            Some(token) => serde_json::json!({
+                                "gen_time_ms": token.gen_time_ms,
+                                "accuracy_ms": token.accuracy_ms,
+                                "serial_hex": hex_lower(&token.serial),
+                                "policy": token.policy,
+                                "nonce_hex": hex_lower(&token.nonce),
+                            }),
+                        };
+                        Value::Json(SharedJson::from_serde(json))
+                    },
+                ),
+            ))
+        }
+        CryptoFunction::TsaCertificates => {
+            let Value::Bytes(token) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::tsa_certificates(&token).map(
+                |certificates| {
+                    Value::List(Shared::new(
+                        certificates
+                            .into_iter()
+                            .map(|der| Value::Bytes(Shared::new(der)))
+                            .collect(),
+                    ))
+                },
+            )))
         }
         CryptoFunction::TlockRound => {
             let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
