@@ -112,3 +112,24 @@ here, and `openssl cms -verify -purpose timestampsign` accepts `pss.tsr`.
 The status values 3 to 5 (waiting, revocation warning, revocation notification), a granted response with no token, partial
 `accuracy` (seconds only, millis only, micros only), fractions of 1 to 9 digits, a leap second and a non-UTC time are
 covered by unit tests in `src/tsa.rs`, which build the DER directly.
+
+### One defect per check (`local/negative/`)
+
+`local/make-negatives.sh` rebuilds `local/negative/` from its own throwaway CA (`negative/ca.pem`) and TSA keys (not kept),
+so `make.sh`'s tokens keep their genTime. `base.tsr` is `openssl ts -reply` for `local/request.tsq` (the SHA-512 of
+`local/message.txt`) by `negative/tsa.pem`; every other token is `forge.py` around `base.tsr`'s TSTInfo with one option, so it
+differs from `rebuilt.tsr` (no option, which verifies, as `base.tsr` does with `openssl ts -verify`) in one thing:
+
+| token | option | expected |
+|---|---|---|
+| `imprint-sha3.tsr` | the imprint names SHA3-512 over the same 64 bytes | `None` (check 2) |
+| `content-type-data.tsr` | signed `contentType` is id-data | `None` (check 3) |
+| `sid-other-serial.tsr` | the SignerIdentifier names serial 7 | `None` (check 5) |
+| `future.tsr` | signed by `tsa-future.pem`, valid from 2030 | `None` (check 9, notBefore) |
+| `outer-oid.tsr`, `econtent-type.tsr`, `two-signers.tsr` | ContentInfo not SignedData; eContentType not TSTInfo; two SignerInfos | `E_TSA_FORMAT` (check 1) |
+| `digest-params.tsr`, `imprint-params.tsr` | INTEGER 0 as the signer digest's or the imprint algorithm's parameters | `E_TSA_FORMAT` |
+| `duplicate-content-type.tsr`, `duplicate-message-digest.tsr`, `duplicate-ess.tsr` | a signed attribute twice | `E_TSA_FORMAT` |
+| `rsa-sha384-names.tsr`, `pss-sha384-names.tsr`, `ecdsa-sha384-names.tsr` | the signature algorithm names SHA-384 under a SHA-256 signer digest (the last signed by `tsa-p256.pem`) | `E_TSA_ALG` |
+| `p521.tsr`, `ed25519.tsr` | signed by `tsa-p521.pem` and `tsa-ed25519.pem`, keys a TSA may not use | `E_TSA_ALG` |
+
+`crates/crypto/tests/mutate_tsa.py` disables each check of `tsa_verify` in turn and confirms that a test fails.

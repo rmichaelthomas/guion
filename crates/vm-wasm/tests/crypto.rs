@@ -947,6 +947,7 @@ fn ed25519_and_tsa_program(cases: &[TsaCase]) -> (String, Vec<String>) {
             Err(error) => error.code.to_owned(),
         }
     };
+    assert_eq!(answer, "E_TSA_DIGEST", "a 32-byte digest is an input error");
     line(
         "tsa digest of 32",
         &format!(

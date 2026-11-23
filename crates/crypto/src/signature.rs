@@ -364,14 +364,14 @@ pub(crate) fn key_curve(
             .algorithm
             .parameters
             .as_ref()
-            .ok_or_else(|| x509_error("issuer EC key has no curve"))?;
+            .ok_or_else(|| x509_error("the signing EC key has no curve"))?;
         let curve: rsa::pkcs1::der::asn1::ObjectIdentifier = parameters
             .decode_as()
-            .map_err(|error| x509_error(format!("issuer EC key curve: {error}")))?;
+            .map_err(|error| x509_error(format!("the signing EC key curve: {error}")))?;
         let curve = curve.to_string();
         if curve != P256_OID && curve != P384_OID {
             return Err(x509_alg(format!(
-                "issuer EC curve {curve} is not supported (P-256 and P-384 are)"
+                "the signing key's EC curve {curve} is not supported (P-256 and P-384 are)"
             )));
         }
         Some(curve)
@@ -379,7 +379,7 @@ pub(crate) fn key_curve(
         None
     } else {
         return Err(x509_alg(format!(
-            "issuer key algorithm {key_oid} is not supported (RSA, P-256 and P-384 are)"
+            "the signing key algorithm {key_oid} is not supported (RSA, P-256 and P-384 are)"
         )));
     };
     Ok(curve)
@@ -413,25 +413,25 @@ pub(crate) fn verify_under_key(
                 return Ok(false);
             }
             rsa_verify_with_salt(&modulus, &exponent, tbs, signature, scheme, salt_len)
-                .map_err(|error| x509_error(format!("issuer RSA key: {}", error.message)))
+                .map_err(|error| x509_error(format!("the signing RSA key: {}", error.message)))
         }
         (CertSignature::Ecdsa(hash), Some(curve)) => {
             let point = info
                 .subject_public_key
                 .as_bytes()
-                .ok_or_else(|| x509_error("issuer EC key is not a whole number of bytes"))?;
+                .ok_or_else(|| x509_error("the signing EC key is not a whole number of bytes"))?;
             let digest = hash.digest(tbs);
             let verified = if curve == P256_OID {
                 use p256::ecdsa::signature::hazmat::PrehashVerifier;
                 let key = EcVerifyingKey::from_sec1_bytes(point)
-                    .map_err(|_| x509_error("issuer P-256 key is not a valid point"))?;
+                    .map_err(|_| x509_error("the signing P-256 key is not a valid point"))?;
                 EcSignature::from_der(signature)
                     .map(|parsed| key.verify_prehash(&digest, &parsed).is_ok())
                     .unwrap_or(false)
             } else {
                 use p384::ecdsa::signature::hazmat::PrehashVerifier;
                 let key = p384::ecdsa::VerifyingKey::from_sec1_bytes(point)
-                    .map_err(|_| x509_error("issuer P-384 key is not a valid point"))?;
+                    .map_err(|_| x509_error("the signing P-384 key is not a valid point"))?;
                 p384::ecdsa::Signature::from_der(signature)
                     .map(|parsed| key.verify_prehash(&digest, &parsed).is_ok())
                     .unwrap_or(false)

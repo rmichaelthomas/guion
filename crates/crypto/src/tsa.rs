@@ -790,7 +790,17 @@ fn signature_verifies(
         .map_err(|_| format_error("malformed signature AlgorithmIdentifier"))?;
     let oid = parsed.oid.to_string();
     let info = &tsa.tbs_certificate.subject_public_key_info;
-    let curve = key_curve(info)?;
+    // The shared key check reports `E_X509_ALG`; for the TSA's own key it is `E_TSA_ALG`.
+    let curve = key_curve(info).map_err(|error| {
+        if error.code == "E_X509_ALG" {
+            CryptoError::new(
+                "E_TSA_ALG",
+                format!("TSA certificate key: {}", error.message),
+            )
+        } else {
+            error
+        }
+    })?;
     let disagree = |other: &str| {
         CryptoError::new(
             "E_TSA_ALG",
@@ -853,7 +863,8 @@ fn signature_verifies(
 ///    certificate is already trusted by being pinned).
 /// 9. `genTime` is within the validity of `tsa_cert_der`.
 ///
-/// An unreadable certificate is `E_X509`. The certificate's own validity against today's date and
+/// A `digest` that is not 64 bytes is `E_TSA_DIGEST`. A TSA certificate whose key is not RSA,
+/// P-256 or P-384 is `E_TSA_ALG`. An unreadable certificate is `E_X509`. The certificate's own validity against today's date and
 /// revocation are not examined; the time a token proves is its `genTime`, not the clock.
 pub fn tsa_verify(
     token: &[u8],
@@ -861,6 +872,15 @@ pub fn tsa_verify(
     tsa_cert_der: &[u8],
     issuer_cert_der: &[u8],
 ) -> Result<Option<TsaToken>, CryptoError> {
+    if digest.len() != 64 {
+        return Err(CryptoError::new(
+            "E_TSA_DIGEST",
+            format!(
+                "the digest is {} bytes; a SHA-512 digest is 64 bytes",
+                digest.len()
+            ),
+        ));
+    }
     let parsed = parse_token(token)?;
     let tst = parse_tst_info(parsed.e_content)?;
     let attributes = parse_signed_attributes(parsed.signer.signed_attrs)?;

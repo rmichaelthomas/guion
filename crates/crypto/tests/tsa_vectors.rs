@@ -550,3 +550,105 @@ fn certificates_extracted() {
         pem("local/tsa1.pem")
     );
 }
+
+/// A token from `local/negative/` (make-negatives.sh) checked against that set's own CA.
+fn negative(token: &str, tsa: &str) -> Result<Option<TsaToken>, guion_crypto::CryptoError> {
+    tsa_verify(
+        &token_of(&format!("local/negative/{token}.tsr")),
+        &digest("local/message.txt"),
+        &pem(&format!("local/negative/{tsa}.pem")),
+        &pem("local/negative/ca.pem"),
+    )
+}
+
+fn negative_code(token: &str, tsa: &str) -> &'static str {
+    match negative(token, tsa) {
+        Err(error) => error.code,
+        Ok(found) => panic!("{token} gave {found:?}, not an error"),
+    }
+}
+
+#[test]
+fn negative_set_controls_verify() {
+    // The unmodified rebuild and the OpenSSL token verify, so each negative token differs from a
+    // good one in only the one thing its test names.
+    for token in ["base", "rebuilt"] {
+        assert!(negative(token, "tsa").unwrap().is_some(), "{token}");
+    }
+}
+
+#[test]
+fn imprint_under_another_hash_is_none() {
+    // The same 64 bytes under SHA3-512: only the imprint algorithm check (2) rejects it.
+    assert_eq!(negative("imprint-sha3", "tsa").unwrap(), None);
+}
+
+#[test]
+fn content_type_other_than_tstinfo_is_none() {
+    assert_eq!(negative("content-type-data", "tsa").unwrap(), None);
+}
+
+#[test]
+fn signer_identifier_for_another_serial_is_none() {
+    // Signed by the pinned key with a matching ESS id; only the SignerIdentifier (5) is wrong.
+    assert_eq!(negative("sid-other-serial", "tsa").unwrap(), None);
+}
+
+#[test]
+fn gen_time_before_not_before_is_none() {
+    assert_eq!(negative("future", "tsa-future").unwrap(), None);
+}
+
+#[test]
+fn structural_defects_are_format_errors() {
+    for token in [
+        "outer-oid",
+        "econtent-type",
+        "two-signers",
+        "digest-params",
+        "imprint-params",
+        "duplicate-content-type",
+        "duplicate-message-digest",
+        "duplicate-ess",
+    ] {
+        assert_eq!(negative_code(token, "tsa"), "E_TSA_FORMAT", "{token}");
+    }
+}
+
+#[test]
+fn signature_algorithm_naming_another_hash_is_an_alg_error() {
+    for (token, tsa) in [
+        ("rsa-sha384-names", "tsa"),
+        ("pss-sha384-names", "tsa"),
+        ("ecdsa-sha384-names", "tsa-p256"),
+    ] {
+        assert_eq!(negative_code(token, tsa), "E_TSA_ALG", "{token}");
+    }
+}
+
+#[test]
+fn unsupported_tsa_key_is_a_tsa_alg_error() {
+    for (token, tsa) in [("p521", "tsa-p521"), ("ed25519", "tsa-ed25519")] {
+        let error = negative(token, tsa).unwrap_err();
+        assert_eq!(error.code, "E_TSA_ALG", "{token}: {}", error.message);
+        assert!(
+            error.message.starts_with("TSA certificate key"),
+            "{}",
+            error.message
+        );
+        assert!(!error.message.contains("issuer"), "{}", error.message);
+    }
+}
+
+#[test]
+fn digest_of_the_wrong_length_is_an_error() {
+    let token = token_of("local/good-v2.tsr");
+    let full = digest("local/message.txt");
+    for length in [0, 32, 48, 63, 65] {
+        let mut bytes = full.clone();
+        bytes.resize(length, 0);
+        let error =
+            tsa_verify(&token, &bytes, &pem("local/tsa1.pem"), &pem("local/ca.pem")).unwrap_err();
+        assert_eq!(error.code, "E_TSA_DIGEST", "{length}");
+    }
+}
