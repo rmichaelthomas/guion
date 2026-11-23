@@ -92,7 +92,8 @@ pub import "std:http_types"
 # this does not insist, because the certificate is pinned) and was valid at the token's genTime;
 # otherwise it is Ok(None), and an unreadable certificate is E_X509, a malformed token E_TSA_FORMAT,
 # a signer or ESS algorithm outside SHA-256/384/512 with RSA PKCS#1 v1.5, RSA-PSS or ECDSA P-256 and
-# P-384 E_TSA_ALG. A TsaToken has gen_time_ms (genTime as Unix milliseconds; finer digits are
+# P-384, or a tsa_cert key that is not RSA, P-256 or P-384, E_TSA_ALG, and a digest that is not 64
+# bytes E_TSA_DIGEST. A TsaToken has gen_time_ms (genTime as Unix milliseconds; finer digits are
 # truncated), accuracy_ms (the TSA's stated accuracy, microseconds rounded up, 0 if none), serial,
 # policy (a dotted OID) and nonce (empty if the TSA echoed none). The time is the TSA's claim about
 # when it signed, valid at that moment; today's date and revocation are not examined. crypto_tsa_certificates
