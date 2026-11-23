@@ -397,12 +397,142 @@ fn nested_patterns_reject_gaps_overlaps_and_mismatches() {
     ));
     assert!(!ok);
     assert!(err.contains("E_MATCH_MISSING_VARIANT"), "{err}");
-    // Against the wrong type the checker reports the variant as it does for a one-level match.
+    // Against the wrong type the checker says what the arms expected and what the value is.
     let (ok, _, err) = run(&format!(
         "{LOOKUPS}fn main() -> Int:\n    match half(1):\n        Some(Some(x)):\n            pass\n        Some(None):\n            pass\n        None:\n            pass\n    return 0\n"
     ));
     assert!(!ok);
     assert!(err.contains("E_MATCH_TYPE"), "{err}");
+    assert!(
+        err.contains("the arms match an Option (`Some`, `None`), but this value is Int"),
+        "{err}"
+    );
+    // A `None` arm that cannot sit beside `Ok` is reported at that arm, not at 0:0.
+    let (ok, _, err) = run(&arms(
+        "        Ok(Some(x)):\n            pass\n        None:\n            pass\n",
+    ));
+    assert!(!ok);
+    let none_line = LOOKUPS.matches('\n').count() + 5;
+    assert!(
+        err.contains(&format!(
+            "main.gu:{none_line}:9: error[E_MATCH_PATTERN]: `None` and `Ok` cannot match the same value"
+        )),
+        "{err}"
+    );
+}
+
+#[test]
+fn enum_variant_patterns_on_another_type_are_match_type_errors() {
+    for (scrutinee, arms, found) in [
+        // `Err` of `look` holds Text.
+        (
+            "look(1)",
+            "        Ok(x):\n            pass\n        Err(Red):\n            pass\n",
+            "Text",
+        ),
+        (
+            "look(1)",
+            "        Ok(Red):\n            pass\n        Ok(Green):\n            pass\n        Err(Red):\n            pass\n        Err(Green):\n            pass\n",
+            "Option[Int]",
+        ),
+        // One level: a Text, and a value of another enum.
+        (
+            "\"red\"",
+            "        Red:\n            pass\n        Green:\n            pass\n",
+            "Text",
+        ),
+        (
+            "Dot",
+            "        Red:\n            pass\n        Green:\n            pass\n",
+            "Shape",
+        ),
+    ] {
+        let (ok, _, err) = run(&format!(
+            "{LOOKUPS}fn main() -> Int:\n    match {scrutinee}:\n{arms}    return 0\n"
+        ));
+        assert!(!ok, "{arms}");
+        assert!(
+            err.contains(&format!(
+                "error[E_MATCH_TYPE]: `Red` is a `Color` variant, but this value is {found}"
+            )),
+            "{arms}: {err}"
+        );
+    }
+}
+
+#[test]
+fn match_temporaries_cannot_be_named() {
+    let body = |name: &str| {
+        format!(
+            "{LOOKUPS}fn main() -> Int:\n    match look(1):\n        Ok(Some(x)):\n            print({name})\n        Ok(None):\n            pass\n        Err(e):\n            pass\n    match color(1):\n        Some(Red):\n            print({name})\n        Some(Green):\n            pass\n        None:\n            pass\n    return 0\n"
+        )
+    };
+    for name in [
+        "__match_part_1",
+        "__match_part_2",
+        "__enum_match_1",
+        "__enum_match_2",
+    ] {
+        let (ok, _, err) = run(&body(name));
+        assert!(!ok, "{name}");
+        assert!(
+            err.contains(&format!("error[E_NAME_UNKNOWN]: unknown name `{name}`")),
+            "{name}: {err}"
+        );
+    }
+    // The temporaries' real names start with `%`, which no name in source can.
+    let (ok, _, err) = run(&body("%match_part_1"));
+    assert!(!ok);
+    assert!(err.contains("E_SYNTAX"), "{err}");
+}
+
+#[test]
+fn option_and_result_constructors_build_wherever_their_type_is_known() {
+    let (ok, out, err) = run(
+        "record Box:\n    value: Option[Int]\n\nfn lookup(flag: Int) -> Result[Option[Int], Text]:\n    if flag == 0:\n        return Ok(None)\n    if flag == 1:\n        return Ok(Some(7))\n    return Err(\"bad\")\n\nfn wrapped() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn failed() -> Option[Result[Int, Text]]:\n    return Some(Err(\"no\"))\n\nfn show(value: Option[Text]) -> Text:\n    match value:\n        Some(text):\n            return text\n        None:\n            return \"none\"\n\nfn twice[T](value: T) -> Option[Option[T]]:\n    return Some(Some(value))\n\nfn main() -> Unit:\n    print(lookup(0))\n    print(lookup(1))\n    print(lookup(2))\n    print(wrapped())\n    print(failed())\n    let boxed = Box(Some(1))\n    print(boxed.value)\n    let nothing: Option[Int] = None\n    print(nothing)\n    let inferred = Some(\"hi\")\n    print(show(inferred))\n    print(show(None))\n    let held: List[Option[Int]] = [Some(1), None]\n    print(held)\n    var later: Option[Int] = None\n    set later = Some(3)\n    print(later)\n    let nested: Result[Option[Int], Text] = Ok(Some(5))\n    print(nested)\n    let pair: Map[Text, Result[Int, Text]] = {\"a\": Ok(1), \"b\": Err(\"x\")}\n    print(pair)\n    print(twice(4))\n    let lift = fn(x: Int) -> Result[Option[Int], Text]: Ok(Some(x))\n    print(lift(8))\n",
+    );
+    assert!(ok, "{err}");
+    assert_eq!(
+        out,
+        "Ok(None)\nOk(Some(7))\nErr(bad)\nSome(Ok(1))\nSome(Err(no))\nSome(1)\nNone\nhi\nnone\n[Some(1), None]\nSome(3)\nOk(Some(5))\n{\"a\": Ok(1), \"b\": Err(x)}\nSome(Some(4))\nOk(Some(8))\n"
+    );
+    // Where nothing says which type is meant, the error says how to write it.
+    for (source, code, message) in [
+        (
+            "fn main() -> Int:\n    let value = None\n    return 0\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "cannot tell which Option type `None` is here; write the type where it is bound, for example `let value: Option[Int] = None`",
+        ),
+        (
+            "fn main() -> Int:\n    let value = Ok(1)\n    return 0\n",
+            "E_RESULT_CONSTRUCTOR_CONTEXT",
+            "cannot tell which Result type `Ok` makes here",
+        ),
+        (
+            "fn main() -> Int:\n    return None\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "`None` is an Option, but this position expects Int",
+        ),
+        (
+            "fn main() -> Int:\n    return Some(1)\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "`Some` makes an Option, but this position expects Int",
+        ),
+        (
+            "fn main() -> Int:\n    let value: Text = Err(\"x\")\n    return 0\n",
+            "E_RESULT_CONSTRUCTOR_CONTEXT",
+            "`Err` makes a Result, but this position expects Text",
+        ),
+        (
+            "fn main() -> Int:\n    let value: Result[Option[Int], Text] = Ok(Some(\"x\"))\n    return 0\n",
+            "E_OPTION_CONSTRUCTOR_TYPE",
+            "Some value must have type",
+        ),
+    ] {
+        let (ok, _, err) = run(source);
+        assert!(!ok, "{source}");
+        assert!(err.contains(code) && err.contains(message), "{source}: {err}");
+    }
 }
 
 #[test]

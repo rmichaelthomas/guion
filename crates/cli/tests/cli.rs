@@ -22,15 +22,17 @@ fn misplaced_option_and_result_constructors_are_reported_at_the_source_line() {
     let _cleanup = RemoveDirOnDrop(dir.clone());
     std::fs::create_dir_all(&dir).unwrap();
     let cases = [
+        // Nothing says which Option `None` is.
         (
             "option.gu",
-            "record Box:\n    value: Option[Int]\n\nfn main() -> Int:\n    let boxed = Box(Some(1))\n    return 0\n",
+            "record Box:\n    value: Int\n\nfn main() -> Int:\n    let unknown = None\n    return 0\n",
             "E_OPTION_CONSTRUCTOR_CONTEXT",
             "option.gu:5:",
         ),
+        // `Ok` where an Int is expected.
         (
             "result.gu",
-            "fn wrap() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn main() -> Int:\n    return 0\n",
+            "fn wrap() -> Option[Int]:\n    return Some(Ok(1))\n\nfn main() -> Int:\n    return 0\n",
             "E_RESULT_CONSTRUCTOR_CONTEXT",
             "result.gu:2:",
         ),

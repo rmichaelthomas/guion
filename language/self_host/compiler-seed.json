@@ -1,6 +1,6 @@
 {
   "artifact_format": 89,
-  "artifact_schema_sha256": "f6e776c36ea579772cf00eae415ca78271ed3f49b3ec88055fb87968e617d429",
+  "artifact_schema_sha256": "806634713f714ea6ef753b4783519f5598ef35549dd29de17c311769a258296e",
   "artifact_sha256": "6b5e25701d528301ea9307ca832f9ee428e119ecac559f29e9b32313f83e965a",
   "compiler_entry": "compiler.gu",
   "compiler_source_files": [

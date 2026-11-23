@@ -210,24 +210,18 @@ fn tsa_result_bytes(found: Json, key: Text) -> Result[Bytes, StdError]:
     let text = tsa_result_text(found, key)?
     return hex_decode(text)
 
-fn tsa_none() -> Option[TsaToken]:
-    return None
-
-fn tsa_some(token: TsaToken) -> Option[TsaToken]:
-    return Some(token)
-
 pub fn crypto_tsa_verify(token: Bytes, digest: Bytes, tsa_cert: Bytes, issuer_cert: Bytes) -> Result[Option[TsaToken], StdError]:
     let found = native_crypto_tsa_verify(token, digest, tsa_cert, issuer_cert)?
     match json_get_safe(found, "gen_time_ms"):
         Err(absent):
-            return Ok(tsa_none())
+            return Ok(None)
         Ok(first):
             let gen_time_ms = tsa_result_int(found, "gen_time_ms")?
             let accuracy_ms = tsa_result_int(found, "accuracy_ms")?
             let serial = tsa_result_bytes(found, "serial_hex")?
             let policy = tsa_result_text(found, "policy")?
             let nonce = tsa_result_bytes(found, "nonce_hex")?
-            return Ok(tsa_some(TsaToken(gen_time_ms, accuracy_ms, serial, policy, nonce)))
+            return Ok(Some(TsaToken(gen_time_ms, accuracy_ms, serial, policy, nonce)))
 
 pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
     return native_crypto_x509_rsa_public_key(der)

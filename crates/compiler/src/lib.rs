@@ -691,7 +691,7 @@ struct MatchArm {
 #[derive(Clone, Debug)]
 enum MatchPattern {
     Some(String, Span),
-    None,
+    None(Span),
     Ok(String, Span),
     Err(String, Span),
     /// A user enum variant with its positional bindings (`_` binds nothing).
@@ -1685,7 +1685,7 @@ impl Parser {
                                 })
                                 .collect();
                             match (name.as_str(), names) {
-                                ("None", _) => MatchPattern::None,
+                                ("None", _) => MatchPattern::None(span),
                                 ("Some", Some(mut names)) => {
                                     let (name, span) = names.remove(0);
                                     MatchPattern::Some(name, span)
@@ -2268,7 +2268,7 @@ fn desugar_block(
                     MatchPattern::Variant(_, names, _) => {
                         names.iter().any(|(name, _)| names_variant(name))
                     }
-                    MatchPattern::None => false,
+                    MatchPattern::None(_) => false,
                 });
                 if nested {
                     let rows = arms
@@ -2323,7 +2323,7 @@ fn arm_pattern(pattern: MatchPattern, variants: &HashMap<String, (usize, usize)>
         MatchPattern::Err(name, span) => {
             Pattern::Constructor("Err".into(), vec![Pattern::Name(name, span)], span)
         }
-        MatchPattern::None => Pattern::Constructor("None".into(), Vec::new(), Span::default()),
+        MatchPattern::None(span) => Pattern::Constructor("None".into(), Vec::new(), span),
         MatchPattern::Variant(name, names, span) => Pattern::Constructor(
             name,
             names
@@ -2486,7 +2486,7 @@ fn lower_pattern_rows(
                 ));
             }
             arms.push(MatchArm {
-                pattern: MatchPattern::None,
+                pattern: MatchPattern::None(arm_span),
                 body: matching.remove(0).1,
                 span: arm_span,
             });
@@ -2498,7 +2498,7 @@ fn lower_pattern_rows(
             }
             _ => {
                 *counter += 1;
-                let temp = format!("__match_part_{counter}");
+                let temp = format!("%match_part_{counter}");
                 let mut inner = Vec::new();
                 let sub_rows = matching
                     .into_iter()
@@ -2530,6 +2530,12 @@ fn lower_pattern_rows(
     out.push(Stmt::Match(scrutinee, arms, span));
     Ok(())
 }
+
+/// A hidden statement `lower_enum_match` emits after binding the matched value: its arguments are
+/// the value, the enum the arms name, the first arm's variant and the missing-variant message (empty
+/// when every variant is handled). The compiler checks the value is that enum, reporting
+/// `E_MATCH_TYPE` if not, and then reports a missing variant; it emits no code.
+const ENUM_MATCH_CHECK: &str = "%enum_match_check";
 
 fn lower_enum_match(
     out: &mut Vec<Stmt>,
@@ -2592,24 +2598,43 @@ fn lower_enum_match(
         .filter(|(_, arm)| arm.is_none())
         .map(|(variant, _)| variant.name.as_str())
         .collect();
-    if !missing.is_empty() {
-        return Err(diagnostic(
-            "E_MATCH_MISSING_VARIANT",
-            format!(
-                "match on `{}` does not handle {}",
-                declared.name,
-                missing
-                    .iter()
-                    .map(|name| format!("`{name}`"))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            span,
-        ));
-    }
+    let missing = if missing.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "match on `{}` does not handle {}",
+            declared.name,
+            missing
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let MatchPattern::Variant(first_variant, _, first_span) = &arms[0].pattern else {
+        unreachable!("checked above")
+    };
+    let (first_variant, first_span) = (first_variant.clone(), *first_span);
     *counter += 1;
-    let temp = format!("__enum_match_{counter}");
+    // `%` cannot start a name in source, so the program cannot read this temporary.
+    let temp = format!("%enum_match_{counter}");
     out.push(Stmt::Let(temp.clone(), false, None, value, span));
+    // Desugaring runs before types are known, so the value's type, and then a missing variant,
+    // are checked when this is compiled: see `ENUM_MATCH_CHECK`.
+    out.push(Stmt::Expr(
+        Expr::Call(
+            ENUM_MATCH_CHECK.to_owned(),
+            vec![
+                Expr::Name(temp.clone(), first_span),
+                Expr::Text(declared.name.clone(), first_span),
+                Expr::Text(first_variant, first_span),
+                Expr::Text(missing, span),
+            ],
+            Vec::new(),
+            span,
+        ),
+        span,
+    ));
     // Build the arms into a nested if / else chain, last arm as the final else.
     let mut chain: Option<Vec<Stmt>> = None;
     for arm in arms.into_iter().rev() {
@@ -2794,7 +2819,7 @@ fn mentioned_in_block(body: &[Stmt], out: &mut Vec<String>, bound: &mut Vec<Stri
                             }
                             names(tree, bound);
                         }
-                        MatchPattern::None => {}
+                        MatchPattern::None(_) => {}
                     }
                     mentioned_in_block(&arm.body, out, bound);
                 }
@@ -4533,25 +4558,34 @@ impl<'a> FnCompiler<'a> {
             Expr::Name(n, s) => {
                 if n == "None" {
                     let option_type = match expected {
-                        Some(option @ Type::Option(_)) => option,
-                        None if matches!(self.ast.result, Type::Option(_)) => &self.ast.result,
-                        _ => {
+                        Some(option @ Type::Option(_)) => option.clone(),
+                        None if matches!(self.ast.result, Type::Option(_)) => {
+                            self.ast.result.clone()
+                        }
+                        Some(other) => {
                             return Err(diagnostic(
                                 "E_OPTION_CONSTRUCTOR_CONTEXT",
-                                "None requires an expected Option type or an Option-returning function",
+                                format!(
+                                    "`None` is an Option, but this position expects {}",
+                                    type_label(other)
+                                ),
+                                *s,
+                            ));
+                        }
+                        None => {
+                            return Err(diagnostic(
+                                "E_OPTION_CONSTRUCTOR_CONTEXT",
+                                "cannot tell which Option type `None` is here; write the type where it is bound, for example `let value: Option[Int] = None`",
                                 *s,
                             ));
                         }
                     };
-                    if *option_type != self.ast.result {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "None is only supported in a function that returns that Option type; build it in a small helper function that returns it",
-                            *s,
-                        ));
+                    if option_type == self.ast.result {
+                        self.emit(Op::MakeNone, *s);
+                    } else {
+                        self.call_constructor_helper("None", &option_type, None, *s)?;
                     }
-                    self.emit(Op::MakeNone, *s);
-                    return Ok(option_type.clone());
+                    return Ok(option_type);
                 }
                 let Some(l) = self.locals.get(n).cloned() else {
                     // A bare function name denotes the function value; a local of the same
@@ -4952,31 +4986,38 @@ impl<'a> FnCompiler<'a> {
                     }
                     let option_type = match expected {
                         Some(option @ Type::Option(_)) => option.clone(),
-                        None => self.ast.result.clone(),
-                        _ => Type::Unit,
+                        None if matches!(self.ast.result, Type::Option(_)) => {
+                            self.ast.result.clone()
+                        }
+                        // With nothing else to go on, the value says which Option it is.
+                        None => Type::Option(Box::new(self.expr(&args[0])?)),
+                        Some(other) => {
+                            return Err(diagnostic(
+                                "E_OPTION_CONSTRUCTOR_CONTEXT",
+                                format!(
+                                    "`Some` makes an Option, but this position expects {}",
+                                    type_label(other)
+                                ),
+                                *s,
+                            ));
+                        }
                     };
                     let Type::Option(item) = &option_type else {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "Some requires an expected Option type or an Option-returning function",
-                            *s,
-                        ));
+                        unreachable!("option_type is an Option");
                     };
-                    if self.expr_with_expected(&args[0], Some(item))? != **item {
+                    let inferred = expected.is_none() && !matches!(self.ast.result, Type::Option(_));
+                    if !inferred && self.expr_with_expected(&args[0], Some(item))? != **item {
                         return Err(diagnostic(
                             "E_OPTION_CONSTRUCTOR_TYPE",
                             format!("Some value must have type {item:?}"),
                             args[0].span(),
                         ));
                     }
-                    if option_type != self.ast.result {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "Some is only supported in a function that returns that Option type; build it in a small helper function that returns it",
-                            *s,
-                        ));
+                    if option_type == self.ast.result {
+                        self.emit(Op::MakeSome, *s);
+                    } else {
+                        self.call_constructor_helper("Some", &option_type, Some(item), *s)?;
                     }
-                    self.emit(Op::MakeSome, *s);
                     return Ok(option_type);
                 }
                 if name == "Ok" || name == "Err" {
@@ -4989,15 +5030,29 @@ impl<'a> FnCompiler<'a> {
                     }
                     let result_type = match expected {
                         Some(result @ Type::Result(_, _)) => result.clone(),
-                        None => self.ast.result.clone(),
-                        _ => Type::Unit,
+                        None if matches!(self.ast.result, Type::Result(_, _)) => {
+                            self.ast.result.clone()
+                        }
+                        Some(other) => {
+                            return Err(diagnostic(
+                                "E_RESULT_CONSTRUCTOR_CONTEXT",
+                                format!(
+                                    "`{name}` makes a Result, but this position expects {}",
+                                    type_label(other)
+                                ),
+                                *s,
+                            ));
+                        }
+                        None => {
+                            return Err(diagnostic(
+                                "E_RESULT_CONSTRUCTOR_CONTEXT",
+                                format!("cannot tell which Result type `{name}` makes here; write the type where it is bound, for example `let value: Result[Int, Text] = {name}(...)`"),
+                                *s,
+                            ));
+                        }
                     };
                     let Type::Result(ok, err) = &result_type else {
-                        return Err(diagnostic(
-                            "E_RESULT_CONSTRUCTOR_CONTEXT",
-                            "Ok and Err require an expected Result type or a Result-returning function",
-                            *s,
-                        ));
+                        unreachable!("result_type is a Result");
                     };
                     let payload_type = if name == "Ok" {
                         ok.as_ref()
@@ -5011,21 +5066,19 @@ impl<'a> FnCompiler<'a> {
                             args[0].span(),
                         ));
                     }
-                    if result_type != self.ast.result {
-                        return Err(diagnostic(
-                            "E_RESULT_CONSTRUCTOR_CONTEXT",
-                            format!("{name} is only supported in a function that returns that Result type; build it in a small helper function that returns it"),
+                    if result_type == self.ast.result {
+                        self.emit(
+                            if name == "Ok" {
+                                Op::MakeOk
+                            } else {
+                                Op::MakeErr
+                            },
                             *s,
-                        ));
+                        );
+                    } else {
+                        let payload_type = payload_type.clone();
+                        self.call_constructor_helper(name, &result_type, Some(&payload_type), *s)?;
                     }
-                    self.emit(
-                        if name == "Ok" {
-                            Op::MakeOk
-                        } else {
-                            Op::MakeErr
-                        },
-                        *s,
-                    );
                     return Ok(result_type);
                 }
                 if name == "parallel_map" {
@@ -6101,6 +6154,68 @@ impl<'a> FnCompiler<'a> {
             }
         }
     }
+    /// `Some`, `None`, `Ok` and `Err` build a value of the enclosing function's result type
+    /// directly: the bytecode verifier types `MakeSome` and the rest by that result. Anywhere
+    /// else, such as `Ok(None)` in a function returning `Result[Option[T], E]` or `Some(1)` as a
+    /// record field, the value comes from a hidden helper the compiler makes once per type:
+    /// `fn() -> Option[T]: return None`, `fn(value: T) -> Option[T]: return Some(value)`, and so
+    /// on. The payload, if any, is already on the stack; this emits the call.
+    fn call_constructor_helper(
+        &mut self,
+        constructor: &str,
+        ty: &Type,
+        payload: Option<&Type>,
+        span: Span,
+    ) -> Result<(), Diagnostic> {
+        if self.type_has_task(ty) {
+            return Err(diagnostic(
+                "E_SCOPE_ESCAPE",
+                format!("a task belongs to its `together:` block and cannot be wrapped in `{constructor}`"),
+                span,
+            ));
+        }
+        let module_id = self.ast.module_id;
+        let key = format!("constructor|{module_id}|{constructor}|{ty:?}");
+        let index = match self.instance_index.get(&key) {
+            Some(index) => *index,
+            None => {
+                let mut pending = self.pending_instances.borrow_mut();
+                if !pending.iter().any(|instance| instance.key == key) {
+                    let (params, value) = match payload {
+                        None => (Vec::new(), Expr::Name(constructor.to_owned(), span)),
+                        Some(payload) => (
+                            vec![("value".to_owned(), payload.clone(), span)],
+                            Expr::Call(
+                                constructor.to_owned(),
+                                vec![Expr::Name("value".to_owned(), span)],
+                                Vec::new(),
+                                span,
+                            ),
+                        ),
+                    };
+                    pending.push(PendingInstance {
+                        key,
+                        symbol: String::new(),
+                        types: Vec::new(),
+                        // `lambda@` marks it as hidden, like a lifted closure.
+                        lambda: Some(FunctionAst {
+                            name: format!("lambda@{constructor}/{}", type_label(ty)),
+                            type_params: Vec::new(),
+                            params,
+                            result: ty.clone(),
+                            body: vec![Stmt::Return(value, span)],
+                            span,
+                            public: false,
+                            module_id,
+                        }),
+                    });
+                }
+                0
+            }
+        };
+        self.emit(Op::Call(index, usize::from(payload.is_some())), span);
+        Ok(())
+    }
     /// Compiles a call to a generic function: binds its type parameters from the written type
     /// arguments or from the argument types, and calls the instance for those types.
     fn generic_call(
@@ -6672,6 +6787,33 @@ impl<'a> FnCompiler<'a> {
                         *span,
                     );
                 }
+                Stmt::Expr(Expr::Call(name, args, _, span), _) if name == ENUM_MATCH_CHECK => {
+                    let [value, Expr::Text(enum_name, _), Expr::Text(variant, _), Expr::Text(missing, _)] =
+                        args.as_slice()
+                    else {
+                        unreachable!("lower_enum_match emits four arguments")
+                    };
+                    let mark = self.code.len();
+                    let found = self.expr(value)?;
+                    self.code.truncate(mark);
+                    if found != Type::Record(enum_name.clone()) {
+                        return Err(diagnostic(
+                            "E_MATCH_TYPE",
+                            format!(
+                                "`{variant}` is a `{enum_name}` variant, but this value is {}",
+                                type_label(&found)
+                            ),
+                            value.span(),
+                        ));
+                    }
+                    if !missing.is_empty() {
+                        return Err(diagnostic(
+                            "E_MATCH_MISSING_VARIANT",
+                            missing.clone(),
+                            *span,
+                        ));
+                    }
+                }
                 Stmt::Expr(e, span) => {
                     self.expr(e)?;
                     self.emit(Op::Pop, *span);
@@ -6952,9 +7094,18 @@ impl<'a> FnCompiler<'a> {
                 Stmt::Match(value, arms, span) => {
                     let value_type = self.expr(value)?;
                     if !matches!(value_type, Type::Option(_) | Type::Result(_, _)) {
+                        let arms_name = match arms.first().map(|arm| &arm.pattern) {
+                            Some(MatchPattern::Some(..) | MatchPattern::None(_)) => {
+                                "the arms match an Option (`Some`, `None`)"
+                            }
+                            Some(MatchPattern::Ok(..) | MatchPattern::Err(..)) => {
+                                "the arms match a Result (`Ok`, `Err`)"
+                            }
+                            _ => "match supports Option, Result and enum values",
+                        };
                         return Err(diagnostic(
                             "E_MATCH_TYPE",
-                            "match currently supports Option and Result values",
+                            format!("{arms_name}, but this value is {}", type_label(&value_type)),
                             value.span(),
                         ));
                     }
@@ -6964,7 +7115,7 @@ impl<'a> FnCompiler<'a> {
                         let is_true = match (&value_type, &arm.pattern) {
                             (Type::Option(_), MatchPattern::Some(_, _))
                             | (Type::Result(_, _), MatchPattern::Ok(_, _)) => true,
-                            (Type::Option(_), MatchPattern::None)
+                            (Type::Option(_), MatchPattern::None(_))
                             | (Type::Result(_, _), MatchPattern::Err(_, _)) => false,
                             _ => {
                                 return Err(diagnostic(
@@ -7048,7 +7199,7 @@ impl<'a> FnCompiler<'a> {
             (MatchPattern::Err(name, span), Type::Result(_, err)) => {
                 Some((name, *span, err.as_ref().clone(), Op::GetError))
             }
-            (MatchPattern::None, Type::Option(_)) => None,
+            (MatchPattern::None(_), Type::Option(_)) => None,
             _ => unreachable!("match arms are type-checked before lowering"),
         };
         let before = self.locals.clone();
