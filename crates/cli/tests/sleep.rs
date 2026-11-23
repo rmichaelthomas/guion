@@ -225,6 +225,26 @@ fn one_signal_wakes_only_one_sleep() {
     assert!(took < Duration::from_secs(5), "took {took:?}");
 }
 
+#[cfg(unix)]
+#[test]
+fn one_signal_wakes_every_sleeping_task() {
+    // A worker task that never polls and `main`, which does, both sleep when the signal arrives:
+    // each ends its sleep early, so neither the worker nor `main` waits out its 10 s.
+    let (output, took) = spawn_and_interrupt(
+        "two-sleepers",
+        "import \"std:process\"\n\nfn nap(ms: Int) -> Int:\n    sleep_ms(ms)\n    return 1\n\nfn main() -> Int:\n    let first = process_signal_poll()\n    together:\n        let task = start(nap, 10000)\n        print(\"ready\")\n        sleep_ms(10000)\n        print(process_signal_poll())\n        let done = wait_within(task, 3000)\n        if is_ok(done):\n            print(\"worker woke\")\n        else:\n            print(task_code(error(done)))\n    return 0\n",
+    );
+    assert!(
+        output.status.success(),
+        "{:?} {} {}",
+        output.status,
+        stdout(&output),
+        stderr(&output)
+    );
+    assert_eq!(stdout(&output), "INT\nworker woke", "{}", stderr(&output));
+    assert!(took < Duration::from_millis(2500), "took {took:?}");
+}
+
 #[test]
 fn replay_does_not_wait() {
     let scratch = Scratch::new("replay");

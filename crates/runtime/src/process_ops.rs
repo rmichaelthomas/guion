@@ -7,7 +7,7 @@
 use super::{GrantHint, GrantKind, HostPolicy, Shared, SharedText, Value};
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -227,11 +227,25 @@ pub(crate) fn run(policy: &HostPolicy, command: &str, arguments: &[String], stdi
 /// The pending-signal slot: 0 when none, otherwise the signal number.
 static PENDING_SIGNAL: AtomicI32 = AtomicI32::new(0);
 
-/// Set when a signal arrives and cleared by the first `sleep_ms` it wakes or by `signal_poll`, so
-/// one arrival ends at most one sleep early (a later sleep runs its full time even while the
-/// signal waits, unread, in [`PENDING_SIGNAL`]).
+/// How many polled-for signals have arrived. Each thread remembers the count it has seen
+/// ([`SIGNAL_ARRIVALS_SEEN`]), so one arrival ends one sleep early on every thread that sleeps,
+/// once: a later sleep on the same thread runs its full time even while the signal waits, unread,
+/// in [`PENDING_SIGNAL`].
 #[cfg(unix)]
-static SIGNAL_WAKES_SLEEP: AtomicBool = AtomicBool::new(false);
+static SIGNAL_ARRIVALS: AtomicUsize = AtomicUsize::new(0);
+
+/// The arrival count when `signal_poll` last read the pending slot. A thread starts from it, so a
+/// signal the program read before the thread's first sleep does not end that sleep; a thread
+/// already sleeping when the signal arrived still wakes once for it.
+#[cfg(unix)]
+static SIGNAL_ARRIVALS_POLLED: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(unix)]
+thread_local! {
+    /// The arrival count this thread's last early-ended sleep, or its last poll, saw; `None` until
+    /// the thread first sleeps or polls.
+    static SIGNAL_ARRIVALS_SEEN: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
+}
 
 /// Set once a program polls for signals: from then on a signal is the program's to handle, and
 /// ending its `together:` block (or the program) is what stops the commands it started.
@@ -378,7 +392,7 @@ mod windows_jobs {
 #[cfg(unix)]
 extern "C" fn record_signal(signal: libc::c_int) {
     PENDING_SIGNAL.store(signal, Ordering::SeqCst);
-    SIGNAL_WAKES_SLEEP.store(true, Ordering::SeqCst);
+    SIGNAL_ARRIVALS.fetch_add(1, Ordering::SeqCst);
 }
 
 /// Installs handlers for `INT`, `TERM` and `HUP` the first time a program polls, then returns
@@ -395,7 +409,12 @@ pub(crate) fn signal_poll() -> &'static str {
             }
         }
     });
-    SIGNAL_WAKES_SLEEP.store(false, Ordering::SeqCst);
+    // Count before taking the slot: a signal landing in between is read now and also ends one more
+    // sleep per thread, which is harmless; counting after could mark a signal seen that the slot
+    // never gave the program.
+    let arrivals = SIGNAL_ARRIVALS.load(Ordering::SeqCst);
+    SIGNAL_ARRIVALS_POLLED.fetch_max(arrivals, Ordering::SeqCst);
+    SIGNAL_ARRIVALS_SEEN.with(|seen| seen.set(Some(seen.get().unwrap_or(0).max(arrivals))));
     match PENDING_SIGNAL.swap(0, Ordering::SeqCst) {
         0 => "",
         signal if signal == libc::SIGINT => "INT",
@@ -405,12 +424,28 @@ pub(crate) fn signal_poll() -> &'static str {
     }
 }
 
-/// Whether a polled signal arrived that has not yet woken a sleep nor been read by
-/// `signal_poll`. Taking it marks it seen: the signal itself stays pending for `signal_poll`, but it
-/// wakes only this one sleep.
+/// Whether a polled signal arrived that has not yet woken a sleep on this thread nor been read by
+/// `signal_poll`. Taking it marks it seen on this thread only: the signal stays pending for
+/// `signal_poll`, and a sleep on another thread still ends for it.
 #[cfg(unix)]
 pub(crate) fn take_signal_wake() -> bool {
-    SIGNAL_WAKES_SLEEP.swap(false, Ordering::SeqCst)
+    SIGNAL_ARRIVALS_SEEN.with(|seen| {
+        let mark = match seen.get() {
+            Some(mark) => mark,
+            None => {
+                let start = SIGNAL_ARRIVALS_POLLED.load(Ordering::SeqCst);
+                seen.set(Some(start));
+                start
+            }
+        };
+        let arrivals = SIGNAL_ARRIVALS.load(Ordering::SeqCst);
+        if arrivals > mark {
+            seen.set(Some(arrivals));
+            true
+        } else {
+            false
+        }
+    })
 }
 
 #[cfg(not(unix))]
