@@ -826,3 +826,92 @@ fn old_format_rejects_x509_name_and_validity_ops() {
         "E_ARTIFACT_VERSION"
     );
 }
+
+/// The first artifact format with Ed25519.
+const ED25519_FIRST_FORMAT: u32 = 86;
+
+const ED25519_PROGRAM: &str = r#"import "std:crypto"
+import "std:encoding"
+import "std:types"
+
+fn verdict(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn main() -> Int:
+    let seed = unwrap(crypto_random_bytes(32))
+    let message = bytes_from_text("lotcast")
+    let public_key = unwrap(crypto_ed25519_public_key(seed))
+    let signature = unwrap(crypto_ed25519_sign(seed, message))
+    print(verdict(crypto_ed25519_verify(public_key, message, signature)))
+    print(verdict(crypto_ed25519_verify(public_key, bytes_from_text("other"), signature)))
+    print(verdict(crypto_ed25519_verify(public_key, message, bytes_from_text("short"))))
+    print(verdict(crypto_ed25519_verify(bytes_from_text("short"), message, signature)))
+    match crypto_ed25519_sign(bytes_from_text("short"), message):
+        Ok(unused):
+            print("no error")
+        Err(problem):
+            print(problem.code)
+    # RFC 8032 section 7.1, TEST 1.
+    let known_seed = unwrap(hex_decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"))
+    print(hex_encode(unwrap(crypto_ed25519_public_key(known_seed))))
+    print(hex_encode(unwrap(crypto_ed25519_sign(known_seed, bytes_from_text("")))))
+    return 0
+"#;
+
+#[test]
+fn ed25519_round_trip_in_guion() {
+    let scratch = Scratch::new("ed25519-program");
+    let output = run_with_root(&scratch, ED25519_PROGRAM);
+    assert_success(&output);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(
+        lines,
+        [
+            "true",
+            "false",
+            "E_CRYPTO_INPUT",
+            "E_CRYPTO_INPUT",
+            "E_CRYPTO_INPUT",
+            "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+            "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b",
+        ]
+    );
+}
+
+#[test]
+fn old_format_rejects_ed25519_codes() {
+    use guion_model::{Artifact, Op};
+    let scratch = Scratch::new("ed25519-old-format");
+    std::fs::write(scratch.0.join("main.gu"), ED25519_PROGRAM).unwrap();
+    let built = scratch.0.join("main.gub");
+    let output = Command::new(env!("CARGO_BIN_EXE_guion"))
+        .args(["build", "main.gu", "--output", built.to_str().unwrap()])
+        .current_dir(&scratch.0)
+        .output()
+        .expect("guion starts");
+    assert_success(&output);
+    let current = std::fs::read(&built).unwrap();
+    let mut artifact = Artifact::from_bytes(&current).unwrap();
+    assert!(artifact.format_version >= ED25519_FIRST_FORMAT);
+    assert!(artifact.functions.iter().any(|function| function
+        .code
+        .iter()
+        .any(|instruction| matches!(instruction.op, Op::Crypto(crypto) if crypto.first_format() == ED25519_FIRST_FORMAT))));
+    // Format 85 still holds codes 0 to 13 but not 14 to 16.
+    let previous = ED25519_FIRST_FORMAT - 1;
+    artifact.format_version = previous;
+    assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+    let mut old = current;
+    old[4..8].copy_from_slice(&previous.to_le_bytes());
+    assert_eq!(
+        Artifact::from_bytes(&old).unwrap_err().code,
+        "E_ARTIFACT_VERSION"
+    );
+}

@@ -1412,6 +1412,9 @@ mod tests {
     /// The first artifact format with the X.509 name and validity reads.
     const X509_NAME_FIRST_FORMAT: u32 = 85;
 
+    /// The first artifact format with the Ed25519 reads and signatures.
+    const ED25519_FIRST_FORMAT: u32 = 86;
+
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
@@ -1519,6 +1522,25 @@ mod tests {
             Op::Crypto(CryptoFunction::X509Validity),
             X509_NAME_FIRST_FORMAT,
         );
+    }
+
+    #[test]
+    fn old_format_rejects_ed25519_crypto_ops() {
+        assert_gated(
+            Op::Crypto(CryptoFunction::Ed25519PublicKey),
+            ED25519_FIRST_FORMAT,
+        );
+        assert_gated(
+            Op::Crypto(CryptoFunction::Ed25519Sign),
+            ED25519_FIRST_FORMAT,
+        );
+        assert_gated(
+            Op::Crypto(CryptoFunction::Ed25519Verify),
+            ED25519_FIRST_FORMAT,
+        );
+        assert_eq!(CryptoFunction::Ed25519PublicKey.code(), 14);
+        assert_eq!(CryptoFunction::Ed25519Sign.code(), 15);
+        assert_eq!(CryptoFunction::Ed25519Verify.code(), 16);
     }
 
     #[test]
@@ -3922,7 +3944,7 @@ impl CodecFunction {
 }
 
 /// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
-/// Codes are part of artifact formats 78 to 85 (see `first_format`) and append-only: a later release adds codes after the
+/// Codes are part of artifact formats 78 to 86 (see `first_format`) and append-only: a later release adds codes after the
 /// last one and never renumbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoFunction {
@@ -3959,10 +3981,16 @@ pub enum CryptoFunction {
     X509DnsNames,
     /// The `[notBefore, notAfter]` of an X.509 certificate as Unix seconds (code 13, format 85).
     X509Validity,
+    /// The 32-byte Ed25519 public key for a 32-byte seed (code 14, format 86).
+    Ed25519PublicKey,
+    /// The deterministic 64-byte Ed25519 signature of a message under a seed (code 15, format 86).
+    Ed25519Sign,
+    /// Strict Ed25519 verification (code 16, format 86).
+    Ed25519Verify,
 }
 
 impl CryptoFunction {
-    const ALL: [CryptoFunction; 14] = [
+    const ALL: [CryptoFunction; 17] = [
         CryptoFunction::Sha512,
         CryptoFunction::Sha3_512,
         CryptoFunction::RsaVerify,
@@ -3977,6 +4005,9 @@ impl CryptoFunction {
         CryptoFunction::X509VerifyIssuedBy,
         CryptoFunction::X509DnsNames,
         CryptoFunction::X509Validity,
+        CryptoFunction::Ed25519PublicKey,
+        CryptoFunction::Ed25519Sign,
+        CryptoFunction::Ed25519Verify,
     ];
 
     /// The first artifact format that may carry this function; older formats reject it.
@@ -3993,6 +4024,9 @@ impl CryptoFunction {
             CryptoFunction::DagCborEncode => 82,
             CryptoFunction::TlockChainHash | CryptoFunction::X509VerifyIssuedBy => 84,
             CryptoFunction::X509DnsNames | CryptoFunction::X509Validity => 85,
+            CryptoFunction::Ed25519PublicKey
+            | CryptoFunction::Ed25519Sign
+            | CryptoFunction::Ed25519Verify => 86,
         }
     }
 
@@ -4024,6 +4058,9 @@ impl CryptoFunction {
             CryptoFunction::X509VerifyIssuedBy => "CryptoX509VerifyIssuedBy",
             CryptoFunction::X509DnsNames => "CryptoX509DnsNames",
             CryptoFunction::X509Validity => "CryptoX509Validity",
+            CryptoFunction::Ed25519PublicKey => "CryptoEd25519PublicKey",
+            CryptoFunction::Ed25519Sign => "CryptoEd25519Sign",
+            CryptoFunction::Ed25519Verify => "CryptoEd25519Verify",
         }
     }
 
@@ -4050,6 +4087,9 @@ impl CryptoFunction {
             CryptoFunction::TlockChainHash => 1,
             CryptoFunction::X509VerifyIssuedBy => 2,
             CryptoFunction::X509DnsNames | CryptoFunction::X509Validity => 1,
+            CryptoFunction::Ed25519PublicKey => 1,
+            CryptoFunction::Ed25519Sign => 2,
+            CryptoFunction::Ed25519Verify => 3,
         }
     }
 }
@@ -4839,7 +4879,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 85;
+    pub const CURRENT_VERSION: u32 = 86;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5211,6 +5251,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 86 && artifact_uses_ed25519_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the Ed25519 instructions require artifact format 86",
             ));
         }
         if self.format_version < 85 && artifact_uses_x509_name_crypto(self) {
@@ -7104,6 +7150,14 @@ fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 84)
+        })
+    })
+}
+
+fn artifact_uses_ed25519_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 86)
         })
     })
 }

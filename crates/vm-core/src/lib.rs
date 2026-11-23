@@ -7528,6 +7528,15 @@ fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
             vec![Type::Bytes],
             crypto_result_type(Type::List(Box::new(Type::Int))),
         ),
+        CryptoFunction::Ed25519PublicKey => (vec![Type::Bytes], crypto_result_type(Type::Bytes)),
+        CryptoFunction::Ed25519Sign => (
+            vec![Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bytes),
+        ),
+        CryptoFunction::Ed25519Verify => (
+            vec![Type::Bytes, Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
     }
 }
 
@@ -7723,6 +7732,41 @@ fn apply_crypto(
                     ]))
                 },
             )))
+        }
+        CryptoFunction::Ed25519PublicKey => {
+            let Value::Bytes(seed) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::ed25519_public_key(&seed)
+                    .map(|key| Value::Bytes(key.to_vec().into())),
+            ))
+        }
+        CryptoFunction::Ed25519Sign => {
+            let Value::Bytes(message) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Bytes(seed) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::ed25519_sign(&seed, &message)
+                    .map(|signature| Value::Bytes(signature.to_vec().into())),
+            ))
+        }
+        CryptoFunction::Ed25519Verify => {
+            let Value::Bytes(signature) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Bytes(message) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Bytes(public_key) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::ed25519_verify(&public_key, &message, &signature).map(Value::Bool),
+            ))
         }
         CryptoFunction::TlockRound => {
             let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {

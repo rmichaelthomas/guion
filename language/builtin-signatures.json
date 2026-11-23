@@ -3127,6 +3127,33 @@
       "operation": "CryptoX509Validity"
     },
     {
+      "name": "native_crypto_ed25519_public_key",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoEd25519PublicKey"
+    },
+    {
+      "name": "native_crypto_ed25519_sign",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoEd25519Sign"
+    },
+    {
+      "name": "native_crypto_ed25519_verify",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoEd25519Verify"
+    },
+    {
       "name": "native_crypto_x509_rsa_public_key",
       "parameters": [
         "Bytes"

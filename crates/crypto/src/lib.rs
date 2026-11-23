@@ -12,12 +12,14 @@
 mod age;
 pub mod bls;
 mod dagcbor;
+mod ed25519;
 mod hash;
 mod signature;
 mod tlock;
 
 pub use bls::bls12381_verify_g1;
 pub use dagcbor::dagcbor_encode;
+pub use ed25519::{ed25519_public_key, ed25519_sign, ed25519_verify};
 pub use hash::{sha3_512, sha512};
 pub use signature::{
     ecdsa_p256_verify, rsa_verify, x509_dns_names, x509_rsa_public_key, x509_validity,
