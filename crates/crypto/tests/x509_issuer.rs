@@ -87,9 +87,8 @@ fn a_modified_certificate_is_false() {
     ] {
         let mut changed = original.clone();
         changed[index] ^= 1;
-        match x509_verify_issued_by(&changed, &issuer) {
-            Ok(valid) => assert!(!valid, "byte {index}"),
-            Err(_) => {}
+        if let Ok(valid) = x509_verify_issued_by(&changed, &issuer) {
+            assert!(!valid, "byte {index}");
         }
     }
     let ec_issuer = der("p256-ca");

@@ -185,11 +185,7 @@ fn decode_cid(text: &str) -> Result<Vec<u8>, CryptoError> {
         at += used;
         match field {
             0 if value != 1 => return Err(shape()),
-            3 => {
-                if (bytes.len() - at) as u64 != value || value == 0 {
-                    return Err(shape());
-                }
-            }
+            3 if (bytes.len() - at) as u64 != value || value == 0 => return Err(shape()),
             _ => {}
         }
     }
@@ -249,7 +245,7 @@ fn base64_decode(text: &str) -> Result<Vec<u8>, CryptoError> {
     if bits >= 6 || buffer != 0 || trimmed.len() % 4 == 1 {
         return Err(bad());
     }
-    if text.len() != trimmed.len() && text.len() % 4 != 0 {
+    if text.len() != trimmed.len() && !text.len().is_multiple_of(4) {
         return Err(bad());
     }
     Ok(out)

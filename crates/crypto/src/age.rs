@@ -80,7 +80,7 @@ fn sextet(c: u8) -> Option<u32> {
 pub(crate) fn base64_decode(text: &[u8], padded: bool) -> Option<Vec<u8>> {
     let mut body = text;
     if padded {
-        if text.len() % 4 != 0 {
+        if !text.len().is_multiple_of(4) {
             return None;
         }
         let pad = text.iter().rev().take_while(|&&c| c == b'=').count();
