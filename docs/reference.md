@@ -2,7 +2,7 @@
 
 For supported artifact, package, Python and host versions plus upgrade guidance, see [`compatibility-and-migrations.md`](compatibility-and-migrations.md).
 
-The current format is 76. The runtime also reads supported earlier artifact formats; see the compatibility guide for the exact range.
+The current format is 89. The runtime also reads supported earlier artifact formats; see the compatibility guide for the exact range.
 
 ## Minimal program
 
