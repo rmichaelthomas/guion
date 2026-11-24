@@ -28,8 +28,8 @@ MUTATIONS = {
     "digest_params": ("if !parsed.signer.digest_algorithm.1 {", "if false {"),
     "dup_content_type": ("if attributes.content_type.is_some() {", "if false {"),
     "dup_message_digest": ("if attributes.message_digest.is_some() {", "if false {"),
-    "dup_ess_v2": ("if attributes.signing_certificate_v2.replace(value).is_some() {",
-                   "if attributes.signing_certificate_v2.replace(value).is_some() && false {"),
+    "dup_ess_v2": ("let seen_before = attributes.signing_certificate_v2.replace(value).is_some();",
+                   "let seen_before = attributes.signing_certificate_v2.replace(value).is_some() && false;"),
     "digest_length": ("if digest.len() != 64 {\n        return Err(CryptoError::new(\n            \"E_TSA_DIGEST\",\n            format!(\n                \"the digest is",
                       "if false {\n        return Err(CryptoError::new(\n            \"E_TSA_DIGEST\",\n            format!(\n                \"the digest is"),
     # 2: the imprint
@@ -56,6 +56,7 @@ MUTATIONS = {
     # 7, 8, 9
     "c7_issuer": ("if !x509_verify_issued_by(tsa_cert_der, issuer_cert_der)? {", "if false {"),
     "c8_eku": ("if !has_time_stamping {", "if false {"),
+    "c8_critical": ("if !critical {", "if false {"),
     "c9_validity_lo": ("generated < not_before || generated > not_after", "generated > not_after"),
     "c9_validity_hi": ("generated < not_before || generated > not_after", "generated < not_before"),
     # TSTInfo and the response

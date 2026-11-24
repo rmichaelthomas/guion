@@ -860,9 +860,8 @@ fn signature_verifies(
 /// 6. The signature over the DER `SET OF` signed attributes verifies under the key of
 ///    `tsa_cert_der`: RSA PKCS#1 v1.5, RSA-PSS, ECDSA P-256 or P-384 (another algorithm is `E_TSA_ALG`).
 /// 7. `tsa_cert_der` was issued by `issuer_cert_der` ([`x509_verify_issued_by`]).
-/// 8. `tsa_cert_der` has the extended key usage `id-kp-timeStamping`. RFC 3161 says the extension
-///    must be critical; that is not enforced (an issuer's profile does that, and a pinned
-///    certificate is already trusted by being pinned).
+/// 8. `tsa_cert_der` has the extended key usage `id-kp-timeStamping`, and the extension is marked
+///    critical, as RFC 3161 section 2.3 requires.
 /// 9. `genTime` is within the validity of `tsa_cert_der`.
 ///
 /// A `digest` that is not 64 bytes is `E_TSA_DIGEST`. A TSA certificate whose key is not RSA,
@@ -939,18 +938,21 @@ pub fn tsa_verify(
         return Ok(None);
     }
     // 8
-    let has_time_stamping = tsa
+    let Some((critical, usage)) = tsa
         .tbs_certificate
         .get::<ExtendedKeyUsage>()
         .map_err(|error| x509_error(format!("malformed ExtendedKeyUsage: {error}")))?
-        .map(|(_, usage)| {
-            usage
-                .0
-                .iter()
-                .any(|oid| oid.to_string() == TIME_STAMPING_EKU_OID)
-        })
-        .unwrap_or(false);
+    else {
+        return Ok(None);
+    };
+    let has_time_stamping = usage
+        .0
+        .iter()
+        .any(|oid| oid.to_string() == TIME_STAMPING_EKU_OID);
     if !has_time_stamping {
+        return Ok(None);
+    }
+    if !critical {
         return Ok(None);
     }
     // 9

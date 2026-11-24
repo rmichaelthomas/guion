@@ -117,8 +117,8 @@ Handlers cannot hold a store, so a handler opens it with `session_store_open(pat
 - `csrf_token(store, policy, request) -> Result[Text, HttpFailure]` is `base64url(HMAC-SHA256(server secret, session ID + "csrf"))`, 44 characters. A handler that renders a form calls it and puts the value in a hidden `_csrf` field or a header. `E_CSRF_NO_SESSION` when the request has no live session.
 - The token is read from the `x-csrf-token` header or, when that header is absent and the body is `application/x-www-form-urlencoded`, from the `_csrf` field. A header that is present is the only thing read. A token of the wrong length or alphabet is refused before any comparison; a right-length token is checked with `crypto_verify_hmac_sha256`, which compares in constant time.
 - A token belongs to one session: a token from session A fails in session B, and the token dies with its session (after `session_rotate`, `session_destroy` or expiry), so a page rendered before login must be rendered again after it.
-- `csrf_exempt_method(method)` and `csrf_verify(store, policy, request) -> Result[Bool, HttpFailure]` are the two halves, for a handler that wants to check itself.
-- This is the token check only. It does not read `Origin` or `Referer`, and it does not defend against a script running in your own page.
+- `csrf_exempt_method(method)`, `csrf_origin_ok(request)` and `csrf_verify(store, policy, request) -> Result[Bool, HttpFailure]` are the parts, for a handler that wants to check itself.
+- Before the token, a request with an `Origin` header (or, with none, a `Referer`) must name its own `Host`: the authority of the URL (host and port, compared without regard to case) equals the `Host` header, else 403. `Origin: null`, a value that is not an http or https URL, a user name in front of the host, and an Origin with no `Host` header are refused; with neither header the token alone decides. The scheme is not compared, because behind a proxy that ends TLS the server does not see it, and the proxy must pass `Host` through. `csrf_origin_ok(request) -> Bool` is this check. It does not defend against a script running in your own page.
 
 ## Templates
 
@@ -145,6 +145,6 @@ Every response is sent with `Connection: close` (no keep-alive). Reading a reque
 - No closures: a middleware is a record of named functions plus a `config` map.
 - A runtime fault in a handler stops the server; only `Err` is contained.
 - The effect analysis does not model SQLite, so `guion doc` shows no file effect for opening the session database.
-- CSRF is the token check only: no `Origin` or `Referer` check.
+- CSRF is the token plus the `Origin`/`Referer` check against `Host`; the scheme is not compared.
 - Templates take `Text` and records only; escaping cannot be turned off.
 - No keep-alive, TLS, HTTP/2 or websockets.

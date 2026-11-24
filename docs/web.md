@@ -83,7 +83,7 @@ fn main() -> Int:
 
 Default policy, `session_policy_default()`: idle 30 minutes, absolute 12 hours, cookie `__Host-session`, `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, no `Domain`. An ID the server did not issue is never adopted; an ID of the wrong shape is refused before the store is touched.
 
-`csrf_middleware(store, policy)` answers `403` with the fixed body `Forbidden` to any request whose method is not exactly `GET`, `HEAD` or `OPTIONS` unless it carries its session's token in the `x-csrf-token` header or the `_csrf` form field. `csrf_token(store, policy, request)` makes the token for a form. List `session_middleware` outside `csrf_middleware`.
+`csrf_middleware(store, policy)` answers `403` with the fixed body `Forbidden` to any request whose method is not exactly `GET`, `HEAD` or `OPTIONS` unless it carries its session's token in the `x-csrf-token` header or the `_csrf` form field. It also answers `403` when the request's `Origin` header (or, with no `Origin`, its `Referer`) does not name the request's own `Host`; with neither header the token decides. `csrf_token(store, policy, request)` makes the token for a form. List `session_middleware` outside `csrf_middleware`.
 
 ```guion
 import "pkg:web/src/lib.gu"
@@ -133,7 +133,7 @@ Most applications use only the middleware and `session_get`, `session_set`, `ses
 - `session_id_valid(id)` checks the shape of an ID; `session_id_new()` makes one; `session_id_of(policy, request)` reads the one the request presents; `session_cookie(policy, id)` builds the cookie.
 - `session_open(store, policy, request)` finds or creates the session and returns its ID; `session_exists(store, policy, request)` only looks.
 - `session_open_at`, `session_get_at` and `session_purge_expired_at` take the time in milliseconds instead of reading the clock, for tests.
-- `csrf_exempt_method(method)` and `csrf_verify(store, policy, request)` are the two halves of `csrf_middleware`.
+- `csrf_exempt_method(method)`, `csrf_origin_ok(request)` and `csrf_verify(store, policy, request)` are the three parts of `csrf_middleware`.
 - `web_version()` is the package version as text.
 
 ## Effects and capabilities
@@ -155,7 +155,7 @@ The package's `[capabilities]` are `files = ["read", "write"]` (sessions databas
 - Middleware is a record of named functions plus a `config` map; the package has not been rewritten to use closures, although the language has them now.
 - A runtime fault in a handler is contained per request (a 500 and a log line); an `Err` is contained the same way.
 - `guion doc` reports the session database as file access (`filesystem.read` and `filesystem.write`), so the `files` capability and `--file-root` cover it.
-- CSRF is the token check only: no `Origin` or `Referer` check, and no defence against a script already running in your page.
+- CSRF is the token plus the `Origin`/`Referer` check against `Host` (the scheme is not compared, and a proxy must pass `Host` through); there is no defence against a script already running in your page.
 - Templates are `Text` and records only; there is no filter, flag or argument that turns escaping off.
 - No keep-alive, no TLS, no HTTP/2, no websockets, no request logging beyond failures.
 - No password hashing, user accounts or authorisation: sessions hold values, nothing more.
