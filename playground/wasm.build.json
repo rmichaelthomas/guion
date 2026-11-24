@@ -1,14 +1,14 @@
 {
   "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
-  "adapterCargoLockSha256": "5fcc38e64c8ea229200ff43163203767f34f049d4b4084ac977a370eb6057e63",
+  "adapterCargoLockSha256": "2b26f361688f07f4a3208e9b4f8c87ba7a124c29000c826d441e478c7add3b28",
   "files": {
     "guion_compiler.wasm": {
-      "bytes": 934235,
-      "sha256": "bddec454409a6ee8597b32a3ac6f2e8663eb60d6de4af77562c435a01bb43e68"
+      "bytes": 977897,
+      "sha256": "0553e25eb26ca64dc38bc803817cc7f1c3b47e3adf1462b254ff2980d615f308"
     },
     "guion_vm.wasm": {
-      "bytes": 3653248,
-      "sha256": "42dd754bd3e42d22bd0b862070fe7188ff45eb30df827092ee3540f8ad1aeb4a"
+      "bytes": 4765379,
+      "sha256": "d3050a43002ce2339550102004bfaccc63608507caa7507e4e570c33292b1ae9"
     }
   }
 }
