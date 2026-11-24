@@ -859,7 +859,7 @@ fn the_user_guide_is_indexed_and_carries_the_honest_limits() {
         "the package has not been rewritten to use closures",
         "A runtime fault in a handler is contained per request",
         "reports the session database as file access",
-        "no `Origin` or `Referer` check",
+        "the scheme is not compared, and a proxy must pass `Host` through",
         "Templates are `Text` and records only",
     ] {
         assert!(page.contains(limit), "docs/web.md lost the limit: {limit}");

@@ -138,14 +138,27 @@ fn spawn_and_interrupt_with(name: &str, flags: &[&str], source: &str) -> (Output
     let mut args = vec!["run"];
     args.extend_from_slice(flags);
     args.push("main.gu");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_guion"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_guion"));
+    command
         .args(&args)
         .current_dir(&scratch.0)
         .env("GUION_NO_PROMPT", "1")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("guion starts");
+        .stderr(Stdio::piped());
+    {
+        // A test run started in the background of a shell inherits an ignored SIGINT, and an ignored
+        // signal stays ignored across exec. The child must start with the default action, or the
+        // case that expects Ctrl-C to end the process sleeps the full ten seconds.
+        use std::os::unix::process::CommandExt;
+        // SAFETY: signal() is async-signal-safe and runs between fork and exec, touching nothing else.
+        unsafe {
+            command.pre_exec(|| {
+                libc::signal(libc::SIGINT, libc::SIG_DFL);
+                Ok(())
+            });
+        }
+    }
+    let mut child = command.spawn().expect("guion starts");
     let mut early = String::new();
     if source.contains("print(\"ready\")") {
         // A program that polls says so first; the signal must come after its handlers exist,

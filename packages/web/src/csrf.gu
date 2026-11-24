@@ -18,8 +18,14 @@
 # Order: put it inside `session_middleware`, which makes the session the token is bound to. Without
 # a live session behind the cookie no token verifies (the check fails closed).
 #
-# This is the token check only. It does not read Origin or Referer, and the token is not a defence
-# against a script running in your own page.
+# Origin and Referer: a request with an unsafe method that carries an `Origin` header must name this
+# site, that is, its authority (host and port, compared without regard to case) must equal the
+# request's `Host` header; `Origin: null`, an Origin that is not an http or https URL, and an Origin
+# with no `Host` to compare against are refused. With no `Origin`, a `Referer` is held to the same
+# rule. With neither header (a client that is not a browser) the token alone decides. The check runs
+# before the token, and both failures are the same 403. The scheme is not compared: behind a proxy
+# that ends TLS the server does not see it. The token is not a defence against a script running in
+# your own page.
 
 import "std:types"
 import "std:text"
@@ -113,12 +119,57 @@ pub fn csrf_verify(store: SessionStore, policy: SessionPolicy, request: Request)
                                 return Ok(false)
                             return session_exists(store, policy, request)
 
+# The host and port of an http or https URL, or None for anything else. A user name in front of the
+# host stays in the result, so it never equals a `Host` header.
+fn cs_authority(url: Text) -> Option[Text]:
+    let parts = text_split(text_trim(url), "/")
+    if len(parts) < 3:
+        return None
+    let scheme = text_casefold(parts[0])
+    if scheme != "http:" and scheme != "https:":
+        return None
+    if parts[1] != "":
+        return None
+    let before_query = text_split(parts[2], "?")
+    let before_fragment = text_split(before_query[0], "#")
+    let authority = before_fragment[0]
+    if len(authority) == 0:
+        return None
+    return Some(authority)
+
+fn cs_names_this_site(host: Option[Text], url: Text) -> Bool:
+    match host:
+        None:
+            return false
+        Some(own):
+            match cs_authority(url):
+                None:
+                    return false
+                Some(authority):
+                    return text_casefold(authority) == text_casefold(text_trim(own))
+
+# Does the request come from this site, by its `Origin` or, without one, its `Referer`? True when
+# neither header is present. This is the other half of `csrf_middleware`, next to `csrf_verify`.
+pub fn csrf_origin_ok(request: Request) -> Bool:
+    let host = request_header(request, "host")
+    match request_header(request, "origin"):
+        Some(origin):
+            return cs_names_this_site(host, origin)
+        None:
+            match request_header(request, "referer"):
+                Some(referer):
+                    return cs_names_this_site(host, referer)
+                None:
+                    return true
+
 fn cs_forbidden() -> Response:
     return response_text(403, "Forbidden")
 
 fn cs_before(config: Map[Text, Text], request: Request) -> Result[Request, Response]:
     if csrf_exempt_method(request.method):
         return Ok(request)
+    if not csrf_origin_ok(request):
+        return Err(cs_forbidden())
     match session_policy_from_config(config):
         Err(failure):
             return Err(response_text(500, internal_error_body()))

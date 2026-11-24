@@ -595,6 +595,22 @@ fn signer_identifier_for_another_serial_is_none() {
 }
 
 #[test]
+fn extended_key_usage_without_time_stamping_is_none() {
+    // Same as above, with an extended key usage that names serverAuth only.
+    assert_eq!(negative("other-eku", "tsa-othereku").unwrap(), None);
+}
+
+#[test]
+fn time_stamping_usage_not_marked_critical_is_none() {
+    // Signed, ESS id right, issued by the CA, timeStamping present: only the extension's
+    // criticality (RFC 3161 section 2.3) is wrong.
+    assert_eq!(
+        negative("noncritical-eku", "tsa-noncritical").unwrap(),
+        None
+    );
+}
+
+#[test]
 fn gen_time_before_not_before_is_none() {
     assert_eq!(negative("future", "tsa-future").unwrap(), None);
 }

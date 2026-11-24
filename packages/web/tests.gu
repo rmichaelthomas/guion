@@ -844,6 +844,60 @@ fn test_the_token_can_ride_in_a_form_field_and_the_header_wins() -> Unit:
     assert(status_of(application, both) == 403)
     clean_db()
 
+fn with_origin_and_host(request: Request, host: Text, origin: Text) -> Request:
+    var made = request
+    if len(host) > 0:
+        set made = add_header(made, "Host", host)
+    if len(origin) > 0:
+        set made = add_header(made, "Origin", origin)
+    return made
+
+fn test_a_cross_site_origin_is_refused_even_with_a_good_token() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    let own = req("POST", "/item", a.cookie, a.token)
+    assert(status_of(application, own) == 200)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "https://app.example")) == 200)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "http://APP.example")) == 200)
+    assert(status_of(application, with_origin_and_host(own, "app.example:8443", "https://app.example:8443")) == 200)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "https://evil.example")) == 403)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "https://app.example.evil.example")) == 403)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "https://app.example@evil.example")) == 403)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "https://app.example:8443")) == 403)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "null")) == 403)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "app.example")) == 403)
+    assert(status_of(application, with_origin_and_host(own, "app.example", "ftp://app.example")) == 403)
+    # An Origin with no Host to compare against fails closed.
+    assert(status_of(application, with_origin_and_host(own, "", "https://app.example")) == 403)
+    clean_db()
+
+fn test_the_referer_is_held_to_the_same_rule_when_there_is_no_origin() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    let hosted = add_header(req("POST", "/item", a.cookie, a.token), "Host", "app.example")
+    assert(status_of(application, add_header(hosted, "Referer", "https://app.example/form?x=1#top")) == 200)
+    assert(status_of(application, add_header(hosted, "Referer", "https://app.example?x=1")) == 200)
+    assert(status_of(application, add_header(hosted, "Referer", "https://evil.example/https://app.example/")) == 403)
+    assert(status_of(application, add_header(hosted, "Referer", "https://evil.example/?next=https://app.example")) == 403)
+    assert(status_of(application, add_header(hosted, "Referer", "not a url")) == 403)
+    # The Origin decides when both are present.
+    let both = add_header(add_header(hosted, "Origin", "https://app.example"), "Referer", "https://evil.example/")
+    assert(status_of(application, both) == 200)
+    let bad_origin = add_header(add_header(hosted, "Origin", "https://evil.example"), "Referer", "https://app.example/")
+    assert(status_of(application, bad_origin) == 403)
+    # Neither header (a client that is not a browser): the token alone decides.
+    assert(status_of(application, hosted) == 200)
+    clean_db()
+
+fn test_a_cross_site_origin_on_a_safe_method_is_not_refused() -> Unit:
+    let application = full_app(fresh_store())
+    let a = visit(application)
+    let get = with_origin_and_host(req("GET", "/form", a.cookie, ""), "app.example", "https://evil.example")
+    assert(status_of(application, get) == 200)
+    assert(csrf_origin_ok(get) == false)
+    assert(csrf_origin_ok(req("POST", "/item", "", "")))
+    clean_db()
+
 fn test_login_rotates_the_session_and_the_old_token_dies() -> Unit:
     let application = full_app(fresh_store())
     let before = visit(application)

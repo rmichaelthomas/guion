@@ -38,20 +38,34 @@ basicConstraints = critical,CA:false
 keyUsage = critical,digitalSignature
 extendedKeyUsage = critical,timeStamping
 subjectKeyIdentifier = hash
+[v3_tsa_othereku]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = critical,serverAuth
+subjectKeyIdentifier = hash
+[v3_tsa_noncritical]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = timeStamping
+subjectKeyIdentifier = hash
 EOF
 
 openssl genrsa -out ca.key 2048 2>/dev/null
 openssl req -new -x509 -key ca.key -sha256 -subj '/CN=Guion Negative TSA CA' -days 36500 \
   -config ca.cnf -extensions v3_ca -out ca.pem
 
-sign() { # name startdate enddate (the key is already in name.key)
+sign() { # name startdate enddate [extensions] (the key is already in name.key)
   openssl req -new -key "$1.key" -subj "/CN=Guion Negative $1" -config ca.cnf -out "$1.csr"
   openssl ca -batch -config ca.cnf -cert ca.pem -keyfile ca.key -in "$1.csr" -out "$1.pem" \
-    -notext -startdate "$2" -enddate "$3" -extensions v3_tsa 2>/dev/null
+    -notext -startdate "$2" -enddate "$3" -extensions "${4:-v3_tsa}" 2>/dev/null
 }
 openssl genrsa -out tsa.key 2048 2>/dev/null;                     sign tsa 20260101000000Z 20460101000000Z
 # Valid only from 2030: a token from today is before its notBefore.
 openssl genrsa -out tsa-future.key 2048 2>/dev/null;              sign tsa-future 20300101000000Z 20460101000000Z
+# The timeStamping extended key usage present but not marked critical (RFC 3161 section 2.3).
+openssl genrsa -out tsa-noncritical.key 2048 2>/dev/null;         sign tsa-noncritical 20260101000000Z 20460101000000Z v3_tsa_noncritical
+# An extended key usage that does not name timeStamping.
+openssl genrsa -out tsa-othereku.key 2048 2>/dev/null;            sign tsa-othereku 20260101000000Z 20460101000000Z v3_tsa_othereku
 openssl ecparam -name prime256v1 -genkey -noout -out tsa-p256.key; sign tsa-p256 20260101000000Z 20460101000000Z
 # Keys tsa_verify does not support for a TSA: P-521 and Ed25519.
 openssl ecparam -name secp521r1 -genkey -noout -out tsa-p521.key;  sign tsa-p521 20260101000000Z 20460101000000Z
@@ -101,9 +115,11 @@ forge rsa-sha384-names tsa --sig-alg-hash sha384
 forge pss-sha384-names tsa --pss --sig-alg-hash sha384
 forge ecdsa-sha384-names tsa-p256 --sig-alg-hash sha384
 forge future tsa-future
+forge noncritical-eku tsa-noncritical
+forge other-eku tsa-othereku
 forge p521 tsa-p521 --digest sha512
 forge ed25519 tsa-ed25519
 
 rm -rf ../negative && mkdir ../negative
-cp ca.pem tsa.pem tsa-future.pem tsa-p256.pem tsa-p521.pem tsa-ed25519.pem ./*.tsr ../negative
+cp ca.pem tsa.pem tsa-noncritical.pem tsa-othereku.pem tsa-future.pem tsa-p256.pem tsa-p521.pem tsa-ed25519.pem ./*.tsr ../negative
 cd .. && rm -rf negative-work
