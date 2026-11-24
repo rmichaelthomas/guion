@@ -1,12 +1,12 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:0332add5b99b3a42f03e3ed5e4ae8d48ba8634a021c86c2b3154b36fd38b0dd1",
-    "compiler_seed": "sha256:60278ee1e65a9e24505f74af4a8854c96fbc7e5abf96d2968418553d38673d82",
-    "compiler_seed_manifest": "sha256:3138fe5038de87da0c70f24293846734e0d110cfb854e637f3c2cb9f11ae9dff",
-    "runtime": "sha256:0e431433b7a05055ccae3effb5d75db336713b6f6c424ab3e2962da8353b52f0",
-    "stdlib": "sha256:5142f14ccc1d83c67f061cdab710a5c75b72ebe93c79e9340fd7c5f13e3d67da"
+    "artifact_schema": "sha256:c57152c4faa35b7d5c2f47c9fa4bd81face18ac3049611d6f503bee9278967b0",
+    "compiler_seed": "sha256:40b820c55b7215ca1167a55f5a8418654385b41d1116c7fbfd003d8b07167470",
+    "compiler_seed_manifest": "sha256:121842d02a77f1cfabb40b707e17cdd89ac611bab99ba3969a98c56eb7622051",
+    "runtime": "sha256:61c6362f259dce042a9daae1da45734bad9865e641973220f0e716cfd86ccf70",
+    "stdlib": "sha256:128ce0f8a35985656291f9a0e879184bdd193fd48cef480d2f5ced0a0fb85140"
   },
-  "changed_path_count": 0,
+  "changed_path_count": 8,
   "checks": [
     {
       "command": [
@@ -16,7 +16,7 @@
       ],
       "exit_status": 0,
       "id": "artifact-format-test-audit",
-      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (84)",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (88)",
       "status": "passed"
     },
     {
@@ -32,7 +32,7 @@
       ],
       "exit_status": 0,
       "id": "stdlib-services",
-      "output": "\nrunning 30 tests\ntest docs_state_the_enforced_busy_deadline ... ok\ntest embedded_vtimezone_observance_rules_resolve_recurrent_transitions ... ok\ntest calendar_parses_an_upstream_libical_sample ... ok\ntest embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier ... ok\ntest calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data ... ok\ntest hmac_matches_rfc4231_and_rejects_wrong_digest ... ok\ntest sqlite_denies_paths_and_sql_that_escape_the_granted_database_root ... ok\ntest sqlite_bound_parameters_commit_and_survive_reopen ... ok\ntest dropping_a_registry_rolls_back_open_transactions_and_reopens_durably ... ok\ntest sqlite_nested_begin_read_inside_a_write_transaction_leaves_the_database_unlocked ... ok\ntest embedded_vtimezone_fold_is_reported_using_embedded_rules_for_matching_iana_id ... ok\ntest sqlite_rejects_nested_and_cross_registry_handles ... ok\ntest sqlite_reader_on_begin_read_completes_while_another_worker_holds_a_write_transaction ... ok\ntest sqlite_cancellation_interrupts_work_and_close_releases_open_resources ... ok\ntest toml_insert_into_existing_table_preserves_order_comments_and_line_endings ... ok\ntest sqlite_result_budgets_and_invalid_text_are_typed_errors ... ok\ntest toml_insert_into_new_nested_table_preserves_existing_source ... ok\ntest toml_resources_reject_foreign_and_invocation_stale_handles ... ok\ntest toml_noop_is_byte_exact_and_edits_keep_unrelated_comments ... ok\ntest toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline ... ok\ntest whitespace_collapse_fast_path_only_returns_changes_when_needed ... ok\ntest unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing ... ok\ntest sqlite_write_inside_a_read_transaction_is_read_only_and_the_transaction_stays_usable ... ok\ntest calendar_parses_utc_event_and_rejects_floating_times ... ok\ntest calendar_parse_exposes_each_local_resolution_and_preserves_event_identity ... ok\ntest calendar_parse_gives_the_same_answer_from_many_threads_at_once ... ok\ntest concurrent_sqlite_writer_observes_a_finite_busy_deadline ... ok\ntest sqlite_read_transaction_left_open_is_released_when_the_registry_closes ... ok\ntest guion_public_service_modules_call_typed_native_apis ... ok\ntest sqlite_reader_on_begin_fails_at_the_published_deadline_while_the_lock_is_held ... ok\n\ntest result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.18s\n\n\n   Compiling guion-runtime v0.7.0 (/Users/rmichaelthomas/guion-beacons/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 1.33s\n     Running tests/stdlib_services.rs (target/debug/deps/stdlib_services-00f045b1ae26f71b)\n",
+      "output": "\nrunning 30 tests\ntest docs_state_the_enforced_busy_deadline ... ok\ntest calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data ... ok\ntest calendar_parses_an_upstream_libical_sample ... ok\ntest embedded_vtimezone_observance_rules_resolve_recurrent_transitions ... ok\ntest hmac_matches_rfc4231_and_rejects_wrong_digest ... ok\ntest embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier ... ok\ntest dropping_a_registry_rolls_back_open_transactions_and_reopens_durably ... ok\ntest sqlite_denies_paths_and_sql_that_escape_the_granted_database_root ... ok\ntest sqlite_bound_parameters_commit_and_survive_reopen ... ok\ntest embedded_vtimezone_fold_is_reported_using_embedded_rules_for_matching_iana_id ... ok\ntest sqlite_nested_begin_read_inside_a_write_transaction_leaves_the_database_unlocked ... ok\ntest sqlite_rejects_nested_and_cross_registry_handles ... ok\ntest sqlite_reader_on_begin_read_completes_while_another_worker_holds_a_write_transaction ... ok\ntest sqlite_result_budgets_and_invalid_text_are_typed_errors ... ok\ntest toml_insert_into_existing_table_preserves_order_comments_and_line_endings ... ok\ntest toml_insert_into_new_nested_table_preserves_existing_source ... ok\ntest toml_noop_is_byte_exact_and_edits_keep_unrelated_comments ... ok\ntest toml_resources_reject_foreign_and_invocation_stale_handles ... ok\ntest toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline ... ok\ntest unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing ... ok\ntest whitespace_collapse_fast_path_only_returns_changes_when_needed ... ok\ntest sqlite_cancellation_interrupts_work_and_close_releases_open_resources ... ok\ntest sqlite_write_inside_a_read_transaction_is_read_only_and_the_transaction_stays_usable ... ok\ntest calendar_parse_exposes_each_local_resolution_and_preserves_event_identity ... ok\ntest calendar_parses_utc_event_and_rejects_floating_times ... ok\ntest calendar_parse_gives_the_same_answer_from_many_threads_at_once ... ok\ntest concurrent_sqlite_writer_observes_a_finite_busy_deadline ... ok\ntest sqlite_read_transaction_left_open_is_released_when_the_registry_closes ... ok\ntest guion_public_service_modules_call_typed_native_apis ... ok\ntest sqlite_reader_on_begin_fails_at_the_published_deadline_while_the_lock_is_held ... ok\n\ntest result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.10s\n\n\n    Finished `test` profile [optimized + debuginfo] target(s) in 0.13s\n     Running tests/stdlib_services.rs (target/debug/deps/stdlib_services-ee4a4813e2020ae1)\n",
       "status": "passed"
     }
   ],
@@ -49,14 +49,14 @@
   "required_targets": [
     "macos-aarch64"
   ],
-  "runtime_hash": "sha256:0e431433b7a05055ccae3effb5d75db336713b6f6c424ab3e2962da8353b52f0",
+  "runtime_hash": "sha256:61c6362f259dce042a9daae1da45734bad9865e641973220f0e716cfd86ccf70",
   "schema_version": 1,
-  "seed_hash": "sha256:60278ee1e65a9e24505f74af4a8854c96fbc7e5abf96d2968418553d38673d82",
+  "seed_hash": "sha256:40b820c55b7215ca1167a55f5a8418654385b41d1116c7fbfd003d8b07167470",
   "skipped_targets": [],
-  "source_revision": "43a8e451b02f813d8422f53fcfc021b37133570c",
+  "source_revision": "7eec09dc7a0aaab46ed59e1f797955d4842e8486",
   "status": "passed",
-  "stdlib_hash": "sha256:5142f14ccc1d83c67f061cdab710a5c75b72ebe93c79e9340fd7c5f13e3d67da",
+  "stdlib_hash": "sha256:128ce0f8a35985656291f9a0e879184bdd193fd48cef480d2f5ced0a0fb85140",
   "target": "macos-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  "working_tree_digest": "sha256:9a6d08ec1719b98913c18688fdc78af02f4a0eae543b0dd9e3346581a309a202"
 }

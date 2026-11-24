@@ -448,6 +448,7 @@ fn parse_instruction(
         "TextCollapseWhitespace" => Op::TextCollapseWhitespace,
         "TextNormalize" => Op::TextNormalize,
         "RandomBytes" => Op::RandomBytes,
+        "Sleep" => Op::Sleep,
         "StdinReadLine" => Op::StdinReadLine,
         "StdinReadAll" => Op::StdinReadAll,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,

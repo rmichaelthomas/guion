@@ -1,6 +1,7 @@
 import "std:encoding"
 import "std:types"
 import "std:text"
+import "std:json"
 pub import "std:http_types"
 
 # std:crypto: HMAC-SHA-256, SHA-256, SHA-512, SHA3-512 and SHA-1 digests, and byte XOR.
@@ -45,6 +46,16 @@ pub import "std:http_types"
 # seconds. Input that is not a DER certificate is E_X509. A name and a date check is what turns "some
 # certificate this CA issued" into "the certificate I mean".
 #
+# crypto_ed25519_public_key(seed), crypto_ed25519_sign(seed, message) and
+# crypto_ed25519_verify(public_key, message, signature) (artifact format 86) are pure Ed25519 as in
+# RFC 8032 (no Ed25519ph, no context). A key is a 32-byte seed, which you draw yourself with
+# crypto_random_bytes(32) and keep secret; the public key is 32 bytes and a signature 64. Signing is
+# deterministic: the same seed and message always give the same signature. Verification is strict: a
+# small-order public key, a non-canonical R or S (S at or above the group order) and the mixed-order
+# edge cases of "Taming the Many EdDSAs" are Ok(false), never Ok(true). A seed that is not 32 bytes, a
+# key that is not 32 bytes or is not a point on the curve, or a signature that is not 64 bytes is
+# E_CRYPTO_INPUT. Verification returns Ok(true) only for the signature of this exact message.
+#
 # ECDSA signatures are malleable: crypto_ecdsa_p256_verify accepts both (r, s) and (r, n - s) for a
 # valid signature, so never use signature bytes as an identifier or a dedupe key. crypto_rsa_verify
 # accepts moduli from 1024 to 8192 bits; "pss-sha256" uses a salt as long as the digest (32 bytes), as
@@ -63,6 +74,30 @@ pub import "std:http_types"
 # (also unauthenticated; E_TLOCK_FORMAT for a malformed file) so a caller can check it against the network it
 # means to decrypt for. They are pure: fetching the signature is the caller's job. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
 # exactly one well-formed BEGIN/END block is E_CRYPTO_INPUT.
+#
+# crypto_tsa_request(digest, nonce), crypto_tsa_response_token(response), crypto_tsa_verify(token,
+# digest, tsa_cert, issuer_cert) and crypto_tsa_certificates(token) (artifact format 87) are RFC 3161
+# trusted timestamps, all pure (no grant): the network round trip is yours, with http_request_bytes.
+# crypto_tsa_request builds a DER TimeStampReq for a 64-byte SHA-512 digest (anything else is
+# E_TSA_DIGEST) with certReq set, no policy and an optional nonce: at most 32 bytes with a first byte
+# of 0x01 to 0x7f, or empty for none (otherwise E_TSA_NONCE). Draw one with crypto_random_bytes and
+# force the first byte, and check TsaToken.nonce against it. POST the request with the header
+# Content-Type: application/timestamp-query. crypto_tsa_response_token reads the TimeStampResp the
+# TSA sends back and gives the token (a CMS ContentInfo): status 0 and 1 are a token; 2 to 5
+# (rejection, waiting, revocation warnings) are E_TSA_STATUS with the status, the statusString and the
+# failInfo bit names in the message, never a token; anything unreadable is E_TSA_FORMAT.
+# crypto_tsa_verify is Ok(Some(TsaToken)) only when the token is for this digest and was signed by
+# exactly this tsa_cert (a DER certificate you pinned), which issuer_cert (also pinned) issued, and
+# the certificate may time-stamp (the extended key usage timeStamping; RFC 3161 wants it critical, and
+# this does not insist, because the certificate is pinned) and was valid at the token's genTime;
+# otherwise it is Ok(None), and an unreadable certificate is E_X509, a malformed token E_TSA_FORMAT,
+# a signer or ESS algorithm outside SHA-256/384/512 with RSA PKCS#1 v1.5, RSA-PSS or ECDSA P-256 and
+# P-384, or a tsa_cert key that is not RSA, P-256 or P-384, E_TSA_ALG, and a digest that is not 64
+# bytes E_TSA_DIGEST. A TsaToken has gen_time_ms (genTime as Unix milliseconds; finer digits are
+# truncated), accuracy_ms (the TSA's stated accuracy, microseconds rounded up, 0 if none), serial,
+# policy (a dotted OID) and nonce (empty if the TSA echoed none). The time is the TSA's claim about
+# when it signed, valid at that moment; today's date and revocation are not examined. crypto_tsa_certificates
+# lists the DER certificates a token carries, in order, so a program can pin them on first use.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
 # from the operating system's cryptographic generator (getentropy on macOS, getrandom on Linux).
@@ -128,6 +163,65 @@ pub fn crypto_x509_dns_names(der: Bytes) -> Result[List[Text], StdError]:
 
 pub fn crypto_x509_validity(der: Bytes) -> Result[List[Int], StdError]:
     return native_crypto_x509_validity(der)
+
+pub fn crypto_ed25519_public_key(seed: Bytes) -> Result[Bytes, StdError]:
+    return native_crypto_ed25519_public_key(seed)
+
+pub fn crypto_ed25519_sign(seed: Bytes, message: Bytes) -> Result[Bytes, StdError]:
+    return native_crypto_ed25519_sign(seed, message)
+
+pub fn crypto_ed25519_verify(public_key: Bytes, message: Bytes, signature: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_ed25519_verify(public_key, message, signature)
+
+pub record TsaToken:
+    gen_time_ms: Int
+    accuracy_ms: Int
+    serial: Bytes
+    policy: Text
+    nonce: Bytes
+
+pub fn crypto_tsa_request(digest: Bytes, nonce: Bytes) -> Result[Bytes, StdError]:
+    return native_crypto_tsa_request(digest, nonce)
+
+pub fn crypto_tsa_response_token(response: Bytes) -> Result[Bytes, StdError]:
+    return native_crypto_tsa_response_token(response)
+
+pub fn crypto_tsa_certificates(token: Bytes) -> Result[List[Bytes], StdError]:
+    return native_crypto_tsa_certificates(token)
+
+fn tsa_result_error(key: Text) -> StdError:
+    return std_error("E_TSA_FORMAT", "the timestamp result has no usable field " + key)
+
+fn tsa_result_int(found: Json, key: Text) -> Result[Int, StdError]:
+    match json_get_int_safe(found, key):
+        Ok(value):
+            return Ok(value)
+        Err(problem):
+            return Err(tsa_result_error(key))
+
+fn tsa_result_text(found: Json, key: Text) -> Result[Text, StdError]:
+    match json_get_text_safe(found, key):
+        Ok(value):
+            return Ok(value)
+        Err(problem):
+            return Err(tsa_result_error(key))
+
+fn tsa_result_bytes(found: Json, key: Text) -> Result[Bytes, StdError]:
+    let text = tsa_result_text(found, key)?
+    return hex_decode(text)
+
+pub fn crypto_tsa_verify(token: Bytes, digest: Bytes, tsa_cert: Bytes, issuer_cert: Bytes) -> Result[Option[TsaToken], StdError]:
+    let found = native_crypto_tsa_verify(token, digest, tsa_cert, issuer_cert)?
+    match json_get_safe(found, "gen_time_ms"):
+        Err(absent):
+            return Ok(None)
+        Ok(first):
+            let gen_time_ms = tsa_result_int(found, "gen_time_ms")?
+            let accuracy_ms = tsa_result_int(found, "accuracy_ms")?
+            let serial = tsa_result_bytes(found, "serial_hex")?
+            let policy = tsa_result_text(found, "policy")?
+            let nonce = tsa_result_bytes(found, "nonce_hex")?
+            return Ok(Some(TsaToken(gen_time_ms, accuracy_ms, serial, policy, nonce)))
 
 pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
     return native_crypto_x509_rsa_public_key(der)

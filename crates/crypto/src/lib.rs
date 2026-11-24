@@ -12,18 +12,22 @@
 mod age;
 pub mod bls;
 mod dagcbor;
+mod ed25519;
 mod hash;
 mod signature;
 mod tlock;
+mod tsa;
 
 pub use bls::bls12381_verify_g1;
 pub use dagcbor::dagcbor_encode;
+pub use ed25519::{ed25519_public_key, ed25519_sign, ed25519_verify};
 pub use hash::{sha3_512, sha512};
 pub use signature::{
     ecdsa_p256_verify, rsa_verify, x509_dns_names, x509_rsa_public_key, x509_validity,
     x509_verify_issued_by, RsaScheme,
 };
 pub use tlock::{tlock_chain_hash, tlock_decrypt, tlock_encrypt, tlock_round};
+pub use tsa::{tsa_certificates, tsa_request, tsa_response_token, tsa_verify, TsaToken};
 
 /// A failed cryptographic operation: a stable machine-readable `code` and a human `message`.
 #[derive(Clone, Debug, PartialEq, Eq)]

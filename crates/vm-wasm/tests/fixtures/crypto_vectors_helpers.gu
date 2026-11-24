@@ -1,0 +1,59 @@
+
+fn h(text: Text) -> Bytes:
+    match hex_decode(text):
+        Ok(data):
+            return data
+        Err(problem):
+            return bytes_from_text("")
+
+fn flag(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn octets(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return hex_encode(value)
+        Err(problem):
+            return problem.code
+
+fn line(label: Text, value: Text) -> Text:
+    return label + "=" + value + "\n"
+
+fn stamp_text(stamp: TsaToken) -> Text:
+    return f"{int_to_text(stamp.gen_time_ms)},{hex_encode(stamp.serial)},{stamp.policy},{int_to_text(stamp.accuracy_ms)}"
+
+fn tsa_checked(token: Bytes, digest: Bytes, cert: Bytes, issuer: Bytes) -> Text:
+    match crypto_tsa_verify(token, digest, cert, issuer):
+        Ok(found):
+            match found:
+                Some(stamp):
+                    return stamp_text(stamp)
+                None:
+                    return "none"
+        Err(problem):
+            return problem.code
+
+fn tsa_case(response: Bytes, digest: Bytes, cert: Bytes, issuer: Bytes) -> Text:
+    match crypto_tsa_response_token(response):
+        Ok(token):
+            return tsa_checked(token, digest, cert, issuer)
+        Err(problem):
+            return problem.code
+
+fn certificate_hashes(token: Bytes) -> Text:
+    match crypto_tsa_certificates(token):
+        Ok(certs):
+            var out = ""
+            for cert in certs:
+                if out != "":
+                    set out = out + ","
+                set out = out + hex_encode(crypto_sha512(cert))
+            return out
+        Err(problem):
+            return problem.code

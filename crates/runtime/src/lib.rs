@@ -248,6 +248,7 @@ pub enum EffectKind {
     PythonCall,
     EnvironmentRead,
     ClockRead,
+    ClockSleep,
     ProcessSpawn,
     NetworkSocket,
     StdinRead,
@@ -472,6 +473,31 @@ pub struct Runtime {
     native_whole_program_entry: bool,
     runtime_profile_enabled: bool,
     runtime_profile_sampled: bool,
+}
+
+/// The longest `sleep_ms` accepts: one day.
+const MAX_SLEEP_MS: i64 = 86_400_000;
+/// The longest stretch `sleep_ms` waits before it looks at the stop flag and the signal state.
+const SLEEP_SLICE_MS: u64 = 10;
+
+/// Waits at least `milliseconds`, in slices of at most [`SLEEP_SLICE_MS`], and gives up early
+/// when `stopped` says so or when a signal the program polls for arrives (the program reads it
+/// with `signal_poll`). Each arrival ends at most one sleep early on each thread: every task that
+/// is sleeping, or sleeps next, wakes once for it, but a signal that already woke a sleep on this
+/// thread, or that `signal_poll` read, does not end the next one. Returns whether the full time
+/// passed.
+fn sleep_in_slices(milliseconds: u64, stopped: impl Fn() -> bool) -> bool {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(milliseconds);
+    loop {
+        if stopped() || process_ops::take_signal_wake() {
+            return false;
+        }
+        let now = std::time::Instant::now();
+        if now >= deadline {
+            return true;
+        }
+        thread::sleep((deadline - now).min(std::time::Duration::from_millis(SLEEP_SLICE_MS)));
+    }
 }
 
 fn current_unix_time_ms() -> Result<i64, String> {
@@ -3038,6 +3064,41 @@ impl Instance {
                     instruction.span,
                 )?;
                 push_stack!(Value::Text(text.into()));
+            }
+            Op::Sleep => {
+                let requested = match pop!() {
+                    Value::Int(ms) => ms,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_TYPE_INVALID",
+                            "sleep_ms requires an Int",
+                            instruction.span,
+                        ));
+                    }
+                };
+                let milliseconds = match requested.to_i64() {
+                    Some(ms) if (0..=MAX_SLEEP_MS).contains(&ms) => ms as u64,
+                    _ => {
+                        return Err(RuntimeError::new(
+                            "R_SLEEP_RANGE",
+                            format!("sleep_ms takes 0 to {MAX_SLEEP_MS} milliseconds"),
+                            instruction.span,
+                        ));
+                    }
+                };
+                // A replay never waits: the recording is what it is replaying, and the sleep
+                // is not on the tape.
+                let replaying = self.tape.as_ref().is_some_and(|tape| tape.is_replay());
+                let effect = self.begin_effect(EffectKind::ClockSleep, "sleep");
+                if !replaying {
+                    let stopped = || budget.is_cancelled() || self.externally_cancelled();
+                    if !sleep_in_slices(milliseconds, stopped) && stopped() {
+                        self.finish_effect(effect, EffectOutcome::Interrupted);
+                        return Ok(());
+                    }
+                }
+                self.finish_effect(effect, EffectOutcome::Returned);
+                push_stack!(Value::Unit);
             }
             Op::UnixTimeMs | Op::TimeTodayLocal => {
                 if !self.policy.allow_clock {

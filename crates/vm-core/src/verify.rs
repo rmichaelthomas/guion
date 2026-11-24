@@ -2024,6 +2024,14 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
+            Op::Sleep => {
+                if pop_type(&mut state.stack, pc)? != Type::Int {
+                    return Err(format!(
+                        "sleep_ms requires an Int count at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Unit);
+            }
             Op::RandomBytes => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {
                     return Err(format!(

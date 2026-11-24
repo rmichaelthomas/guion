@@ -1,7 +1,7 @@
 pub use guion_model::Diagnostic;
 use guion_model::{
-    Artifact, BigInt, ExternalFunction, Float64, Function, HigherOrderKind, Instruction, Op,
-    RecordDefinition, RecordField, Span, Type, Value,
+    Artifact, BigInt, CodecFunction, ExternalFunction, Float64, Function, HigherOrderKind,
+    Instruction, Op, RecordDefinition, RecordField, Span, Type, Value,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -691,11 +691,31 @@ struct MatchArm {
 #[derive(Clone, Debug)]
 enum MatchPattern {
     Some(String, Span),
-    None,
+    None(Span),
     Ok(String, Span),
     Err(String, Span),
     /// A user enum variant with its positional bindings (`_` binds nothing).
     Variant(String, Vec<(String, Span)>, Span),
+    /// A pattern with a constructor inside a constructor (`Ok(Some(x))`, `Ok(None)`,
+    /// `Some(Red)`); `desugar_block` lowers it to nested single-level matches.
+    Nested(Pattern),
+}
+
+/// One node of a match pattern: a constructor with its sub-patterns, or a name that binds the
+/// value (`_` binds nothing). A bare name inside a constructor that is a declared enum variant is
+/// that variant, not a binding.
+#[derive(Clone, Debug)]
+enum Pattern {
+    Constructor(String, Vec<Pattern>, Span),
+    Name(String, Span),
+}
+
+impl Pattern {
+    fn span(&self) -> Span {
+        match self {
+            Pattern::Constructor(_, _, span) | Pattern::Name(_, span) => *span,
+        }
+    }
 }
 #[derive(Clone, Debug)]
 enum Expr {
@@ -891,6 +911,36 @@ impl Parser {
             parts.push(FormatPart::Literal(literal));
         }
         Ok(Expr::Interpolated(parts, token.span))
+    }
+    /// `Some(p)`, `Ok(p)`, `Err(p)`, `None`, `Variant`, `Variant(p, ...)` or a binding name.
+    /// `Some`, `Ok` and `Err` take exactly one pattern; `None` takes none.
+    fn match_pattern(&mut self) -> Result<Pattern, Diagnostic> {
+        let head = self.name()?;
+        match head.text.as_str() {
+            "None" => Ok(Pattern::Constructor(head.text, Vec::new(), head.span)),
+            "Some" | "Ok" | "Err" => {
+                self.expect("(")?;
+                let inner = self.match_pattern()?;
+                self.expect(")")?;
+                Ok(Pattern::Constructor(head.text, vec![inner], head.span))
+            }
+            _ => {
+                if self.eat("(").is_none() {
+                    return Ok(Pattern::Name(head.text, head.span));
+                }
+                let mut parts = Vec::new();
+                if self.cur().text != ")" {
+                    loop {
+                        parts.push(self.match_pattern()?);
+                        if self.eat(",").is_none() {
+                            break;
+                        }
+                    }
+                }
+                self.expect(")")?;
+                Ok(Pattern::Constructor(head.text, parts, head.span))
+            }
+        }
     }
     fn name(&mut self) -> Result<Token, Diagnostic> {
         if self.cur().kind == Kind::Name {
@@ -1622,34 +1672,39 @@ impl Parser {
                         self.advance();
                         continue;
                     }
-                    let variant = self.name()?;
-                    let pattern = match variant.text.as_str() {
-                        "Some" | "Ok" | "Err" => {
-                            self.expect("(")?;
-                            let binding = self.name()?;
-                            self.expect(")")?;
-                            match variant.text.as_str() {
-                                "Some" => MatchPattern::Some(binding.text, binding.span),
-                                "Ok" => MatchPattern::Ok(binding.text, binding.span),
-                                _ => MatchPattern::Err(binding.text, binding.span),
-                            }
-                        }
-                        "None" => MatchPattern::None,
-                        _ => {
-                            let mut bindings = Vec::new();
-                            if self.eat("(").is_some() {
-                                if self.cur().text != ")" {
-                                    loop {
-                                        let binding = self.name()?;
-                                        bindings.push((binding.text, binding.span));
-                                        if self.eat(",").is_none() {
-                                            break;
-                                        }
-                                    }
+                    let variant = self.cur().clone();
+                    let pattern = match self.match_pattern()? {
+                        // A bare name at the top of an arm is a variant without values.
+                        Pattern::Name(name, span) => MatchPattern::Variant(name, Vec::new(), span),
+                        Pattern::Constructor(name, parts, span) => {
+                            let names: Option<Vec<(String, Span)>> = parts
+                                .iter()
+                                .map(|part| match part {
+                                    Pattern::Name(name, span) => Some((name.clone(), *span)),
+                                    Pattern::Constructor(..) => None,
+                                })
+                                .collect();
+                            match (name.as_str(), names) {
+                                ("None", _) => MatchPattern::None(span),
+                                ("Some", Some(mut names)) => {
+                                    let (name, span) = names.remove(0);
+                                    MatchPattern::Some(name, span)
                                 }
-                                self.expect(")")?;
+                                ("Ok", Some(mut names)) => {
+                                    let (name, span) = names.remove(0);
+                                    MatchPattern::Ok(name, span)
+                                }
+                                ("Err", Some(mut names)) => {
+                                    let (name, span) = names.remove(0);
+                                    MatchPattern::Err(name, span)
+                                }
+                                (_, Some(names))
+                                    if !matches!(name.as_str(), "Some" | "Ok" | "Err") =>
+                                {
+                                    MatchPattern::Variant(name, names, span)
+                                }
+                                _ => MatchPattern::Nested(Pattern::Constructor(name, parts, span)),
                             }
-                            MatchPattern::Variant(variant.text.clone(), bindings, variant.span)
                         }
                     };
                     self.expect(":")?;
@@ -1984,9 +2039,6 @@ fn split_targets_of(body: &[Stmt]) -> HashSet<String> {
 /// Lowers every `enum` to its record and rewrites variant constructors and variant `match`
 /// statements, so the type checker only ever sees records, `if` and field reads.
 fn desugar_enums(program: &mut Program) -> Result<(), Diagnostic> {
-    if program.enums.is_empty() {
-        return Ok(());
-    }
     // variant name -> (enum index, variant index)
     let mut variants: HashMap<String, (usize, usize)> = HashMap::new();
     for (enum_index, declared) in program.enums.iter().enumerate() {
@@ -2207,10 +2259,30 @@ fn desugar_block(
                 for arm in &mut arms {
                     desugar_block(&mut arm.body, enums, variants, counter)?;
                 }
+                let names_variant = |name: &str| variants.contains_key(name);
+                let nested = arms.iter().any(|arm| match &arm.pattern {
+                    MatchPattern::Nested(_) => true,
+                    MatchPattern::Some(name, _)
+                    | MatchPattern::Ok(name, _)
+                    | MatchPattern::Err(name, _) => names_variant(name),
+                    MatchPattern::Variant(_, names, _) => {
+                        names.iter().any(|(name, _)| names_variant(name))
+                    }
+                    MatchPattern::None(_) => false,
+                });
+                if nested {
+                    let rows = arms
+                        .into_iter()
+                        .map(|arm| (arm_pattern(arm.pattern, variants), arm.body, arm.span))
+                        .collect();
+                    lower_pattern_rows(body, value, rows, span, "{}", enums, variants, counter)?;
+                    continue;
+                }
                 let has_variant = arms
                     .iter()
                     .any(|arm| matches!(arm.pattern, MatchPattern::Variant(..)));
-                if !has_variant {
+                // Without enums a variant arm is left for the type checker to reject.
+                if !has_variant || variants.is_empty() {
                     body.push(Stmt::Match(value, arms, span));
                     continue;
                 }
@@ -2221,6 +2293,249 @@ fn desugar_block(
     }
     Ok(())
 }
+
+/// An arm's pattern as a [`Pattern`] tree, with every bare name inside a constructor that is a
+/// declared enum variant read as that variant.
+fn arm_pattern(pattern: MatchPattern, variants: &HashMap<String, (usize, usize)>) -> Pattern {
+    fn resolve(pattern: Pattern, variants: &HashMap<String, (usize, usize)>) -> Pattern {
+        match pattern {
+            Pattern::Name(name, span) if variants.contains_key(&name) => {
+                Pattern::Constructor(name, Vec::new(), span)
+            }
+            Pattern::Constructor(name, parts, span) => Pattern::Constructor(
+                name,
+                parts
+                    .into_iter()
+                    .map(|part| resolve(part, variants))
+                    .collect(),
+                span,
+            ),
+            other => other,
+        }
+    }
+    let tree = match pattern {
+        MatchPattern::Some(name, span) => {
+            Pattern::Constructor("Some".into(), vec![Pattern::Name(name, span)], span)
+        }
+        MatchPattern::Ok(name, span) => {
+            Pattern::Constructor("Ok".into(), vec![Pattern::Name(name, span)], span)
+        }
+        MatchPattern::Err(name, span) => {
+            Pattern::Constructor("Err".into(), vec![Pattern::Name(name, span)], span)
+        }
+        MatchPattern::None(span) => Pattern::Constructor("None".into(), Vec::new(), span),
+        MatchPattern::Variant(name, names, span) => Pattern::Constructor(
+            name,
+            names
+                .into_iter()
+                .map(|(name, span)| Pattern::Name(name, span))
+                .collect(),
+            span,
+        ),
+        MatchPattern::Nested(tree) => tree,
+    };
+    resolve(tree, variants)
+}
+
+/// Lowers the arms of a match with nested patterns to single-level matches, one per constructor
+/// position, so the type checker sees only `Some`/`None`, `Ok`/`Err` and enum matches. Every value
+/// must be matched by exactly one arm: two arms that overlap (including a name beside a
+/// constructor at the same position) are `E_MATCH_DUPLICATE`, and a constructor no arm covers is
+/// `E_MATCH_NONEXHAUSTIVE` (or `E_MATCH_MISSING_VARIANT` for an enum). `context` is the pattern
+/// that leads here, with `{}` for this position, for the messages.
+#[allow(clippy::too_many_arguments)]
+fn lower_pattern_rows(
+    out: &mut Vec<Stmt>,
+    scrutinee: Expr,
+    rows: Vec<(Pattern, Vec<Stmt>, Span)>,
+    span: Span,
+    context: &str,
+    enums: &[EnumAst],
+    variants: &HashMap<String, (usize, usize)>,
+    counter: &mut usize,
+) -> Result<(), Diagnostic> {
+    let at = |inner: &str| format!("`{}`", context.replace("{}", inner));
+    if rows
+        .iter()
+        .all(|(pattern, _, _)| matches!(pattern, Pattern::Name(..)))
+    {
+        let mut rows = rows.into_iter();
+        let (pattern, arm_body, _) = rows.next().expect("a match has at least one arm");
+        if let Some((_, _, arm_span)) = rows.next() {
+            return Err(diagnostic(
+                "E_MATCH_DUPLICATE",
+                format!("two arms match the same values ({})", at("_")),
+                arm_span,
+            ));
+        }
+        let Pattern::Name(name, name_span) = pattern else {
+            unreachable!("checked above")
+        };
+        if name != "_" {
+            out.push(Stmt::Let(name, false, None, scrutinee, name_span));
+        }
+        out.extend(arm_body);
+        return Ok(());
+    }
+    if let Some((Pattern::Name(name, name_span), _, _)) = rows
+        .iter()
+        .find(|(pattern, _, _)| matches!(pattern, Pattern::Name(..)))
+    {
+        return Err(diagnostic(
+            "E_MATCH_DUPLICATE",
+            format!(
+                "`{name}` at {} overlaps the arms that name a variant there; name a variant in every arm",
+                at("_")
+            ),
+            *name_span,
+        ));
+    }
+    let constructor = |pattern: &Pattern| match pattern {
+        Pattern::Constructor(name, _, _) => name.clone(),
+        Pattern::Name(..) => unreachable!("checked above"),
+    };
+    let first = constructor(&rows[0].0);
+    let family: &[(&str, usize)] = match first.as_str() {
+        "Some" | "None" => &[("Some", 1), ("None", 0)],
+        "Ok" | "Err" => &[("Ok", 1), ("Err", 1)],
+        other if variants.contains_key(other) => &[],
+        other => {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                format!("`{other}` is not a variant of any enum; expected Some, None, Ok, Err or an enum variant"),
+                rows[0].0.span(),
+            ))
+        }
+    };
+    if family.is_empty() {
+        // An enum: its variants hold Int, Float64, Bool, Text or lists, so they take names only,
+        // and `lower_enum_match` checks the rest.
+        let mut arms = Vec::new();
+        for (pattern, arm_body, arm_span) in rows {
+            let Pattern::Constructor(name, parts, name_span) = pattern else {
+                unreachable!("checked above")
+            };
+            if matches!(name.as_str(), "Some" | "None" | "Ok" | "Err") {
+                return Err(diagnostic(
+                    "E_MATCH_PATTERN",
+                    format!("`{name}` and `{first}` cannot match the same value"),
+                    name_span,
+                ));
+            }
+            let mut names = Vec::new();
+            for part in parts {
+                match part {
+                    Pattern::Name(name, span) => names.push((name, span)),
+                    Pattern::Constructor(_, _, span) => {
+                        return Err(diagnostic(
+                            "E_MATCH_PATTERN",
+                            "enum variant values are Int, Float64, Bool, Text or lists of those; bind them to names",
+                            span,
+                        ))
+                    }
+                }
+            }
+            arms.push(MatchArm {
+                pattern: MatchPattern::Variant(name, names, name_span),
+                body: arm_body,
+                span: arm_span,
+            });
+        }
+        return lower_enum_match(out, scrutinee, arms, span, enums, variants, counter);
+    }
+    for (pattern, _, _) in &rows {
+        let name = constructor(pattern);
+        if !family.iter().any(|(member, _)| *member == name) {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                format!("`{name}` and `{first}` cannot match the same value"),
+                pattern.span(),
+            ));
+        }
+    }
+    let mut arms = Vec::new();
+    for (member, arity) in family {
+        let mut matching = Vec::new();
+        let mut arm_span = None;
+        for (pattern, arm_body, row_span) in &rows {
+            if let Pattern::Constructor(name, parts, _) = pattern {
+                if name == member {
+                    arm_span.get_or_insert(*row_span);
+                    matching.push((parts.first().cloned(), arm_body.clone(), *row_span));
+                }
+            }
+        }
+        let Some(arm_span) = arm_span else {
+            let missing = if *arity == 1 {
+                format!("{member}(_)")
+            } else {
+                (*member).to_owned()
+            };
+            return Err(diagnostic(
+                "E_MATCH_NONEXHAUSTIVE",
+                format!("match does not handle {}", at(&missing)),
+                span,
+            ));
+        };
+        if *arity == 0 {
+            if let Some((_, _, duplicate)) = matching.get(1) {
+                return Err(diagnostic(
+                    "E_MATCH_DUPLICATE",
+                    format!("two arms match {}", at(member)),
+                    *duplicate,
+                ));
+            }
+            arms.push(MatchArm {
+                pattern: MatchPattern::None(arm_span),
+                body: matching.remove(0).1,
+                span: arm_span,
+            });
+            continue;
+        }
+        let (binding, binding_span, arm_body) = match matching.as_slice() {
+            [(Some(Pattern::Name(name, name_span)), arm_body, _)] if name != "_" => {
+                (name.clone(), *name_span, arm_body.clone())
+            }
+            _ => {
+                *counter += 1;
+                let temp = format!("%match_part_{counter}");
+                let mut inner = Vec::new();
+                let sub_rows = matching
+                    .into_iter()
+                    .map(|(part, arm_body, row_span)| (part.expect("arity 1"), arm_body, row_span))
+                    .collect();
+                lower_pattern_rows(
+                    &mut inner,
+                    Expr::Name(temp.clone(), arm_span),
+                    sub_rows,
+                    arm_span,
+                    &context.replace("{}", &format!("{member}({{}})")),
+                    enums,
+                    variants,
+                    counter,
+                )?;
+                (temp, arm_span, inner)
+            }
+        };
+        arms.push(MatchArm {
+            pattern: match *member {
+                "Some" => MatchPattern::Some(binding, binding_span),
+                "Ok" => MatchPattern::Ok(binding, binding_span),
+                _ => MatchPattern::Err(binding, binding_span),
+            },
+            body: arm_body,
+            span: arm_span,
+        });
+    }
+    out.push(Stmt::Match(scrutinee, arms, span));
+    Ok(())
+}
+
+/// A hidden statement `lower_enum_match` emits after binding the matched value: its arguments are
+/// the value, the enum the arms name, the first arm's variant and the missing-variant message (empty
+/// when every variant is handled). The compiler checks the value is that enum, reporting
+/// `E_MATCH_TYPE` if not, and then reports a missing variant; it emits no code.
+const ENUM_MATCH_CHECK: &str = "%enum_match_check";
 
 fn lower_enum_match(
     out: &mut Vec<Stmt>,
@@ -2283,24 +2598,43 @@ fn lower_enum_match(
         .filter(|(_, arm)| arm.is_none())
         .map(|(variant, _)| variant.name.as_str())
         .collect();
-    if !missing.is_empty() {
-        return Err(diagnostic(
-            "E_MATCH_MISSING_VARIANT",
-            format!(
-                "match on `{}` does not handle {}",
-                declared.name,
-                missing
-                    .iter()
-                    .map(|name| format!("`{name}`"))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            span,
-        ));
-    }
+    let missing = if missing.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "match on `{}` does not handle {}",
+            declared.name,
+            missing
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let MatchPattern::Variant(first_variant, _, first_span) = &arms[0].pattern else {
+        unreachable!("checked above")
+    };
+    let (first_variant, first_span) = (first_variant.clone(), *first_span);
     *counter += 1;
-    let temp = format!("__enum_match_{counter}");
+    // `%` cannot start a name in source, so the program cannot read this temporary.
+    let temp = format!("%enum_match_{counter}");
     out.push(Stmt::Let(temp.clone(), false, None, value, span));
+    // Desugaring runs before types are known, so the value's type, and then a missing variant,
+    // are checked when this is compiled: see `ENUM_MATCH_CHECK`.
+    out.push(Stmt::Expr(
+        Expr::Call(
+            ENUM_MATCH_CHECK.to_owned(),
+            vec![
+                Expr::Name(temp.clone(), first_span),
+                Expr::Text(declared.name.clone(), first_span),
+                Expr::Text(first_variant, first_span),
+                Expr::Text(missing, span),
+            ],
+            Vec::new(),
+            span,
+        ),
+        span,
+    ));
     // Build the arms into a nested if / else chain, last arm as the final else.
     let mut chain: Option<Vec<Stmt>> = None;
     for arm in arms.into_iter().rev() {
@@ -2474,7 +2808,18 @@ fn mentioned_in_block(body: &[Stmt], out: &mut Vec<String>, bound: &mut Vec<Stri
                         MatchPattern::Variant(_, names, _) => {
                             bound.extend(names.iter().map(|(name, _)| name.clone()))
                         }
-                        MatchPattern::None => {}
+                        MatchPattern::Nested(tree) => {
+                            fn names(pattern: &Pattern, bound: &mut Vec<String>) {
+                                match pattern {
+                                    Pattern::Name(name, _) => bound.push(name.clone()),
+                                    Pattern::Constructor(_, parts, _) => {
+                                        parts.iter().for_each(|part| names(part, bound))
+                                    }
+                                }
+                            }
+                            names(tree, bound);
+                        }
+                        MatchPattern::None(_) => {}
                     }
                     mentioned_in_block(&arm.body, out, bound);
                 }
@@ -4125,10 +4470,22 @@ impl<'a> FnCompiler<'a> {
                         }
                         Type::Text
                     }
+                    Type::Bytes => {
+                        if self.expr(index)? != Type::Int {
+                            return Err(diagnostic(
+                                "E_TYPE_INDEX",
+                                "bytes index must be Int",
+                                index.span(),
+                            ));
+                        }
+                        // The byte as an Int from 0 to 255 (artifact format 89).
+                        self.emit(Op::Codec(CodecFunction::BytesAt), *span);
+                        return Ok(Type::Int);
+                    }
                     _ => {
                         return Err(diagnostic(
                             "E_TYPE_INDEX",
-                            "indexing requires a List, Map, or Text",
+                            "indexing requires a List, Map, Text or Bytes",
                             values.span(),
                         ))
                     }
@@ -4201,25 +4558,34 @@ impl<'a> FnCompiler<'a> {
             Expr::Name(n, s) => {
                 if n == "None" {
                     let option_type = match expected {
-                        Some(option @ Type::Option(_)) => option,
-                        None if matches!(self.ast.result, Type::Option(_)) => &self.ast.result,
-                        _ => {
+                        Some(option @ Type::Option(_)) => option.clone(),
+                        None if matches!(self.ast.result, Type::Option(_)) => {
+                            self.ast.result.clone()
+                        }
+                        Some(other) => {
                             return Err(diagnostic(
                                 "E_OPTION_CONSTRUCTOR_CONTEXT",
-                                "None requires an expected Option type or an Option-returning function",
+                                format!(
+                                    "`None` is an Option, but this position expects {}",
+                                    type_label(other)
+                                ),
+                                *s,
+                            ));
+                        }
+                        None => {
+                            return Err(diagnostic(
+                                "E_OPTION_CONSTRUCTOR_CONTEXT",
+                                "cannot tell which Option type `None` is here; write the type where it is bound, for example `let value: Option[Int] = None`",
                                 *s,
                             ));
                         }
                     };
-                    if *option_type != self.ast.result {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "None is only supported in a function that returns that Option type; build it in a small helper function that returns it",
-                            *s,
-                        ));
+                    if option_type == self.ast.result {
+                        self.emit(Op::MakeNone, *s);
+                    } else {
+                        self.call_constructor_helper("None", &option_type, None, *s)?;
                     }
-                    self.emit(Op::MakeNone, *s);
-                    return Ok(option_type.clone());
+                    return Ok(option_type);
                 }
                 let Some(l) = self.locals.get(n).cloned() else {
                     // A bare function name denotes the function value; a local of the same
@@ -4620,31 +4986,38 @@ impl<'a> FnCompiler<'a> {
                     }
                     let option_type = match expected {
                         Some(option @ Type::Option(_)) => option.clone(),
-                        None => self.ast.result.clone(),
-                        _ => Type::Unit,
+                        None if matches!(self.ast.result, Type::Option(_)) => {
+                            self.ast.result.clone()
+                        }
+                        // With nothing else to go on, the value says which Option it is.
+                        None => Type::Option(Box::new(self.expr(&args[0])?)),
+                        Some(other) => {
+                            return Err(diagnostic(
+                                "E_OPTION_CONSTRUCTOR_CONTEXT",
+                                format!(
+                                    "`Some` makes an Option, but this position expects {}",
+                                    type_label(other)
+                                ),
+                                *s,
+                            ));
+                        }
                     };
                     let Type::Option(item) = &option_type else {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "Some requires an expected Option type or an Option-returning function",
-                            *s,
-                        ));
+                        unreachable!("option_type is an Option");
                     };
-                    if self.expr_with_expected(&args[0], Some(item))? != **item {
+                    let inferred = expected.is_none() && !matches!(self.ast.result, Type::Option(_));
+                    if !inferred && self.expr_with_expected(&args[0], Some(item))? != **item {
                         return Err(diagnostic(
                             "E_OPTION_CONSTRUCTOR_TYPE",
                             format!("Some value must have type {item:?}"),
                             args[0].span(),
                         ));
                     }
-                    if option_type != self.ast.result {
-                        return Err(diagnostic(
-                            "E_OPTION_CONSTRUCTOR_CONTEXT",
-                            "Some is only supported in a function that returns that Option type; build it in a small helper function that returns it",
-                            *s,
-                        ));
+                    if option_type == self.ast.result {
+                        self.emit(Op::MakeSome, *s);
+                    } else {
+                        self.call_constructor_helper("Some", &option_type, Some(item), *s)?;
                     }
-                    self.emit(Op::MakeSome, *s);
                     return Ok(option_type);
                 }
                 if name == "Ok" || name == "Err" {
@@ -4657,15 +5030,29 @@ impl<'a> FnCompiler<'a> {
                     }
                     let result_type = match expected {
                         Some(result @ Type::Result(_, _)) => result.clone(),
-                        None => self.ast.result.clone(),
-                        _ => Type::Unit,
+                        None if matches!(self.ast.result, Type::Result(_, _)) => {
+                            self.ast.result.clone()
+                        }
+                        Some(other) => {
+                            return Err(diagnostic(
+                                "E_RESULT_CONSTRUCTOR_CONTEXT",
+                                format!(
+                                    "`{name}` makes a Result, but this position expects {}",
+                                    type_label(other)
+                                ),
+                                *s,
+                            ));
+                        }
+                        None => {
+                            return Err(diagnostic(
+                                "E_RESULT_CONSTRUCTOR_CONTEXT",
+                                format!("cannot tell which Result type `{name}` makes here; write the type where it is bound, for example `let value: Result[Int, Text] = {name}(...)`"),
+                                *s,
+                            ));
+                        }
                     };
                     let Type::Result(ok, err) = &result_type else {
-                        return Err(diagnostic(
-                            "E_RESULT_CONSTRUCTOR_CONTEXT",
-                            "Ok and Err require an expected Result type or a Result-returning function",
-                            *s,
-                        ));
+                        unreachable!("result_type is a Result");
                     };
                     let payload_type = if name == "Ok" {
                         ok.as_ref()
@@ -4679,21 +5066,19 @@ impl<'a> FnCompiler<'a> {
                             args[0].span(),
                         ));
                     }
-                    if result_type != self.ast.result {
-                        return Err(diagnostic(
-                            "E_RESULT_CONSTRUCTOR_CONTEXT",
-                            format!("{name} is only supported in a function that returns that Result type; build it in a small helper function that returns it"),
+                    if result_type == self.ast.result {
+                        self.emit(
+                            if name == "Ok" {
+                                Op::MakeOk
+                            } else {
+                                Op::MakeErr
+                            },
                             *s,
-                        ));
+                        );
+                    } else {
+                        let payload_type = payload_type.clone();
+                        self.call_constructor_helper(name, &result_type, Some(&payload_type), *s)?;
                     }
-                    self.emit(
-                        if name == "Ok" {
-                            Op::MakeOk
-                        } else {
-                            Op::MakeErr
-                        },
-                        *s,
-                    );
                     return Ok(result_type);
                 }
                 if name == "parallel_map" {
@@ -5769,6 +6154,68 @@ impl<'a> FnCompiler<'a> {
             }
         }
     }
+    /// `Some`, `None`, `Ok` and `Err` build a value of the enclosing function's result type
+    /// directly: the bytecode verifier types `MakeSome` and the rest by that result. Anywhere
+    /// else, such as `Ok(None)` in a function returning `Result[Option[T], E]` or `Some(1)` as a
+    /// record field, the value comes from a hidden helper the compiler makes once per type:
+    /// `fn() -> Option[T]: return None`, `fn(value: T) -> Option[T]: return Some(value)`, and so
+    /// on. The payload, if any, is already on the stack; this emits the call.
+    fn call_constructor_helper(
+        &mut self,
+        constructor: &str,
+        ty: &Type,
+        payload: Option<&Type>,
+        span: Span,
+    ) -> Result<(), Diagnostic> {
+        if self.type_has_task(ty) {
+            return Err(diagnostic(
+                "E_SCOPE_ESCAPE",
+                format!("a task belongs to its `together:` block and cannot be wrapped in `{constructor}`"),
+                span,
+            ));
+        }
+        let module_id = self.ast.module_id;
+        let key = format!("constructor|{module_id}|{constructor}|{ty:?}");
+        let index = match self.instance_index.get(&key) {
+            Some(index) => *index,
+            None => {
+                let mut pending = self.pending_instances.borrow_mut();
+                if !pending.iter().any(|instance| instance.key == key) {
+                    let (params, value) = match payload {
+                        None => (Vec::new(), Expr::Name(constructor.to_owned(), span)),
+                        Some(payload) => (
+                            vec![("value".to_owned(), payload.clone(), span)],
+                            Expr::Call(
+                                constructor.to_owned(),
+                                vec![Expr::Name("value".to_owned(), span)],
+                                Vec::new(),
+                                span,
+                            ),
+                        ),
+                    };
+                    pending.push(PendingInstance {
+                        key,
+                        symbol: String::new(),
+                        types: Vec::new(),
+                        // `lambda@` marks it as hidden, like a lifted closure.
+                        lambda: Some(FunctionAst {
+                            name: format!("lambda@{constructor}/{}", type_label(ty)),
+                            type_params: Vec::new(),
+                            params,
+                            result: ty.clone(),
+                            body: vec![Stmt::Return(value, span)],
+                            span,
+                            public: false,
+                            module_id,
+                        }),
+                    });
+                }
+                0
+            }
+        };
+        self.emit(Op::Call(index, usize::from(payload.is_some())), span);
+        Ok(())
+    }
     /// Compiles a call to a generic function: binds its type parameters from the written type
     /// arguments or from the argument types, and calls the instance for those types.
     fn generic_call(
@@ -6340,6 +6787,33 @@ impl<'a> FnCompiler<'a> {
                         *span,
                     );
                 }
+                Stmt::Expr(Expr::Call(name, args, _, span), _) if name == ENUM_MATCH_CHECK => {
+                    let [value, Expr::Text(enum_name, _), Expr::Text(variant, _), Expr::Text(missing, _)] =
+                        args.as_slice()
+                    else {
+                        unreachable!("lower_enum_match emits four arguments")
+                    };
+                    let mark = self.code.len();
+                    let found = self.expr(value)?;
+                    self.code.truncate(mark);
+                    if found != Type::Record(enum_name.clone()) {
+                        return Err(diagnostic(
+                            "E_MATCH_TYPE",
+                            format!(
+                                "`{variant}` is a `{enum_name}` variant, but this value is {}",
+                                type_label(&found)
+                            ),
+                            value.span(),
+                        ));
+                    }
+                    if !missing.is_empty() {
+                        return Err(diagnostic(
+                            "E_MATCH_MISSING_VARIANT",
+                            missing.clone(),
+                            *span,
+                        ));
+                    }
+                }
                 Stmt::Expr(e, span) => {
                     self.expr(e)?;
                     self.emit(Op::Pop, *span);
@@ -6620,9 +7094,18 @@ impl<'a> FnCompiler<'a> {
                 Stmt::Match(value, arms, span) => {
                     let value_type = self.expr(value)?;
                     if !matches!(value_type, Type::Option(_) | Type::Result(_, _)) {
+                        let arms_name = match arms.first().map(|arm| &arm.pattern) {
+                            Some(MatchPattern::Some(..) | MatchPattern::None(_)) => {
+                                "the arms match an Option (`Some`, `None`)"
+                            }
+                            Some(MatchPattern::Ok(..) | MatchPattern::Err(..)) => {
+                                "the arms match a Result (`Ok`, `Err`)"
+                            }
+                            _ => "match supports Option, Result and enum values",
+                        };
                         return Err(diagnostic(
                             "E_MATCH_TYPE",
-                            "match currently supports Option and Result values",
+                            format!("{arms_name}, but this value is {}", type_label(&value_type)),
                             value.span(),
                         ));
                     }
@@ -6632,7 +7115,7 @@ impl<'a> FnCompiler<'a> {
                         let is_true = match (&value_type, &arm.pattern) {
                             (Type::Option(_), MatchPattern::Some(_, _))
                             | (Type::Result(_, _), MatchPattern::Ok(_, _)) => true,
-                            (Type::Option(_), MatchPattern::None)
+                            (Type::Option(_), MatchPattern::None(_))
                             | (Type::Result(_, _), MatchPattern::Err(_, _)) => false,
                             _ => {
                                 return Err(diagnostic(
@@ -6716,7 +7199,7 @@ impl<'a> FnCompiler<'a> {
             (MatchPattern::Err(name, span), Type::Result(_, err)) => {
                 Some((name, *span, err.as_ref().clone(), Op::GetError))
             }
-            (MatchPattern::None, Type::Option(_)) => None,
+            (MatchPattern::None(_), Type::Option(_)) => None,
             _ => unreachable!("match arms are type-checked before lowering"),
         };
         let before = self.locals.clone();

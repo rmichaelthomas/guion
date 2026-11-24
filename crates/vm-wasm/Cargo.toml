@@ -16,5 +16,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 guion-compiler.workspace = true
+guion-crypto.workspace = true
 
 guion-runtime.workspace = true

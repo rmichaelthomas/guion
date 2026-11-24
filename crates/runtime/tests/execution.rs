@@ -6629,14 +6629,38 @@ fn main() -> Int:
 }
 
 #[test]
-fn option_and_result_constructors_outside_a_matching_function_are_source_diagnostics() {
-    let option = "record Box:\n    value: Option[Int]\n\nfn main() -> Int:\n    let boxed = Box(Some(1))\n    return 0\n";
-    let invalid = compile("option-nested.gu", option).unwrap_err();
-    assert_eq!(invalid.code, "E_OPTION_CONSTRUCTOR_CONTEXT");
-    assert_eq!(invalid.span.line, 5);
+fn option_and_result_constructors_outside_a_matching_function_use_hidden_helpers() {
+    // `Some`, `None`, `Ok` and `Err` of a type other than the function's result are built by a
+    // hidden helper function per type; the artifact round-trips and verifies like any other.
+    let source = "record Box:\n    value: Option[Int]\n\nfn wrap() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn lookup(found: Bool) -> Result[Option[Int], Text]:\n    if found:\n        return Ok(Some(2))\n    return Ok(None)\n\nfn main() -> Int:\n    let boxed = Box(Some(1))\n    print(boxed.value)\n    print(wrap())\n    print(lookup(true))\n    print(lookup(false))\n    return 0\n";
+    let artifact = compile("constructors.gu", source).unwrap();
+    let hidden: Vec<&str> = artifact
+        .functions
+        .iter()
+        .map(|function| function.name.as_str())
+        .filter(|name| name.contains("lambda@"))
+        .collect();
+    // `Box(Some(1))` and `Ok(Some(2))` share the `Some` helper for `Option[Int]`.
+    assert_eq!(hidden.len(), 3, "{hidden:?}");
+    let bytes = artifact.to_bytes().unwrap();
+    let artifact = guion_model::Artifact::from_bytes(&bytes).unwrap();
+    let mut instance = Runtime::new()
+        .load(artifact, HostPolicy::default())
+        .expect("the helpers verify");
+    instance.invoke("main", vec![]).unwrap();
+    assert_eq!(
+        instance.take_output(),
+        "Some(1)\nSome(Ok(1))\nOk(Some(2))\nOk(None)\n"
+    );
 
-    let result = "fn wrap() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn main() -> Int:\n    return 0\n";
-    let invalid = compile("result-nested.gu", result).unwrap_err();
+    let unknown = "fn main() -> Int:\n    let value = None\n    return 0\n";
+    let invalid = compile("option-unknown.gu", unknown).unwrap_err();
+    assert_eq!(invalid.code, "E_OPTION_CONSTRUCTOR_CONTEXT");
+    assert_eq!(invalid.span.line, 2);
+
+    let misplaced =
+        "fn wrap() -> Option[Int]:\n    return Some(Ok(1))\n\nfn main() -> Int:\n    return 0\n";
+    let invalid = compile("result-misplaced.gu", misplaced).unwrap_err();
     assert_eq!(invalid.code, "E_RESULT_CONSTRUCTOR_CONTEXT");
 }
 

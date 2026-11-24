@@ -1,0 +1,82 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:text"
+
+# Stamp a message with a trusted timestamp from DigiCert (RFC 3161) and check the answer.
+#
+# 1. Hash the message with SHA-512.
+# 2. Build a timestamp request for that digest with a fresh 8-byte nonce. A nonce's first byte must be
+#    0x01 to 0x7f, so it is forced into that range.
+# 3. POST it to the TSA with http_request_bytes.
+# 4. Take the token out of the response and verify it against the DigiCert certificates pinned below
+#    (the signer and its issuer), for this digest.
+# 5. Check that the TSA echoed our nonce, and print the time it vouches for.
+#
+# Run it with the network host granted by guion.toml:
+#   guion run main.gu
+# or replay the recorded answer with no network at all (this is what the example's test does):
+#   guion run --replay tapes/tsa-live.tape main.gu
+# and to record again:
+#   guion run --record tapes/tsa-live.tape main.gu
+# A new recording stamps a new time, so the pinned certificates must still be the ones DigiCert signs
+# with; crypto_tsa_certificates(token) lists the certificates a token carries when they rotate.
+
+fn digicert_tsa_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIG7TCCBNWgAwIBAgIQDGghhNN/uFaOgl/F1hj2MDANBgkqhkiG9w0BAQ0FADBp\nMQswCQYDVQQGEwJVUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xQTA/BgNVBAMT\nOERpZ2lDZXJ0IFRydXN0ZWQgRzQgVGltZVN0YW1waW5nIFJTQTQwOTYgU0hBMjU2\nIDIwMjUgQ0ExMB4XDTI2MDgwNTAwMDAwMFoXDTM3MTEwNDIzNTk1OVowYzELMAkG\nA1UEBhMCVVMxFzAVBgNVBAoTDkRpZ2lDZXJ0LCBJbmMuMTswOQYDVQQDEzJEaWdp\nQ2VydCBTSEE1MTIgUlNBNDA5NiBUaW1lc3RhbXAgUmVzcG9uZGVyIDIwMjYgMTCC\nAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAKf4ECXaLeTb3iUczI1biNoZ\ngSZKxzBYFNaESzqKxOxZKfx80RcGPMWX/nspP98i57CevuIWOCjJ/EzV0L14UY9I\nqncSkl2kbLXEmxhDcnu7kHTalTfmo4LNjsykceKslq2rp7TrnwrQbatL1uE3docN\nWdPx/Elt5py8AkDKSIiGWVjekLQbgpQJ+/tz5SNhUpM6XYtcNBC5dijIDAuTHX6b\nu16N0VPbyO1w4t8uM+Xmw+HeVXl+lRAhFX83/u60D1VUxVoKLnCt8garzc/dNEDg\nc2378VkEy7WmKupvIVxaxuNv39DL3laF4/TvFXy5PzVvcMhODZteEkUxL+ZwvOeD\nij4raK0yper5Z8MRfa+XVhLEko7/I55IDeKPsBt8XgsUXqL+sqUi6jOO17oTAPt5\nwj2LIVrkIqnlZOJPLgo9mOsbSlQBKatzpjgArItT6NX093zr+ioUvCqPyuViHbg/\n5trtoM6rwIAHEmp0C3ZY4VPDXGx9g8Ir1pWiXv7IoYAulytB9EPaJJE8RuI4L91M\ncjYB7LwtCjx7/3qStHJueaWFMXu58cP+VKfiPVlB9Irbo0RtFDis/W6ahiIZ60ea\nbhitOUPpy9TaqjFYH0nP37OdK/PVmCZYuks1creOvBowPmuDZa+nd1Pkbq23ZgAF\ncrmhmbZncZj85QbGA1UjAgMBAAGjggGVMIIBkTAMBgNVHRMBAf8EAjAAMB0GA1Ud\nDgQWBBSIg3ocIUgSYqTyQ3U7bGoXwpHNzDAfBgNVHSMEGDAWgBTvb1NK6eQGfHrK\n4pBW9i/USezLTjAOBgNVHQ8BAf8EBAMCB4AwFgYDVR0lAQH/BAwwCgYIKwYBBQUH\nAwgwgZUGCCsGAQUFBwEBBIGIMIGFMCQGCCsGAQUFBzABhhhodHRwOi8vb2NzcC5k\naWdpY2VydC5jb20wXQYIKwYBBQUHMAKGUWh0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0\nLmNvbS9EaWdpQ2VydFRydXN0ZWRHNFRpbWVTdGFtcGluZ1JTQTQwOTZTSEEyNTYy\nMDI1Q0ExLmNydDBfBgNVHR8EWDBWMFSgUqBQhk5odHRwOi8vY3JsMy5kaWdpY2Vy\ndC5jb20vRGlnaUNlcnRUcnVzdGVkRzRUaW1lU3RhbXBpbmdSU0E0MDk2U0hBMjU2\nMjAyNUNBMS5jcmwwIAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcBMA0G\nCSqGSIb3DQEBDQUAA4ICAQBefiS5KC0Ij65cTf9/nlrYZvEt7/9NYckbT5ZVO5BY\noKM+Lcb2smVRfaURfrzaYVudVFghSoT3A7KqzpXbg2gJo2/wLZbysIvYm4u2NacK\nDAuS73Utk6r+cksMqQey5cUBV+j0iQm7VTJskM2pi4ZiCP5uE6+w4kCkks8HXSt+\nAZz/FZ7U7NkywUZBZIOGJjs7H1gxq9c8ypRg8RYlbMiLAhVbLpkJzHUhDtioYOjq\nWElY9c8cFhrN6VFKk6vYv96Bun5jdnrkDO3S8ZzLauHfibJ5GDsImJbOeBg7Bcqa\nKQIFva0zoYpMpME3At1SckK//SlnzhQ+r2jXhk8gMmPV9n9YNBNUK1LkrbtJSBym\nmqihV/kxDopkqUFl+mt55zrj0yndr9YIWNwTaxB3L3z61yVUqxtd/y1ohksm2KI/\nOkg7vCH/if4sljxQp0FadaHc/BII27Sw6xqC2KjV/6ILAuYNDRfE45soLQeEy7ef\nt5sOEkAky9R7sSvy26maxJ/2GUkH+iLu40Zq7cT23OgrisjnHZDPQxtoruQbWHEE\nIzdqjSUArYieWPgddaYmXeJQRYwt4JjHwlgmw1DhwmWrvz+fHXwrA2m3IKiGzW49\nPotBOvEdjKQx+q1Oj7zHbDnVcc4Wv9Qf185wSOdUHTPSA+AnRjb+CPWmD/drLn19\ngQ==\n-----END CERTIFICATE-----\n"
+
+fn digicert_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIGtDCCBJygAwIBAgIQDcesVwX/IZkuQEMiDDpJhjANBgkqhkiG9w0BAQsFADBi\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSEwHwYDVQQDExhEaWdpQ2VydCBUcnVzdGVkIFJvb3Qg\nRzQwHhcNMjUwNTA3MDAwMDAwWhcNMzgwMTE0MjM1OTU5WjBpMQswCQYDVQQGEwJV\nUzEXMBUGA1UEChMORGlnaUNlcnQsIEluYy4xQTA/BgNVBAMTOERpZ2lDZXJ0IFRy\ndXN0ZWQgRzQgVGltZVN0YW1waW5nIFJTQTQwOTYgU0hBMjU2IDIwMjUgQ0ExMIIC\nIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAtHgx0wqYQXK+PEbAHKx126NG\naHS0URedTa2NDZS1mZaDLFTtQ2oRjzUXMmxCqvkbsDpz4aH+qbxeLho8I6jY3xL1\nIusLopuW2qftJYJaDNs1+JH7Z+QdSKWM06qchUP+AbdJgMQB3h2DZ0Mal5kYp77j\nYMVQXSZH++0trj6Ao+xh/AS7sQRuQL37QXbDhAktVJMQbzIBHYJBYgzWIjk8eDrY\nhXDEpKk7RdoX0M980EpLtlrNyHw0Xm+nt5pnYJU3Gmq6bNMI1I7Gb5IBZK4ivbVC\niZv7PNBYqHEpNVWC2ZQ8BbfnFRQVESYOszFI2Wv82wnJRfN20VRS3hpLgIR4hjzL\n0hpoYGk81coWJ+KdPvMvaB0WkE/2qHxJ0ucS638ZxqU14lDnki7CcoKCz6eum5A1\n9WZQHkqUJfdkDjHkccpL6uoG8pbF0LJAQQZxst7VvwDDjAmSFTUms+wV/FbWBqi7\nfTJnjq3hj0XbQcd8hjj/q8d6ylgxCZSKi17yVp2NL+cnT6Toy+rN+nM8M7LnLqCr\nO2JP3oW//1sfuZDKiDEb1AQ8es9Xr/u6bDTnYCTKIsDq1BtmXUqEG1NqzJKS4kOm\nxkYp2WyODi7vQTCBZtVFJfVZ3j7OgWmnhFr4yUozZtqgPrHRVHhGNKlYzyjlroPx\nul+bgIspzOwbtmsgY1MCAwEAAaOCAV0wggFZMBIGA1UdEwEB/wQIMAYBAf8CAQAw\nHQYDVR0OBBYEFO9vU0rp5AZ8esrikFb2L9RJ7MtOMB8GA1UdIwQYMBaAFOzX44LS\ncV1kTN8uZz/nupiuHA9PMA4GA1UdDwEB/wQEAwIBhjATBgNVHSUEDDAKBggrBgEF\nBQcDCDB3BggrBgEFBQcBAQRrMGkwJAYIKwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRp\nZ2ljZXJ0LmNvbTBBBggrBgEFBQcwAoY1aHR0cDovL2NhY2VydHMuZGlnaWNlcnQu\nY29tL0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5jcnQwQwYDVR0fBDwwOjA4oDagNIYy\naHR0cDovL2NybDMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0VHJ1c3RlZFJvb3RHNC5j\ncmwwIAYDVR0gBBkwFzAIBgZngQwBBAIwCwYJYIZIAYb9bAcBMA0GCSqGSIb3DQEB\nCwUAA4ICAQAXzvsWgBz+Bz0RdnEwvb4LyLU0pn/N0IfFiBowf0/Dm1wGc/Do7oVM\nY2mhXZXjDNJQa8j00DNqhCT3t+s8G0iP5kvN2n7Jd2E4/iEIUBO41P5F448rSYJ5\n9Ib61eoalhnd6ywFLerycvZTAz40y8S4F3/a+Z1jEMK/DMm/axFSgoR8n6c3nuZB\n9BfBwAQYK9FHaoq2e26MHvVY9gCDA/JYsq7pGdogP8HRtrYfctSLANEBfHU16r3J\n05qX3kId+ZOczgj5kjatVB+NdADVZKON/gnZruMvNYY2o1f4MXRJDMdTSlOLh0HC\nn2cQLwQCqjFbqrXuvTPSegOOzr4EWj7PtspIHBldNE2K9i697cvaiIo2p61Ed2p8\nxMJb82Yosn0z4y25xUbI7GIN/TpVfHIqQ6Ku/qjTY6hc3hsXMrS+U0yy+GWqAXam\n4ToWd2UQ1KYT70kZjE4YtL8Pbzg0c1ugMZyZZd/BdHLiRu7hAWE6bTEm4XYRkA6T\nl4KSFLFk43esaUeqGkH/wyW4N7OigizwJWeukcyIPbAvjSabnf7+Pu0VrFgoiovR\nDiyx3zEdmcif/sYQsfch28bZeUz2rtY/9TCA6TD8dC3JE3rYkrhLULy7Dc90G6e8\nBlqmyIjlgp2+VqsS9/wQD7yFylIz0scmbKvFoW2jNrbM1pD2T7m3XA==\n-----END CERTIFICATE-----\n"
+
+fn certificate(pem: Text) -> Bytes:
+    return unwrap(crypto_pem_decode(pem))
+
+# Eight random bytes whose first byte is 0x01 to 0x7f.
+fn make_nonce() -> Bytes:
+    let drawn = unwrap(crypto_random_bytes(8))
+    let forced = int_or(int_and(drawn[0], 127), 1)
+    return bytes_join([bytes_from_ints([forced]), bytes_slice(drawn, 1, 8)])
+
+# POST the request to DigiCert and return the token from its answer.
+fn fetch_token(request: Bytes) -> Result[Bytes, StdError]:
+    let headers: Map[Text, Text] = {"content-type": "application/timestamp-query"}
+    match http_request_bytes("POST", "http://timestamp.digicert.com", headers, request, 10000):
+        Err(problem):
+            return Err(std_error("E_TSA_HTTP", http_error_code(problem)))
+        Ok(response):
+            if response.status != 200:
+                return Err(std_error("E_TSA_HTTP", "the TSA answered HTTP " + int_to_text(response.status)))
+            return crypto_tsa_response_token(response.body)
+
+fn fail(what: Text) -> Int:
+    print("timestamp failed: " + what)
+    return 1
+
+# Check the token against the pinned certificates, then print what it says.
+fn report(token: Bytes, digest: Bytes, nonce: Bytes) -> Int:
+    let tsa = certificate(digicert_tsa_pem())
+    let issuer = certificate(digicert_issuer_pem())
+    match crypto_tsa_verify(token, digest, tsa, issuer):
+        Err(problem):
+            return fail(problem.code + " " + problem.message)
+        Ok(None):
+            return fail("the token is not a DigiCert timestamp of this message")
+        Ok(Some(stamp)):
+            if stamp.nonce != nonce:
+                return fail("the token does not echo our nonce")
+            print("verified: the token is DigiCert's, for this message, with our nonce")
+            print("time: " + int_to_text(stamp.gen_time_ms) + " ms since 1970 (UTC)")
+            print("policy: " + stamp.policy)
+            print("serial: " + hex_encode(stamp.serial))
+            return 0
+
+fn main() -> Int:
+    let message = bytes_from_text("The Lotcast draw for round 1 was sealed before the numbers were known.")
+    let digest = crypto_sha512(message)
+    let nonce = make_nonce()
+    let request = unwrap(crypto_tsa_request(digest, nonce))
+    match fetch_token(request):
+        Err(problem):
+            return fail(problem.code + " " + problem.message)
+        Ok(token):
+            return report(token, digest, nonce)

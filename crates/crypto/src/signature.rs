@@ -236,14 +236,14 @@ const SHA512_OID: &str = "2.16.840.1.101.3.4.2.3";
 
 /// A hash named by an X.509 signature algorithm.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CertHash {
+pub(crate) enum CertHash {
     Sha256,
     Sha384,
     Sha512,
 }
 
 impl CertHash {
-    fn from_oid(oid: &str) -> Option<CertHash> {
+    pub(crate) fn from_oid(oid: &str) -> Option<CertHash> {
         match oid {
             SHA256_OID => Some(CertHash::Sha256),
             SHA384_OID => Some(CertHash::Sha384),
@@ -252,7 +252,7 @@ impl CertHash {
         }
     }
 
-    fn digest(self, message: &[u8]) -> Vec<u8> {
+    pub(crate) fn digest(self, message: &[u8]) -> Vec<u8> {
         match self {
             CertHash::Sha256 => Sha256::digest(message).to_vec(),
             CertHash::Sha384 => Sha384::digest(message).to_vec(),
@@ -262,22 +262,22 @@ impl CertHash {
 }
 
 /// How a certificate says it was signed.
-enum CertSignature {
+pub(crate) enum CertSignature {
     RsaPkcs1v15(CertHash),
     /// RSASSA-PSS with the hash and the `saltLength` the certificate's parameters name.
     RsaPss(CertHash, usize),
     Ecdsa(CertHash),
 }
 
-fn x509_error(message: impl Into<String>) -> CryptoError {
+pub(crate) fn x509_error(message: impl Into<String>) -> CryptoError {
     CryptoError::new("E_X509", message)
 }
 
-fn x509_alg(message: impl Into<String>) -> CryptoError {
+pub(crate) fn x509_alg(message: impl Into<String>) -> CryptoError {
     CryptoError::new("E_X509_ALG", message)
 }
 
-fn certificate_signature_algorithm(
+pub(crate) fn certificate_signature_algorithm(
     algorithm: &x509_cert::spki::AlgorithmIdentifierOwned,
 ) -> Result<CertSignature, CryptoError> {
     use rsa::pkcs1::der::Encode;
@@ -353,6 +353,96 @@ fn raw_tbs_certificate(der: &[u8]) -> Option<&[u8]> {
     inner.get(..inner_header.checked_add(content)?)
 }
 
+/// The curve OID of an EC key (`Some`, P-256 or P-384 only) or `None` for an RSA key; any other key
+/// algorithm or curve is `E_X509_ALG`.
+pub(crate) fn key_curve(
+    info: &x509_cert::spki::SubjectPublicKeyInfoOwned,
+) -> Result<Option<String>, CryptoError> {
+    let key_oid = info.algorithm.oid.to_string();
+    let curve = if key_oid == EC_PUBLIC_KEY_OID {
+        let parameters = info
+            .algorithm
+            .parameters
+            .as_ref()
+            .ok_or_else(|| x509_error("the signing EC key has no curve"))?;
+        let curve: rsa::pkcs1::der::asn1::ObjectIdentifier = parameters
+            .decode_as()
+            .map_err(|error| x509_error(format!("the signing EC key curve: {error}")))?;
+        let curve = curve.to_string();
+        if curve != P256_OID && curve != P384_OID {
+            return Err(x509_alg(format!(
+                "the signing key's EC curve {curve} is not supported (P-256 and P-384 are)"
+            )));
+        }
+        Some(curve)
+    } else if key_oid == RSA_ENCRYPTION_OID {
+        None
+    } else {
+        return Err(x509_alg(format!(
+            "the signing key algorithm {key_oid} is not supported (RSA, P-256 and P-384 are)"
+        )));
+    };
+    Ok(curve)
+}
+
+/// Verifies `signature` over `message` with the public key of the certificate `key_der` (whose
+/// `SubjectPublicKeyInfo` is `info` and whose curve, from [`key_curve`], is `curve`) under the
+/// algorithm a certificate or CMS structure named. A key of the wrong type for the algorithm, or a
+/// signature that does not verify, is `Ok(false)`.
+pub(crate) fn verify_under_key(
+    issuer_der: &[u8],
+    info: &x509_cert::spki::SubjectPublicKeyInfoOwned,
+    algorithm: CertSignature,
+    curve: Option<String>,
+    tbs: &[u8],
+    signature: &[u8],
+) -> Result<bool, CryptoError> {
+    match (algorithm, curve) {
+        (rsa_algorithm @ (CertSignature::RsaPkcs1v15(_) | CertSignature::RsaPss(..)), None) => {
+            let (scheme, salt_len) = match rsa_algorithm {
+                CertSignature::RsaPkcs1v15(CertHash::Sha256) => (RsaScheme::Pkcs1v15Sha256, None),
+                CertSignature::RsaPkcs1v15(CertHash::Sha384) => (RsaScheme::Pkcs1v15Sha384, None),
+                CertSignature::RsaPkcs1v15(CertHash::Sha512) => (RsaScheme::Pkcs1v15Sha512, None),
+                CertSignature::RsaPss(CertHash::Sha256, salt) => (RsaScheme::PssSha256, Some(salt)),
+                CertSignature::RsaPss(CertHash::Sha384, salt) => (RsaScheme::PssSha384, Some(salt)),
+                CertSignature::RsaPss(CertHash::Sha512, salt) => (RsaScheme::PssSha512, Some(salt)),
+                CertSignature::Ecdsa(_) => return Ok(false),
+            };
+            let (modulus, exponent) = x509_rsa_public_key(issuer_der)?;
+            if signature.len() != modulus.len() {
+                return Ok(false);
+            }
+            rsa_verify_with_salt(&modulus, &exponent, tbs, signature, scheme, salt_len)
+                .map_err(|error| x509_error(format!("the signing RSA key: {}", error.message)))
+        }
+        (CertSignature::Ecdsa(hash), Some(curve)) => {
+            let point = info
+                .subject_public_key
+                .as_bytes()
+                .ok_or_else(|| x509_error("the signing EC key is not a whole number of bytes"))?;
+            let digest = hash.digest(tbs);
+            let verified = if curve == P256_OID {
+                use p256::ecdsa::signature::hazmat::PrehashVerifier;
+                let key = EcVerifyingKey::from_sec1_bytes(point)
+                    .map_err(|_| x509_error("the signing P-256 key is not a valid point"))?;
+                EcSignature::from_der(signature)
+                    .map(|parsed| key.verify_prehash(&digest, &parsed).is_ok())
+                    .unwrap_or(false)
+            } else {
+                use p384::ecdsa::signature::hazmat::PrehashVerifier;
+                let key = p384::ecdsa::VerifyingKey::from_sec1_bytes(point)
+                    .map_err(|_| x509_error("the signing P-384 key is not a valid point"))?;
+                p384::ecdsa::Signature::from_der(signature)
+                    .map(|parsed| key.verify_prehash(&digest, &parsed).is_ok())
+                    .unwrap_or(false)
+            };
+            Ok(verified)
+        }
+        // An RSA algorithm under an EC key, or the other way round, cannot have been signed by it.
+        _ => Ok(false),
+    }
+}
+
 /// Whether `certificate_der` was signed by the key in `issuer_der`: the certificate's issuer name
 /// is the issuer certificate's subject name, and the signature over the certificate's
 /// `tbsCertificate` verifies under the issuer's public key. Both must be DER X.509 certificates
@@ -395,31 +485,8 @@ pub fn x509_verify_issued_by(
         .to_der()
         .map_err(|error| x509_error(format!("issuer subject name: {error}")))?;
     let info = &issuer.tbs_certificate.subject_public_key_info;
-    let key_oid = info.algorithm.oid.to_string();
     // Reject algorithms and curves outside the supported set before saying anything about names.
-    let curve = if key_oid == EC_PUBLIC_KEY_OID {
-        let parameters = info
-            .algorithm
-            .parameters
-            .as_ref()
-            .ok_or_else(|| x509_error("issuer EC key has no curve"))?;
-        let curve: rsa::pkcs1::der::asn1::ObjectIdentifier = parameters
-            .decode_as()
-            .map_err(|error| x509_error(format!("issuer EC key curve: {error}")))?;
-        let curve = curve.to_string();
-        if curve != P256_OID && curve != P384_OID {
-            return Err(x509_alg(format!(
-                "issuer EC curve {curve} is not supported (P-256 and P-384 are)"
-            )));
-        }
-        Some(curve)
-    } else if key_oid == RSA_ENCRYPTION_OID {
-        None
-    } else {
-        return Err(x509_alg(format!(
-            "issuer key algorithm {key_oid} is not supported (RSA, P-256 and P-384 are)"
-        )));
-    };
+    let curve = key_curve(info)?;
     if issuer_name != subject_name {
         return Ok(false);
     }
@@ -427,50 +494,7 @@ pub fn x509_verify_issued_by(
         .signature
         .as_bytes()
         .ok_or_else(|| x509_error("certificate signature is not a whole number of bytes"))?;
-    match (algorithm, curve) {
-        (rsa_algorithm @ (CertSignature::RsaPkcs1v15(_) | CertSignature::RsaPss(..)), None) => {
-            let (scheme, salt_len) = match rsa_algorithm {
-                CertSignature::RsaPkcs1v15(CertHash::Sha256) => (RsaScheme::Pkcs1v15Sha256, None),
-                CertSignature::RsaPkcs1v15(CertHash::Sha384) => (RsaScheme::Pkcs1v15Sha384, None),
-                CertSignature::RsaPkcs1v15(CertHash::Sha512) => (RsaScheme::Pkcs1v15Sha512, None),
-                CertSignature::RsaPss(CertHash::Sha256, salt) => (RsaScheme::PssSha256, Some(salt)),
-                CertSignature::RsaPss(CertHash::Sha384, salt) => (RsaScheme::PssSha384, Some(salt)),
-                CertSignature::RsaPss(CertHash::Sha512, salt) => (RsaScheme::PssSha512, Some(salt)),
-                CertSignature::Ecdsa(_) => return Ok(false),
-            };
-            let (modulus, exponent) = x509_rsa_public_key(issuer_der)?;
-            if signature.len() != modulus.len() {
-                return Ok(false);
-            }
-            rsa_verify_with_salt(&modulus, &exponent, tbs, signature, scheme, salt_len)
-                .map_err(|error| x509_error(format!("issuer RSA key: {}", error.message)))
-        }
-        (CertSignature::Ecdsa(hash), Some(curve)) => {
-            let point = info
-                .subject_public_key
-                .as_bytes()
-                .ok_or_else(|| x509_error("issuer EC key is not a whole number of bytes"))?;
-            let digest = hash.digest(tbs);
-            let verified = if curve == P256_OID {
-                use p256::ecdsa::signature::hazmat::PrehashVerifier;
-                let key = EcVerifyingKey::from_sec1_bytes(point)
-                    .map_err(|_| x509_error("issuer P-256 key is not a valid point"))?;
-                EcSignature::from_der(signature)
-                    .map(|parsed| key.verify_prehash(&digest, &parsed).is_ok())
-                    .unwrap_or(false)
-            } else {
-                use p384::ecdsa::signature::hazmat::PrehashVerifier;
-                let key = p384::ecdsa::VerifyingKey::from_sec1_bytes(point)
-                    .map_err(|_| x509_error("issuer P-384 key is not a valid point"))?;
-                p384::ecdsa::Signature::from_der(signature)
-                    .map(|parsed| key.verify_prehash(&digest, &parsed).is_ok())
-                    .unwrap_or(false)
-            };
-            Ok(verified)
-        }
-        // An RSA algorithm under an EC key, or the other way round, cannot have been signed by it.
-        _ => Ok(false),
-    }
+    verify_under_key(issuer_der, info, algorithm, curve, tbs, signature)
 }
 
 /// The DNS names an X.509 certificate (DER) is valid for: every `dNSName` entry of its

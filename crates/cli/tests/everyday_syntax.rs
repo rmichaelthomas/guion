@@ -322,3 +322,252 @@ fn main() -> Unit:
         "method ping\nno method: E_JSON_TYPE\nno method: E_JSON_MISSING\nno method: E_JSON_SHAPE\nno method: E_JSON_SHAPE\nints 3\nints 0\nnot ints: E_JSON_TYPE\nnot ints: E_JSON_SHAPE\nnot ints: E_JSON_SHAPE\nstill running\n"
     );
 }
+
+const LOOKUPS: &str = "enum Color:\n    Red\n    Green\n\nenum Shape:\n    Circle(radius: Int)\n    Dot\n\nfn look(n: Int) -> Result[Option[Int], Text]:\n    if n < 0:\n        return Err(\"negative\")\n    return Ok(half(n))\n\nfn half(n: Int) -> Option[Int]:\n    if n == 0:\n        return None\n    return Some(n // 2)\n\nfn color(n: Int) -> Option[Color]:\n    if n == 0:\n        return None\n    if n == 1:\n        return Some(Red)\n    return Some(Green)\n\nfn shape(n: Int) -> Result[Shape, Text]:\n    if n < 0:\n        return Err(\"no shape\")\n    if n == 0:\n        return Ok(Dot)\n    return Ok(Circle(n))\n\nfn nested(n: Int) -> Result[Result[Int, Text], Text]:\n    if n < 0:\n        return Err(\"outer\")\n    return Ok(inner(n))\n\nfn inner(n: Int) -> Result[Int, Text]:\n    if n == 0:\n        return Err(\"inner\")\n    return Ok(n)\n\n";
+
+#[test]
+fn nested_patterns_match_every_combination_once() {
+    let source = format!(
+        "{LOOKUPS}fn describe(n: Int) -> Text:\n    match look(n):\n        Err(e):\n            return \"error \" + e\n        Ok(None):\n            return \"none\"\n        Ok(Some(x)):\n            return \"some \" + int_to_text(x)\n\nfn paint(n: Int) -> Text:\n    match color(n):\n        Some(Red):\n            return \"red\"\n        None:\n            return \"no color\"\n        Some(Green):\n            return \"green\"\n\nfn area(n: Int) -> Int:\n    match shape(n):\n        Ok(Circle(r)):\n            return r * r\n        Ok(Dot):\n            return 0\n        Err(_):\n            return 0 - 1\n\nfn deep(n: Int) -> Text:\n    var out = \"\"\n    match nested(n):\n        Ok(Ok(_)):\n            set out = \"ok ok\"\n        Ok(Err(e)):\n            set out = \"ok \" + e\n        Err(e):\n            set out = e\n    return out\n\nfn main() -> Unit:\n    for n in [4, 0, 0 - 1]:\n        print(describe(n))\n        print(paint(n + 1))\n        print(area(n))\n        print(deep(n))\n    let probe = fn(n: Int) -> Text: describe(n)\n    print(probe(6))\n"
+    );
+    let (ok, out, err) = run(&source);
+    assert!(ok, "{err}");
+    assert_eq!(
+        out,
+        "some 2\ngreen\n16\nok ok\nnone\nred\n0\nok inner\nerror negative\nno color\n-1\nouter\nsome 3\n"
+    );
+}
+
+#[test]
+fn nested_patterns_reject_gaps_overlaps_and_mismatches() {
+    let arms = |arms: &str| {
+        format!("{LOOKUPS}fn main() -> Int:\n    match look(1):\n{arms}    return 0\n")
+    };
+    for (body, code, message) in [
+        (
+            "        Ok(Some(x)):\n            pass\n        Err(e):\n            pass\n",
+            "E_MATCH_NONEXHAUSTIVE",
+            "match does not handle `Ok(None)`",
+        ),
+        (
+            "        Ok(Some(x)):\n            pass\n        Ok(None):\n            pass\n",
+            "E_MATCH_NONEXHAUSTIVE",
+            "match does not handle `Err(_)`",
+        ),
+        (
+            "        Ok(Some(x)):\n            pass\n        Ok(None):\n            pass\n        Ok(None):\n            pass\n        Err(e):\n            pass\n",
+            "E_MATCH_DUPLICATE",
+            "two arms match `Ok(None)`",
+        ),
+        (
+            "        Ok(Some(x)):\n            pass\n        Ok(y):\n            pass\n        Err(e):\n            pass\n",
+            "E_MATCH_DUPLICATE",
+            "`y` at `Ok(_)` overlaps",
+        ),
+        (
+            "        Ok(Some(x)):\n            pass\n        Ok(Some(y)):\n            pass\n        Ok(None):\n            pass\n        Err(e):\n            pass\n",
+            "E_MATCH_DUPLICATE",
+            "two arms match the same values (`Ok(Some(_))`)",
+        ),
+        (
+            "        Ok(Some(x)):\n            pass\n        Ok(Err(y)):\n            pass\n        Err(e):\n            pass\n",
+            "E_MATCH_PATTERN",
+            "`Err` and `Some` cannot match the same value",
+        ),
+        (
+            "        Ok(Blue(x)):\n            pass\n        Ok(None):\n            pass\n        Err(e):\n            pass\n",
+            "E_MATCH_PATTERN",
+            "`Blue` is not a variant",
+        ),
+    ] {
+        let (ok, _, err) = run(&arms(body));
+        assert!(!ok, "{body}");
+        assert!(err.contains(code), "{body}: {err}");
+        assert!(err.contains(message), "{body}: {err}");
+    }
+    // An enum's variants hold scalars and lists, so a pattern inside one is refused.
+    let (ok, _, err) = run(&format!(
+        "{LOOKUPS}fn main() -> Int:\n    match shape(1):\n        Ok(Circle(Some(r))):\n            pass\n        Ok(Dot):\n            pass\n        Err(e):\n            pass\n    return 0\n"
+    ));
+    assert!(!ok);
+    assert!(err.contains("E_MATCH_PATTERN"), "{err}");
+    // A missing enum variant inside a constructor is reported as for a plain enum match.
+    let (ok, _, err) = run(&format!(
+        "{LOOKUPS}fn main() -> Int:\n    match color(1):\n        Some(Red):\n            pass\n        None:\n            pass\n    return 0\n"
+    ));
+    assert!(!ok);
+    assert!(err.contains("E_MATCH_MISSING_VARIANT"), "{err}");
+    // Against the wrong type the checker says what the arms expected and what the value is.
+    let (ok, _, err) = run(&format!(
+        "{LOOKUPS}fn main() -> Int:\n    match half(1):\n        Some(Some(x)):\n            pass\n        Some(None):\n            pass\n        None:\n            pass\n    return 0\n"
+    ));
+    assert!(!ok);
+    assert!(err.contains("E_MATCH_TYPE"), "{err}");
+    assert!(
+        err.contains("the arms match an Option (`Some`, `None`), but this value is Int"),
+        "{err}"
+    );
+    // A `None` arm that cannot sit beside `Ok` is reported at that arm, not at 0:0.
+    let (ok, _, err) = run(&arms(
+        "        Ok(Some(x)):\n            pass\n        None:\n            pass\n",
+    ));
+    assert!(!ok);
+    let none_line = LOOKUPS.matches('\n').count() + 5;
+    assert!(
+        err.contains(&format!(
+            "main.gu:{none_line}:9: error[E_MATCH_PATTERN]: `None` and `Ok` cannot match the same value"
+        )),
+        "{err}"
+    );
+}
+
+#[test]
+fn enum_variant_patterns_on_another_type_are_match_type_errors() {
+    for (scrutinee, arms, found) in [
+        // `Err` of `look` holds Text.
+        (
+            "look(1)",
+            "        Ok(x):\n            pass\n        Err(Red):\n            pass\n",
+            "Text",
+        ),
+        (
+            "look(1)",
+            "        Ok(Red):\n            pass\n        Ok(Green):\n            pass\n        Err(Red):\n            pass\n        Err(Green):\n            pass\n",
+            "Option[Int]",
+        ),
+        // One level: a Text, and a value of another enum.
+        (
+            "\"red\"",
+            "        Red:\n            pass\n        Green:\n            pass\n",
+            "Text",
+        ),
+        (
+            "Dot",
+            "        Red:\n            pass\n        Green:\n            pass\n",
+            "Shape",
+        ),
+    ] {
+        let (ok, _, err) = run(&format!(
+            "{LOOKUPS}fn main() -> Int:\n    match {scrutinee}:\n{arms}    return 0\n"
+        ));
+        assert!(!ok, "{arms}");
+        assert!(
+            err.contains(&format!(
+                "error[E_MATCH_TYPE]: `Red` is a `Color` variant, but this value is {found}"
+            )),
+            "{arms}: {err}"
+        );
+    }
+}
+
+#[test]
+fn match_temporaries_cannot_be_named() {
+    let body = |name: &str| {
+        format!(
+            "{LOOKUPS}fn main() -> Int:\n    match look(1):\n        Ok(Some(x)):\n            print({name})\n        Ok(None):\n            pass\n        Err(e):\n            pass\n    match color(1):\n        Some(Red):\n            print({name})\n        Some(Green):\n            pass\n        None:\n            pass\n    return 0\n"
+        )
+    };
+    for name in [
+        "__match_part_1",
+        "__match_part_2",
+        "__enum_match_1",
+        "__enum_match_2",
+    ] {
+        let (ok, _, err) = run(&body(name));
+        assert!(!ok, "{name}");
+        assert!(
+            err.contains(&format!("error[E_NAME_UNKNOWN]: unknown name `{name}`")),
+            "{name}: {err}"
+        );
+    }
+    // The temporaries' real names start with `%`, which no name in source can.
+    let (ok, _, err) = run(&body("%match_part_1"));
+    assert!(!ok);
+    assert!(err.contains("E_SYNTAX"), "{err}");
+}
+
+#[test]
+fn option_and_result_constructors_build_wherever_their_type_is_known() {
+    let (ok, out, err) = run(
+        "record Box:\n    value: Option[Int]\n\nfn lookup(flag: Int) -> Result[Option[Int], Text]:\n    if flag == 0:\n        return Ok(None)\n    if flag == 1:\n        return Ok(Some(7))\n    return Err(\"bad\")\n\nfn wrapped() -> Option[Result[Int, Text]]:\n    return Some(Ok(1))\n\nfn failed() -> Option[Result[Int, Text]]:\n    return Some(Err(\"no\"))\n\nfn show(value: Option[Text]) -> Text:\n    match value:\n        Some(text):\n            return text\n        None:\n            return \"none\"\n\nfn twice[T](value: T) -> Option[Option[T]]:\n    return Some(Some(value))\n\nfn main() -> Unit:\n    print(lookup(0))\n    print(lookup(1))\n    print(lookup(2))\n    print(wrapped())\n    print(failed())\n    let boxed = Box(Some(1))\n    print(boxed.value)\n    let nothing: Option[Int] = None\n    print(nothing)\n    let inferred = Some(\"hi\")\n    print(show(inferred))\n    print(show(None))\n    let held: List[Option[Int]] = [Some(1), None]\n    print(held)\n    var later: Option[Int] = None\n    set later = Some(3)\n    print(later)\n    let nested: Result[Option[Int], Text] = Ok(Some(5))\n    print(nested)\n    let pair: Map[Text, Result[Int, Text]] = {\"a\": Ok(1), \"b\": Err(\"x\")}\n    print(pair)\n    print(twice(4))\n    let lift = fn(x: Int) -> Result[Option[Int], Text]: Ok(Some(x))\n    print(lift(8))\n",
+    );
+    assert!(ok, "{err}");
+    assert_eq!(
+        out,
+        "Ok(None)\nOk(Some(7))\nErr(bad)\nSome(Ok(1))\nSome(Err(no))\nSome(1)\nNone\nhi\nnone\n[Some(1), None]\nSome(3)\nOk(Some(5))\n{\"a\": Ok(1), \"b\": Err(x)}\nSome(Some(4))\nOk(Some(8))\n"
+    );
+    // Where nothing says which type is meant, the error says how to write it.
+    for (source, code, message) in [
+        (
+            "fn main() -> Int:\n    let value = None\n    return 0\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "cannot tell which Option type `None` is here; write the type where it is bound, for example `let value: Option[Int] = None`",
+        ),
+        (
+            "fn main() -> Int:\n    let value = Ok(1)\n    return 0\n",
+            "E_RESULT_CONSTRUCTOR_CONTEXT",
+            "cannot tell which Result type `Ok` makes here",
+        ),
+        (
+            "fn main() -> Int:\n    return None\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "`None` is an Option, but this position expects Int",
+        ),
+        (
+            "fn main() -> Int:\n    return Some(1)\n",
+            "E_OPTION_CONSTRUCTOR_CONTEXT",
+            "`Some` makes an Option, but this position expects Int",
+        ),
+        (
+            "fn main() -> Int:\n    let value: Text = Err(\"x\")\n    return 0\n",
+            "E_RESULT_CONSTRUCTOR_CONTEXT",
+            "`Err` makes a Result, but this position expects Text",
+        ),
+        (
+            "fn main() -> Int:\n    let value: Result[Option[Int], Text] = Ok(Some(\"x\"))\n    return 0\n",
+            "E_OPTION_CONSTRUCTOR_TYPE",
+            "Some value must have type",
+        ),
+    ] {
+        let (ok, _, err) = run(source);
+        assert!(!ok, "{source}");
+        assert!(err.contains(code) && err.contains(message), "{source}: {err}");
+    }
+}
+
+#[test]
+fn bytes_index_gives_an_int_byte_and_checks_bounds() {
+    let (ok, out, err) = run(
+        "fn main() -> Unit:\n    let data = bytes_from_ints([0, 7, 255])\n    var total = 0\n    var i = 0\n    while i < len(data):\n        set total = total + data[i]\n        set i = i + 1\n    print(total)\n    print(data[2] == 255)\n",
+    );
+    assert!(ok, "{err}");
+    assert_eq!(out, "262\ntrue\n");
+    for (index, code, message) in [
+        (
+            "3",
+            "R_INDEX_BOUNDS",
+            "bytes index 3 is out of range for length 3",
+        ),
+        (
+            "0 - 1",
+            "R_INDEX_INVALID",
+            "bytes index must be a non-negative",
+        ),
+    ] {
+        let (ok, _, err) = run(&format!(
+            "fn main() -> Int:\n    let data = bytes_from_ints([0, 7, 255])\n    return data[{index}]\n"
+        ));
+        assert!(!ok, "{index}");
+        assert!(
+            err.contains(code) && err.contains(message),
+            "{index}: {err}"
+        );
+    }
+    let (ok, _, err) =
+        run("fn main() -> Int:\n    let data = bytes_from_ints([1])\n    return data[\"0\"]\n");
+    assert!(!ok);
+    assert!(
+        err.contains("E_TYPE_INDEX") && err.contains("bytes index must be Int"),
+        "{err}"
+    );
+}
