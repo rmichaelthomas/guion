@@ -675,12 +675,14 @@ fn parse_signed_attributes<'a>(set: Tlv<'a>) -> Result<SignedAttributes<'a>, Cry
                 attributes.message_digest = Some(value.content);
             }
             SIGNING_CERTIFICATE_V2_OID => {
-                if attributes.signing_certificate_v2.replace(value).is_some() {
+                let seen_before = attributes.signing_certificate_v2.replace(value).is_some();
+                if seen_before {
                     return Err(duplicate());
                 }
             }
             SIGNING_CERTIFICATE_OID => {
-                if attributes.signing_certificate.replace(value).is_some() {
+                let seen_before = attributes.signing_certificate.replace(value).is_some();
+                if seen_before {
                     return Err(duplicate());
                 }
             }
