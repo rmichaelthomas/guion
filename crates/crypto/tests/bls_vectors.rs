@@ -13,7 +13,7 @@ const DST: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
 const G2_GENERATOR: &str = "93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8";
 
 fn unhex(text: &str) -> Vec<u8> {
-    assert!(text.len() % 2 == 0);
+    assert!(text.len().is_multiple_of(2));
     (0..text.len() / 2)
         .map(|index| u8::from_str_radix(&text[index * 2..index * 2 + 2], 16).unwrap())
         .collect()

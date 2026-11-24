@@ -81,7 +81,7 @@ fn h2(gt: &PairingOutput<Bls12_381>) -> Vec<u8> {
         for two in [six.c2, six.c1, six.c0] {
             for fp in [two.c1, two.c0] {
                 let be = fp.into_bigint().to_bytes_be();
-                bytes.extend(std::iter::repeat(0u8).take(48 - be.len()));
+                bytes.extend(std::iter::repeat_n(0u8, 48 - be.len()));
                 bytes.extend_from_slice(&be);
             }
         }
@@ -109,7 +109,7 @@ fn hex(bytes: &[u8]) -> String {
 
 fn unhex(text: &str) -> Option<Vec<u8>> {
     let bytes = text.as_bytes();
-    if bytes.len() % 2 != 0 {
+    if !bytes.len().is_multiple_of(2) {
         return None;
     }
     let nibble = |c: u8| match c {
