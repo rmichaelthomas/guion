@@ -26,6 +26,15 @@ The rename is a pre-1.0 transition. The current CLI retains read compatibility f
 
 This compatibility is a migration aid, not a guarantee that old names will remain supported through 1.0. New projects and new outputs use Guion names. A Guion project may continue to contain a legacy-named manifest while it is being migrated; avoid creating both old and new manifest or lock files in the same project, because that makes project identity ambiguous.
 
+## Moving from 0.7.0 to 0.8.0
+
+Nothing is removed or renamed, and no word is newly reserved. Programs written for 0.7.0 compile and run unchanged except for the three stricter behaviours below.
+
+- **Artifact format 89.** The runtime reads formats 14 through 89 and writes 89. A program that uses the new `std:crypto` functions, bit operations, `sleep_ms` or `Bytes` indexing needs a runtime that reads its format and is refused by an older one with `E_ARTIFACT_VERSION`. Packages that use them (`beacons`) need this release.
+- **Enum names inside `Some`, `Ok` and `Err`.** A name there that equals a declared enum variant now means that variant: `Some(Red)` matches `Red`, where before it bound a new local called `Red`. A pattern that names a variant of the wrong type is `E_MATCH_TYPE`. Rename a local that shadowed a variant.
+- **`crypto_tsa_verify`.** The TSA certificate's `timeStamping` extended key usage must be marked critical (RFC 3161 section 2.3); a certificate whose extension is not critical gives `None`. The DigiCert, Sectigo and FreeTSA certificates are all critical.
+- **`web` package.** `csrf_middleware` refuses an unsafe-method request whose `Origin` (or, without one, `Referer`) does not name its own `Host`. Behind a proxy that rewrites `Host`, those requests now get a 403 until the proxy passes `Host` through. The package is version 0.2.0.
+
 ## Moving from 0.6.0 to 0.7.0
 
 Nothing is removed, renamed or re-signed, and no word is newly reserved: a 0.6.0 program compiles and runs unchanged. `together`, `start`, `wait`, `send`, `close` and the other new names still work as your own function, variable and record names.

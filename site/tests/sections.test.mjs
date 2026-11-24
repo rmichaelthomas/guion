@@ -38,10 +38,10 @@ test('sections 1 to 5 each have a Plain English block and a Developer block', ()
   }
 });
 
-test('the hero names release 0.7.0 for Linux and macOS and links the release and the repository', () => {
-  assert.ok(section('top').includes('0.7.0') && section('top').includes('macOS'));
+test('the hero names release 0.8.0 for Linux and macOS and links the release and the repository', () => {
+  assert.ok(section('top').includes('0.8.0') && section('top').includes('macOS'));
   assert.ok(!section('top').includes('no macOS package'));
-  assert.ok(section('top').includes('https://github.com/rmichaelthomas/guion/releases/tag/v0.7.0'));
+  assert.ok(section('top').includes('https://github.com/rmichaelthomas/guion/releases/tag/v0.8.0'));
   assert.ok(section('top').includes('https://github.com/rmichaelthomas/guion"'));
 });
 
