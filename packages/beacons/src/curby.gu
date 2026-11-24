@@ -1,0 +1,113 @@
+import "std:types"
+import "std:crypto"
+import "std:json"
+import "std:text"
+import "multiformats.gu"
+import "twine.gu"
+
+# CURBy (the CU Boulder Randomness Beacon, https://random.colorado.edu) on top of Twine.
+#
+# Two chains carry randomness. CURBy-Q (`twine/1.0.x/diqrng/1.0.x`) is device-independent quantum
+# randomness; each round has three pulses in order: stage "request", stage "precommit", stage
+# "randomness". The "randomness" pulse's payload holds `randomness`, 64 bytes (nBitsOut 512), and
+# curby_randomness returns them. CURBy-RNG (`twine/1.0.x/rng/1.0.x`) is a modified NIST beacon
+# protocol; a pulse's randomness is the 64-byte SHA3-512 digest inside its own CID, valid only if
+# the pulse is signed with a deterministic algorithm (RS*) and its salt XOR the previous pulse's CID
+# digest hashes to the precommitment `pre` the previous pulse published; curby_rng_randomness does
+# those checks.
+#
+# These do not replicate the quantum certification itself (the Bell test and the Trevisan
+# extractor, run by CURBy's own verifier): they check what the Twine records prove and read the
+# bytes where CURBy's own client reads them.
+#
+# Errors: E_CURBY_STAGE (the pulse is not a CURBy-Q randomness pulse), E_CURBY_NEEDS_PREVIOUS (an
+# RNG pulse: use curby_rng_randomness), E_CURBY_RANDOMNESS (the bytes are absent or not 64 long),
+# E_CURBY_RNG (an RNG check failed), plus twine_verify's codes. Pulses come from the network, so a
+# member that is missing or the wrong type is one of these codes, never a JSON error that ends the
+# program.
+
+pub fn curby_q_chain() -> Text:
+    return "bafyriqhijw5soalbtppuwwjbskfiriqy6swa5qd5trgbzx4nypnu7mp7iyhx7m2iin2nxnglmngvjgirzb7bvlisxq3uygoik7ozbybxnftiw"
+
+pub fn curby_rng_chain() -> Text:
+    return "bafyriqci6f3st2mg7gq733ho4zvvth32zpy2mtiylixwmhoz6d627eo3jfpmbxepe54u2zdvymonq5sp3armtm4rodxsynsirr5g3xsbd3q4s"
+
+fn curby_error(code: Text, message: Text) -> StdError:
+    return std_error(code, message)
+
+# A DAG-JSON byte string, {"/": {"bytes": "<base64>"}}, as bytes.
+fn dag_bytes(value: Json, what: Text, code: Text) -> Result[Bytes, StdError]:
+    var inner = json_null()
+    match json_try_get(value, "/"):
+        Ok(found):
+            set inner = found
+        Err(problem):
+            return Err(curby_error(code, f"{what} is not a byte string"))
+    match json_try_get_text(inner, "bytes"):
+        Err(problem):
+            return Err(curby_error(code, f"{what} is not a byte string"))
+        Ok(text):
+            match base64_nopad_decode(text):
+                Ok(bytes):
+                    return Ok(bytes)
+                Err(problem):
+                    return Err(curby_error(code, f"{what} is not base64"))
+
+# A member of the pulse's payload as a DAG-JSON byte string; a missing payload or member is `code`.
+fn payload_bytes(pulse: TwineRecord, name: Text, code: Text) -> Result[Bytes, StdError]:
+    match json_try_get(payload_of(pulse), name):
+        Ok(found):
+            return dag_bytes(found, name, code)
+        Err(problem):
+            return Err(curby_error(code, f"the pulse's payload has no {name}"))
+
+# The payload object, or an empty object when the pulse has none (every read of it is then a miss).
+fn payload_of(pulse: TwineRecord) -> Json:
+    match json_try_get(pulse.content, "payload"):
+        Ok(found):
+            return found
+        Err(problem):
+            return json_object()
+
+# The 64 random bytes of a CURBy-Q "randomness" pulse. Verify the pulse first (twine_verify against
+# curby_q_chain's record).
+pub fn curby_randomness(pulse: TwineRecord) -> Result[Bytes, StdError]:
+    let payload = payload_of(pulse)
+    if has_key(payload, "salt"):
+        return Err(curby_error("E_CURBY_NEEDS_PREVIOUS", "an RNG pulse needs its previous pulse: curby_rng_randomness"))
+    match json_try_get_text(payload, "stage"):
+        Err(problem):
+            return Err(curby_error("E_CURBY_STAGE", "the pulse has no stage"))
+        Ok(stage):
+            if stage != "randomness":
+                return Err(curby_error("E_CURBY_STAGE", f"stage {stage} carries no randomness; the randomness stage does"))
+            let bits = payload_bytes(pulse, "randomness", "E_CURBY_RANDOMNESS")?
+            if len(bits) != 64:
+                return Err(curby_error("E_CURBY_RANDOMNESS", "CURBy-Q randomness is 64 bytes"))
+            return Ok(bits)
+
+fn pulse_digest(pulse: TwineRecord) -> Result[Bytes, StdError]:
+    let parts = cid_parse(pulse.cid)?
+    return Ok(parts.digest)
+
+# The 64 random bytes of a CURBy-RNG pulse: the digest of its CID, after checking that both pulses
+# verify under `chain`, that `previous` is the pulse before it (links[0]), that the signature is
+# RS256 (deterministic), and that SHA3-512(salt XOR previous CID digest) equals the precommitment
+# previous published.
+pub fn curby_rng_randomness(chain: TwineRecord, pulse: TwineRecord, previous: TwineRecord) -> Result[Bytes, StdError]:
+    if not twine_verify(chain, pulse)? or not twine_verify(chain, previous)?:
+        return Err(curby_error("E_CURBY_RNG", "a pulse does not verify under the chain"))
+    if twine_link_count(pulse) == 0 or twine_link(pulse, 0) != previous.cid:
+        return Err(curby_error("E_CURBY_RNG", "the previous pulse is not the one linked first"))
+    if len(pulse.signature) < 21 or text_slice(pulse.signature, 0, 21) != "eyJhbGciOiJSUzI1NiJ9.":
+        return Err(curby_error("E_CURBY_RNG", "an RNG pulse must be signed RS256"))
+    let salt = payload_bytes(pulse, "salt", "E_CURBY_RNG")?
+    let committed = payload_bytes(previous, "pre", "E_CURBY_RNG")?
+    let before = pulse_digest(previous)?
+    if len(salt) != len(before):
+        return Err(curby_error("E_CURBY_RNG", "the salt is not as long as the previous digest"))
+    let revealed = bytes_xor_key(salt, before)
+    let expected = bytes_join([bytes_from_ints([20, 64]), crypto_sha3_512(revealed)])
+    if committed != expected:
+        return Err(curby_error("E_CURBY_RNG", "the previous pulse's precommitment does not match"))
+    return pulse_digest(pulse)

@@ -1,6 +1,6 @@
 use guion_model::{
-    ArrayFunction, CodecFunction, ElementType, FsFunction, MathFunction, NetFunction, Op,
-    ProcessFunction, RegexFunction, TlsFunction, Type,
+    ArrayFunction, CodecFunction, CryptoFunction, ElementType, FsFunction, MathFunction,
+    NetFunction, Op, ProcessFunction, RegexFunction, TlsFunction, Type,
 };
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -311,6 +311,8 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "TextCollapseWhitespace" => Op::TextCollapseWhitespace,
         "TextNormalize" => Op::TextNormalize,
         "RandomBytes" => Op::RandomBytes,
+        "StdinReadLine" => Op::StdinReadLine,
+        "StdinReadAll" => Op::StdinReadAll,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,
         "CryptoVerifyHmacSha256" => Op::CryptoVerifyHmacSha256,
         "SqliteOpen" => Op::SqliteOpen,
@@ -354,7 +356,10 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
                             Some(function) => Op::Process(function),
                             None => match NetFunction::from_op_name(other) {
                                 Some(function) => Op::Net(function),
-                                None => Op::Tls(TlsFunction::from_op_name(other)?),
+                                None => match CryptoFunction::from_op_name(other) {
+                                    Some(function) => Op::Crypto(function),
+                                    None => Op::Tls(TlsFunction::from_op_name(other)?),
+                                },
                             },
                         },
                     },

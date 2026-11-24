@@ -7,9 +7,10 @@
 //! implements it for environments such as WebAssembly by rejecting those operations.
 
 use guion_model::{
-    Artifact, BigInt, CodecFunction, FileErrorValue, Float64, FsFunction, HttpErrorValue,
-    JsonErrorValue, MathFunction, NativeResourceValue, Op, RegexFunction, RuntimeError,
-    ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue, TextMap, Type, Value,
+    Artifact, BigInt, CodecFunction, CryptoFunction, FileErrorValue, Float64, FsFunction,
+    HttpErrorValue, JsonErrorValue, MathFunction, NativeResourceValue, Op, RegexFunction,
+    RuntimeError, ShareAcrossThreads, Shared, SharedJson, SharedText, Span, TaskErrorValue,
+    TextMap, Type, Value,
 };
 use std::{
     cell::Cell,
@@ -25,6 +26,10 @@ use std::{
 
 pub mod array;
 mod array_compute;
+pub mod json_decode;
+mod json_host;
+pub use json_host::run_json_instruction;
+pub mod json_try;
 mod matmul;
 pub mod ordering;
 mod register;
@@ -2804,6 +2809,23 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 )?;
                 push_stack!(value);
             }
+            Op::Crypto(function) => {
+                let function = *function;
+                let mut operands = Vec::with_capacity(function.arity());
+                for _ in 0..function.arity() {
+                    operands.push(pop!());
+                }
+                operands.reverse();
+                let value = apply_crypto(function, operands).map_err(|(code, message)| {
+                    RuntimeError::new(code, message, instruction.span)
+                })?;
+                charge_allocation(
+                    budget.as_ref(),
+                    new_value_allocation(&value),
+                    instruction.span,
+                )?;
+                push_stack!(value);
+            }
             Op::Regex(function) => {
                 let function = *function;
                 let mut operands = Vec::with_capacity(function.arity());
@@ -5107,6 +5129,7 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::Math(function) => function.op_name(),
         Op::Array(function, _) => function.op_name(),
         Op::Codec(function) => function.op_name(),
+        Op::Crypto(function) => function.op_name(),
         Op::Fs(function) => function.op_name(),
         Op::Regex(function) => function.op_name(),
         Op::Process(function) => function.op_name(),
@@ -5138,6 +5161,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::MakeClosure(..) => "MakeClosure",
         Op::CallFn(_) => "CallFn",
         Op::RandomBytes => "RandomBytes",
+        Op::StdinReadLine => "StdinReadLine",
+        Op::StdinReadAll => "StdinReadAll",
         Op::HigherOrder(_) => "HigherOrder",
         Op::TogetherEnter => "TogetherEnter",
         Op::TogetherExit => "TogetherExit",
@@ -6578,8 +6603,11 @@ impl VmHost for PortableHost {
         )))
     }
 
-    fn host_op(&mut self, context: HostOpContext<'_>) -> Result<(), RuntimeError> {
+    fn host_op(&mut self, mut context: HostOpContext<'_>) -> Result<(), RuntimeError> {
         use guion_model::HigherOrderKind as Kind;
+        if self.portable_json(&mut context)? {
+            return Ok(());
+        }
         let op = context.instruction.op.clone();
         let span = context.instruction.span;
         // `parallel_map` needs threads, which this host does not have.
@@ -7444,6 +7472,283 @@ fn apply_regex(
     Ok(Value::ResultOk(Box::new(ok)))
 }
 
+/// Operand and result types of a crypto function; operands are listed in push order. A function
+/// that can fail returns `Result[T, StdError]`, built by [`crypto_result`].
+fn crypto_signature(function: CryptoFunction) -> (Vec<Type>, Type) {
+    match function {
+        CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => (vec![Type::Bytes], Type::Bytes),
+        CryptoFunction::RsaVerify => (
+            vec![
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Text,
+            ],
+            crypto_result_type(Type::Bool),
+        ),
+        CryptoFunction::EcdsaP256Verify => (
+            vec![Type::Bytes, Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
+        CryptoFunction::X509RsaPublicKey => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Bytes))),
+        ),
+        CryptoFunction::Bls12381VerifyG1 => (
+            vec![Type::Bytes, Type::Bytes, Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
+        CryptoFunction::TlockEncrypt => (
+            vec![
+                Type::Int,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+                Type::Bytes,
+            ],
+            crypto_result_type(Type::Text),
+        ),
+        CryptoFunction::TlockDecrypt => (
+            vec![Type::Text, Type::Bytes],
+            crypto_result_type(Type::Bytes),
+        ),
+        CryptoFunction::TlockRound => (vec![Type::Text], crypto_result_type(Type::Int)),
+        CryptoFunction::DagCborEncode => (vec![Type::Json], crypto_result_type(Type::Bytes)),
+        CryptoFunction::TlockChainHash => (vec![Type::Text], crypto_result_type(Type::Bytes)),
+        CryptoFunction::X509VerifyIssuedBy => (
+            vec![Type::Bytes, Type::Bytes],
+            crypto_result_type(Type::Bool),
+        ),
+        CryptoFunction::X509DnsNames => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Text))),
+        ),
+        CryptoFunction::X509Validity => (
+            vec![Type::Bytes],
+            crypto_result_type(Type::List(Box::new(Type::Int))),
+        ),
+    }
+}
+
+/// `Result[ok, StdError]`, the result type of a fallible crypto function.
+fn crypto_result_type(ok: Type) -> Type {
+    Type::Result(Box::new(ok), Box::new(Type::Record("StdError".into())))
+}
+
+/// The Guion `StdError` value for a failed crypto function: the crate's `code` and `message`,
+/// with no path, line or column.
+fn crypto_error_value(error: guion_crypto::CryptoError) -> Value {
+    Value::Record(
+        "StdError".into(),
+        Shared::new(vec![
+            Value::Text(SharedText::from(error.code)),
+            Value::Text(SharedText::from(error.message.as_str())),
+            Value::Text(SharedText::from("")),
+            Value::Int(BigInt::from_i64(0)),
+            Value::Int(BigInt::from_i64(0)),
+        ]),
+    )
+}
+
+/// Wraps what a fallible crypto function returned as the Guion `Result` value.
+fn crypto_result(outcome: Result<Value, guion_crypto::CryptoError>) -> Value {
+    match outcome {
+        Ok(value) => Value::ResultOk(Box::new(value)),
+        Err(error) => Value::ResultErr(Box::new(crypto_error_value(error))),
+    }
+}
+
+/// Runs a crypto function over its operands (in push order). A wrong operand type is a runtime
+/// error; a failure of the function itself is a `Result` value, never a panic.
+fn apply_crypto(
+    function: CryptoFunction,
+    mut operands: Vec<Value>,
+) -> Result<Value, (&'static str, &'static str)> {
+    const TYPE: (&str, &str) = (
+        "R_TYPE_INVALID",
+        "crypto function received an invalid operand",
+    );
+    match function {
+        CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => {
+            let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let digest = match function {
+                CryptoFunction::Sha512 => guion_crypto::sha512(&data),
+                _ => guion_crypto::sha3_512(&data),
+            };
+            Ok(Value::Bytes(Shared::new(digest.to_vec())))
+        }
+        CryptoFunction::RsaVerify => {
+            let Value::Text(scheme) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            // Popped in reverse: signature, message, exponent, modulus.
+            let outcome = guion_crypto::RsaScheme::from_name(&scheme).and_then(|scheme| {
+                guion_crypto::rsa_verify(&parts[3], &parts[2], &parts[1], &parts[0], scheme)
+            });
+            Ok(crypto_result(outcome.map(Value::Bool)))
+        }
+        CryptoFunction::EcdsaP256Verify => {
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(3);
+            for _ in 0..3 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            Ok(crypto_result(
+                guion_crypto::ecdsa_p256_verify(&parts[2], &parts[1], &parts[0]).map(Value::Bool),
+            ))
+        }
+        CryptoFunction::Bls12381VerifyG1 => {
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            Ok(crypto_result(
+                guion_crypto::bls12381_verify_g1(&parts[3], &parts[2], &parts[1], &parts[0])
+                    .map(Value::Bool),
+            ))
+        }
+        CryptoFunction::TlockEncrypt => {
+            let mut parts: Vec<Shared<Vec<u8>>> = Vec::with_capacity(4);
+            for _ in 0..4 {
+                let Value::Bytes(data) = operands.pop().ok_or(TYPE)? else {
+                    return Err(TYPE);
+                };
+                parts.push(data);
+            }
+            let Value::Int(round) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            // Popped in reverse: randomness, plaintext, public key, chain hash.
+            let outcome = u64::try_from(round.to_i64().unwrap_or(-1))
+                .map_err(|_| {
+                    guion_crypto::CryptoError::new(
+                        "E_CRYPTO_INPUT",
+                        "a round is a non-negative integer that fits 63 bits",
+                    )
+                })
+                .and_then(|round| {
+                    let randomness: [u8; 48] = parts[0].as_slice().try_into().map_err(|_| {
+                        guion_crypto::CryptoError::new(
+                            "E_CRYPTO_INPUT",
+                            "timelock randomness is 48 bytes",
+                        )
+                    })?;
+                    guion_crypto::tlock_encrypt(round, &parts[3], &parts[2], &parts[1], &randomness)
+                });
+            Ok(crypto_result(outcome.map(|armored| {
+                Value::Text(SharedText::from(armored.as_str()))
+            })))
+        }
+        CryptoFunction::TlockDecrypt => {
+            let Value::Bytes(signature) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tlock_decrypt(&armored, &signature)
+                    .map(|plain| Value::Bytes(Shared::new(plain))),
+            ))
+        }
+        CryptoFunction::DagCborEncode => {
+            let Value::Json(json) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::dagcbor_encode(&json.to_serde())
+                    .map(|bytes| Value::Bytes(Shared::new(bytes))),
+            ))
+        }
+        CryptoFunction::TlockChainHash => {
+            let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tlock_chain_hash(&armored)
+                    .map(|hash| Value::Bytes(Shared::new(hash))),
+            ))
+        }
+        CryptoFunction::X509VerifyIssuedBy => {
+            // Popped in reverse: issuer, then certificate.
+            let Value::Bytes(issuer) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            let Value::Bytes(certificate) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::x509_verify_issued_by(&certificate, &issuer).map(Value::Bool),
+            ))
+        }
+        CryptoFunction::X509DnsNames => {
+            let Value::Bytes(der) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::x509_dns_names(&der).map(
+                |names| {
+                    Value::List(Shared::new(
+                        names
+                            .iter()
+                            .map(|name| Value::Text(SharedText::from(name.as_str())))
+                            .collect(),
+                    ))
+                },
+            )))
+        }
+        CryptoFunction::X509Validity => {
+            let Value::Bytes(der) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::x509_validity(&der).map(
+                |[not_before, not_after]| {
+                    Value::List(Shared::new(vec![
+                        Value::Int(BigInt::from_i64(not_before)),
+                        Value::Int(BigInt::from_i64(not_after)),
+                    ]))
+                },
+            )))
+        }
+        CryptoFunction::TlockRound => {
+            let Value::Text(armored) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(
+                guion_crypto::tlock_round(&armored)
+                    .map(|(round, _)| Value::Int(BigInt::from_u64(round))),
+            ))
+        }
+        CryptoFunction::X509RsaPublicKey => {
+            let Value::Bytes(der) = operands.pop().ok_or(TYPE)? else {
+                return Err(TYPE);
+            };
+            Ok(crypto_result(guion_crypto::x509_rsa_public_key(&der).map(
+                |(modulus, exponent)| {
+                    Value::List(Shared::new(vec![
+                        Value::Bytes(Shared::new(modulus)),
+                        Value::Bytes(Shared::new(exponent)),
+                    ]))
+                },
+            )))
+        }
+    }
+}
+
 /// Operand and result types of a codec function; operands are listed in push order.
 fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
     let option = |inner: Type| Type::Option(Box::new(inner));
@@ -7462,6 +7767,11 @@ fn codec_signature(function: CodecFunction) -> (Vec<Type>, Type) {
         CodecFunction::PercentDecode => (vec![Type::Text], option(Type::Text)),
         CodecFunction::Sha1 | CodecFunction::Sha256 => (vec![Type::Bytes], Type::Bytes),
         CodecFunction::BytesXor => (vec![Type::Bytes, Type::Bytes], Type::Bytes),
+        CodecFunction::IntAnd
+        | CodecFunction::IntOr
+        | CodecFunction::IntXor
+        | CodecFunction::IntShiftLeft
+        | CodecFunction::IntShiftRight => (vec![Type::Int, Type::Int], Type::Int),
     }
 }
 
@@ -7545,6 +7855,45 @@ fn hex_decode(text: &str) -> Option<Vec<u8>> {
         .chunks(2)
         .map(|pair| Some(nibble(pair[0])? << 4 | nibble(pair[1])?))
         .collect()
+}
+
+/// The integer bit operations on 64-bit two's-complement values. An operand outside the 64-bit
+/// range is `R_INTEGER_RANGE`; a shift count below 0 or above 63 is `R_SHIFT_RANGE`. Left shifts
+/// do not wrap: the result is exact, since integers have no fixed width.
+fn apply_int_bits(
+    function: CodecFunction,
+    left: &BigInt,
+    right: &BigInt,
+) -> Result<BigInt, (&'static str, &'static str)> {
+    const RANGE: (&str, &str) = (
+        "R_INTEGER_RANGE",
+        "bit operations require operands within the 64-bit signed integer range",
+    );
+    const SHIFT: (&str, &str) = ("R_SHIFT_RANGE", "a shift count must be between 0 and 63");
+    let left = left.to_i64().ok_or(RANGE)?;
+    match function {
+        CodecFunction::IntShiftLeft | CodecFunction::IntShiftRight => {
+            // A count that does not fit an i64 is just as out of range as a negative one.
+            let count = right.to_i64().ok_or(SHIFT)?;
+            if !(0..64).contains(&count) {
+                return Err(SHIFT);
+            }
+            if function == CodecFunction::IntShiftLeft {
+                let shifted = i128::from(left) << count;
+                BigInt::parse(&shifted.to_string()).map_err(|_| RANGE)
+            } else {
+                Ok(BigInt::from_i64(left >> count))
+            }
+        }
+        _ => {
+            let right = right.to_i64().ok_or(RANGE)?;
+            Ok(BigInt::from_i64(match function {
+                CodecFunction::IntAnd => left & right,
+                CodecFunction::IntOr => left | right,
+                _ => left ^ right,
+            }))
+        }
+    }
 }
 
 /// RFC 3986 component encoding: everything except unreserved characters is percent-encoded.
@@ -7743,6 +8092,21 @@ fn apply_codec(
                 "bytes_slice requires 0 <= start <= end <= len(bytes)",
             )),
         };
+    }
+    if matches!(
+        function,
+        CodecFunction::IntAnd
+            | CodecFunction::IntOr
+            | CodecFunction::IntXor
+            | CodecFunction::IntShiftLeft
+            | CodecFunction::IntShiftRight
+    ) {
+        let (Value::Int(right), Value::Int(left)) =
+            (operands.pop().ok_or(TYPE)?, operands.pop().ok_or(TYPE)?)
+        else {
+            return Err(TYPE);
+        };
+        return apply_int_bits(function, &left, &right).map(Value::Int);
     }
     if function == CodecFunction::BytesXor {
         let (Value::Bytes(key), Value::Bytes(data)) =

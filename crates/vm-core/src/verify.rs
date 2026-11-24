@@ -929,6 +929,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(result);
             }
+            Op::Crypto(function) => {
+                let (parameters, result) = crypto_signature(*function);
+                for expected in parameters.iter().rev() {
+                    if pop_type(&mut state.stack, pc)? != *expected {
+                        return Err(format!(
+                            "{} received an operand of the wrong type at instruction {pc}",
+                            function.op_name()
+                        ));
+                    }
+                }
+                state.stack.push(result);
+            }
             Op::Tls(function) => {
                 let expected: &[Type] = match function {
                     guion_model::TlsFunction::Connect => {
@@ -2078,6 +2090,18 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 ));
             }
             Op::LogDefaultLevel => state.stack.push(Type::Text),
+            Op::StdinReadLine => {
+                state.stack.push(Type::Result(
+                    Box::new(Type::Option(Box::new(Type::Text))),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
+            Op::StdinReadAll => {
+                state.stack.push(Type::Result(
+                    Box::new(Type::Bytes),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
             Op::GzipCompress | Op::ZlibCompress => {
                 if pop_type(&mut state.stack, pc)? != Type::Bytes {
                     return Err(format!(

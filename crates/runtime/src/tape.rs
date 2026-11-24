@@ -23,8 +23,13 @@ use std::{
 pub enum TapeMode {
     /// Run normally and write the tape to this file when the run ends.
     Record(PathBuf),
-    /// Run from this tape, with no access to the outside world.
+    /// Run from this tape, with no access to the outside world. A program that has changed since
+    /// the recording is still replayed, call by call: each outside call must match the recorded
+    /// one in kind, arguments and order, and the run says (see `Runtime::tape_notice`) that the
+    /// program hash differs.
     Replay(PathBuf),
+    /// Run from this tape only if the program is exactly the one that was recorded.
+    ReplayStrict(PathBuf),
     /// Replay a tape even though the program has changed, to find the first call that differs.
     ReplayChanged(PathBuf),
 }
@@ -307,6 +312,11 @@ struct Entry {
     column: usize,
     /// How many stack values below the operation's arguments the operation left alone.
     kept: usize,
+    /// Hash of the operation's own arguments (the stack above `kept`), without the rest of the
+    /// stack. Lets a replay of an edited program match the call by what it is given, not by
+    /// where it sits. Absent for calls whose arguments are not known (errors, redactions) and
+    /// for tapes written before it existed; those are matched strictly.
+    call_sha256: Option<String>,
     /// The stack height the operation started with.
     height: usize,
     outcome: Outcome,
@@ -331,6 +341,9 @@ enum TapeState {
         redact: Vec<String>,
     },
     Replaying {
+        /// The program differs from the recorded one: calls are matched by what they are given and
+        /// in what order, not by their place in the source.
+        by_calls: bool,
         lanes: HashMap<String, Lane>,
         /// Lanes whose recorded run was cut short by a sibling's failure.
         incomplete: HashSet<String>,
@@ -347,6 +360,7 @@ struct Lane {
 
 pub(crate) struct Tape {
     state: Mutex<TapeState>,
+    notice: Option<String>,
 }
 
 impl std::fmt::Debug for Tape {
@@ -372,15 +386,20 @@ impl Tape {
     ) -> Result<Tape, RuntimeError> {
         let fail = |message: String| RuntimeError::new("R_TAPE", message, Span::default());
         let hash = program_hash(artifact);
-        let state = match mode {
-            TapeMode::Record(path) => TapeState::Recording {
-                path: path.clone(),
-                entries: Vec::new(),
-                incomplete: Vec::new(),
-                program_sha256: hash,
-                redact: redact.to_vec(),
-            },
-            TapeMode::Replay(path) | TapeMode::ReplayChanged(path) => {
+        let (state, notice) = match mode {
+            TapeMode::Record(path) => (
+                TapeState::Recording {
+                    path: path.clone(),
+                    entries: Vec::new(),
+                    incomplete: Vec::new(),
+                    program_sha256: hash,
+                    redact: redact.to_vec(),
+                },
+                None,
+            ),
+            TapeMode::Replay(path)
+            | TapeMode::ReplayStrict(path)
+            | TapeMode::ReplayChanged(path) => {
                 let text = std::fs::read_to_string(path).map_err(|error| {
                     fail(format!("cannot read tape {}: {error}", path.display()))
                 })?;
@@ -393,12 +412,21 @@ impl Tape {
                         "this tape was written by a different tape format".into(),
                     ));
                 }
+                let mut by_calls = false;
+                let mut notice = None;
                 if !matches!(mode, TapeMode::ReplayChanged(_))
                     && header["program_sha256"].as_str() != Some(hash.as_str())
                 {
-                    return Err(fail(
-                        "the program has changed since this tape was recorded (program hash differs); record a new tape, or use --replay-changed to find the first call that differs".into(),
-                    ));
+                    if matches!(mode, TapeMode::ReplayStrict(_)) {
+                        return Err(fail(
+                            "the program has changed since this tape was recorded (program hash differs); record a new tape, or use --replay-changed to find the first call that differs".into(),
+                        ));
+                    }
+                    // Replay reaches the world only through the tape, so what a changed program
+                    // may see is what each call is answered with. Matching each call by kind,
+                    // arguments and order gives the same guarantee for the calls it makes.
+                    by_calls = true;
+                    notice = Some("the program hash differs from the one this tape was recorded with; replaying by matching each outside call (kind, arguments, order). Use --replay-strict to refuse a changed program, or record a new tape".to_owned());
                 }
                 let mut lanes: HashMap<String, Lane> = HashMap::new();
                 let mut incomplete = HashSet::new();
@@ -440,20 +468,31 @@ impl Tape {
                             line: entry["line"].as_u64().unwrap_or(0) as usize,
                             column: entry["column"].as_u64().unwrap_or(0) as usize,
                             kept: entry["kept"].as_u64().unwrap_or(0) as usize,
+                            call_sha256: entry["call_sha256"].as_str().map(str::to_owned),
                             height: entry["height"].as_u64().unwrap_or(0) as usize,
                             outcome,
                         });
                 }
-                TapeState::Replaying {
-                    lanes,
-                    incomplete,
-                    diverged: None,
-                }
+                (
+                    TapeState::Replaying {
+                        by_calls,
+                        lanes,
+                        incomplete,
+                        diverged: None,
+                    },
+                    notice,
+                )
             }
         };
         Ok(Tape {
             state: Mutex::new(state),
+            notice,
         })
+    }
+
+    /// A note for the person running a replay of a changed program; none otherwise.
+    pub(crate) fn notice(&self) -> Option<&str> {
+        self.notice.as_deref()
     }
 
     pub(crate) fn is_replay(&self) -> bool {
@@ -515,6 +554,10 @@ impl Tape {
             }
         };
         let (arguments_sha256, arguments) = stack_fingerprint(before);
+        let call_sha256 = match &outcome {
+            Outcome::Values(_) => Some(stack_fingerprint(&before[kept.min(before.len())..]).0),
+            _ => None,
+        };
         entries.push(Entry {
             lane: lane.to_owned(),
             arguments_sha256,
@@ -524,6 +567,7 @@ impl Tape {
             line: span.line,
             column: span.column,
             kept,
+            call_sha256,
             height: before.len(),
             outcome,
         });
@@ -543,6 +587,7 @@ impl Tape {
         let height = stack.len();
         let mut state = self.state.lock().unwrap();
         let TapeState::Replaying {
+            by_calls,
             lanes,
             incomplete,
             diverged: first_divergence,
@@ -554,6 +599,7 @@ impl Tape {
                 span,
             ));
         };
+        let by_calls = *by_calls;
         let place = lane_label(lane);
         let cut_short = incomplete.contains(lane);
         let mut diverged = |message: String| {
@@ -593,28 +639,61 @@ impl Tape {
                 span.line
             )));
         };
-        if entry.operation != operation
-            || entry.line != span.line
-            || entry.column != span.column
-            || entry.height != height
-        {
-            return Err(diverged(format!(
-                "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {}, but the tape recorded {} in `{}` at line {}",
-                index + 1,
-                span.line,
-                entry.operation,
-                entry.function,
-                entry.line
-            )));
-        }
-        let (fingerprint, preview) = stack_fingerprint(stack);
-        if entry.arguments_sha256 != fingerprint {
-            return Err(diverged(format!(
-                "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {} with ({preview}), but the tape recorded it with ({})",
-                index + 1,
-                span.line,
-                entry.arguments
-            )));
+        // Against the program that was recorded, a call must sit at the same place with the same
+        // stack. Against an edited one, a call that knows its own arguments is matched by kind and
+        // by those arguments alone (any edit may move lines and change what else is on the stack);
+        // a call that does not (an error, a redaction) still has to match strictly.
+        let mut kept_override = None;
+        match (by_calls, &entry.call_sha256) {
+            (true, Some(recorded_call)) => {
+                let consumed = entry.height.saturating_sub(entry.kept);
+                let (call_fingerprint, preview) =
+                    stack_fingerprint(&stack[height.saturating_sub(consumed)..]);
+                if entry.operation != operation || consumed > height {
+                    return Err(diverged(format!(
+                        "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {}, but the tape recorded {} in `{}` at line {}",
+                        index + 1,
+                        span.line,
+                        entry.operation,
+                        entry.function,
+                        entry.line
+                    )));
+                }
+                if call_fingerprint != *recorded_call {
+                    return Err(diverged(format!(
+                        "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {} with ({preview}), but the tape recorded it with ({})",
+                        index + 1,
+                        span.line,
+                        entry.arguments
+                    )));
+                }
+                kept_override = Some(height - consumed);
+            }
+            _ => {
+                if entry.operation != operation
+                    || entry.line != span.line
+                    || entry.column != span.column
+                    || entry.height != height
+                {
+                    return Err(diverged(format!(
+                        "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {}, but the tape recorded {} in `{}` at line {}",
+                        index + 1,
+                        span.line,
+                        entry.operation,
+                        entry.function,
+                        entry.line
+                    )));
+                }
+                let (fingerprint, preview) = stack_fingerprint(stack);
+                if entry.arguments_sha256 != fingerprint {
+                    return Err(diverged(format!(
+                        "replay diverged{place} at host call {}: the program called {operation} in `{function}` at line {} with ({preview}), but the tape recorded it with ({})",
+                        index + 1,
+                        span.line,
+                        entry.arguments
+                    )));
+                }
+            }
         }
         recorded.next += 1;
         let entry = &recorded.entries[index];
@@ -634,7 +713,7 @@ impl Tape {
                     .map(decode_value)
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|message| RuntimeError::new("R_TAPE", message, span))?;
-                Ok((entry.kept, values))
+                Ok((kept_override.unwrap_or(entry.kept), values))
             }
         })
     }
@@ -670,6 +749,7 @@ impl Tape {
             lanes,
             incomplete,
             diverged,
+            ..
         } = &*state
         {
             if let Some(error) = diverged {
@@ -757,6 +837,9 @@ impl Tape {
                 "kept": entry.kept, "height": entry.height,
                 "args_sha256": entry.arguments_sha256, "args": entry.arguments,
             });
+            if let Some(call) = &entry.call_sha256 {
+                line["call_sha256"] = json!(call);
+            }
             if !entry.lane.is_empty() {
                 line["lane"] = json!(entry.lane);
             }
@@ -821,5 +904,7 @@ pub(crate) fn is_world_operation(op: &guion_model::Op) -> bool {
             | Op::HttpRequestWithTimeout
             | Op::HttpRequestBytes
             | Op::RandomBytes
+            | Op::StdinReadLine
+            | Op::StdinReadAll
     )
 }

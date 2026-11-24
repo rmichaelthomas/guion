@@ -5,6 +5,7 @@ import "std:text"
 import "std:encoding"
 import "std:crypto"
 import "std:random"
+pub import "std:http_types"
 
 pub record WsConn:
     conn: TcpConn

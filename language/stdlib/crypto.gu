@@ -1,12 +1,68 @@
 import "std:encoding"
 import "std:types"
+import "std:text"
+pub import "std:http_types"
 
-# std:crypto: HMAC-SHA-256, SHA-256 and SHA-1 digests, and byte XOR.
+# std:crypto: HMAC-SHA-256, SHA-256, SHA-512, SHA3-512 and SHA-1 digests, and byte XOR.
 #
 # crypto_sha256 and crypto_sha256_text digest a value held in memory and return the 32-byte
 # digest. crypto_sha256_file reads the file in fixed-size blocks, so memory stays constant for
 # any file size; it needs the file-read grant (effect filesystem.read) and returns a typed
 # StdError for a missing or ungranted path.
+#
+# crypto_sha512 and crypto_sha3_512 digest a value held in memory and return the 64-byte digest
+# (SHA-512 from FIPS 180-4, SHA3-512 from FIPS 202). Both are pure and need no grant.
+#
+# crypto_rsa_verify, crypto_ecdsa_p256_verify and crypto_x509_rsa_public_key check signatures
+# against public keys (artifact format 79); they are pure, need no grant, and never sign. A
+# malformed key, signature length, scheme or certificate is a typed StdError (E_CRYPTO_INPUT,
+# E_CRYPTO_SCHEME, E_X509); a well-formed signature that does not verify is Ok(false).
+# crypto_rsa_verify takes the big-endian modulus and exponent and a scheme, one of
+# "pkcs1v15-sha256", "pkcs1v15-sha512" or "pss-sha256". crypto_ecdsa_p256_verify takes a SEC1
+# public key (65 bytes uncompressed) and the raw 64-byte r||s signature over SHA-256 of the
+# message, as JWS writes it. crypto_x509_rsa_public_key reads a DER certificate and gives
+# [modulus, exponent]. crypto_bls12381_verify_g1 (artifact format 80) checks a BLS12-381
+# min-signature: a 96-byte compressed G2 public key, the message bytes, a 48-byte compressed G1
+# signature and the caller's domain separation tag (drand quicknet signs SHA-256 of the round as
+# 8 big-endian bytes under "BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_"); a point that is
+# malformed or outside the subgroup is E_CRYPTO_INPUT.
+#
+# crypto_x509_verify_issued_by(certificate_der, issuer_der) (artifact format 84) is true when the
+# certificate's issuer name is the issuer certificate's subject name and the certificate's signature
+# verifies under the issuer's key: RSA PKCS#1 v1.5 or PSS with SHA-256, SHA-384 or SHA-512, and ECDSA
+# with SHA-256, SHA-384 or SHA-512 under a P-256 or P-384 key, whichever the certificate names. A
+# name mismatch, a key of the wrong type or a signature that does not verify is Ok(false); input that
+# is not DER X.509 is E_X509; any other algorithm (SHA-1, P-521, Ed25519) is E_X509_ALG. A certificate
+# whose outer signatureAlgorithm differs from the one inside its tbsCertificate is Ok(false), and for
+# RSASSA-PSS the saltLength in the certificate's parameters is honoured (a trailerField other than 1 is
+# E_X509). It checks one link only: not validity dates, extensions such as CA:TRUE, or revocation. Read
+# those yourself with the two functions below, and compare them to what you expect:
+#
+# crypto_x509_dns_names(der) (artifact format 85) gives the dNSName entries of the certificate's
+# SubjectAltName extension, in order (IP, e-mail and URI entries are skipped); only when the certificate
+# has no SubjectAltName extension at all does it give the subject's common names instead. Wildcards are
+# returned as written, not expanded. crypto_x509_validity(der) gives [notBefore, notAfter] as Unix
+# seconds. Input that is not a DER certificate is E_X509. A name and a date check is what turns "some
+# certificate this CA issued" into "the certificate I mean".
+#
+# ECDSA signatures are malleable: crypto_ecdsa_p256_verify accepts both (r, s) and (r, n - s) for a
+# valid signature, so never use signature bytes as an identifier or a dedupe key. crypto_rsa_verify
+# accepts moduli from 1024 to 8192 bits; "pss-sha256" uses a salt as long as the digest (32 bytes), as
+# JWS PS256 requires, and a signature made with another salt length is Ok(false).
+#
+# crypto_tlock_encrypt, crypto_tlock_decrypt and crypto_tlock_round are drand timelock encryption
+# (artifact format 81) in the age format, interoperable with drand's `tle` and tlock-js on a
+# G1-signature network such as quicknet. crypto_tlock_encrypt(round, chain_hash, public_key,
+# plaintext) takes the 32-byte chain hash and 96-byte compressed G2 network key and returns armored
+# age text that only the signature of that round can open; it draws 48 random bytes from the same
+# source as crypto_random_bytes. crypto_tlock_decrypt(armored, round_signature) takes the 48-byte
+# compressed G1 signature drand publishes for the round: a wrong signature or any change to the file
+# is E_TLOCK_DECRYPT, malformed armor or header is E_TLOCK_FORMAT, a bad key or signature length or
+# point is E_CRYPTO_INPUT. crypto_tlock_round reads the round from the file's header (unauthenticated).
+# crypto_tlock_chain_hash (artifact format 84) reads the 32-byte chain hash from the same header
+# (also unauthenticated; E_TLOCK_FORMAT for a malformed file) so a caller can check it against the network it
+# means to decrypt for. They are pure: fetching the signature is the caller's job. crypto_pem_decode turns one PEM block into its DER bytes; text that is not
+# exactly one well-formed BEGIN/END block is E_CRYPTO_INPUT.
 #
 # crypto_random_bytes, crypto_random_hex and crypto_random_base64url draw unpredictable bytes
 # from the operating system's cryptographic generator (getentropy on macOS, getrandom on Linux).
@@ -32,6 +88,93 @@ pub fn crypto_sha256(data: Bytes) -> Bytes:
 
 pub fn crypto_sha256_text(text: Text) -> Bytes:
     return native_crypto_sha256(bytes_from_text(text))
+
+pub fn crypto_sha512(data: Bytes) -> Bytes:
+    return native_crypto_sha512(data)
+
+pub fn crypto_sha3_512(data: Bytes) -> Bytes:
+    return native_crypto_sha3_512(data)
+
+pub fn crypto_rsa_verify(modulus: Bytes, exponent: Bytes, message: Bytes, signature: Bytes, scheme: Text) -> Result[Bool, StdError]:
+    return native_crypto_rsa_verify(modulus, exponent, message, signature, scheme)
+
+pub fn crypto_ecdsa_p256_verify(public_key: Bytes, message: Bytes, signature: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_ecdsa_p256_verify(public_key, message, signature)
+
+pub fn crypto_bls12381_verify_g1(public_key: Bytes, message: Bytes, signature: Bytes, dst: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_bls12381_verify_g1(public_key, message, signature, dst)
+
+pub fn crypto_tlock_encrypt(round: Int, chain_hash: Bytes, public_key: Bytes, plaintext: Bytes) -> Result[Text, StdError]:
+    match native_crypto_random_bytes(48):
+        Ok(randomness):
+            return native_crypto_tlock_encrypt(round, chain_hash, public_key, plaintext, randomness)
+        Err(problem):
+            return Err(problem)
+
+pub fn crypto_tlock_decrypt(armored: Text, round_signature: Bytes) -> Result[Bytes, StdError]:
+    return native_crypto_tlock_decrypt(armored, round_signature)
+
+pub fn crypto_tlock_round(armored: Text) -> Result[Int, StdError]:
+    return native_crypto_tlock_round(armored)
+
+pub fn crypto_tlock_chain_hash(armored: Text) -> Result[Bytes, StdError]:
+    return native_crypto_tlock_chain_hash(armored)
+
+pub fn crypto_x509_verify_issued_by(certificate_der: Bytes, issuer_der: Bytes) -> Result[Bool, StdError]:
+    return native_crypto_x509_verify_issued_by(certificate_der, issuer_der)
+
+pub fn crypto_x509_dns_names(der: Bytes) -> Result[List[Text], StdError]:
+    return native_crypto_x509_dns_names(der)
+
+pub fn crypto_x509_validity(der: Bytes) -> Result[List[Int], StdError]:
+    return native_crypto_x509_validity(der)
+
+pub fn crypto_x509_rsa_public_key(der: Bytes) -> Result[List[Bytes], StdError]:
+    return native_crypto_x509_rsa_public_key(der)
+
+fn pem_error(message: Text) -> StdError:
+    return std_error("E_CRYPTO_INPUT", message)
+
+# A `-----BEGIN X-----` or `-----END X-----` line: the dashes at both ends and the word after them.
+fn pem_marker(line: Text, word: Text) -> Bool:
+    let size = len(line)
+    let lead = len(word) + 5
+    if size < lead + 5:
+        return false
+    if text_slice(line, 0, lead) != "-----" + word:
+        return false
+    return text_slice(line, size - 5, size) == "-----"
+
+pub fn crypto_pem_decode(text: Text) -> Result[Bytes, StdError]:
+    let lines = text_split(text_replace(text, "\r", ""), "\n")
+    var state = 0
+    var body = ""
+    var index = 0
+    while index < len(lines):
+        let line = text_trim(lines[index])
+        set index = index + 1
+        if line == "":
+            continue
+        if pem_marker(line, "BEGIN "):
+            if state != 0:
+                return Err(pem_error("PEM text has more than one BEGIN line"))
+            set state = 1
+            continue
+        if pem_marker(line, "END "):
+            if state != 1:
+                return Err(pem_error("PEM END line without a BEGIN line"))
+            set state = 2
+            continue
+        if state != 1:
+            return Err(pem_error("PEM text has content outside its BEGIN and END lines"))
+        set body = body + line
+    if state != 2:
+        return Err(pem_error("PEM text needs one BEGIN line and one END line"))
+    match base64_decode(body):
+        Ok(data):
+            return Ok(data)
+        Err(problem):
+            return Err(pem_error("PEM body is not valid base64"))
 
 pub fn crypto_sha256_file(path: Text) -> Result[Bytes, StdError]:
     match native_fs_sha256(path):

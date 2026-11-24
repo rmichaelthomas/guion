@@ -1,0 +1,14 @@
+# certificateId values (SHA-512 of the certificate's DER, lower-case hex) of the NIST Beacon 2.0 chain 1
+# (2018-07-23 to 2022-04-29) certificates signed by "DigiCert Global CA G2" (nist-chain1-issuer-global-ca-g2.pem), then
+# by "DigiCert SHA2 Secure Server CA" (nist-chain1-issuer-sha2-secure-server.pem). The chain's fourth certificate is in
+# nist-legacy-certificate-ids.txt. Embedded in src/nist.gu (nist_chain1_global_ca_g2_certificate_ids and
+# nist_chain1_secure_server_certificate_ids); a test keeps them equal. Lines starting with # are comments; a line
+# "[issuer]" starts a group.
+[global-ca-g2]
+# valid Jan 10 2018 to Jan 11 2019 (pulses 1 to 502024; used until 2019-08-16, after it expired, see README)
+5501e3d72bc42f3b96e16de4dcadcb16768e109662bd16d667d5fd9aee585af31bbdc5dd4f53592276064b53dddd76c8f3604b2a41db6e09f78f82bb5d6569e7
+# valid Jun 11 2019 to Jun 11 2020 (pulses 502025 to 926636)
+02288edbdc04bdeeb1c8140a41a1ad40ab2ea7ad27fdd316946f3ec5aff1a7129f1fb5078202d75d42c201878b06d79c45bf37adb55f83aa213200834792b1da
+[sha2-secure-server]
+# valid Jun 10 2020 to Jun 11 2021 (pulses 926637 to 1414537)
+a2898303d179a120f622e7df9da92bff3f41cecb9f174aedf0b9915728823e7cb180464cb3019f5ce9386c116ed26e53a39df17f0ca88f04e36d8c7470ecc3a4

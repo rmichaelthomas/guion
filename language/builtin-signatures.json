@@ -2013,6 +2013,18 @@
       "operation": "RandomBytes"
     },
     {
+      "name": "native_stdin_read_line",
+      "parameters": [],
+      "result": "Result[Option[Text], Record[StdError]]",
+      "operation": "StdinReadLine"
+    },
+    {
+      "name": "native_stdin_read_all",
+      "parameters": [],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "StdinReadAll"
+    },
+    {
       "name": "native_log_append",
       "parameters": [
         "Text",
@@ -2780,6 +2792,51 @@
       "operation": "NumberToText"
     },
     {
+      "name": "int_and",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntAnd"
+    },
+    {
+      "name": "int_or",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntOr"
+    },
+    {
+      "name": "int_xor",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntXor"
+    },
+    {
+      "name": "int_shift_left",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntShiftLeft"
+    },
+    {
+      "name": "int_shift_right",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Int",
+      "operation": "CodecIntShiftRight"
+    },
+    {
       "name": "float_to_text",
       "parameters": [
         "Float64"
@@ -2949,6 +3006,133 @@
       ],
       "result": "Bytes",
       "operation": "CodecSha256"
+    },
+    {
+      "name": "native_crypto_sha512",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CryptoSha512"
+    },
+    {
+      "name": "native_crypto_sha3_512",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Bytes",
+      "operation": "CryptoSha3_512"
+    },
+    {
+      "name": "native_crypto_rsa_verify",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Text"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoRsaVerify"
+    },
+    {
+      "name": "native_crypto_ecdsa_p256_verify",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoEcdsaP256Verify"
+    },
+    {
+      "name": "native_crypto_bls12381_verify_g1",
+      "parameters": [
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoBls12381VerifyG1"
+    },
+    {
+      "name": "native_crypto_tlock_encrypt",
+      "parameters": [
+        "Int",
+        "Bytes",
+        "Bytes",
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Text, Record[StdError]]",
+      "operation": "CryptoTlockEncrypt"
+    },
+    {
+      "name": "native_crypto_tlock_decrypt",
+      "parameters": [
+        "Text",
+        "Bytes"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoTlockDecrypt"
+    },
+    {
+      "name": "native_crypto_tlock_round",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, Record[StdError]]",
+      "operation": "CryptoTlockRound"
+    },
+    {
+      "name": "native_crypto_dagcbor_encode",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoDagCborEncode"
+    },
+    {
+      "name": "native_crypto_tlock_chain_hash",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bytes, Record[StdError]]",
+      "operation": "CryptoTlockChainHash"
+    },
+    {
+      "name": "native_crypto_x509_verify_issued_by",
+      "parameters": [
+        "Bytes",
+        "Bytes"
+      ],
+      "result": "Result[Bool, Record[StdError]]",
+      "operation": "CryptoX509VerifyIssuedBy"
+    },
+    {
+      "name": "native_crypto_x509_dns_names",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Text], Record[StdError]]",
+      "operation": "CryptoX509DnsNames"
+    },
+    {
+      "name": "native_crypto_x509_validity",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Int], Record[StdError]]",
+      "operation": "CryptoX509Validity"
+    },
+    {
+      "name": "native_crypto_x509_rsa_public_key",
+      "parameters": [
+        "Bytes"
+      ],
+      "result": "Result[List[Bytes], Record[StdError]]",
+      "operation": "CryptoX509RsaPublicKey"
     },
     {
       "name": "native_bytes_xor",

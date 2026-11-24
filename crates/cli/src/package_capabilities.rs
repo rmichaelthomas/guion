@@ -254,9 +254,10 @@ impl Capabilities {
 }
 
 impl Capabilities {
-    /// Compares declared network hosts with the hosts named by URL literals in the library's
-    /// code. An undeclared literal host is an error; network use with no literal host at all is
-    /// reported, because the declaration then cannot be confirmed from the code.
+    /// Compares declared network hosts with the hosts named by string literals in the library's
+    /// code (URLs, and bare declared host names). An undeclared URL host is an error. Network use
+    /// with no literal host at all is reported, because the declaration then cannot be confirmed
+    /// from the code; so is each declared host that no literal names while others are named.
     pub fn compare_with_hosts(
         &self,
         used: &BTreeSet<String>,
@@ -278,7 +279,13 @@ impl Capabilities {
             }
         }
         if literal_hosts.is_empty() && !self.network.is_empty() {
-            warnings.push("no host in [capabilities] `network` appears as a URL in the library's code, so the declaration cannot be confirmed; reviewers should check where requests go".into());
+            warnings.push("no host in [capabilities] `network` appears as a URL or host name in the library's code, so the declaration cannot be confirmed; reviewers should check where requests go".into());
+        } else {
+            for host in &declared {
+                if !literal_hosts.contains_key(host) {
+                    warnings.push(format!("`{host}` is declared in [capabilities] `network` but no URL or host name in the library's code names it, so the declaration cannot be confirmed for it"));
+                }
+            }
         }
         (errors, warnings)
     }

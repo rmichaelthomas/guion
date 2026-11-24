@@ -92,12 +92,23 @@ fn a_changed_program_is_refused_and_the_first_differing_call_is_named() {
         READER.replace("absent.txt", "other.txt"),
     )
     .unwrap();
-    let refused = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    let refused = guion(
+        &directory,
+        &["run", "--replay-strict", "run.tape", "main.gu"],
+    );
     assert!(!refused.status.success());
     assert!(
         text(&refused.stderr).contains("program has changed"),
         "{}",
         text(&refused.stderr)
+    );
+    // A plain replay of a changed program checks each call instead, and names the one that differs.
+    let by_calls = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    assert!(!by_calls.status.success());
+    assert!(
+        text(&by_calls.stderr).contains("R_TAPE_DIVERGED"),
+        "{}",
+        text(&by_calls.stderr)
     );
 
     let diverged = guion(
@@ -446,4 +457,132 @@ fn an_item_that_fails_replays_to_the_same_failure_whatever_its_siblings_did() {
         assert!(replayed.status.success(), "{}", text(&replayed.stderr));
         assert_eq!(text(&replayed.stdout), original);
     }
+}
+
+const TWO_READS: &str = r#"fn first() -> Text:
+    match read_text("a.txt"):
+        Ok(body):
+            return body
+        Err(error):
+            return "none"
+
+fn main() -> Int:
+    let a = first()
+    match read_text("b.txt"):
+        Ok(body):
+            print(f"{a} {body}")
+        Err(error):
+            print("failed")
+    return 0
+"#;
+
+fn record_two_reads(name: &str) -> std::path::PathBuf {
+    let directory = scratch(name);
+    std::fs::write(directory.join("main.gu"), TWO_READS).unwrap();
+    std::fs::write(directory.join("a.txt"), "A").unwrap();
+    std::fs::write(directory.join("b.txt"), "B").unwrap();
+    let recorded = guion(&directory, &["run", "--record", "run.tape", "main.gu"]);
+    assert!(recorded.status.success(), "{}", text(&recorded.stderr));
+    directory
+}
+
+#[test]
+fn a_tape_replays_after_an_edit_that_leaves_every_outside_call_alone() {
+    let directory = record_two_reads("edit-safe");
+    // Comments and a new local move every line and change the stack, but not one call.
+    let edited = format!("# a note\n# another note\n{}", TWO_READS)
+        .replace("let a = first()", "let extra = 41\n    let a = first()")
+        .replace("print(f\"{a} {body}\")", "print(f\"{a} {body} {extra}\")");
+    std::fs::write(directory.join("main.gu"), edited).unwrap();
+    let replayed = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    let stderr = text(&replayed.stderr);
+    assert!(replayed.status.success(), "{stderr}");
+    assert_eq!(text(&replayed.stdout), "A B 41\n");
+    assert!(stderr.contains("program hash differs"), "{stderr}");
+    assert!(stderr.contains("--replay-strict"), "{stderr}");
+
+    let strict = guion(
+        &directory,
+        &["run", "--replay-strict", "run.tape", "main.gu"],
+    );
+    assert!(!strict.status.success());
+    assert!(text(&strict.stderr).contains("program has changed"));
+}
+
+#[test]
+fn a_json_run_report_carries_the_relaxed_replay_notice() {
+    let directory = record_two_reads("edit-json");
+    // An exact replay has no notice.
+    let exact = guion(
+        &directory,
+        &["run", "--json", "--replay", "run.tape", "main.gu"],
+    );
+    let report: serde_json::Value = serde_json::from_str(&text(&exact.stdout)).unwrap();
+    assert_eq!(report["status"], "passed", "{report}");
+    assert!(report["tape_notice"].is_null(), "{report}");
+    // Edit the program without touching any outside call: the replay is relaxed, and says so.
+    let edited = format!("# a note\n{TWO_READS}");
+    std::fs::write(directory.join("main.gu"), edited).unwrap();
+    let relaxed = guion(
+        &directory,
+        &["run", "--json", "--replay", "run.tape", "main.gu"],
+    );
+    let report: serde_json::Value = serde_json::from_str(&text(&relaxed.stdout)).unwrap();
+    assert_eq!(report["status"], "passed", "{report}");
+    let notice = report["tape_notice"]
+        .as_str()
+        .expect("a tape_notice string");
+    assert!(notice.contains("program hash differs"), "{notice}");
+    assert!(notice.contains("--replay-strict"), "{notice}");
+    // JSON mode keeps stderr clean of the note.
+    assert!(!text(&relaxed.stderr).contains("program hash differs"));
+}
+
+#[test]
+fn an_edit_that_changes_what_a_call_is_given_still_diverges() {
+    let directory = record_two_reads("edit-arg");
+    std::fs::write(
+        directory.join("main.gu"),
+        TWO_READS.replace("b.txt", "c.txt"),
+    )
+    .unwrap();
+    let replayed = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    assert!(!replayed.status.success());
+    let stderr = text(&replayed.stderr);
+    assert!(stderr.contains("R_TAPE_DIVERGED"), "{stderr}");
+    assert!(stderr.contains("c.txt"), "{stderr}");
+}
+
+#[test]
+fn an_edit_that_reorders_calls_still_diverges() {
+    let directory = record_two_reads("edit-order");
+    let swapped = TWO_READS
+        .replace("a.txt", "TMP")
+        .replace("b.txt", "a.txt")
+        .replace("TMP", "b.txt");
+    std::fs::write(directory.join("main.gu"), swapped).unwrap();
+    let replayed = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    assert!(!replayed.status.success());
+    assert!(text(&replayed.stderr).contains("R_TAPE_DIVERGED"));
+}
+
+#[test]
+fn an_edit_that_drops_or_adds_a_call_still_diverges() {
+    let directory = record_two_reads("edit-count");
+    std::fs::write(
+        directory.join("main.gu"),
+        TWO_READS.replace("let a = first()", "let a = \"x\""),
+    )
+    .unwrap();
+    let fewer = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    assert!(!fewer.status.success());
+    assert!(text(&fewer.stderr).contains("R_TAPE_DIVERGED"));
+}
+
+#[test]
+fn an_unchanged_program_replays_without_a_notice() {
+    let directory = record_two_reads("edit-none");
+    let replayed = guion(&directory, &["run", "--replay", "run.tape", "main.gu"]);
+    assert!(replayed.status.success());
+    assert!(!text(&replayed.stderr).contains("program hash differs"));
 }

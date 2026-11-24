@@ -1,0 +1,15 @@
+# certificateId values (SHA-512 of the certificate's DER, lower-case hex, one per line) of the NIST
+# Beacon 2.0 signing certificates this package trusts. Each is a certificate for engine.beacon.nist.gov
+# that the pinned issuer (nist-issuer.pem) signed. nist_verify returns false for a pulse that names any
+# other certificate. The same list is embedded in src/nist.gu (nist_known_certificate_ids) and a test
+# keeps the two equal. README.md says how to refresh it. Lines starting with # are comments.
+# valid Sep 11 2023 to Sep 16 2024
+aa1e1ed43ed72a4a8e8535687074690c593adc683c122dbed16842acbfd697020ddb1c382bf06893b11836da1fc9df982ec34e4d9dc3c105a816950948a25005
+# valid Sep 4 2024 to Sep 3 2025
+e692b0f6b208322ac84c963e167245f6356c21f31fa95274b25e92329510b5a210d5179afb6ee25e12dd9fc2691f49ed778d9a709aa3c2ea0f3ff2eaf8c47a62
+# valid Aug 28 2025 to Sep 4 2026
+528943a555f5f8ca54423be6dfb95925a35c7b552046420e7d7cd072058a14d6536ad3a8e9754b6582f164a90b0cd86a65d659f5426a2659a947595d1c816c8c
+# valid Sep 3 2026 to Mar 20 2027
+87f27f431da3f584af6007fe045df13aaa81d831f335b6ee73f6334768f32d3ae10491e669b93a43e548b20370a6526c3def99643c25d8ad7bf5df95a3c2b45d
+# valid Oct 21 2026 to Mar 20 2027 (the certificate saved as nist-certificate.pem)
+5b6386e6ac8a993bac8d99d6549deda44af82f2fa4a0e9c0025b6474ab0cbfcab67bfff264fda41aac003b0c9ee7fb77d2938dc0f286fb73cc8fa79864ec0c18

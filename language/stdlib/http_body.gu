@@ -6,6 +6,7 @@ import "std:encoding"
 import "std:crypto"
 import "std:url"
 import "std:http_response"
+pub import "std:http_types"
 
 # std:http_body: request bodies as values, with every limit explicit.
 #

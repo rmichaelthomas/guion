@@ -22,7 +22,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "steps": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "steps": {"type": "integer", "minimum": 0, "maximum": 50000000, "description": "At most 10000 unless allowRaisedSteps is true."},
+        "allowRaisedSteps": {"type": "boolean", "description": "Lets steps exceed 10000, up to 50000000. Absent or false keeps the 10000 ceiling."},
         "outputBytes": {"type": "integer", "minimum": 0, "maximum": 65536}
       }
     },

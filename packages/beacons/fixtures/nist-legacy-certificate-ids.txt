@@ -1,0 +1,10 @@
+# certificateId values (SHA-512 of the certificate's DER, lower-case hex, one per line) of the NIST
+# Beacon 2.0 signing certificates that the LEGACY issuer (nist-legacy-issuer.pem, "DigiCert TLS RSA
+# SHA256 2020 CA1", issued by DigiCert Global Root CA) signed. nist_verify checks a pulse naming one of
+# these against that issuer only, never against the issuer of nist-certificate-ids.txt. The same list is
+# embedded in src/nist.gu (nist_legacy_certificate_ids) and a test keeps the two equal. README.md says
+# how it was found and how to refresh it.
+# valid Sep 15 2022 to Sep 15 2023 (the certificate of chain 2's first pulse, saved as nist-legacy-certificate.pem)
+ed8e1b9745e337e38745a54579d97b21562cb703e44926666a1d6499a9e3399448cdf6b1403ec056314c129910e82b0e8af48c1e062a88828e178dfc82983c2b
+# valid Jun 8 2021 to Jun 22 2022 (chain 1's last certificate, pulses 1414538 to 1801851, saved as nist-chain1-certificate-4.pem)
+ebcfbf3cb148288266e2cde0d71de23b0a2739c30356e32de68e040b82dec384359763f72905ba16a2a474040ed5db47ee1baa0327aeae94f231ffe67276d1cb

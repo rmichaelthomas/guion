@@ -109,12 +109,34 @@ pub(crate) struct NativeListArena {
     pub(crate) initial_output_bytes: usize,
     pub(crate) committed_output_bytes: usize,
     pub(crate) pending_output: String,
-    pub(crate) pending_print_bytes: Vec<usize>,
+    /// Each pending print as (end offset in `pending_output`, bytes), for effect records in order.
+    pub(crate) pending_print_bytes: Vec<(usize, usize)>,
+    /// Standard-error lines native code printed, each with how much of `pending_output` came before it.
+    pub(crate) pending_stderr: Vec<(usize, String, Span)>,
+    pub(crate) pending_stderr_bytes: usize,
+    /// Bytes this native run has already written to standard output and standard error (see
+    /// `flush_if_due`).
+    pub(crate) flushed_stdout: usize,
+    pub(crate) flushed_stderr: usize,
+    /// The first bytes of what was written, kept so a VM replay can be compared with it.
+    pub(crate) flushed_stdout_text: Vec<u8>,
+    pub(crate) flushed_stderr_text: Vec<u8>,
+    pub(crate) last_flush: Option<std::time::Instant>,
+    /// Loop backedges left before the next look at held output (see `flush_tick`).
+    pub(crate) flush_ticks_left: u32,
     pub(crate) reclaim_floor: usize,
     pub(crate) reclamations: u64,
 }
 
 const NATIVE_INLINE_TAGGED_VALUES: usize = 8;
+/// How long native code may sit on printed lines before the next print writes them out.
+const FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(2);
+/// Loop backedges between looks at held output: a tight loop turns over in a few nanoseconds, so
+/// this keeps the clock read rare and still bounds the delay to about the flush interval.
+const FLUSH_TICK_BACKEDGES: u32 = 256;
+/// Printed bytes that are written out at once regardless of the interval.
+const FLUSH_BACKLOG_BYTES: usize = 64 * 1024;
+
 /// Arena entries that must accumulate before a loop safepoint attempts to retire dead handles.
 const NATIVE_ARENA_RECLAIM_MIN_ENTRIES: usize = 2048;
 /// List items an entry must copy into a fresh native frame before its cost is tracked.
@@ -206,6 +228,14 @@ impl NativeListArena {
             committed_output_bytes: 0,
             pending_output: String::new(),
             pending_print_bytes: Vec::new(),
+            pending_stderr: Vec::new(),
+            pending_stderr_bytes: 0,
+            flushed_stdout: 0,
+            flushed_stderr: 0,
+            flushed_stdout_text: Vec::new(),
+            flushed_stderr_text: Vec::new(),
+            last_flush: None,
+            flush_ticks_left: FLUSH_TICK_BACKEDGES,
             reclaim_floor: NATIVE_ARENA_RECLAIM_MIN_ENTRIES,
             reclamations: 0,
         }
@@ -1672,9 +1702,13 @@ impl NativeListArena {
                 let text = text.clone();
                 let output_bytes = text.len().saturating_add(1);
                 let instance = unsafe { &mut *runtime.instance };
+                // Held with the stdout prints until the function completes: a native function that
+                // falls back to the VM is replayed from its start, and what it already wrote could
+                // not be taken back.
                 if instance
                     .program_output_bytes()
                     .saturating_add(self.pending_output.len())
+                    .saturating_add(self.pending_stderr_bytes)
                     .saturating_add(output_bytes)
                     > self.output_limit_bytes
                     || !self.charge(output_bytes)
@@ -1684,12 +1718,12 @@ impl NativeListArena {
                 let mut rendered = String::with_capacity(output_bytes);
                 rendered.push_str(&text);
                 rendered.push('\n');
-                instance.commit_native_output(self);
-                instance
-                    .write_program_output(OutputStream::Stderr, &rendered, instruction.span)
-                    .ok()?;
-                self.committed_output_bytes =
-                    self.committed_output_bytes.saturating_add(rendered.len());
+                self.pending_stderr_bytes = self.pending_stderr_bytes.saturating_add(output_bytes);
+                self.pending_stderr
+                    .push((self.pending_output.len(), rendered, instruction.span));
+                if !self.flush_if_due() {
+                    return None;
+                }
                 return Some(0);
             }
             Op::Args => {
@@ -2660,6 +2694,8 @@ impl NativeListArena {
     }
 
     pub(crate) fn print(&mut self, value: i64, kind: i64) -> bool {
+        // Output is held in `pending_output` until the native function completes (or resumes in
+        // the VM at a continuation); a deoptimization that replays the function drops it.
         let rendered = match kind {
             1 => value.to_string(),
             2 => {
@@ -2681,6 +2717,7 @@ impl NativeListArena {
             .initial_output_bytes
             .saturating_add(self.committed_output_bytes)
             .saturating_add(self.pending_output.len())
+            .saturating_add(self.pending_stderr_bytes)
             .saturating_add(bytes)
             > self.output_limit_bytes
             || !self.charge(bytes)
@@ -2689,7 +2726,59 @@ impl NativeListArena {
         }
         self.pending_output.push_str(&rendered);
         self.pending_output.push('\n');
-        self.pending_print_bytes.push(bytes);
-        true
+        self.pending_print_bytes
+            .push((self.pending_output.len(), bytes));
+        self.flush_if_due()
+    }
+
+    /// Called at the backedges of loops in functions that print. Looks at held output once every
+    /// `FLUSH_TICK_BACKEDGES` calls and writes it when it has waited at least `FLUSH_INTERVAL`, so a
+    /// line printed just after another is never held for the length of a long loop. Returns false
+    /// when writing failed (the error is kept as the host error).
+    pub(crate) fn flush_tick(&mut self) -> bool {
+        self.flush_ticks_left = self.flush_ticks_left.saturating_sub(1);
+        if self.flush_ticks_left > 0 {
+            return true;
+        }
+        self.flush_ticks_left = FLUSH_TICK_BACKEDGES;
+        if self.pending_output.is_empty() && self.pending_stderr.is_empty() {
+            return true;
+        }
+        self.flush_if_due()
+    }
+
+    /// Under streaming output (`guion run`), writes what native code has printed so far when it is
+    /// time to: the first print, one at least `FLUSH_INTERVAL` after the last write, or a large
+    /// backlog. Without this a long native loop would hold every line until the function returned.
+    /// Writing early is sound because the VM drops the replayed copy of what was written if the
+    /// function later falls back (`Instance::replay_skip_stdout`). A write that fails (closed pipe)
+    /// is kept as the host error and the native run stops.
+    fn flush_if_due(&mut self) -> bool {
+        let Some(context) = self.runtime_context.as_ref() else {
+            return true;
+        };
+        // SAFETY: the instance outlives the arena that was attached to it.
+        let instance = unsafe { &mut *context.instance };
+        if !instance.policy.streaming_output {
+            return true;
+        }
+        let backlog = self
+            .pending_output
+            .len()
+            .saturating_add(self.pending_stderr_bytes);
+        let due = backlog >= FLUSH_BACKLOG_BYTES
+            || self
+                .last_flush
+                .is_none_or(|flushed| flushed.elapsed() >= FLUSH_INTERVAL);
+        if !due {
+            return true;
+        }
+        match instance.commit_native_output(self) {
+            Ok(()) => true,
+            Err(error) => {
+                self.host_error = Some(error);
+                false
+            }
+        }
     }
 }

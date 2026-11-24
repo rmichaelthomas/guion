@@ -1,0 +1,169 @@
+
+fn h(text: Text) -> Bytes:
+    match hex_decode(text):
+        Ok(data):
+            return data
+        Err(problem):
+            return bytes_from_text("")
+
+fn flip(data: Bytes) -> Bytes:
+    return bytes_xor_key(data, bytes_from_ints([1]))
+
+fn flag(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn octets(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return hex_encode(value)
+        Err(problem):
+            return problem.code
+
+fn words(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return text_from_bytes_lossy(value)
+        Err(problem):
+            return problem.code
+
+fn number(result: Result[Int, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return int_to_text(value)
+        Err(problem):
+            return problem.code
+
+fn rsa_key(result: Result[List[Bytes], StdError]) -> Text:
+    match result:
+        Ok(parts):
+            return f"{len(parts)} {hex_encode(parts[1])}"
+        Err(problem):
+            return problem.code
+
+fn name_list(result: Result[List[Text], StdError]) -> Text:
+    match result:
+        Ok(names):
+            return text_join(names, ",")
+        Err(problem):
+            return problem.code
+
+fn date_list(result: Result[List[Int], StdError]) -> Text:
+    match result:
+        Ok(dates):
+            return f"{int_to_text(dates[0])},{int_to_text(dates[1])}"
+        Err(problem):
+            return problem.code
+
+fn json_encoded(text: Text) -> Text:
+    match json_parse(text):
+        Ok(value):
+            match dagcbor_encode(value):
+                Ok(bytes):
+                    return hex_encode(bytes)
+                Err(problem):
+                    return problem.code
+        Err(problem):
+            return "json-parse-failed"
+
+fn short(data: Bytes) -> Bytes:
+    return bytes_from_text("short")
+
+fn seal(round: Int, key: Bytes, plain: Bytes, randomness: Bytes) -> Result[Text, StdError]:
+    return native_crypto_tlock_encrypt(round, quicknet_chain(), key, plain, randomness)
+
+fn encrypt_round_trip() -> Text:
+    let randomness = bytes_slice(crypto_sha512(bytes_from_text("fixed randomness")), 0, 48)
+    let plain = bytes_from_text("the sealed bid is 41")
+    match seal(1000, quicknet_key(), plain, randomness):
+        Ok(sealed):
+            let opened = words(crypto_tlock_decrypt(sealed, sig_1000()))
+            let digest = hex_encode(crypto_sha256(bytes_from_text(sealed)))
+            let matches = opened == "the sealed bid is 41"
+            return bool_text(matches) + " " + digest
+        Err(problem):
+            return problem.code
+
+fn encrypt_bad_key() -> Text:
+    let randomness = bytes_slice(crypto_sha512(bytes_from_text("fixed randomness")), 0, 48)
+    match seal(1000, bytes_from_text("short"), bytes_from_text("x"), randomness):
+        Ok(sealed):
+            return "sealed"
+        Err(problem):
+            return problem.code
+
+fn bool_text(value: Bool) -> Text:
+    if value:
+        return "true"
+    return "false"
+
+fn line(label: Text, value: Text) -> Text:
+    return label + "=" + value + "\n"
+
+fn vectors() -> Text:
+    var out = ""
+    let abc = bytes_from_text("abc")
+    let nothing = bytes_from_text("")
+    set out = out + line("sha512 abc", hex_encode(crypto_sha512(abc)))
+    set out = out + line("sha512 empty", hex_encode(crypto_sha512(nothing)))
+    set out = out + line("sha3_512 abc", hex_encode(crypto_sha3_512(abc)))
+    set out = out + line("sha3_512 empty", hex_encode(crypto_sha3_512(nothing)))
+    set out = out + line("rsa pkcs1_256", flag(crypto_rsa_verify(modulus(), exponent(), message(), pkcs1_256(), "pkcs1v15-sha256")))
+    set out = out + line("rsa pkcs1_512", flag(crypto_rsa_verify(modulus(), exponent(), message(), pkcs1_512(), "pkcs1v15-sha512")))
+    set out = out + line("rsa pss", flag(crypto_rsa_verify(modulus(), exponent(), message(), pss_256(), "pss-sha256")))
+    set out = out + line("rsa pkcs1 as pss", flag(crypto_rsa_verify(modulus(), exponent(), message(), pkcs1_256(), "pss-sha256")))
+    set out = out + line("rsa flipped message", flag(crypto_rsa_verify(modulus(), exponent(), flip(message()), pss_256(), "pss-sha256")))
+    set out = out + line("rsa bad scheme", flag(crypto_rsa_verify(modulus(), exponent(), message(), pss_256(), "md5-rsa")))
+    set out = out + line("rsa short signature", flag(crypto_rsa_verify(modulus(), exponent(), message(), short(message()), "pss-sha256")))
+    set out = out + line("rsa empty modulus", flag(crypto_rsa_verify(nothing, exponent(), message(), pss_256(), "pss-sha256")))
+    set out = out + line("ecdsa", flag(crypto_ecdsa_p256_verify(ec_key(), message(), ec_sig())))
+    set out = out + line("ecdsa flipped", flag(crypto_ecdsa_p256_verify(ec_key(), message(), flip(ec_sig()))))
+    set out = out + line("ecdsa short signature", flag(crypto_ecdsa_p256_verify(ec_key(), message(), short(message()))))
+    set out = out + line("x509 rsa key", rsa_key(crypto_x509_rsa_public_key(rsa_cert())))
+    set out = out + line("x509 rsa modulus match", bool_text(hex_encode(unwrap(crypto_x509_rsa_public_key(rsa_cert()))[0]) == hex_encode(modulus())))
+    set out = out + line("x509 ec cert", rsa_key(crypto_x509_rsa_public_key(ec_cert())))
+    set out = out + line("x509 garbage key", rsa_key(crypto_x509_rsa_public_key(bytes_from_text("not a certificate"))))
+    let message_hash = crypto_sha256(bytes_from_ints([0, 0, 0, 0, 0, 0, 3, 232]))
+    let dst = bytes_from_text("BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_")
+    set out = out + line("bls", flag(crypto_bls12381_verify_g1(quicknet_key(), message_hash, sig_1000(), dst)))
+    set out = out + line("bls other message", flag(crypto_bls12381_verify_g1(quicknet_key(), flip(message_hash), sig_1000(), dst)))
+    set out = out + line("bls short signature", flag(crypto_bls12381_verify_g1(quicknet_key(), message_hash, short(message()), dst)))
+    set out = out + line("tlock round", number(crypto_tlock_round(armored())))
+    set out = out + line("tlock chain", bool_text(octets(crypto_tlock_chain_hash(armored())) == hex_encode(quicknet_chain())))
+    set out = out + line("tlock decrypt", words(crypto_tlock_decrypt(armored(), sig_1000())))
+    set out = out + line("tlock decrypt wrong round", octets(crypto_tlock_decrypt(armored(), sig_1001())))
+    set out = out + line("tlock decrypt short signature", octets(crypto_tlock_decrypt(armored(), short(message()))))
+    set out = out + line("tlock decrypt not age", octets(crypto_tlock_decrypt("not an age file", sig_1000())))
+    set out = out + line("tlock round not age", number(crypto_tlock_round("not an age file")))
+    set out = out + line("tlock chain not age", octets(crypto_tlock_chain_hash("not an age file")))
+    set out = out + line("tlock encrypt round trip", encrypt_round_trip())
+    set out = out + line("tlock encrypt bad key", encrypt_bad_key())
+    let map_text = "{\"b\":1,\"a\":[true,null,-1.5],\"aa\":\"x\"}"
+    let link_text = "{\"/\":\"not a cid\"}"
+    set out = out + line("dagcbor map", json_encoded(map_text))
+    set out = out + line("dagcbor too big", json_encoded("18446744073709551616"))
+    set out = out + line("dagcbor bad link", json_encoded(link_text))
+    set out = out + line("x509 leaf by issuer", flag(crypto_x509_verify_issued_by(nist_leaf(), nist_issuer())))
+    set out = out + line("x509 issuer by root", flag(crypto_x509_verify_issued_by(nist_issuer(), nist_root())))
+    set out = out + line("x509 leaf by root", flag(crypto_x509_verify_issued_by(nist_leaf(), nist_root())))
+    set out = out + line("x509 sha1", flag(crypto_x509_verify_issued_by(sha1_leaf(), rsa_ca())))
+    set out = out + line("x509 garbage", flag(crypto_x509_verify_issued_by(h("00"), nist_issuer())))
+    set out = out + line("x509 names", name_list(crypto_x509_dns_names(san_leaf())))
+    set out = out + line("x509 names nist", name_list(crypto_x509_dns_names(nist_leaf())))
+    set out = out + line("x509 names garbage", name_list(crypto_x509_dns_names(h("00"))))
+    set out = out + line("x509 validity", date_list(crypto_x509_validity(dated_leaf())))
+    set out = out + line("x509 validity garbage", date_list(crypto_x509_validity(h("00"))))
+    set out = out + line("and", int_to_text(int_and(12, 10)))
+    set out = out + line("or", int_to_text(int_or(12, 10)))
+    set out = out + line("xor", int_to_text(int_xor(12, 10)))
+    set out = out + line("shl", int_to_text(int_shift_left(1, 62)))
+    set out = out + line("shr", int_to_text(int_shift_right(-16, 2)))
+    return out
+
+fn main() -> Int:
+    return 0

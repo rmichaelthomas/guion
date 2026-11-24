@@ -32,6 +32,66 @@
   ],
   "entries": [
     {
+      "id": "host_operation-standard-input-line",
+      "kind": "host_operation",
+      "name": "standard input line",
+      "owner_task": 6,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.standard-input-line.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "host_operation.standard-input-line.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "host_operation.standard-input-line.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      },
+      "source_signature": "`stdin_read_line() -> Result[Option[Text], StdError]`",
+      "declared_status": "Implemented in artifact format 77"
+    },
+    {
+      "id": "host_operation-standard-input-remainder",
+      "kind": "host_operation",
+      "name": "standard input remainder",
+      "owner_task": 6,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.standard-input-remainder.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "host_operation.standard-input-remainder.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "host_operation.standard-input-remainder.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      },
+      "source_signature": "`stdin_read_all() -> Result[Bytes, StdError]`",
+      "declared_status": "Implemented in artifact format 77"
+    },
+    {
       "id": "host_operation-argument-suffix",
       "kind": "host_operation",
       "name": "argument suffix",
@@ -10926,6 +10986,90 @@
           "case_id": "opcode-first-value.interaction",
           "state": "implemented",
           "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-stdin-read-line",
+      "kind": "opcode",
+      "name": "StdinReadLine",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-stdin-read-line.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-stdin-read-line.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-stdin-read-line.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-stdin-read-all",
+      "kind": "opcode",
+      "name": "StdinReadAll",
+      "owner_task": 6,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-stdin-read-all.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "opcode-stdin-read-all.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "opcode-stdin-read-all.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      }
+    },
+    {
+      "id": "opcode-crypto",
+      "kind": "opcode",
+      "name": "Crypto",
+      "owner_task": 4,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-crypto.positive",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "negative": {
+          "case_id": "opcode-crypto.negative",
+          "state": "implemented",
+          "owner_task": 4
+        },
+        "interaction": {
+          "case_id": "opcode-crypto.interaction",
+          "state": "implemented",
+          "owner_task": 4
         }
       }
     },

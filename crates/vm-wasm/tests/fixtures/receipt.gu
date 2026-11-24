@@ -1,0 +1,64 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "std:text"
+import "src/lib.gu"
+
+fn verdict(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn octets(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return text_from_bytes_lossy(value)
+        Err(problem):
+            return problem.code
+
+fn parsed(text: Text) -> Json:
+    match json_parse(text):
+        Ok(value):
+            return value
+        Err(problem):
+            return json_null()
+
+fn twine_of(text: Text) -> TwineRecord:
+    return unwrap(twine_record_from_json(parsed(text)))
+
+fn nist_of(text: Text) -> NistPulse:
+    return unwrap(nist_pulse_from_json(parsed(text)))
+
+fn curby_bits(chain: TwineRecord, pulse: TwineRecord) -> Text:
+    if not unwrap(twine_verify(chain, pulse)):
+        return "false"
+    match curby_randomness(pulse):
+        Ok(bits):
+            return hex_encode(bits)
+        Err(problem):
+            return problem.code
+
+# One receipt: a drand round and the timelocked file it opens, a CURBy-Q pulse, and two NIST pulses.
+# Everything arrives as arguments because the browser has no network.
+fn check_receipt(round: Int, signature_hex: Text, armored: Text, curby_chain: Text, curby_pulse: Text, nist_previous: Text, nist_current: Text, nist_pem: Text) -> Text:
+    let chain = drand_quicknet()
+    let signature = unwrap(hex_decode(signature_hex))
+    let value = DrandRound(round, crypto_sha256(signature), signature)
+    var out = ""
+    set out = out + "drand=" + verdict(drand_verify(chain, value)) + "\n"
+    set out = out + "tlock=" + octets(tlock_open_with(chain, armored, value)) + "\n"
+    set out = out + "curby=" + curby_bits(twine_of(curby_chain), twine_of(curby_pulse)) + "\n"
+    let previous = nist_of(nist_previous)
+    let current = nist_of(nist_current)
+    set out = out + "nist previous=" + verdict(nist_verify(previous, nist_pem)) + "\n"
+    set out = out + "nist current=" + verdict(nist_verify(current, nist_pem)) + "\n"
+    set out = out + "nist chain=" + verdict(nist_verify_precommitment(previous, current)) + "\n"
+    return out
+
+fn main() -> Int:
+    return 0

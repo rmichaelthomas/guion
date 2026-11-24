@@ -1,5 +1,6 @@
 import "std:unicode"
 import "std:types"
+pub import "std:http_types"
 
 pub fn text_compare_scalar(left: Text, right: Text) -> Int:
     if left < right:

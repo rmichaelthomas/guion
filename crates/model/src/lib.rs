@@ -124,9 +124,10 @@ mod shared_text_tests {
 mod tests {
     use super::Shared;
     use super::{
-        Artifact, BigInt, BuildMetadata, CodecFunction, ExternalFunction, FileErrorValue,
-        FsFunction, Function, Instruction, JsonErrorValue, NetFunction, Op, PackageIdentity,
-        ProcessFunction, RegexFunction, ResourceLimits, SharedJson, Span, TlsFunction, Type, Value,
+        Artifact, BigInt, BuildMetadata, CodecFunction, CryptoFunction, ExternalFunction,
+        FileErrorValue, FsFunction, Function, Instruction, JsonErrorValue, NetFunction, Op,
+        PackageIdentity, ProcessFunction, RegexFunction, ResourceLimits, SharedJson, Span,
+        TlsFunction, Type, Value,
     };
 
     #[test]
@@ -1399,6 +1400,18 @@ mod tests {
         );
     }
 
+    /// The first artifact format with the timelock encryption crypto functions.
+    const TLOCK_FIRST_FORMAT: u32 = 81;
+
+    /// The first artifact format with DAG-CBOR encoding.
+    const DAGCBOR_FIRST_FORMAT: u32 = 82;
+
+    /// The first artifact format with the tlock chain hash and the X.509 issuer check.
+    const CHAIN_ISSUER_FIRST_FORMAT: u32 = 84;
+
+    /// The first artifact format with the X.509 name and validity reads.
+    const X509_NAME_FIRST_FORMAT: u32 = 85;
+
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
@@ -1444,6 +1457,78 @@ mod tests {
     }
 
     #[test]
+    fn old_format_rejects_bit_operations() {
+        // The first format with the integer bit operations; they ride on `Op::Codec`.
+        const BIT_OPS_FIRST_FORMAT: u32 = 83;
+        for function in [
+            CodecFunction::IntAnd,
+            CodecFunction::IntOr,
+            CodecFunction::IntXor,
+            CodecFunction::IntShiftLeft,
+            CodecFunction::IntShiftRight,
+        ] {
+            assert_gated(Op::Codec(function), BIT_OPS_FIRST_FORMAT);
+        }
+    }
+
+    #[test]
+    fn old_format_rejects_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::Sha512), 78);
+        assert_gated(Op::Crypto(CryptoFunction::Sha3_512), 78);
+    }
+
+    #[test]
+    fn old_format_rejects_bls_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::Bls12381VerifyG1), 80);
+    }
+
+    #[test]
+    fn old_format_rejects_dagcbor_crypto_op() {
+        assert_gated(
+            Op::Crypto(CryptoFunction::DagCborEncode),
+            DAGCBOR_FIRST_FORMAT,
+        );
+    }
+
+    #[test]
+    fn old_format_rejects_tlock_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::TlockEncrypt), TLOCK_FIRST_FORMAT);
+        assert_gated(Op::Crypto(CryptoFunction::TlockDecrypt), TLOCK_FIRST_FORMAT);
+        assert_gated(Op::Crypto(CryptoFunction::TlockRound), TLOCK_FIRST_FORMAT);
+    }
+
+    #[test]
+    fn old_format_rejects_chain_hash_and_issuer_crypto_ops() {
+        assert_gated(
+            Op::Crypto(CryptoFunction::TlockChainHash),
+            CHAIN_ISSUER_FIRST_FORMAT,
+        );
+        assert_gated(
+            Op::Crypto(CryptoFunction::X509VerifyIssuedBy),
+            CHAIN_ISSUER_FIRST_FORMAT,
+        );
+    }
+
+    #[test]
+    fn old_format_rejects_x509_name_and_validity_crypto_ops() {
+        assert_gated(
+            Op::Crypto(CryptoFunction::X509DnsNames),
+            X509_NAME_FIRST_FORMAT,
+        );
+        assert_gated(
+            Op::Crypto(CryptoFunction::X509Validity),
+            X509_NAME_FIRST_FORMAT,
+        );
+    }
+
+    #[test]
+    fn old_format_rejects_signature_crypto_ops() {
+        assert_gated(Op::Crypto(CryptoFunction::RsaVerify), 79);
+        assert_gated(Op::Crypto(CryptoFunction::EcdsaP256Verify), 79);
+        assert_gated(Op::Crypto(CryptoFunction::X509RsaPublicKey), 79);
+    }
+
+    #[test]
     fn sha256_instructions_are_gated_on_format_67() {
         assert_gated(Op::Codec(CodecFunction::Sha256), 67);
         assert_gated(Op::Fs(FsFunction::Sha256), 67);
@@ -1452,6 +1537,12 @@ mod tests {
     #[test]
     fn random_bytes_instruction_is_gated_on_format_68() {
         assert_gated(Op::RandomBytes, 68);
+    }
+
+    #[test]
+    fn stdin_instructions_are_gated_on_format_77() {
+        assert_gated(Op::StdinReadLine, 77);
+        assert_gated(Op::StdinReadAll, 77);
     }
 
     #[test]
@@ -3713,8 +3804,8 @@ impl MathFunction {
     }
 }
 
-/// Pure byte, text-encoding and percent-encoding functions behind `Op::Codec`. Codes are part of
-/// artifact format 53.
+/// Pure byte, text-encoding, percent-encoding and integer bit functions behind `Op::Codec`. Codes
+/// are part of artifact format 53 and append-only (see the format notes for each later addition).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CodecFunction {
     Base64Encode,
@@ -3735,10 +3826,20 @@ pub enum CodecFunction {
     BytesXor,
     /// SHA-256 digest of a byte string (format 67).
     Sha256,
+    /// Bitwise AND of two 64-bit signed integers (format 83).
+    IntAnd,
+    /// Bitwise OR of two 64-bit signed integers (format 83).
+    IntOr,
+    /// Bitwise XOR of two 64-bit signed integers (format 83).
+    IntXor,
+    /// Left shift of a 64-bit signed integer by 0 to 63 bits, without wrapping (format 83).
+    IntShiftLeft,
+    /// Arithmetic right shift of a 64-bit signed integer by 0 to 63 bits (format 83).
+    IntShiftRight,
 }
 
 impl CodecFunction {
-    const ALL: [CodecFunction; 15] = [
+    const ALL: [CodecFunction; 20] = [
         CodecFunction::Base64Encode,
         CodecFunction::Base64UrlEncode,
         CodecFunction::Base64Decode,
@@ -3754,6 +3855,11 @@ impl CodecFunction {
         CodecFunction::Sha1,
         CodecFunction::BytesXor,
         CodecFunction::Sha256,
+        CodecFunction::IntAnd,
+        CodecFunction::IntOr,
+        CodecFunction::IntXor,
+        CodecFunction::IntShiftLeft,
+        CodecFunction::IntShiftRight,
     ];
 
     pub fn code(self) -> u8 {
@@ -3785,6 +3891,11 @@ impl CodecFunction {
             CodecFunction::Sha1 => "CodecSha1",
             CodecFunction::BytesXor => "CodecBytesXor",
             CodecFunction::Sha256 => "CodecSha256",
+            CodecFunction::IntAnd => "CodecIntAnd",
+            CodecFunction::IntOr => "CodecIntOr",
+            CodecFunction::IntXor => "CodecIntXor",
+            CodecFunction::IntShiftLeft => "CodecIntShiftLeft",
+            CodecFunction::IntShiftRight => "CodecIntShiftRight",
         }
     }
 
@@ -3799,8 +3910,146 @@ impl CodecFunction {
     pub fn arity(self) -> usize {
         match self {
             CodecFunction::BytesSlice => 3,
-            CodecFunction::BytesXor => 2,
+            CodecFunction::BytesXor
+            | CodecFunction::IntAnd
+            | CodecFunction::IntOr
+            | CodecFunction::IntXor
+            | CodecFunction::IntShiftLeft
+            | CodecFunction::IntShiftRight => 2,
             _ => 1,
+        }
+    }
+}
+
+/// Pure cryptographic functions behind `Op::Crypto`, implemented in the `guion-crypto` crate.
+/// Codes are part of artifact formats 78 to 85 (see `first_format`) and append-only: a later release adds codes after the
+/// last one and never renumbers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CryptoFunction {
+    /// SHA-512 digest of a byte string (code 0).
+    Sha512,
+    /// SHA3-512 digest of a byte string (code 1).
+    Sha3_512,
+    /// RSA signature verification over modulus, exponent, message, signature and scheme name
+    /// (code 2, format 79).
+    RsaVerify,
+    /// ECDSA P-256 signature verification over SEC1 key, message and raw r||s (code 3, format 79).
+    EcdsaP256Verify,
+    /// The RSA modulus and exponent of a DER X.509 certificate (code 4, format 79).
+    X509RsaPublicKey,
+    /// BLS12-381 min-signature verification over compressed G2 public key, message, compressed
+    /// G1 signature and domain separation tag (code 5, format 80).
+    Bls12381VerifyG1,
+    /// drand timelock encryption to a round, armored age, with the randomness as an argument
+    /// (code 6, format 81).
+    TlockEncrypt,
+    /// Decryption of armored tlock age with the round signature (code 7, format 81).
+    TlockDecrypt,
+    /// The round named by an armored tlock file's stanza (code 8, format 81).
+    TlockRound,
+    /// DAG-CBOR encoding of a `Json` value (code 9, format 82).
+    DagCborEncode,
+    /// The chain hash named by an armored tlock file's stanza (code 10, format 84).
+    TlockChainHash,
+    /// Whether an X.509 certificate was signed by the key of an issuer certificate (code 11,
+    /// format 84).
+    X509VerifyIssuedBy,
+    /// The DNS names of an X.509 certificate: SubjectAltName dNSName entries, or the subject CN
+    /// when there is no SubjectAltName extension (code 12, format 85).
+    X509DnsNames,
+    /// The `[notBefore, notAfter]` of an X.509 certificate as Unix seconds (code 13, format 85).
+    X509Validity,
+}
+
+impl CryptoFunction {
+    const ALL: [CryptoFunction; 14] = [
+        CryptoFunction::Sha512,
+        CryptoFunction::Sha3_512,
+        CryptoFunction::RsaVerify,
+        CryptoFunction::EcdsaP256Verify,
+        CryptoFunction::X509RsaPublicKey,
+        CryptoFunction::Bls12381VerifyG1,
+        CryptoFunction::TlockEncrypt,
+        CryptoFunction::TlockDecrypt,
+        CryptoFunction::TlockRound,
+        CryptoFunction::DagCborEncode,
+        CryptoFunction::TlockChainHash,
+        CryptoFunction::X509VerifyIssuedBy,
+        CryptoFunction::X509DnsNames,
+        CryptoFunction::X509Validity,
+    ];
+
+    /// The first artifact format that may carry this function; older formats reject it.
+    pub fn first_format(self) -> u32 {
+        match self {
+            CryptoFunction::Sha512 | CryptoFunction::Sha3_512 => 78,
+            CryptoFunction::RsaVerify
+            | CryptoFunction::EcdsaP256Verify
+            | CryptoFunction::X509RsaPublicKey => 79,
+            CryptoFunction::Bls12381VerifyG1 => 80,
+            CryptoFunction::TlockEncrypt
+            | CryptoFunction::TlockDecrypt
+            | CryptoFunction::TlockRound => 81,
+            CryptoFunction::DagCborEncode => 82,
+            CryptoFunction::TlockChainHash | CryptoFunction::X509VerifyIssuedBy => 84,
+            CryptoFunction::X509DnsNames | CryptoFunction::X509Validity => 85,
+        }
+    }
+
+    pub fn code(self) -> u8 {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("every crypto function is listed") as u8
+    }
+
+    pub fn from_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code)).copied()
+    }
+
+    /// The instruction name used by builtin catalogs and the textual bytecode form.
+    pub fn op_name(self) -> &'static str {
+        match self {
+            CryptoFunction::Sha512 => "CryptoSha512",
+            CryptoFunction::Sha3_512 => "CryptoSha3_512",
+            CryptoFunction::RsaVerify => "CryptoRsaVerify",
+            CryptoFunction::EcdsaP256Verify => "CryptoEcdsaP256Verify",
+            CryptoFunction::X509RsaPublicKey => "CryptoX509RsaPublicKey",
+            CryptoFunction::Bls12381VerifyG1 => "CryptoBls12381VerifyG1",
+            CryptoFunction::TlockEncrypt => "CryptoTlockEncrypt",
+            CryptoFunction::TlockDecrypt => "CryptoTlockDecrypt",
+            CryptoFunction::TlockRound => "CryptoTlockRound",
+            CryptoFunction::DagCborEncode => "CryptoDagCborEncode",
+            CryptoFunction::TlockChainHash => "CryptoTlockChainHash",
+            CryptoFunction::X509VerifyIssuedBy => "CryptoX509VerifyIssuedBy",
+            CryptoFunction::X509DnsNames => "CryptoX509DnsNames",
+            CryptoFunction::X509Validity => "CryptoX509Validity",
+        }
+    }
+
+    pub fn from_op_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|candidate| candidate.op_name() == name)
+    }
+
+    /// Number of operands the function pops.
+    pub fn arity(self) -> usize {
+        match self {
+            CryptoFunction::Sha512
+            | CryptoFunction::Sha3_512
+            | CryptoFunction::X509RsaPublicKey => 1,
+            CryptoFunction::EcdsaP256Verify => 3,
+            CryptoFunction::RsaVerify => 5,
+            CryptoFunction::Bls12381VerifyG1 => 4,
+            CryptoFunction::TlockEncrypt => 5,
+            CryptoFunction::TlockDecrypt => 2,
+            CryptoFunction::TlockRound => 1,
+            CryptoFunction::DagCborEncode => 1,
+            CryptoFunction::TlockChainHash => 1,
+            CryptoFunction::X509VerifyIssuedBy => 2,
+            CryptoFunction::X509DnsNames | CryptoFunction::X509Validity => 1,
         }
     }
 }
@@ -4383,6 +4632,9 @@ pub enum Op {
     ChannelClose,
     FirstReady(usize),
     FirstValue(usize),
+    StdinReadLine,
+    StdinReadAll,
+    Crypto(CryptoFunction),
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4587,7 +4839,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 76;
+    pub const CURRENT_VERSION: u32 = 85;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -4941,6 +5193,60 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "random bytes require artifact format 68",
+            ));
+        }
+        if self.format_version < 78 && artifact_uses_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "cryptographic instructions require artifact format 78",
+            ));
+        }
+        if self.format_version < 79 && artifact_uses_signature_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "signature verification and X.509 instructions require artifact format 79",
+            ));
+        }
+        if self.format_version < 80 && artifact_uses_bls_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 85 && artifact_uses_x509_name_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the X.509 name and validity instructions require artifact format 85",
+            ));
+        }
+        if self.format_version < 84 && artifact_uses_chain_issuer_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "the tlock chain hash and the X.509 issuer check require artifact format 84",
+            ));
+        }
+        if self.format_version < 83 && artifact_uses_int_bit_operations(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "integer bit operations require artifact format 83",
+            ));
+        }
+        if self.format_version < 82 && artifact_uses_dagcbor_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "DAG-CBOR encoding requires artifact format 82",
+            ));
+        }
+        if self.format_version < 81 && artifact_uses_tlock_crypto(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "timelock encryption requires artifact format 81",
+            ));
+        }
+        if self.format_version < 77 && artifact_uses_stdin(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "standard input reads require artifact format 77",
             ));
         }
         if self.format_version < 76 && artifact_uses_core_count(self) {
@@ -5307,6 +5613,12 @@ impl Artifact {
                     Op::FirstValue(record) => {
                         w.u8(220);
                         w.count(*record)?;
+                    }
+                    Op::StdinReadLine => w.u8(221),
+                    Op::StdinReadAll => w.u8(222),
+                    Op::Crypto(function) => {
+                        w.u8(223);
+                        w.u8(function.code());
                     }
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
@@ -5800,10 +6112,16 @@ impl Artifact {
                                 "SHA-1 and byte XOR instructions require artifact format 59",
                             ));
                         }
-                        if code >= 14 && format_version < 67 {
+                        if code == 14 && format_version < 67 {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "SHA-256 instructions require artifact format 67",
+                            ));
+                        }
+                        if code >= 15 && format_version < 83 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "integer bit operations require artifact format 83",
                             ));
                         }
                         Op::Codec(CodecFunction::from_code(code).ok_or_else(|| {
@@ -5896,6 +6214,39 @@ impl Artifact {
                     218 => Op::ChannelClose,
                     219 => Op::FirstReady(r.count()?),
                     220 => Op::FirstValue(r.count()?),
+                    221 | 222 if format_version < 77 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "standard input reads require artifact format 77",
+                        ));
+                    }
+                    223 if format_version < 78 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "cryptographic instructions require artifact format 78",
+                        ));
+                    }
+                    223 => {
+                        let code = r.u8()?;
+                        let function = CryptoFunction::from_code(code).ok_or_else(|| {
+                            ArtifactError::new(
+                                "E_ARTIFACT_ENCODING",
+                                format!("crypto instruction has unknown function code {code}"),
+                            )
+                        })?;
+                        if format_version < function.first_format() {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                format!(
+                                    "crypto function code {code} requires artifact format {}",
+                                    function.first_format()
+                                ),
+                            ));
+                        }
+                        Op::Crypto(function)
+                    }
+                    221 => Op::StdinReadLine,
+                    222 => Op::StdinReadAll,
                     210 if format_version >= 74 => {
                         let target = r.count()?;
                         Op::MakeClosure(target, r.count()?)
@@ -6716,6 +7067,89 @@ fn artifact_uses_random_bytes(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Crypto(_)))
+    })
+}
+
+fn artifact_uses_bls_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 80)
+        })
+    })
+}
+
+fn artifact_uses_tlock_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 81)
+        })
+    })
+}
+
+fn artifact_uses_dagcbor_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 82)
+        })
+    })
+}
+
+fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 84)
+        })
+    })
+}
+
+fn artifact_uses_x509_name_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() == 85)
+        })
+    })
+}
+
+fn artifact_uses_signature_crypto(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 79)
+        })
+    })
+}
+
+fn artifact_uses_int_bit_operations(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Codec(
+                    CodecFunction::IntAnd
+                        | CodecFunction::IntOr
+                        | CodecFunction::IntXor
+                        | CodecFunction::IntShiftLeft
+                        | CodecFunction::IntShiftRight
+                )
+            )
+        })
+    })
+}
+
+fn artifact_uses_stdin(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::StdinReadLine | Op::StdinReadAll))
+    })
+}
+
 fn artifact_uses_core_count(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -7263,6 +7697,8 @@ pub fn validate_sort_comparator_effects(artifact: &Artifact) -> Result<(), Strin
                         | Op::CsvReadColumns
                         | Op::FsWalk
                         | Op::RandomBytes
+                        | Op::StdinReadLine
+                        | Op::StdinReadAll
                         | Op::HigherOrder(HigherOrderKind::ParallelMap)
                         | Op::HigherOrder(HigherOrderKind::TryParallelMap)
                         | Op::ParallelMap(_) => {

@@ -1,13 +1,24 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:c7d20f8224bc9d9f2447e42c842dad417978ca62c6e31c784fc6a39fdc579481",
-    "compiler_seed": "sha256:5e41cd0629d799032a5aeb75d6654455a6dc2242ce86d5e118d0303d372ef914",
-    "compiler_seed_manifest": "sha256:eeeba72cd519be1991cb794bdc37b924f81e247c0202e3876d2653811c69895c",
-    "runtime": "sha256:e8cda62f70704ad28c7b6ad0d939d1128029e5d3ede83a9095deffca353f005b",
-    "stdlib": "sha256:83081afab4f777da9ed77801f51e657677008c313d00d66150f579b7fe1970b6"
+    "artifact_schema": "sha256:0332add5b99b3a42f03e3ed5e4ae8d48ba8634a021c86c2b3154b36fd38b0dd1",
+    "compiler_seed": "sha256:60278ee1e65a9e24505f74af4a8854c96fbc7e5abf96d2968418553d38673d82",
+    "compiler_seed_manifest": "sha256:3138fe5038de87da0c70f24293846734e0d110cfb854e637f3c2cb9f11ae9dff",
+    "runtime": "sha256:0e431433b7a05055ccae3effb5d75db336713b6f6c424ab3e2962da8353b52f0",
+    "stdlib": "sha256:5142f14ccc1d83c67f061cdab710a5c75b72ebe93c79e9340fd7c5f13e3d67da"
   },
-  "changed_path_count": 4750,
+  "changed_path_count": 0,
   "checks": [
+    {
+      "command": [
+        "cargo",
+        "xtask",
+        "artifact-format-audit"
+      ],
+      "exit_status": 0,
+      "id": "artifact-format-test-audit",
+      "output": "artifact-format equality assertions use guion_model::Artifact::CURRENT_VERSION (84)",
+      "status": "passed"
+    },
     {
       "command": [
         "cargo",
@@ -15,13 +26,13 @@
         "--offline",
         "test",
         "-p",
-        "veritas-runtime",
+        "guion-runtime",
         "--test",
         "stdlib_services"
       ],
       "exit_status": 0,
       "id": "stdlib-services",
-      "output": "\nrunning 19 tests\ntest hmac_matches_rfc4231_and_rejects_wrong_digest ... ok\ntest calendar_parses_an_upstream_libical_sample ... ok\ntest calendar_parses_utc_event_and_rejects_floating_times ... ok\ntest embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier ... ok\ntest toml_insert_into_existing_table_preserves_order_comments_and_line_endings ... ok\ntest toml_noop_is_byte_exact_and_edits_keep_unrelated_comments ... ok\ntest toml_resources_reject_foreign_and_invocation_stale_handles ... ok\ntest toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline ... ok\ntest unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing ... ok\ntest embedded_vtimezone_observance_rules_resolve_recurrent_transitions ... ok\ntest calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data ... ok\ntest sqlite_denies_paths_and_sql_that_escape_the_granted_database_root ... ok\ntest sqlite_rejects_nested_and_cross_registry_handles ... ok\ntest sqlite_bound_parameters_commit_and_survive_reopen ... ok\ntest dropping_a_registry_rolls_back_open_transactions_and_reopens_durably ... ok\ntest sqlite_result_budgets_and_invalid_text_are_typed_errors ... ok\ntest sqlite_cancellation_interrupts_work_and_close_releases_open_resources ... ok\ntest concurrent_sqlite_writer_observes_a_finite_busy_deadline ... ok\ntest veritas_public_service_modules_call_typed_native_apis ... ok\n\ntest result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.30s\n\n\n   Compiling ring v0.17.14\n   Compiling rustls v0.23.43\n   Compiling rustls-webpki v0.103.15\n   Compiling tokio-rustls v0.26.4\n   Compiling hyper-rustls v0.27.9\n   Compiling reqwest v0.12.28\n   Compiling veritas-runtime v0.1.0 (/Users/rmichaelthomas/Documents/Codex/2026-10-22/referenced-chatgpt-conversation-this-is-an/work/veritas-foundation/crates/runtime)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.56s\n     Running tests/stdlib_services.rs (target/debug/deps/stdlib_services-e810b6015ff5d467)\n",
+      "output": "\nrunning 30 tests\ntest docs_state_the_enforced_busy_deadline ... ok\ntest embedded_vtimezone_observance_rules_resolve_recurrent_transitions ... ok\ntest calendar_parses_an_upstream_libical_sample ... ok\ntest embedded_vtimezone_takes_precedence_over_the_matching_iana_identifier ... ok\ntest calendar_handles_iana_offsets_folding_escapes_and_invalid_event_data ... ok\ntest hmac_matches_rfc4231_and_rejects_wrong_digest ... ok\ntest sqlite_denies_paths_and_sql_that_escape_the_granted_database_root ... ok\ntest sqlite_bound_parameters_commit_and_survive_reopen ... ok\ntest dropping_a_registry_rolls_back_open_transactions_and_reopens_durably ... ok\ntest sqlite_nested_begin_read_inside_a_write_transaction_leaves_the_database_unlocked ... ok\ntest embedded_vtimezone_fold_is_reported_using_embedded_rules_for_matching_iana_id ... ok\ntest sqlite_rejects_nested_and_cross_registry_handles ... ok\ntest sqlite_reader_on_begin_read_completes_while_another_worker_holds_a_write_transaction ... ok\ntest sqlite_cancellation_interrupts_work_and_close_releases_open_resources ... ok\ntest toml_insert_into_existing_table_preserves_order_comments_and_line_endings ... ok\ntest sqlite_result_budgets_and_invalid_text_are_typed_errors ... ok\ntest toml_insert_into_new_nested_table_preserves_existing_source ... ok\ntest toml_resources_reject_foreign_and_invocation_stale_handles ... ok\ntest toml_noop_is_byte_exact_and_edits_keep_unrelated_comments ... ok\ntest toml_targeted_scalar_edit_preserves_dotted_order_line_endings_and_final_newline ... ok\ntest whitespace_collapse_fast_path_only_returns_changes_when_needed ... ok\ntest unicode_casefold_and_whitespace_use_unicode_properties_without_normalizing ... ok\ntest sqlite_write_inside_a_read_transaction_is_read_only_and_the_transaction_stays_usable ... ok\ntest calendar_parses_utc_event_and_rejects_floating_times ... ok\ntest calendar_parse_exposes_each_local_resolution_and_preserves_event_identity ... ok\ntest calendar_parse_gives_the_same_answer_from_many_threads_at_once ... ok\ntest concurrent_sqlite_writer_observes_a_finite_busy_deadline ... ok\ntest sqlite_read_transaction_left_open_is_released_when_the_registry_closes ... ok\ntest guion_public_service_modules_call_typed_native_apis ... ok\ntest sqlite_reader_on_begin_fails_at_the_published_deadline_while_the_lock_is_held ... ok\n\ntest result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.18s\n\n\n   Compiling guion-runtime v0.7.0 (/Users/rmichaelthomas/guion-beacons/crates/runtime)\n    Finished `test` profile [optimized + debuginfo] target(s) in 1.33s\n     Running tests/stdlib_services.rs (target/debug/deps/stdlib_services-00f045b1ae26f71b)\n",
       "status": "passed"
     }
   ],
@@ -38,18 +49,14 @@
   "required_targets": [
     "macos-aarch64"
   ],
-  "runtime_hash": "sha256:e8cda62f70704ad28c7b6ad0d939d1128029e5d3ede83a9095deffca353f005b",
+  "runtime_hash": "sha256:0e431433b7a05055ccae3effb5d75db336713b6f6c424ab3e2962da8353b52f0",
   "schema_version": 1,
-  "seed_hash": "sha256:5e41cd0629d799032a5aeb75d6654455a6dc2242ce86d5e118d0303d372ef914",
+  "seed_hash": "sha256:60278ee1e65a9e24505f74af4a8854c96fbc7e5abf96d2968418553d38673d82",
   "skipped_targets": [],
-  "source_revision": "b8755f08e8c453051572b9e57a34fd1da0a73199",
+  "source_revision": "43a8e451b02f813d8422f53fcfc021b37133570c",
   "status": "passed",
-  "stdlib_hash": "sha256:83081afab4f777da9ed77801f51e657677008c313d00d66150f579b7fe1970b6",
+  "stdlib_hash": "sha256:5142f14ccc1d83c67f061cdab710a5c75b72ebe93c79e9340fd7c5f13e3d67da",
   "target": "macos-aarch64",
-  "unsatisfied_goal_ids": [
-    "G1",
-    "G2",
-    "G3"
-  ],
-  "working_tree_digest": "sha256:0079ebd329820c2abcbc7be939ab1daec1744ad9078f5b0665c87aaf6d184740"
+  "unsatisfied_goal_ids": [],
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }

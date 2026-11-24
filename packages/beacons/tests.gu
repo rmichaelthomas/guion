@@ -1,0 +1,1075 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "std:text"
+import "src/lib.gu"
+
+fn main() -> Int:
+    return 0
+
+fn chain_fixture() -> DrandChain:
+    return drand_quicknet()
+
+fn sig_1000() -> Bytes:
+    return unwrap(hex_decode("b44679b9a59af2ec876b1a6b1ad52ea9b1615fc3982b19576350f93447cb1125e342b73a8dd2bacbe47e4b6b63ed5e39"))
+
+fn sig_34173416() -> Bytes:
+    return unwrap(hex_decode("b889e8224d9d10eafdd637a2cdc6042108bb8aac8a6e899e9bc0e8be88e8af2b359cc82b70447dac08b7f4f5f0deb832"))
+
+fn round_of(round: Int, signature: Bytes) -> DrandRound:
+    return DrandRound(round, crypto_sha256(signature), signature)
+
+fn is_true(result: Result[Bool, StdError]) -> Bool:
+    match result:
+        Ok(value):
+            return value
+        Err(problem):
+            return false
+
+fn code_of_bytes(result: Result[Bytes, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+fn code_of_text(result: Result[Text, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+# CURBy's two randomness chains, from the requirements spec (CIDv1, DAG-CBOR, SHA3-512).
+fn curby_q() -> Text:
+    return "bafyriqhijw5soalbtppuwwjbskfiriqy6swa5qd5trgbzx4nypnu7mp7iyhx7m2iin2nxnglmngvjgirzb7bvlisxq3uygoik7ozbybxnftiw"
+
+fn curby_rng() -> Text:
+    return "bafyriqci6f3st2mg7gq733ho4zvvth32zpy2mtiylixwmhoz6d627eo3jfpmbxepe54u2zdvymonq5sp3armtm4rodxsynsirr5g3xsbd3q4s"
+
+fn test_base32_known_values() -> Unit:
+    assert(base32_lower_encode(bytes_from_text("")) == "")
+    assert(base32_lower_encode(bytes_from_text("f")) == "my")
+    assert(base32_lower_encode(bytes_from_text("fo")) == "mzxq")
+    assert(base32_lower_encode(bytes_from_text("foobar")) == "mzxw6ytboi")
+    assert(unwrap(base32_lower_decode("mzxw6ytboi")) == bytes_from_text("foobar"))
+    assert(unwrap(base32_lower_decode("")) == bytes_from_text(""))
+
+fn test_base32_rejects_bad_text() -> Unit:
+    assert(code_of_bytes(base32_lower_decode("MZXQ")) == "E_BASE32")
+    assert(code_of_bytes(base32_lower_decode("mzx1")) == "E_BASE32")
+    assert(code_of_bytes(base32_lower_decode("m")) == "E_BASE32")
+
+fn test_base32_round_trip_every_length() -> Unit:
+    var data = bytes_from_ints([])
+    var n = 0
+    while n < 70:
+        assert(unwrap(base32_lower_decode(base32_lower_encode(data))) == data)
+        set data = bytes_join([data, bytes_from_ints([(n * 37 + 11) % 256])])
+        set n = n + 1
+
+fn test_varint() -> Unit:
+    assert(varint_encode(0) == bytes_from_ints([0]))
+    assert(varint_encode(1) == bytes_from_ints([1]))
+    assert(varint_encode(127) == bytes_from_ints([127]))
+    assert(varint_encode(128) == bytes_from_ints([128, 1]))
+    assert(varint_encode(300) == bytes_from_ints([172, 2]))
+    assert(varint_encode(113) == bytes_from_ints([113]))
+    assert(varint_encode(20) == bytes_from_ints([20]))
+
+fn test_varint_wide_values() -> Unit:
+    assert(varint_encode(1099511627776) == bytes_from_ints([128, 128, 128, 128, 128, 32]))
+    assert(varint_encode(9223372036854775807) == bytes_from_ints([255, 255, 255, 255, 255, 255, 255, 255, 127]))
+
+fn test_cid_parse_curby_q() -> Unit:
+    let parts = unwrap(cid_parse(curby_q()))
+    assert(parts.version == 1)
+    assert(parts.codec == 113)
+    assert(parts.hash_code == 20)
+    assert(len(parts.digest) == 64)
+
+fn test_cid_round_trips_both_curby_cids() -> Unit:
+    let q = unwrap(cid_parse(curby_q()))
+    assert(cid_v1(q.codec, q.hash_code, q.digest) == curby_q())
+    let r = unwrap(cid_parse(curby_rng()))
+    assert(r.version == 1)
+    assert(r.codec == 113)
+    assert(r.hash_code == 20)
+    assert(cid_v1(r.codec, r.hash_code, r.digest) == curby_rng())
+
+fn test_cid_from_content() -> Unit:
+    let digest = crypto_sha3_512(bytes_from_text("abc"))
+    let text = cid_v1(113, 20, digest)
+    assert(text_slice(text, 0, 7) == "bafyriq")
+    assert(unwrap(cid_parse(text)).digest == digest)
+
+fn test_cid_parse_rejects() -> Unit:
+    assert(is_err_code(cid_parse(""), "E_CID"))
+    assert(is_err_code(cid_parse("zafyriq"), "E_CID"))
+    assert(is_err_code(cid_parse("bmzxq"), "E_CID"))
+    let short = "b" + base32_lower_encode(bytes_from_ints([1, 113, 20, 64, 1, 2]))
+    assert(is_err_code(cid_parse(short), "E_CID"))
+    let v0 = "b" + base32_lower_encode(bytes_from_ints([0, 113, 20, 1, 1]))
+    assert(is_err_code(cid_parse(v0), "E_CID"))
+
+fn is_err_code(result: Result[CidParts, StdError], code: Text) -> Bool:
+    match result:
+        Ok(parts):
+            return false
+        Err(problem):
+            return problem.code == code
+
+fn test_quicknet_constants() -> Unit:
+    let chain = chain_fixture()
+    assert(chain.hash == "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971")
+    assert(len(chain.public_key) == 96)
+    assert(chain.period == 3)
+    assert(chain.genesis_time == 1692803367)
+    assert(chain.scheme == "bls-unchained-g1-rfc9380")
+
+fn test_round_arithmetic() -> Unit:
+    let chain = chain_fixture()
+    assert(drand_round_at(chain, chain.genesis_time + 3 * 999) == 1000)
+    assert(drand_round_at(chain, chain.genesis_time + 3 * 999 + 2) == 1000)
+    assert(drand_round_at(chain, chain.genesis_time + 3 * 1000) == 1001)
+    assert(drand_round_at(chain, chain.genesis_time) == 1)
+    assert(drand_round_at(chain, chain.genesis_time - 100) == 1)
+    assert(drand_round_time(chain, 1) == chain.genesis_time)
+    assert(drand_round_time(chain, 1000) == chain.genesis_time + 3 * 999)
+    assert(drand_round_at(chain, drand_round_time(chain, 34173416)) == 34173416)
+
+fn test_verify_known_rounds() -> Unit:
+    let chain = chain_fixture()
+    assert(is_true(drand_verify(chain, round_of(1000, sig_1000()))))
+    assert(is_true(drand_verify(chain, round_of(34173416, sig_34173416()))))
+
+fn test_verify_refuses_a_swapped_signature() -> Unit:
+    let chain = chain_fixture()
+    assert(is_true(drand_verify(chain, round_of(1000, sig_34173416()))) == false)
+    assert(is_true(drand_verify(chain, round_of(34173416, sig_1000()))) == false)
+    assert(is_true(drand_verify(chain, round_of(1001, sig_1000()))) == false)
+
+fn test_verify_refuses_wrong_randomness() -> Unit:
+    let chain = chain_fixture()
+    let bad = DrandRound(1000, crypto_sha256(bytes_from_text("other")), sig_1000())
+    assert(is_true(drand_verify(chain, bad)) == false)
+
+fn test_verify_malformed_signature_is_an_error() -> Unit:
+    let chain = chain_fixture()
+    let short = bytes_slice(sig_1000(), 0, 47)
+    match drand_verify(chain, round_of(1000, short)):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_CRYPTO_INPUT")
+
+fn read_fixture(name: Text) -> Bytes:
+    return unwrap(read_bytes(name))
+
+fn fixture_armor() -> Text:
+    return unwrap(text_from_bytes(read_fixture("fixtures/round1000.age")))
+
+fn test_armor_chain_and_round() -> Unit:
+    assert(unwrap(tlock_armor_round(fixture_armor())) == 1000)
+    assert(unwrap(tlock_armor_chain(fixture_armor())) == chain_fixture().hash)
+
+fn test_open_with_round_gives_the_plaintext() -> Unit:
+    let chain = chain_fixture()
+    let opened = tlock_open_with(chain, fixture_armor(), round_of(1000, sig_1000()))
+    assert(unwrap(opened) == read_fixture("fixtures/plaintext.txt"))
+
+fn test_open_with_refuses_a_bad_round_value() -> Unit:
+    let chain = chain_fixture()
+    assert(code_of_bytes(tlock_open_with(chain, fixture_armor(), round_of(1000, sig_34173416()))) == "E_DRAND_VERIFY")
+    assert(code_of_bytes(tlock_open_with(chain, fixture_armor(), round_of(34173416, sig_34173416()))) == "E_DRAND_ROUND")
+
+fn test_open_too_early() -> Unit:
+    let chain = chain_fixture()
+    let now = unix_time_ms() // 1000
+    let target = drand_round_at(chain, now) + 1000
+    let sealed = unwrap(tlock_seal(chain, target, bytes_from_text("later")))
+    assert(unwrap(tlock_armor_round(sealed)) == target)
+    match tlock_open(chain, sealed):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TLOCK_TOO_EARLY")
+            assert(text_find(problem.message, int_to_text(target), 0) >= 0)
+            assert(text_find(problem.message, int_to_text(drand_round_time(chain, target)), 0) >= 0)
+
+fn test_open_the_future_fixture_is_too_early() -> Unit:
+    let chain = chain_fixture()
+    let armored = unwrap(text_from_bytes(read_fixture("fixtures/future.age")))
+    assert(code_of_bytes(tlock_open(chain, armored)) == "E_TLOCK_TOO_EARLY")
+
+fn test_open_refuses_another_chain() -> Unit:
+    let chain = chain_fixture()
+    let other = bytes_join([bytes_from_ints([170]), bytes_slice(crypto_sha256(bytes_from_text("x")), 1, 32)])
+    let now = unix_time_ms() // 1000
+    let target = drand_round_at(chain, now) + 1000
+    match crypto_tlock_encrypt(target, other, chain.public_key, bytes_from_text("hi")):
+        Ok(armored):
+            assert(unwrap(tlock_armor_chain(armored)) == hex_encode(other))
+            assert(code_of_bytes(tlock_open(chain, armored)) == "E_TLOCK_CHAIN")
+            assert(code_of_bytes(tlock_open_with(chain, armored, round_of(1000, sig_1000()))) == "E_TLOCK_CHAIN")
+        Err(problem):
+            assert(false)
+
+fn test_seal_rejects_a_round_before_genesis() -> Unit:
+    let chain = chain_fixture()
+    assert(code_of_text(tlock_seal(chain, 0, bytes_from_text("x"))) != "ok")
+
+fn test_seal_and_open_with_round() -> Unit:
+    let chain = chain_fixture()
+    let sealed = unwrap(tlock_seal(chain, 1000, bytes_from_text("round trip")))
+    assert(unwrap(tlock_armor_chain(sealed)) == chain.hash)
+    let opened = tlock_open_with(chain, sealed, round_of(1000, sig_1000()))
+    assert(unwrap(opened) == bytes_from_text("round trip"))
+
+
+# ---- Twine and CURBy (offline: fixtures saved live from random.colorado.edu) ----
+
+fn load_json(path: Text) -> Json:
+    let text = unwrap(text_from_bytes(read_fixture(path)))
+    return unwrap(json_parse(text))
+
+fn load_records(path: Text) -> List[TwineRecord]:
+    return unwrap(twine_records_from_json(load_json(path)))
+
+fn chain_named(cid: Text) -> TwineRecord:
+    return unwrap(twine_find(load_records("fixtures/twine-chains.json"), cid))
+
+fn weather_cid() -> Text:
+    return "bafyriqakpv26jtrxzfo5hf5ysmpj4vkhy62pvti4mryrjqf3ezgx4rgiw7iu3dnkh55hoi757al45jtq7rrfs2jv7ybhnqfhrkfbfebofgzdm"
+
+fn first_of(records: List[TwineRecord]) -> TwineRecord:
+    return records[0]
+
+fn replace_char(text: Text, index: Int, with_char: Text) -> Text:
+    return text_slice(text, 0, index) + with_char + text_slice(text, index + 1, len(text))
+
+# A different character from the one at `index`, in the base64url and base32 alphabets.
+fn other_char(text: Text, index: Int) -> Text:
+    if text[index] == "A":
+        return "B"
+    return "A"
+
+fn with_content(record: TwineRecord, content: Json) -> TwineRecord:
+    return TwineRecord(record.cid, content, record.signature)
+
+fn resealed(record: TwineRecord) -> TwineRecord:
+    let fixed = TwineRecord(unwrap(twine_cid(record)), record.content, record.signature)
+    return fixed
+
+fn test_curby_chain_cids_are_the_specs() -> Unit:
+    assert(curby_q_chain() == curby_q())
+    assert(curby_rng_chain() == curby_rng())
+
+fn test_chain_records_recompute_and_verify_themselves() -> Unit:
+    let chains = load_records("fixtures/twine-chains.json")
+    assert(len(chains) == 7)
+    var i = 0
+    while i < len(chains):
+        assert(unwrap(twine_cid(chains[i])) == chains[i].cid)
+        assert(is_true(twine_verify(chains[i], chains[i])))
+        set i = i + 1
+
+fn test_latest_curby_q_pulse_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    assert(pulses[0].cid == unwrap(twine_cid(pulses[0])))
+    assert(is_true(twine_verify(chain, pulses[0])))
+    var i = 0
+    while i < len(pulses):
+        assert(is_true(twine_verify(chain, pulses[i])))
+        set i = i + 1
+
+fn test_latest_curby_rng_pulse_verifies() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    var i = 0
+    while i < len(pulses):
+        assert(is_true(twine_verify(chain, pulses[i])))
+        set i = i + 1
+
+fn test_weather_chain_verifies_with_es256() -> Unit:
+    let chain = chain_named(weather_cid())
+    assert(json_get(chain.content, "key") != json_null())
+    assert(json_as_text(json_get(json_get(chain.content, "key"), "alg")) == "ES256")
+    let pulses = load_records("fixtures/twine-weather-pulses.json")
+    var i = 0
+    while i < len(pulses):
+        assert(is_true(twine_verify(chain, pulses[i])))
+        set i = i + 1
+
+fn test_links_to_depth_five_on_both_curby_chains() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let qp = load_records("fixtures/curby-q-pulses.json")
+    assert(is_true(twine_verify_links_in(q, qp[0], 5, qp)))
+    assert(is_true(twine_verify_links_in(q, qp[0], 17, qp)))
+    let r = chain_named(curby_rng_chain())
+    let rp = load_records("fixtures/curby-rng-pulses.json")
+    assert(is_true(twine_verify_links_in(r, rp[0], 5, rp)))
+    let w = chain_named(weather_cid())
+    let wp = load_records("fixtures/twine-weather-pulses.json")
+    assert(is_true(twine_verify_links_in(w, wp[0], 5, wp)))
+
+fn test_links_past_the_pool_are_an_error_not_true() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let qp = load_records("fixtures/curby-q-pulses.json")
+    assert(not is_true(twine_verify_links_in(q, qp[0], 40, qp)))
+
+fn test_links_refuse_a_pool_missing_the_previous_pulse() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let qp = load_records("fixtures/curby-q-pulses.json")
+    let gap = [qp[0], qp[2], qp[3], qp[4], qp[5], qp[6], qp[7]]
+    assert(not is_true(twine_verify_links_in(q, qp[0], 5, gap)))
+
+fn test_flipped_content_byte_never_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let edited = with_content(pulse, json_set(pulse.content, "source", json_text("elsewhere")))
+    assert(not is_true(twine_verify(chain, edited)))
+    let index = json_as_int(json_get(pulse.content, "index"))
+    let bumped = with_content(pulse, json_set(pulse.content, "index", json_int(index + 1)))
+    assert(not is_true(twine_verify(chain, bumped)))
+
+fn test_flipped_content_with_the_cid_recomputed_still_fails() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let edited = resealed(with_content(pulse, json_set(pulse.content, "source", json_text("elsewhere"))))
+    assert(edited.cid != pulse.cid)
+    assert(unwrap(twine_cid(edited)) == edited.cid)
+    assert(not is_true(twine_verify(chain, edited)))
+
+fn test_flipped_signature_byte_never_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let parts = text_split(pulse.signature, ".")
+    let tail = parts[2]
+    let bad_tail = replace_char(tail, 40, other_char(tail, 40))
+    let edited = TwineRecord(pulse.cid, pulse.content, parts[0] + "." + parts[1] + "." + bad_tail)
+    assert(not is_true(twine_verify(chain, edited)))
+    assert(not is_true(twine_verify(chain, resealed(edited))))
+
+fn test_flipped_signature_on_es256_never_verifies() -> Unit:
+    let chain = chain_named(weather_cid())
+    let pulse = load_records("fixtures/twine-weather-pulses.json")[0]
+    let parts = text_split(pulse.signature, ".")
+    let tail = parts[2]
+    let bad_tail = replace_char(tail, 10, other_char(tail, 10))
+    let edited = TwineRecord(pulse.cid, pulse.content, parts[0] + "." + parts[1] + "." + bad_tail)
+    assert(not is_true(twine_verify(chain, edited)))
+    assert(not is_true(twine_verify(chain, resealed(edited))))
+
+fn test_edited_cid_never_verifies() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let edited = TwineRecord(replace_char(pulse.cid, 30, other_char(pulse.cid, 30)), pulse.content, pulse.signature)
+    assert(not is_true(twine_verify(chain, edited)))
+    let other = load_records("fixtures/curby-q-pulses.json")[1]
+    assert(not is_true(twine_verify(chain, TwineRecord(other.cid, pulse.content, pulse.signature))))
+
+fn test_a_pulse_of_another_chain_does_not_verify() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let rng_pulse = load_records("fixtures/curby-rng-pulses.json")[0]
+    assert(not is_true(twine_verify(q, rng_pulse)))
+
+fn test_a_swapped_chain_key_does_not_verify() -> Unit:
+    let q = chain_named(curby_q_chain())
+    let w = chain_named(weather_cid())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let forged_chain = TwineRecord(q.cid, json_set(q.content, "key", json_get(w.content, "key")), q.signature)
+    assert(not is_true(twine_verify(forged_chain, pulse)))
+
+fn test_unknown_algorithm_is_e_twine_alg() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let parts = text_split(pulse.signature, ".")
+    let header = base64url_encode(bytes_from_text("{\"alg\":\"HS256\"}"))
+    let edited = resealed(TwineRecord(pulse.cid, pulse.content, text_replace(header, "=", "") + "." + parts[1] + "." + parts[2]))
+    match twine_verify(chain, edited):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_ALG")
+
+fn test_malformed_records_are_errors() -> Unit:
+    match twine_record_from_json(json_object()):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_FORMAT")
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let one_part = resealed(TwineRecord(pulse.cid, pulse.content, "abc"))
+    match twine_verify(chain, one_part):
+        Ok(value):
+            assert(not value)
+        Err(problem):
+            assert(problem.code == "E_TWINE_JWS")
+
+fn test_curby_randomness_is_64_bytes() -> Unit:
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    let chain = chain_named(curby_q_chain())
+    var found = 0
+    var i = 0
+    while i < len(pulses):
+        let stage = json_as_text(json_get(json_get(pulses[i].content, "payload"), "stage"))
+        if stage == "randomness":
+            let bits = unwrap(curby_randomness(pulses[i]))
+            assert(len(bits) == 64)
+            set found = found + 1
+        else:
+            assert(code_of_bytes(curby_randomness(pulses[i])) == "E_CURBY_STAGE")
+        set i = i + 1
+    assert(found >= 1)
+
+fn test_curby_randomness_of_the_second_pulse_known_value() -> Unit:
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    let bits = unwrap(curby_randomness(pulses[1]))
+    assert(hex_encode(bits) == "61c307b2dcedea8f5ce9a3c68e387f78df126d4a6a45924aa86457c49885966891ba507e0c9b4f9069ecbb4a9e85f925c3c1dbb84b7478909e916c3911de42a9")
+
+fn test_curby_rng_randomness_checks_the_precommitment() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    let bits = unwrap(curby_rng_randomness(chain, pulses[0], pulses[1]))
+    assert(len(bits) == 64)
+    assert(code_of_bytes(curby_randomness(pulses[0])) == "E_CURBY_NEEDS_PREVIOUS")
+    # not the previous pulse
+    assert(code_of_bytes(curby_rng_randomness(chain, pulses[0], pulses[2])) != "ok")
+    # a salt edited (and the CID and signature no longer match)
+    let payload = json_get(pulses[0].content, "payload")
+    let other_salt = json_get(pulses[1].content, "payload")
+    let edited = with_content(pulses[0], json_set(pulses[0].content, "payload", json_set(payload, "salt", json_get(other_salt, "salt"))))
+    assert(code_of_bytes(curby_rng_randomness(chain, edited, pulses[1])) != "ok")
+
+# The reference client (@buff-beacon-project/curby-client 's Client.randomness(1616432) and
+# DIRNGClient.latest() for round 28297) gave these same bytes.
+fn test_curby_randomness_matches_the_reference_client() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    assert(json_as_int(json_get(pulses[0].content, "index")) == 1616432)
+    let bits = unwrap(curby_rng_randomness(chain, pulses[0], pulses[1]))
+    assert(hex_encode(bits) == "14d681647739d2211c6e3b0f6d42060ec086e8ade622ef8d29180b5bbaa7ffc63a86ce93be33225de816c561f6e2c482b44bfc8c09d32bd2960d026d62b26bba")
+
+# NIST Beacon 2.0. Fixtures saved live from beacon.nist.gov: consecutive pulses 2038647 and 2038648,
+# the last pulse of one UTC day (2038144, 2026-11-21T23:59Z) and the first of the next (2038145), and
+# the certificate all four name.
+fn nist_doc(index: Int) -> Json:
+    return unwrap(json_parse(unwrap(text_from_bytes(read_fixture(f"fixtures/nist-pulse-{index}.json")))))
+
+fn nist_pulse(index: Int) -> NistPulse:
+    return unwrap(nist_pulse_from_json(nist_doc(index)))
+
+fn nist_pem() -> Text:
+    return unwrap(text_from_bytes(read_fixture("fixtures/nist-certificate.pem")))
+
+fn nist_tampered(index: Int, field: Text, value: Json) -> NistPulse:
+    let doc = nist_doc(index)
+    return unwrap(nist_pulse_from_json(json_set(doc, "pulse", json_set(json_get(doc, "pulse"), field, value))))
+
+fn test_nist_pulse_fields_are_decoded() -> Unit:
+    let pulse = nist_pulse(2038648)
+    assert(pulse.pulse_index == 2038648)
+    assert(pulse.chain_index == 2)
+    assert(pulse.cipher_suite == 0)
+    assert(pulse.period == 60000)
+    assert(pulse.time_stamp == "2026-11-22T08:23:00.000Z")
+    assert(len(pulse.local_random_value) == 64)
+    assert(len(pulse.signature) == 512)
+    assert(hex_encode(pulse.output_value) == "346ac4fbdf68dfc2b9c8" + text_slice(hex_encode(pulse.output_value), 20, 128))
+
+fn test_nist_verify_the_last_pulse() -> Unit:
+    assert(is_true(nist_verify(nist_pulse(2038648), nist_pem())))
+    assert(is_true(nist_verify(nist_pulse(2038647), nist_pem())))
+
+fn test_nist_verify_across_a_day_boundary() -> Unit:
+    let before = nist_pulse(2038144)
+    let after = nist_pulse(2038145)
+    assert(text_slice(before.time_stamp, 0, 10) == "2026-11-21")
+    assert(text_slice(after.time_stamp, 0, 10) == "2026-11-22")
+    assert(is_true(nist_verify(before, nist_pem())))
+    assert(is_true(nist_verify(after, nist_pem())))
+    assert(is_true(nist_verify_precommitment(before, after)))
+
+fn test_nist_precommitment_of_consecutive_pulses() -> Unit:
+    assert(is_true(nist_verify_precommitment(nist_pulse(2038647), nist_pulse(2038648))))
+    # wrong order, and pulses that are not neighbours
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038648), nist_pulse(2038647))))
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038144), nist_pulse(2038648))))
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038647), nist_pulse(2038647))))
+
+fn test_nist_tampered_local_random_value_is_false() -> Unit:
+    let bad = nist_tampered(2038648, "localRandomValue", json_text("F73265622184EBFF7614018375AF605A8D0395C23F5E5335623B269367AFF70A35B66D766CC774614792F39287D6F8247289986EC6E5270C19A7990439874D2A"))
+    match nist_verify(bad, nist_pem()):
+        Ok(value):
+            assert(not value)
+        Err(problem):
+            assert(false)
+    # the previous pulse's precommitment no longer matches it either
+    assert(not is_true(nist_verify_precommitment(nist_pulse(2038647), bad)))
+
+fn test_nist_other_tampering_is_never_true() -> Unit:
+    let pem = nist_pem()
+    assert(not is_true(nist_verify(nist_tampered(2038648, "timeStamp", json_text("2026-11-22T08:24:00.000Z")), pem)))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "pulseIndex", json_int(2038649)), pem)))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "statusCode", json_int(1)), pem)))
+    let sig = json_as_text(json_get(json_get(nist_doc(2038648), "pulse"), "signatureValue"))
+    let flipped = "00" + text_slice(sig, 2, len(sig))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "signatureValue", json_text(flipped)), pem)))
+    # the output value must match too
+    let out = json_as_text(json_get(json_get(nist_doc(2038648), "pulse"), "outputValue"))
+    let bad_out = "00" + text_slice(out, 2, len(out))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "outputValue", json_text(bad_out)), pem)))
+    # a different pulse's signature
+    let other = json_as_text(json_get(json_get(nist_doc(2038647), "pulse"), "signatureValue"))
+    assert(not is_true(nist_verify(nist_tampered(2038648, "signatureValue", json_text(other)), pem)))
+
+fn test_nist_certificate_must_be_the_named_one() -> Unit:
+    # certificateId is SHA-512 of the certificate's DER; another certificate is false, not true
+    let other = unwrap(text_from_bytes(read_fixture("fixtures/round1000.age")))
+    assert(code_of_bool(nist_verify(nist_pulse(2038648), other)) != "true")
+    assert(code_of_bool(nist_verify(nist_pulse(2038648), "")) != "true")
+
+fn pem_fixture(name: Text) -> Text:
+    return unwrap(text_from_bytes(read_fixture(name)))
+
+fn test_nist_pinned_issuer_is_the_saved_fixture() -> Unit:
+    assert(nist_pinned_issuer_pem() == pem_fixture("fixtures/nist-issuer.pem"))
+
+fn test_nist_certificate_chains_to_the_pinned_issuer() -> Unit:
+    assert(is_true(nist_verify_certificate(nist_pem(), nist_pinned_issuer_pem())))
+    # The pinned issuer is an intermediate: DigiCert Global Root G2 issued it.
+    assert(is_true(nist_verify_certificate(nist_pinned_issuer_pem(), pem_fixture("fixtures/nist-issuer-root.pem"))))
+
+fn test_nist_certificate_is_not_issued_by_anything_else() -> Unit:
+    assert(not is_true(nist_verify_certificate(nist_pem(), pem_fixture("fixtures/nist-issuer-root.pem"))))
+    assert(not is_true(nist_verify_certificate(nist_pem(), nist_pem())))
+    assert(not is_true(nist_verify_certificate(nist_pinned_issuer_pem(), nist_pem())))
+    assert(code_of_bool(nist_verify_certificate(nist_pem(), "")) != "true")
+    assert(code_of_bool(nist_verify_certificate(nist_pem(), fixture_armor())) != "true")
+
+fn test_armor_chain_of_a_malformed_file_is_e_tlock_format() -> Unit:
+    match tlock_armor_chain("-----BEGIN AGE ENCRYPTED FILE-----\nAAAA\n-----END AGE ENCRYPTED FILE-----\n"):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TLOCK_FORMAT")
+
+fn code_of_bool(result: Result[Bool, StdError]) -> Text:
+    match result:
+        Ok(value):
+            if value:
+                return "true"
+            return "false"
+        Err(problem):
+            return problem.code
+
+fn test_nist_malformed_pulse_is_e_nist_format() -> Unit:
+    match nist_pulse_from_json(json_object()):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_NIST_FORMAT")
+    let doc = nist_doc(2038648)
+    let missing = json_set(doc, "pulse", json_set(json_get(doc, "pulse"), "localRandomValue", json_text("zz")))
+    match nist_pulse_from_json(missing):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_NIST_FORMAT")
+
+fn test_nist_unknown_cipher_suite_is_an_error() -> Unit:
+    let odd = nist_tampered(2038648, "cipherSuite", json_int(1))
+    assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_SUITE")
+
+
+# ---- nist_verify binds a pulse to NIST's own certificate ----
+
+# The leaf below is validly issued by a throwaway CA (fixtures/make_test_pulses.sh) for
+# test.beacon.example, valid 2026-01-01 to 2026-12-31. Its three pulses are signed by its key. With the
+# issuer, host and certificate ids re-pinned to the test values everything checks out; each test then
+# gets ONE of those pins (or the pulse's time) wrong and the answer must be false.
+
+fn forged_pulse(name: Text) -> NistPulse:
+    return unwrap(nist_pulse_from_json(load_json(f"fixtures/test-pulse-{name}.json")))
+
+fn forged_pem() -> Text:
+    return pem_fixture("fixtures/test-leaf.pem")
+
+fn forged_ca() -> Text:
+    return pem_fixture("fixtures/test-ca.pem")
+
+fn forged_ids() -> List[Text]:
+    return [hex_encode(forged_pulse("in-window").certificate_id)]
+
+fn test_nist_a_leaf_from_a_repinned_issuer_with_the_right_pins_is_true() -> Unit:
+    # The control: nothing is wrong, so it is true. Without this the false answers below prove nothing.
+    assert(is_true(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), "test.beacon.example", forged_ids())))
+
+fn test_nist_a_validly_issued_leaf_with_a_non_nist_name_is_false() -> Unit:
+    # Issued by the (re-pinned) issuer, in its validity, a known id, a good signature, but not NIST's name.
+    assert(not is_true(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), nist_beacon_host(), forged_ids())))
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), nist_beacon_host(), forged_ids())) == "false")
+
+fn test_nist_a_timestamp_outside_the_leafs_validity_is_false() -> Unit:
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("after"), forged_pem(), forged_ca(), "test.beacon.example", forged_ids())) == "false")
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("before"), forged_pem(), forged_ca(), "test.beacon.example", forged_ids())) == "false")
+
+fn test_nist_an_unknown_certificate_id_is_false() -> Unit:
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), "test.beacon.example", [])) == "false")
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), forged_ca(), "test.beacon.example", nist_known_certificate_ids())) == "false")
+
+fn test_nist_a_leaf_the_pinned_issuer_did_not_sign_is_false() -> Unit:
+    # Right name, window and id, but the issuer is NIST's pinned DigiCert one, not the test CA.
+    assert(code_of_bool(nist_verify_pinned(forged_pulse("in-window"), forged_pem(), nist_pinned_issuer_pem(), "test.beacon.example", forged_ids())) == "false")
+    # And the package's own pins refuse the forged pulse whatever it claims.
+    assert(code_of_bool(nist_verify(forged_pulse("in-window"), forged_pem())) == "false")
+
+fn test_nist_the_real_pulse_needs_every_one_of_its_pins() -> Unit:
+    let pulse = nist_pulse(2038648)
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), nist_pinned_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids())) == "true")
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), nist_pinned_issuer_pem(), "beacon.nist.gov", nist_known_certificate_ids())) == "false")
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), nist_pinned_issuer_pem(), nist_beacon_host(), [])) == "false")
+    assert(code_of_bool(nist_verify_pinned(pulse, nist_pem(), forged_ca(), nist_beacon_host(), nist_known_certificate_ids())) == "false")
+
+fn test_nist_known_certificate_ids_are_the_saved_fixture() -> Unit:
+    var saved: List[Text] = []
+    let lines = text_split(pem_fixture("fixtures/nist-certificate-ids.txt"), "\n")
+    var i = 0
+    while i < len(lines):
+        let line = text_trim(lines[i])
+        if len(line) > 0 and text_slice(line, 0, 1) != "#":
+            set saved = list_push(saved, line)
+        set i = i + 1
+    assert(saved == nist_known_certificate_ids())
+    assert(len(saved) == 5)
+    # the certificate in the fixtures is one of them
+    assert(hex_encode(nist_pulse(2038648).certificate_id) == saved[4])
+
+fn test_nist_certificate_names_and_validity_are_read_from_the_certificate() -> Unit:
+    let der = unwrap(crypto_pem_decode(nist_pem()))
+    assert(unwrap(crypto_x509_dns_names(der)) == [nist_beacon_host()])
+    let window = unwrap(crypto_x509_validity(der))
+    assert(window == [1792540800, 1805587199])
+
+fn test_nist_malformed_pulse_shapes_are_e_nist_format() -> Unit:
+    let doc = nist_doc(2038648)
+    let pulse = json_get(doc, "pulse")
+    var cases: List[Json] = []
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "listValues", json_text("x"))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "listValues", json_set(json_object(), "a", json_int(1)))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "listValues", json_push(json_array(), json_int(5)))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "external", json_text("x"))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "pulseIndex", json_int(9223372036854775808))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "chainIndex", json_int(9223372036854775808))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "pulseIndex", json_int(0 - 1))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "statusCode", json_int(4294967296))))
+    set cases = list_push(cases, json_set(doc, "pulse", json_set(pulse, "period", json_text("60000"))))
+    var i = 0
+    while i < len(cases):
+        match nist_pulse_from_json(cases[i]):
+            Ok(value):
+                assert(false)
+            Err(problem):
+                assert(problem.code == "E_NIST_FORMAT")
+        set i = i + 1
+
+fn test_nist_a_pulse_built_by_hand_with_a_huge_index_is_an_error_not_an_abort() -> Unit:
+    let real = nist_pulse(2038648)
+    let big = NistPulse(real.uri, real.version, real.cipher_suite, real.period, real.certificate_id, real.chain_index, 9223372036854775808, real.time_stamp, real.local_random_value, real.external_source_id, real.external_status_code, real.external_value, real.previous, real.hour, real.day, real.month, real.year, real.precommitment_value, real.status_code, real.signature, real.output_value)
+    assert(code_of_bool(nist_verify(big, nist_pem())) == "E_NIST_FORMAT")
+
+fn test_nist_a_timestamp_that_is_not_iso_8601_is_e_nist_format() -> Unit:
+    var stamps: List[Text] = ["", "yesterday", "2026-11-22 08:23:00.000Z", "2026-11-22T08:23:00.000", "2026-13-22T08:23:00.000Z", "2026-11-22T25:23:00.000Z", "2026-11-22T08:23:00.Z", "2026-11-22T08:23:0x.000Z", "1969-12-31T23:59:59.000Z"]
+    var i = 0
+    while i < len(stamps):
+        let odd = nist_tampered(2038648, "timeStamp", json_text(stamps[i]))
+        assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_FORMAT")
+        set i = i + 1
+
+fn repeated(unit: Text, count: Int) -> Text:
+    var out = ""
+    var i = 0
+    while i < count:
+        set out = out + unit
+        set i = i + 1
+    return out
+
+fn test_nist_a_very_long_timestamp_fraction_is_an_answer_not_an_abort() -> Unit:
+    # 5000 digits is past the 4096-digit integer limit; the fraction must be checked, not summed.
+    let long = "2026-11-22T08:23:00." + repeated("7", 5000) + "Z"
+    let pulse = nist_tampered(2038648, "timeStamp", json_text(long))
+    # a well-formed stamp whose signature no longer matches: false, not an error and not an abort
+    assert(code_of_bool(nist_verify(pulse, nist_pem())) == "false")
+    let bad = "2026-11-22T08:23:00." + repeated("7", 5000) + "x" + repeated("7", 10) + "Z"
+    assert(code_of_bool(nist_verify(nist_tampered(2038648, "timeStamp", json_text(bad)), nist_pem())) == "E_NIST_FORMAT")
+
+fn test_nist_a_timestamp_day_must_exist_in_its_month() -> Unit:
+    # impossible dates are E_NIST_FORMAT, not silently moved to the next month
+    var impossible: List[Text] = ["2026-02-31T08:23:00.000Z", "2026-02-29T08:23:00.000Z", "2026-02-30T08:23:00.000Z", "2100-02-29T08:23:00.000Z", "2026-04-31T08:23:00.000Z", "2026-06-31T08:23:00.000Z", "2026-09-31T08:23:00.000Z", "2026-11-31T08:23:00.000Z", "2026-01-32T08:23:00.000Z", "2026-01-00T08:23:00.000Z"]
+    var i = 0
+    while i < len(impossible):
+        let odd = nist_tampered(2038648, "timeStamp", json_text(impossible[i]))
+        assert(code_of_bool(nist_verify(odd, nist_pem())) == "E_NIST_FORMAT")
+        set i = i + 1
+    # real last days (leap years 2024 and 2000 included) parse; the changed stamp then fails the
+    # signature, so the answer is false, not E_NIST_FORMAT
+    var real: List[Text] = ["2026-02-28T08:23:00.000Z", "2024-02-29T08:23:00.000Z", "2000-02-29T08:23:00.000Z", "2026-04-30T08:23:00.000Z", "2026-01-31T08:23:00.000Z", "2026-12-31T23:59:59.000Z"]
+    var j = 0
+    while j < len(real):
+        let ok = nist_tampered(2038648, "timeStamp", json_text(real[j]))
+        assert(code_of_bool(nist_verify(ok, nist_pem())) == "false")
+        set j = j + 1
+
+# ---- the oldest NIST certificate, signed by a different DigiCert intermediate ----
+# Chain 2's first pulse (2022-09-21) names a certificate issued by "DigiCert TLS RSA SHA256 2020 CA1"
+# (fixtures/nist-legacy-*.pem, nist-pulse-1.json), not the issuer of the later certificates.
+
+fn legacy_pem() -> Text:
+    return pem_fixture("fixtures/nist-legacy-certificate.pem")
+
+fn test_nist_the_oldest_pulse_verifies_under_its_own_certificate() -> Unit:
+    let pulse = nist_pulse(1)
+    assert(pulse.chain_index == 2)
+    assert(pulse.pulse_index == 1)
+    assert(hex_encode(pulse.certificate_id) == nist_legacy_certificate_ids()[0])
+    assert(code_of_bool(nist_verify(pulse, legacy_pem())) == "true")
+
+fn test_nist_the_legacy_issuer_is_the_saved_fixture_and_chains_to_digicert() -> Unit:
+    assert(nist_legacy_issuer_pem() == pem_fixture("fixtures/nist-legacy-issuer.pem"))
+    assert(is_true(nist_verify_certificate(legacy_pem(), nist_legacy_issuer_pem())))
+    assert(is_true(nist_verify_certificate(nist_legacy_issuer_pem(), pem_fixture("fixtures/nist-legacy-root.pem"))))
+
+fn test_nist_each_certificate_id_has_its_own_issuer() -> Unit:
+    let old = nist_pulse(1)
+    let current = nist_pulse(2038648)
+    # the legacy issuer does not stand for the current ids, nor the current issuer for the legacy one
+    assert(code_of_bool(nist_verify_pinned(current, nist_pem(), nist_legacy_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids())) == "false")
+    assert(code_of_bool(nist_verify_pinned(old, legacy_pem(), nist_pinned_issuer_pem(), nist_beacon_host(), nist_legacy_certificate_ids())) == "false")
+    assert(not is_true(nist_verify_certificate(nist_pem(), nist_legacy_issuer_pem())))
+    assert(not is_true(nist_verify_certificate(legacy_pem(), nist_pinned_issuer_pem())))
+    # and the legacy ids are not in the current list
+    assert(not list_contains_text(nist_known_certificate_ids(), nist_legacy_certificate_ids()[0]))
+    # a certificate swapped across the two pins is false
+    assert(code_of_bool(nist_verify(old, nist_pem())) == "false")
+    assert(code_of_bool(nist_verify(current, legacy_pem())) == "false")
+
+fn test_nist_legacy_certificate_ids_are_the_saved_fixture() -> Unit:
+    var saved: List[Text] = []
+    let lines = text_split(pem_fixture("fixtures/nist-legacy-certificate-ids.txt"), "\n")
+    var i = 0
+    while i < len(lines):
+        let line = text_trim(lines[i])
+        if len(line) > 0 and text_slice(line, 0, 1) != "#":
+            set saved = list_push(saved, line)
+        set i = i + 1
+    assert(saved == nist_legacy_certificate_ids())
+
+# ---- NIST chain 1 (2018 to 2022): four certificates from three DigiCert intermediates ----
+# Fixtures saved live: pulses 1 and 220395 (certificate 1; 220395 is the first pulse after it expired),
+# 502025 (certificate 2), 926637 (certificate 3) and 1414538 (certificate 4), with the four certificates and
+# the two chain 1 issuers (certificate 4 is issued by the legacy issuer).
+
+fn chain1_doc(index: Int) -> Json:
+    return unwrap(json_parse(unwrap(text_from_bytes(read_fixture(f"fixtures/nist-chain1-pulse-{index}.json")))))
+
+fn chain1_pulse(index: Int) -> NistPulse:
+    return unwrap(nist_pulse_from_json(chain1_doc(index)))
+
+fn chain1_cert(number: Int) -> Text:
+    return pem_fixture(f"fixtures/nist-chain1-certificate-{number}.pem")
+
+fn chain1_tampered(index: Int, field: Text, value: Json) -> NistPulse:
+    let doc = chain1_doc(index)
+    return unwrap(nist_pulse_from_json(json_set(doc, "pulse", json_set(json_get(doc, "pulse"), field, value))))
+
+fn test_nist_chain_1_pulses_verify_under_each_of_its_certificates() -> Unit:
+    assert(chain1_pulse(1).chain_index == 1)
+    assert(code_of_bool(nist_verify(chain1_pulse(1), chain1_cert(1))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(220395), chain1_cert(1))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(502025), chain1_cert(2))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(926637), chain1_cert(3))) == "true")
+    assert(code_of_bool(nist_verify(chain1_pulse(1414538), chain1_cert(4))) == "true")
+
+fn test_nist_a_tampered_chain_1_pulse_is_false() -> Unit:
+    let n = [1, 220395, 502025, 926637, 1414538]
+    let certs = [1, 1, 2, 3, 4]
+    var i = 0
+    while i < len(n):
+        let altered = chain1_tampered(n[i], "localRandomValue", json_text("00" + text_slice(hex_encode(chain1_pulse(n[i]).local_random_value), 2, 128)))
+        assert(code_of_bool(nist_verify(altered, chain1_cert(certs[i]))) == "false")
+        let moved = chain1_tampered(n[i], "timeStamp", json_text("2019-02-01T00:00:00.000Z"))
+        assert(code_of_bool(nist_verify(moved, chain1_cert(certs[i]))) == "false")
+        set i = i + 1
+
+fn test_nist_chain_1_issuers_are_the_saved_fixtures_and_chain_to_digicert() -> Unit:
+    assert(nist_chain1_global_ca_g2_issuer_pem() == pem_fixture("fixtures/nist-chain1-issuer-global-ca-g2.pem"))
+    assert(nist_chain1_secure_server_issuer_pem() == pem_fixture("fixtures/nist-chain1-issuer-sha2-secure-server.pem"))
+    assert(is_true(nist_verify_certificate(chain1_cert(1), nist_chain1_global_ca_g2_issuer_pem())))
+    assert(is_true(nist_verify_certificate(chain1_cert(2), nist_chain1_global_ca_g2_issuer_pem())))
+    assert(is_true(nist_verify_certificate(chain1_cert(3), nist_chain1_secure_server_issuer_pem())))
+    assert(is_true(nist_verify_certificate(chain1_cert(4), nist_legacy_issuer_pem())))
+    # the issuers hang from DigiCert roots: Global Root G2 for Global CA G2, Global Root CA for the others
+    assert(is_true(nist_verify_certificate(nist_chain1_global_ca_g2_issuer_pem(), pem_fixture("fixtures/nist-issuer-root.pem"))))
+    assert(is_true(nist_verify_certificate(nist_chain1_secure_server_issuer_pem(), pem_fixture("fixtures/nist-legacy-root.pem"))))
+
+fn test_nist_each_chain_1_certificate_is_checked_against_its_own_issuer_only() -> Unit:
+    # a certificate under another chain 1 issuer does not chain
+    assert(not is_true(nist_verify_certificate(chain1_cert(1), nist_chain1_secure_server_issuer_pem())))
+    assert(not is_true(nist_verify_certificate(chain1_cert(3), nist_chain1_global_ca_g2_issuer_pem())))
+    assert(not is_true(nist_verify_certificate(chain1_cert(2), nist_pinned_issuer_pem())))
+    # the lists are disjoint
+    let g2 = nist_chain1_global_ca_g2_certificate_ids()
+    let server = nist_chain1_secure_server_certificate_ids()
+    var i = 0
+    while i < len(g2):
+        assert(not list_contains_text(server, g2[i]))
+        assert(not list_contains_text(nist_known_certificate_ids(), g2[i]))
+        assert(not list_contains_text(nist_legacy_certificate_ids(), g2[i]))
+        set i = i + 1
+    assert(not list_contains_text(nist_known_certificate_ids(), server[0]))
+    assert(not list_contains_text(nist_legacy_certificate_ids(), server[0]))
+    # a pulse paired with the wrong pin or the wrong certificate is false
+    assert(code_of_bool(nist_verify_pinned(chain1_pulse(1), chain1_cert(1), nist_chain1_secure_server_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids())) == "false")
+    assert(code_of_bool(nist_verify(chain1_pulse(1), chain1_cert(2))) == "false")
+    assert(code_of_bool(nist_verify(chain1_pulse(926637), chain1_cert(1))) == "false")
+    assert(code_of_bool(nist_verify(chain1_pulse(1414538), chain1_cert(3))) == "false")
+
+fn test_nist_chain_1_certificates_name_the_beacon_host() -> Unit:
+    var n = 1
+    while n <= 4:
+        let der = unwrap(crypto_pem_decode(chain1_cert(n)))
+        assert(unwrap(crypto_x509_dns_names(der)) == [nist_beacon_host()])
+        set n = n + 1
+
+fn test_nist_the_first_certificate_was_used_after_it_expired() -> Unit:
+    # certificate 1's notAfter is 2019-01-11T12:00Z (1547208000); pulse 220395 is 2019-01-28, genuine, and verifies
+    let der = unwrap(crypto_pem_decode(chain1_cert(1)))
+    let window = unwrap(crypto_x509_validity(der))
+    assert(window[1] == 1547208000)
+    assert(code_of_bool(nist_verify(chain1_pulse(220395), chain1_cert(1))) == "true")
+    # without the extension the plain check is false for it, so the extension is what lets it through
+    assert(code_of_bool(nist_verify_pinned(chain1_pulse(220395), chain1_cert(1), nist_chain1_global_ca_g2_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids())) == "false")
+    # the extension is bounded: it ends at the last pulse that used the certificate, before the next
+    # certificate's first pulse, and only for certificate 1
+    let first = nist_chain1_global_ca_g2_certificate_ids()[0]
+    let not_after = 1547208000
+    assert(nist_validity_extension(first) == 1565964660)
+    assert(nist_validity_end(first, not_after) == 1565964660)
+    assert(nist_validity_end(first, not_after) < 1565964840)
+    # 502025 is 2019-08-16T14:14:00Z = 1565964840
+    assert(chain1_pulse(502025).time_stamp == "2019-08-16T14:14:00.000Z")
+    assert(chain1_pulse(220395).time_stamp == "2019-01-28T13:25:00.000Z")
+
+fn test_nist_no_other_id_gets_a_validity_extension() -> Unit:
+    var lists: List[List[Text]] = [nist_known_certificate_ids(), nist_legacy_certificate_ids(), nist_chain1_global_ca_g2_certificate_ids(), nist_chain1_secure_server_certificate_ids()]
+    var seen = 0
+    var l = 0
+    while l < len(lists):
+        var i = 0
+        while i < len(lists[l]):
+            if lists[l][i] == nist_chain1_global_ca_g2_certificate_ids()[0]:
+                assert(nist_validity_extension(lists[l][i]) == 1565964660)
+            else:
+                assert(nist_validity_extension(lists[l][i]) == 0)
+                assert(nist_validity_end(lists[l][i], 1000) == 1000)
+            set seen = seen + 1
+            set i = i + 1
+        set l = l + 1
+    assert(seen == 10)
+
+fn test_nist_chain_1_certificate_ids_are_the_saved_fixture() -> Unit:
+    var g2: List[Text] = []
+    var server: List[Text] = []
+    var group = ""
+    let lines = text_split(pem_fixture("fixtures/nist-chain1-certificate-ids.txt"), "\n")
+    var i = 0
+    while i < len(lines):
+        let line = text_trim(lines[i])
+        if line == "[global-ca-g2]" or line == "[sha2-secure-server]":
+            set group = line
+        else:
+            if len(line) > 0 and text_slice(line, 0, 1) != "#":
+                if group == "[global-ca-g2]":
+                    set g2 = list_push(g2, line)
+                else:
+                    set server = list_push(server, line)
+        set i = i + 1
+    assert(g2 == nist_chain1_global_ca_g2_certificate_ids())
+    assert(server == nist_chain1_secure_server_certificate_ids())
+    assert(len(g2) == 2)
+    assert(len(server) == 1)
+    assert(hex_encode(chain1_pulse(1).certificate_id) == g2[0])
+    assert(hex_encode(chain1_pulse(502025).certificate_id) == g2[1])
+    assert(hex_encode(chain1_pulse(926637).certificate_id) == server[0])
+    assert(hex_encode(chain1_pulse(1414538).certificate_id) == nist_legacy_certificate_ids()[1])
+
+fn list_contains_text(items: List[Text], wanted: Text) -> Bool:
+    var i = 0
+    while i < len(items):
+        if items[i] == wanted:
+            return true
+        set i = i + 1
+    return false
+
+# ---- Twine, CURBy and drand: a bad shape is an error code, never an aborted program ----
+
+fn header_record(pulse: TwineRecord, header: Text) -> TwineRecord:
+    let parts = text_split(pulse.signature, ".")
+    let encoded = text_replace(base64url_encode(bytes_from_text(header)), "=", "")
+    return resealed(TwineRecord(pulse.cid, pulse.content, encoded + "." + parts[1] + "." + parts[2]))
+
+fn power_of_ten(digits: Int) -> Int:
+    var out = 1
+    var i = 0
+    while i < digits:
+        set out = out * 10
+        set i = i + 1
+    return out
+
+fn test_twine_a_hostile_links_radix_is_refused_not_an_abort() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    assert(link_total(pulse) >= 2)
+    # the real radix holds
+    assert(twine_skip_links_hold(chain, pulse, load_records("fixtures/curby-q-pulses.json")))
+    # a radix past 2^32, and one with thousands of digits, are false
+    var radixes: List[Int] = [4294967297, 1000000000000, power_of_ten(40), power_of_ten(4000)]
+    var i = 0
+    while i < len(radixes):
+        let hostile = TwineRecord(chain.cid, json_set(chain.content, "links_radix", json_int(radixes[i])), chain.signature)
+        assert(not twine_skip_links_hold(hostile, pulse, [pulse]))
+        set i = i + 1
+
+fn link_total(pulse: TwineRecord) -> Int:
+    return twine_link_count(pulse)
+
+fn test_twine_a_pulse_with_thousands_of_links_is_refused_not_an_abort() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    var links = json_array()
+    var i = 0
+    while i < 5000:
+        set links = json_push(links, json_object())
+        set i = i + 1
+    let many = with_content(pulse, json_set(pulse.content, "links", links))
+    assert(twine_link_count(many) == 5000)
+    # radix 4294967296 (the largest allowed) passes 10^18 at the third power; radix 2 at the 60th
+    var radixes: List[Int] = [2, 32, 4294967296]
+    var j = 0
+    while j < len(radixes):
+        let sparse = TwineRecord(chain.cid, json_set(chain.content, "links_radix", json_int(radixes[j])), chain.signature)
+        assert(not twine_skip_links_hold(sparse, many, [many]))
+        set j = j + 1
+
+fn test_twine_a_jws_header_without_alg_is_e_twine_alg() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    assert(code_of_bool(twine_verify(chain, header_record(pulse, "{}"))) == "E_TWINE_ALG")
+    assert(code_of_bool(twine_verify(chain, header_record(pulse, "[1,2]"))) == "E_TWINE_ALG")
+    assert(code_of_bool(twine_verify(chain, header_record(pulse, "{\"alg\":5}"))) == "E_TWINE_ALG")
+
+fn test_twine_a_cid_that_is_not_an_object_is_e_twine_format() -> Unit:
+    let data = json_set(json_set(json_object(), "content", json_object()), "signature", json_text("a.b.c"))
+    var bad: List[Json] = []
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_text("bafy")), "data", data))
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_int(7)), "data", data))
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_set(json_object(), "/", json_int(7))), "data", data))
+    set bad = list_push(bad, json_set(json_set(json_object(), "cid", json_set(json_object(), "/", json_text("bafy"))), "data", json_text("x")))
+    var i = 0
+    while i < len(bad):
+        match twine_record_from_json(bad[i]):
+            Ok(value):
+                assert(false)
+            Err(problem):
+                assert(problem.code == "E_TWINE_FORMAT")
+        set i = i + 1
+
+fn test_twine_records_that_are_not_an_array_are_e_twine_format() -> Unit:
+    match twine_records_from_json(json_int(5)):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_FORMAT")
+    match twine_records_from_json(json_push(json_array(), json_int(5))):
+        Ok(value):
+            assert(false)
+        Err(problem):
+            assert(problem.code == "E_TWINE_FORMAT")
+
+fn test_twine_a_chain_without_a_key_is_e_twine_key() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let keyless = TwineRecord(chain.cid, json_object(), chain.signature)
+    assert(code_of_bool(twine_verify(keyless, pulse)) == "E_TWINE_KEY")
+    assert(code_of_bool(twine_verify(TwineRecord(chain.cid, json_text("x"), chain.signature), pulse)) == "E_TWINE_KEY")
+
+fn test_twine_links_that_are_not_an_array_do_not_abort() -> Unit:
+    let chain = chain_named(curby_q_chain())
+    let pulse = load_records("fixtures/curby-q-pulses.json")[0]
+    let odd = with_content(pulse, json_set(pulse.content, "links", json_text("x")))
+    assert(twine_link_count(odd) == 0)
+    assert(twine_link(odd, 0) == "")
+    assert(not is_true(twine_verify_links_in(chain, odd, 5, [odd])))
+    let other = with_content(pulse, json_set(pulse.content, "links", json_push(json_array(), json_int(1))))
+    assert(twine_link_count(other) == 1)
+    assert(twine_link(other, 0) == "")
+    assert(not is_true(twine_verify_links_in(chain, other, 5, [other])))
+    # a chain whose links_radix is not a number
+    let bad_radix = TwineRecord(chain.cid, json_set(chain.content, "links_radix", json_text("x")), chain.signature)
+    assert(not is_true(twine_verify_links_in(bad_radix, pulse, 5, [pulse])))
+
+fn test_curby_a_payload_of_the_wrong_shape_is_a_curby_code() -> Unit:
+    let pulses = load_records("fixtures/curby-q-pulses.json")
+    let pulse = pulses[1]
+    let payload = json_get(pulse.content, "payload")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_text("x"))))) == "E_CURBY_STAGE")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_object()))) == "E_CURBY_STAGE")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_set(payload, "randomness", json_int(3)))))) == "E_CURBY_RANDOMNESS")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_set(payload, "randomness", json_set(json_object(), "/", json_int(5))))))) == "E_CURBY_RANDOMNESS")
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", json_set(payload, "randomness", json_set(json_object(), "/", json_set(json_object(), "bytes", json_int(5)))))))) == "E_CURBY_RANDOMNESS")
+    var no_randomness = json_object()
+    set no_randomness = json_set(no_randomness, "stage", json_text("randomness"))
+    assert(code_of_bytes(curby_randomness(with_content(pulse, json_set(pulse.content, "payload", no_randomness)))) == "E_CURBY_RANDOMNESS")
+
+fn test_curby_rng_with_wrong_shapes_is_an_error_not_an_abort() -> Unit:
+    let chain = chain_named(curby_rng_chain())
+    let pulses = load_records("fixtures/curby-rng-pulses.json")
+    let odd = with_content(pulses[0], json_set(pulses[0].content, "links", json_text("x")))
+    assert(code_of_bytes(curby_rng_randomness(chain, odd, pulses[1])) == "E_CURBY_RNG")
+    let keyless = TwineRecord(chain.cid, json_object(), chain.signature)
+    assert(code_of_bytes(curby_rng_randomness(keyless, pulses[0], pulses[1])) == "E_TWINE_KEY")
+
+fn drand_body(round: Json, randomness: Json, signature: Json) -> Text:
+    return json_stringify(json_set(json_set(json_set(json_object(), "round", round), "randomness", randomness), "signature", signature))
+
+fn test_drand_a_round_body_missing_a_field_is_e_drand_fetch() -> Unit:
+    let good_sig = json_text(hex_encode(sig_1000()))
+    let good_random = json_text(hex_encode(crypto_sha256(sig_1000())))
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1000), good_random, good_sig), 1000)) == "ok")
+    assert(code_of_round(drand_parse_round(json_stringify(json_set(json_set(json_object(), "round", json_int(1000)), "randomness", good_random)), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(json_stringify(json_set(json_set(json_object(), "round", json_int(1000)), "signature", good_sig)), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(json_stringify(json_set(json_set(json_object(), "randomness", good_random), "signature", good_sig)), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round("{}", 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round("[1]", 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round("not json", 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_text("1000"), good_random, good_sig), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1000), json_int(3), good_sig), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1000), json_text("zz"), good_sig), 1000)) == "E_DRAND_FETCH")
+    assert(code_of_round(drand_parse_round(drand_body(json_int(1001), good_random, good_sig), 1000)) == "E_DRAND_ROUND")
+
+fn code_of_round(result: Result[DrandRound, StdError]) -> Text:
+    match result:
+        Ok(value):
+            return "ok"
+        Err(problem):
+            return problem.code
+
+fn test_drand_a_round_out_of_range_is_e_drand_round() -> Unit:
+    let chain = chain_fixture()
+    assert(code_of_bool(drand_verify(chain, round_of(9223372036854775808, sig_1000()))) == "E_DRAND_ROUND")
+    assert(code_of_bool(drand_verify(chain, round_of(0, sig_1000()))) == "E_DRAND_ROUND")
+    assert(code_of_bool(drand_verify(chain, round_of(0 - 5, sig_1000()))) == "E_DRAND_ROUND")

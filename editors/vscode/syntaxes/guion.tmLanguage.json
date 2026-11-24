@@ -4,7 +4,7 @@
   "patterns": [
     { "name": "comment.line.number-sign.guion", "match": "#.*$" },
     { "name": "string.quoted.double.guion", "begin": "f?\"", "end": "\"", "patterns": [{ "name": "constant.character.escape.guion", "match": "\\\\." }] },
-    { "name": "keyword.control.guion", "match": "\\b(if|else|while|for|in|return|break|continue|match)\\b" },
+    { "name": "keyword.control.guion", "match": "\\b(if|else|while|for|in|return|break|continue|pass|match)\\b" },
     { "name": "keyword.declaration.guion", "match": "\\b(fn|let|var|set|record|enum|pub|priv|import|extern)\\b" },
     { "name": "constant.language.guion", "match": "\\b(true|false|None)\\b" },
     { "name": "keyword.operator.word.guion", "match": "\\b(and|or|not)\\b" },

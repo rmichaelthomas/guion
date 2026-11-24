@@ -1,0 +1,451 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "std:text"
+import "twine.gu"
+
+# The NIST Randomness Beacon, version 2.0 (https://beacon.nist.gov/beacon/2.0, NISTIR 8213), cipher
+# suite 0: SHA-512 and RSA PKCS#1 v1.5 with SHA-512.
+#
+# A pulse is signed over its fields 1 to 19 in this order, each serialized as below, and signed with
+# RSA PKCS#1 v1.5 / SHA-512 (the message is the serialization; SHA-512 happens inside the scheme):
+#   uri, version, timeStamp, and every hex field (certificateId, localRandomValue, external.sourceId,
+#   external.value, previous, hour, day, month, year, precommitmentValue):
+#       a 4-byte big-endian length, then the bytes (UTF-8 text, or the hex decoded)
+#   cipherSuite, period, external.statusCode, statusCode: 4 bytes big-endian
+#   chainIndex, pulseIndex: 8 bytes big-endian
+# in the order uri, version, cipherSuite, period, certificateId, chainIndex, pulseIndex, timeStamp,
+# localRandomValue, external.sourceId, external.statusCode, external.value, previous, hour, day,
+# month, year, precommitmentValue, statusCode. outputValue is SHA-512 of that same serialization
+# followed by the raw signature bytes (no length prefix). certificateId is SHA-512 of the signing
+# certificate's DER. A pulse n commits to the next with precommitmentValue[n] ==
+# SHA-512(localRandomValue[n+1]), and pulse n+1's previous is pulse n's outputValue.
+# NISTIR 8213 (draft) writes the length prefixes as 8 bytes and external.statusCode as 8; the live
+# service uses 4 and 4. The README records how this was found.
+# Chain 1 (2018 to 2022) is serialized the same way as chain 2: checked with openssl on pulses under each of its
+# four certificates, the signature and outputValue both verify under this layout.
+#
+# Verifiers take an already-fetched pulse (and the certificate PEM); the fetch functions only fetch.
+# Needs the network grant for beacon.nist.gov for the fetch functions.
+#
+# Errors: E_NIST_FETCH (a request or its answer is bad), E_NIST_FORMAT (not a pulse: a member is
+# missing or mistyped, a number is out of range, the timeStamp is not an ISO 8601 UTC time), E_NIST_SUITE (a
+# cipher suite other than 0), plus the crypto codes (a certificate that is not an RSA certificate, or one whose issuer algorithm is not supported).
+# A pulse comes from the network, so nothing here stops the program on a bad shape.
+#
+# What makes a pulse NIST's (nist_verify): the certificate is one of the known NIST beacon
+# certificates (the pulse's certificateId is in nist_known_certificate_ids), it was issued by the pinned
+# DigiCert issuer, it names engine.beacon.nist.gov, it was valid when the pulse was made, and the RSA
+# signature and outputValue check. The issuer alone would accept a certificate DigiCert issued to anyone.
+
+pub record NistPulse:
+    uri: Text
+    version: Text
+    cipher_suite: Int
+    period: Int
+    certificate_id: Bytes
+    chain_index: Int
+    pulse_index: Int
+    time_stamp: Text
+    local_random_value: Bytes
+    external_source_id: Bytes
+    external_status_code: Int
+    external_value: Bytes
+    previous: Bytes
+    hour: Bytes
+    day: Bytes
+    month: Bytes
+    year: Bytes
+    precommitment_value: Bytes
+    status_code: Int
+    signature: Bytes
+    output_value: Bytes
+
+fn nist_error(code: Text, message: Text) -> StdError:
+    return std_error(code, message)
+
+fn base() -> Text:
+    return "https://beacon.nist.gov"
+
+fn field_text(value: Json, key: Text) -> Result[Text, StdError]:
+    match json_try_get(value, key):
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
+        Ok(found):
+            match json_try_text(found):
+                Ok(text):
+                    return Ok(text)
+                Err(problem):
+                    return Err(nist_error("E_NIST_FORMAT", f"{key} is not text"))
+
+# An integer member that is serialized in `bytes` big-endian bytes (4 or 8): 0 up to what the
+# serialization holds (an 8-byte value is limited to 2^63 - 1, the largest Int the bit operations take).
+fn field_int(value: Json, key: Text, bytes: Int) -> Result[Int, StdError]:
+    match json_try_get(value, key):
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
+        Ok(found):
+            match json_try_int(found):
+                Ok(number):
+                    if not fits(number, bytes):
+                        return Err(nist_error("E_NIST_FORMAT", f"{key} is out of range"))
+                    return Ok(number)
+                Err(problem):
+                    return Err(nist_error("E_NIST_FORMAT", f"{key} is not an integer"))
+
+# Does the number serialize in `bytes` big-endian bytes? 0 to 2^32 - 1 for 4, 0 to 2^63 - 1 for 8.
+fn fits(number: Int, bytes: Int) -> Bool:
+    if number < 0:
+        return false
+    if bytes == 4:
+        return number <= 4294967295
+    return number <= 9223372036854775807
+
+fn decode_hex(text: Text, what: Text) -> Result[Bytes, StdError]:
+    match hex_decode(text):
+        Ok(bytes):
+            return Ok(bytes)
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"{what} is not hex"))
+
+fn field_hex(value: Json, key: Text) -> Result[Bytes, StdError]:
+    let text = field_text(value, key)?
+    return decode_hex(text, key)
+
+# The value of the listValues entry of a type ("previous", "hour", "day", "month", "year").
+fn list_value(entries: Json, kind: Text) -> Result[Bytes, StdError]:
+    match json_items(entries):
+        None:
+            return Err(nist_error("E_NIST_FORMAT", "listValues is not an array"))
+        Some(items):
+            var index = 0
+            while index < len(items):
+                match json_try_get_text(items[index], "type"):
+                    Ok(found):
+                        if found == kind:
+                            return field_hex(items[index], "value")
+                    Err(problem):
+                        return Err(nist_error("E_NIST_FORMAT", "a listValues entry has no type"))
+                set index = index + 1
+            return Err(nist_error("E_NIST_FORMAT", f"listValues has no {kind}"))
+
+# A pulse from the JSON the service answers with ({"pulse": {...}}); a bare pulse object also works.
+pub fn nist_pulse_from_json(answer: Json) -> Result[NistPulse, StdError]:
+    var value = answer
+    if has_key(answer, "pulse"):
+        set value = json_get(answer, "pulse")
+    if not has_key(value, "pulseIndex"):
+        return Err(nist_error("E_NIST_FORMAT", "not a beacon pulse"))
+    let external = match_key(value, "external")?
+    let entries = match_key(value, "listValues")?
+    return Ok(NistPulse(field_text(value, "uri")?, field_text(value, "version")?, field_int(value, "cipherSuite", 4)?, field_int(value, "period", 4)?, field_hex(value, "certificateId")?, field_int(value, "chainIndex", 8)?, field_int(value, "pulseIndex", 8)?, field_text(value, "timeStamp")?, field_hex(value, "localRandomValue")?, field_hex(external, "sourceId")?, field_int(external, "statusCode", 4)?, field_hex(external, "value")?, list_value(entries, "previous")?, list_value(entries, "hour")?, list_value(entries, "day")?, list_value(entries, "month")?, list_value(entries, "year")?, field_hex(value, "precommitmentValue")?, field_int(value, "statusCode", 4)?, field_hex(value, "signatureValue")?, field_hex(value, "outputValue")?))
+fn match_key(value: Json, key: Text) -> Result[Json, StdError]:
+    match json_try_get(value, key):
+        Ok(found):
+            return Ok(found)
+        Err(problem):
+            return Err(nist_error("E_NIST_FORMAT", f"the pulse has no {key}"))
+
+fn big_endian(value: Int, width: Int) -> Bytes:
+    var octets: List[Int] = []
+    var shift = 8 * (width - 1)
+    while shift >= 0:
+        set octets = list_push(octets, int_and(int_shift_right(value, shift), 255))
+        set shift = shift - 8
+    return bytes_from_ints(octets)
+
+fn prefixed(data: Bytes) -> Bytes:
+    return bytes_join([big_endian(len(data), 4), data])
+
+fn prefixed_text(text: Text) -> Bytes:
+    return prefixed(bytes_from_text(text))
+
+# The bytes the beacon signs: fields 1 to 19, serialized as the header describes. The numbers must
+# fit their fields (nist_pulse_from_json and nist_verify check that; this stops the program with
+# R_INTEGER_RANGE on a pulse built by hand with one that does not).
+pub fn nist_signed_bytes(pulse: NistPulse) -> Bytes:
+    return bytes_join([prefixed_text(pulse.uri), prefixed_text(pulse.version), big_endian(pulse.cipher_suite, 4), big_endian(pulse.period, 4), prefixed(pulse.certificate_id), big_endian(pulse.chain_index, 8), big_endian(pulse.pulse_index, 8), prefixed_text(pulse.time_stamp), prefixed(pulse.local_random_value), prefixed(pulse.external_source_id), big_endian(pulse.external_status_code, 4), prefixed(pulse.external_value), prefixed(pulse.previous), prefixed(pulse.hour), prefixed(pulse.day), prefixed(pulse.month), prefixed(pulse.year), prefixed(pulse.precommitment_value), big_endian(pulse.status_code, 4)])
+# SHA-512 of the signed bytes followed by the signature: what outputValue must equal.
+pub fn nist_output_value(pulse: NistPulse) -> Bytes:
+    return crypto_sha512(bytes_join([nist_signed_bytes(pulse), pulse.signature]))
+
+# The issuer certificate this package pins: "DigiCert Global G2 TLS RSA SHA256 2020 CA1", an
+# intermediate (issued by DigiCert Global Root G2) that signed NIST's beacon certificate
+# (engine.beacon.nist.gov, found through the certificate's Authority Information Access URL
+# http://cacerts.digicert.com/DigiCertGlobalG2TLSRSASHA2562020CA1-1.crt). It is valid until
+# 2031-03-29. The same PEM is saved as fixtures/nist-issuer.pem and a test keeps the two equal;
+# README.md says how to refresh it.
+pub fn nist_pinned_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIEyDCCA7CgAwIBAgIQDPW9BitWAvR6uFAsI8zwZjANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\nMjAeFw0yMTAzMzAwMDAwMDBaFw0zMTAzMjkyMzU5NTlaMFkxCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxMzAxBgNVBAMTKkRpZ2lDZXJ0IEdsb2Jh\nbCBHMiBUTFMgUlNBIFNIQTI1NiAyMDIwIENBMTCCASIwDQYJKoZIhvcNAQEBBQAD\nggEPADCCAQoCggEBAMz3EGJPprtjb+2QUlbFbSd7ehJWivH0+dbn4Y+9lavyYEEV\ncNsSAPonCrVXOFt9slGTcZUOakGUWzUb+nv6u8W+JDD+Vu/E832X4xT1FE3LpxDy\nFuqrIvAxIhFhaZAmunjZlx/jfWardUSVc8is/+9dCopZQ+GssjoP80j812s3wWPc\n3kbW20X+fSP9kOhRBx5Ro1/tSUZUfyyIxfQTnJcVPAPooTncaQwywa8WV0yUR0J8\nosicfebUTVSvQpmowQTCd5zWSOTOEeAqgJnwQ3DPP3Zr0UxJqyRewg2C/Uaoq2yT\nzGJSQnWS+Jr6Xl6ysGHlHx+5fwmY6D36g39HaaECAwEAAaOCAYIwggF+MBIGA1Ud\nEwEB/wQIMAYBAf8CAQAwHQYDVR0OBBYEFHSFgMBmx9833s+9KTeqAx2+7c0XMB8G\nA1UdIwQYMBaAFE4iVCAYlebjbuYP+vq5Eu0GF485MA4GA1UdDwEB/wQEAwIBhjAd\nBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwdgYIKwYBBQUHAQEEajBoMCQG\nCCsGAQUFBzABhhhodHRwOi8vb2NzcC5kaWdpY2VydC5jb20wQAYIKwYBBQUHMAKG\nNGh0dHA6Ly9jYWNlcnRzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RH\nMi5jcnQwQgYDVR0fBDswOTA3oDWgM4YxaHR0cDovL2NybDMuZGlnaWNlcnQuY29t\nL0RpZ2lDZXJ0R2xvYmFsUm9vdEcyLmNybDA9BgNVHSAENjA0MAsGCWCGSAGG/WwC\nATAHBgVngQwBATAIBgZngQwBAgEwCAYGZ4EMAQICMAgGBmeBDAECAzANBgkqhkiG\n9w0BAQsFAAOCAQEAkPFwyyiXaZd8dP3A+iZ7U6utzWX9upwGnIrXWkOH7U1MVl+t\nwcW1BSAuWdH/SvWgKtiwla3JLko716f2b4gp/DA/JIS7w7d7kwcsr4drdjPtAFVS\nslme5LnQ89/nD/7d+MS5EHKBCQRfz5eeLjJ1js+aWNJXMX43AYGyZm0pGrFmCW3R\nbpD0ufovARTFXFZkAdl9h6g4U5+LXUZtXMYnhIHUfoyMo5tS58aI7Dd8KvvwVVo4\nchDYABPPTHPbqjc1qCmBaZx2vN4Ye5DUys/vZwP9BFohFrH/6j/f3IL16/RZkiMN\nJCqVJUzKoZHm1Lesh3Sz8W2jmdv51b2EQJ8HmA==\n-----END CERTIFICATE-----\n"
+
+# The issuer of NIST's oldest beacon certificate (chain 2, 2022-09-15 to 2023-09-15): "DigiCert TLS RSA
+# SHA256 2020 CA1", an intermediate issued by DigiCert Global Root CA, valid until 2031-04-13 (SHA-256
+# fingerprint 52:27:4C:57:CE:4D:EE:3B:49:DB:7A:7F:F7:08:C0:40:F7:71:89:8B:3B:E8:87:25:A8:6F:B4:43:01:82:FE:14). It
+# is a different intermediate from nist_pinned_issuer_pem and is trusted ONLY for the certificate ids in
+# nist_legacy_certificate_ids; the same PEM is fixtures/nist-legacy-issuer.pem and a test keeps them equal.
+pub fn nist_legacy_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIEvjCCA6agAwIBAgIQBtjZBNVYQ0b2ii+nVCJ+xDANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD\nQTAeFw0yMTA0MTQwMDAwMDBaFw0zMTA0MTMyMzU5NTlaME8xCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxKTAnBgNVBAMTIERpZ2lDZXJ0IFRMUyBS\nU0EgU0hBMjU2IDIwMjAgQ0ExMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC\nAQEAwUuzZUdwvN1PWNvsnO3DZuUfMRNUrUpmRh8sCuxkB+Uu3Ny5CiDt3+PE0J6a\nqXodgojlEVbbHp9YwlHnLDQNLtKS4VbL8Xlfs7uHyiUDe5pSQWYQYE9XE0nw6Ddn\ng9/n00tnTCJRpt8OmRDtV1F0JuJ9x8piLhMbfyOIJVNvwTRYAIuE//i+p1hJInuW\nraKImxW8oHzf6VGo1bDtN+I2tIJLYrVJmuzHZ9bjPvXj1hJeRPG/cUJ9WIQDgLGB\nAfr5yjK7tI4nhyfFK3TUqNaX3sNk+crOU6JWvHgXjkkDKa77SU+kFbnO8lwZV21r\neacroicgE7XQPUDTITAHk+qZ9QIDAQABo4IBgjCCAX4wEgYDVR0TAQH/BAgwBgEB\n/wIBADAdBgNVHQ4EFgQUt2ui6qiqhIx56rTaD5iyxZV2ufQwHwYDVR0jBBgwFoAU\nA95QNVbRTLtm8KPiGxvDl7I90VUwDgYDVR0PAQH/BAQDAgGGMB0GA1UdJQQWMBQG\nCCsGAQUFBwMBBggrBgEFBQcDAjB2BggrBgEFBQcBAQRqMGgwJAYIKwYBBQUHMAGG\nGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTBABggrBgEFBQcwAoY0aHR0cDovL2Nh\nY2VydHMuZGlnaWNlcnQuY29tL0RpZ2lDZXJ0R2xvYmFsUm9vdENBLmNydDBCBgNV\nHR8EOzA5MDegNaAzhjFodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vRGlnaUNlcnRH\nbG9iYWxSb290Q0EuY3JsMD0GA1UdIAQ2MDQwCwYJYIZIAYb9bAIBMAcGBWeBDAEB\nMAgGBmeBDAECATAIBgZngQwBAgIwCAYGZ4EMAQIDMA0GCSqGSIb3DQEBCwUAA4IB\nAQCAMs5eC91uWg0Kr+HWhMvAjvqFcO3aXbMM9yt1QP6FCvrzMXi3cEsaiVi6gL3z\nax3pfs8LulicWdSQ0/1s/dCYbbdxglvPbQtaCdB73sRD2Cqk3p5BJl+7j5nL3a7h\nqG+fh/50tx8bIKuxT8b1Z11dmzzp/2n3YWzW2fP9NsarA4h20ksudYbj/NhVfSbC\nEXffPgK2fPOre3qGNm+499iTcc+G33Mw+nur7SpZyEKEOxEXGlLzyQ4UfaJbcme6\nce1XR2bFuAJKZTRei9AqPCCcUZlM51Ke92sRKw2Sfh3oius2FkOH6ipjv3U/697E\nA7sKPPcw7+uvTPyLNhBzPvOk\n-----END CERTIFICATE-----\n"
+
+# The certificateId values the legacy issuer signed (fixtures/nist-legacy-certificate-ids.txt): chain 2's
+# first certificate, and the last certificate of chain 1 (2021-06 to 2022-06; the same intermediate, DigiCert
+# TLS RSA SHA256 2020 CA1, whose key signed it).
+pub fn nist_legacy_certificate_ids() -> List[Text]:
+    return ["ed8e1b9745e337e38745a54579d97b21562cb703e44926666a1d6499a9e3399448cdf6b1403ec056314c129910e82b0e8af48c1e062a88828e178dfc82983c2b", "ebcfbf3cb148288266e2cde0d71de23b0a2739c30356e32de68e040b82dec384359763f72905ba16a2a474040ed5db47ee1baa0327aeae94f231ffe67276d1cb"]
+
+# NIST's first chain (chain 1, 2018-07-23 to 2022-04-29, pulses 1 to 1801851) used four certificates in a row,
+# from three DigiCert intermediates. The last one is issued by the legacy issuer above (its id is in
+# nist_legacy_certificate_ids). The other three each have a pinned issuer of their own, trusted only for
+# their own ids (fixtures/nist-chain1-*.pem; tests keep the PEMs and the id lists equal to the fixtures).
+
+# "DigiCert Global CA G2", an intermediate issued by DigiCert Global Root G2, valid until 2028-08-01 (SHA-256
+# fingerprint 8F:AC:57:64:39:C9:FD:3E:F1:53:B5:1F:9E:DD:0D:38:1B:5D:F7:B8:75:59:CE:BE:CA:04:29:7D:D4:4A:63:9B). It signed
+# NIST's first two chain 1 certificates (pulses 1 to 926636).
+pub fn nist_chain1_global_ca_g2_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIEizCCA3OgAwIBAgIQDI7gyQ1qiRWIBAYe4kH5rzANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\nMjAeFw0xMzA4MDExMjAwMDBaFw0yODA4MDExMjAwMDBaMEQxCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxHjAcBgNVBAMTFURpZ2lDZXJ0IEdsb2Jh\nbCBDQSBHMjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANNIfL7zBYZd\nW9UvhU5L4IatFaxhz1uvPmoKR/uadpFgC4przc/cV35gmAvkVNlW7SHMArZagV+X\nau4CLyMnuG3UsOcGAngLH1ypmTb+u6wbBfpXzYEQQGfWMItYNdSWYb7QjHqXnxr5\nIuYUL6nG6AEfq/gmD6yOTSwyOR2Bm40cZbIc22GoiS9g5+vCShjEbyrpEJIJ7RfR\nACvmfe8EiRROM6GyD5eHn7OgzS+8LOy4g2gxPR/VSpAQGQuBldYpdlH5NnbQtwl6\nOErXb4y/E3w57bqukPyV93t4CTZedJMeJfD/1K2uaGvG/w/VNfFVbkhJ+Pi474j4\n8V4Rd6rfArMCAwEAAaOCAVowggFWMBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0P\nAQH/BAQDAgGGMDQGCCsGAQUFBwEBBCgwJjAkBggrBgEFBQcwAYYYaHR0cDovL29j\nc3AuZGlnaWNlcnQuY29tMHsGA1UdHwR0MHIwN6A1oDOGMWh0dHA6Ly9jcmw0LmRp\nZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMi5jcmwwN6A1oDOGMWh0dHA6\nLy9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMi5jcmwwPQYD\nVR0gBDYwNDAyBgRVHSAAMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8vd3d3LmRpZ2lj\nZXJ0LmNvbS9DUFMwHQYDVR0OBBYEFCRuKy3QapJRUSVpAaqaR6aJ50AgMB8GA1Ud\nIwQYMBaAFE4iVCAYlebjbuYP+vq5Eu0GF485MA0GCSqGSIb3DQEBCwUAA4IBAQAL\nOYSR+ZfrqoGvhOlaOJL84mxZvzbIRacxAxHhBsCsMsdaVSnaT0AC9aHesO3ewPj2\ndZ12uYf+QYB6z13jAMZbAuabeGLJ3LhimnftiQjXS8X9Q9ViIyfEBFltcT8jW+rZ\n8uckJ2/0lYDblizkVIvP6hnZf1WZUXoOLRg9eFhSvGNoVwvdRLNXSmDmyHBwW4co\natc7TlJFGa8kBpJIERqLrqwYElesA8u49L3KJg6nwd3jM+/AVTANlVlOnAM2BvjA\njxSZnE0qnsHhfTuvcqdFuhOWKU4Z0BqYBvQ3lBetoxi6PrABDJXWKTUgNX31EGDk\n92hiHuwZ4STyhxGs6QiA\n-----END CERTIFICATE-----\n"
+
+# The certificateId values of the two certificates "DigiCert Global CA G2" signed: valid 2018-01-10 to 2019-01-11,
+# and 2019-06-11 to 2020-06-11.
+pub fn nist_chain1_global_ca_g2_certificate_ids() -> List[Text]:
+    return ["5501e3d72bc42f3b96e16de4dcadcb16768e109662bd16d667d5fd9aee585af31bbdc5dd4f53592276064b53dddd76c8f3604b2a41db6e09f78f82bb5d6569e7", "02288edbdc04bdeeb1c8140a41a1ad40ab2ea7ad27fdd316946f3ec5aff1a7129f1fb5078202d75d42c201878b06d79c45bf37adb55f83aa213200834792b1da"]
+
+# "DigiCert SHA2 Secure Server CA", an intermediate issued by DigiCert Global Root CA, valid until 2023-03-08
+# (SHA-256 fingerprint 15:4C:43:3C:49:19:29:C5:EF:68:6E:83:8E:32:36:64:A0:0E:6A:0D:82:2C:CC:95:8F:B4:DA:B0:3E:49:A0:8F).
+# It signed NIST's third chain 1 certificate (pulses 926637 to 1414537).
+pub fn nist_chain1_secure_server_issuer_pem() -> Text:
+    return "-----BEGIN CERTIFICATE-----\nMIIElDCCA3ygAwIBAgIQAf2j627KdciIQ4tyS8+8kTANBgkqhkiG9w0BAQsFADBh\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\nd3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD\nQTAeFw0xMzAzMDgxMjAwMDBaFw0yMzAzMDgxMjAwMDBaME0xCzAJBgNVBAYTAlVT\nMRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxJzAlBgNVBAMTHkRpZ2lDZXJ0IFNIQTIg\nU2VjdXJlIFNlcnZlciBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB\nANyuWJBNwcQwFZA1W248ghX1LFy949v/cUP6ZCWA1O4Yok3wZtAKc24RmDYXZK83\nnf36QYSvx6+M/hpzTc8zl5CilodTgyu5pnVILR1WN3vaMTIa16yrBvSqXUu3R0bd\nKpPDkC55gIDvEwRqFDu1m5K+wgdlTvza/P96rtxcflUxDOg5B6TXvi/TC2rSsd9f\n/ld0Uzs1gN2ujkSYs58O09rg1/RrKatEp0tYhG2SS4HD2nOLEpdIkARFdRrdNzGX\nkujNVA075ME/OV4uuPNcfhCOhkEAjUVmR7ChZc6gqikJTvOX6+guqw9ypzAO+sf0\n/RR3w6RbKFfCs/mC/bdFWJsCAwEAAaOCAVowggFWMBIGA1UdEwEB/wQIMAYBAf8C\nAQAwDgYDVR0PAQH/BAQDAgGGMDQGCCsGAQUFBwEBBCgwJjAkBggrBgEFBQcwAYYY\naHR0cDovL29jc3AuZGlnaWNlcnQuY29tMHsGA1UdHwR0MHIwN6A1oDOGMWh0dHA6\nLy9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RDQS5jcmwwN6A1\noDOGMWh0dHA6Ly9jcmw0LmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RD\nQS5jcmwwPQYDVR0gBDYwNDAyBgRVHSAAMCowKAYIKwYBBQUHAgEWHGh0dHBzOi8v\nd3d3LmRpZ2ljZXJ0LmNvbS9DUFMwHQYDVR0OBBYEFA+AYRyCMWHVLyjnjUY4tCzh\nxtniMB8GA1UdIwQYMBaAFAPeUDVW0Uy7ZvCj4hsbw5eyPdFVMA0GCSqGSIb3DQEB\nCwUAA4IBAQAjPt9L0jFCpbZ+QlwaRMxp0Wi0XUvgBCFsS+JtzLHgl4+mUwnNqipl\n5TlPHoOlblyYoiQm5vuh7ZPHLgLGTUq/sELfeNqzqPlt/yGFUzZgTHbO7Djc1lGA\n8MXW5dRNJ2Srm8c+cftIl7gzbckTB+6WohsYFfZcTEDts8Ls/3HB40f/1LkAtDdC\n2iDJ6m6K7hQGrn2iWZiIqBtvLfTyyRRfJs8sjX7tN8Cp1Tm5gr8ZDOo0rwAhaPit\nc+LJMto4JQtV05od8GiG7S5BNO98pVAdvzr508EIDObtHopYJeS4d60tbvVS3bR0\nj6tJLp07kzQoH3jOlOrHvdPJbRzeXDLz\n-----END CERTIFICATE-----\n"
+
+# The certificateId of the certificate "DigiCert SHA2 Secure Server CA" signed: valid 2020-06-10 to 2021-06-11.
+pub fn nist_chain1_secure_server_certificate_ids() -> List[Text]:
+    return ["a2898303d179a120f622e7df9da92bff3f41cecb9f174aedf0b9915728823e7cb180464cb3019f5ce9386c116ed26e53a39df17f0ca88f04e36d8c7470ecc3a4"]
+
+# NIST kept signing with its first chain 1 certificate after it expired (notAfter 2019-01-11T12:00Z): the
+# beacon stopped from 2018-12-26 to 2019-01-28 (pulses 220394 and 220395), then ran under the same certificate
+# until pulse 502024 (2019-08-16T14:11:00Z); pulse 502025 names the next one. These pulses are genuine and their
+# signatures verify, so for this one id the validity window is extended to that last pulse (unix seconds), and
+# no further. Every other id keeps the certificate's own notAfter. 0 means no extension.
+# nist_validity_end gives the last unix second a pulse under the id may carry.
+pub fn nist_validity_extension(certificate_id: Text) -> Int:
+    if certificate_id == "5501e3d72bc42f3b96e16de4dcadcb16768e109662bd16d667d5fd9aee585af31bbdc5dd4f53592276064b53dddd76c8f3604b2a41db6e09f78f82bb5d6569e7":
+        return 1565964660
+    return 0
+
+# True when the certificate (PEM) was signed by the key of the issuer certificate (PEM) and names it
+# as its issuer. One link only: no validity dates, no CA flag, no revocation. Err for text that is
+# not a certificate (E_CRYPTO_INPUT, E_X509) or a signature algorithm outside RSA PKCS#1 v1.5 / PSS
+# and ECDSA P-256 / P-384 with SHA-256, SHA-384 or SHA-512 (E_X509_ALG).
+pub fn nist_verify_certificate(certificate_pem: Text, issuer_pem: Text) -> Result[Bool, StdError]:
+    let certificate = crypto_pem_decode(certificate_pem)?
+    let issuer = crypto_pem_decode(issuer_pem)?
+    return crypto_x509_verify_issued_by(certificate, issuer)
+
+# The host name NIST's beacon certificate is for (its SubjectAltName), read from the live
+# certificate. nist_verify requires the certificate to name it.
+pub fn nist_beacon_host() -> Text:
+    return "engine.beacon.nist.gov"
+
+# The certificateId values (SHA-512 of the certificate's DER, lower-case hex) of the NIST beacon
+# certificates this package trusts: the ones for engine.beacon.nist.gov that the pinned issuer
+# signed. The same list is saved, with their validity dates, as fixtures/nist-certificate-ids.txt and a
+# test keeps the two equal; README.md says how to refresh it when NIST rotates its certificate.
+pub fn nist_known_certificate_ids() -> List[Text]:
+    return ["aa1e1ed43ed72a4a8e8535687074690c593adc683c122dbed16842acbfd697020ddb1c382bf06893b11836da1fc9df982ec34e4d9dc3c105a816950948a25005", "e692b0f6b208322ac84c963e167245f6356c21f31fa95274b25e92329510b5a210d5179afb6ee25e12dd9fc2691f49ed778d9a709aa3c2ea0f3ff2eaf8c47a62", "528943a555f5f8ca54423be6dfb95925a35c7b552046420e7d7cd072058a14d6536ad3a8e9754b6582f164a90b0cd86a65d659f5426a2659a947595d1c816c8c", "87f27f431da3f584af6007fe045df13aaa81d831f335b6ee73f6334768f32d3ae10491e669b93a43e548b20370a6526c3def99643c25d8ad7bf5df95a3c2b45d", "5b6386e6ac8a993bac8d99d6549deda44af82f2fa4a0e9c0025b6474ab0cbfcab67bfff264fda41aac003b0c9ee7fb77d2938dc0f286fb73cc8fa79864ec0c18"]
+
+fn list_has(items: List[Text], wanted: Text) -> Bool:
+    var index = 0
+    while index < len(items):
+        if items[index] == wanted:
+            return true
+        set index = index + 1
+    return false
+
+# `digits` characters of `text` from `start` as a number, or -1 when one is not a digit.
+fn digits_at(text: Text, start: Int, count: Int) -> Int:
+    var value = 0
+    var index = 0
+    while index < count:
+        let found = text_find("0123456789", text_slice(text, start + index, start + index + 1), 0)
+        if found < 0:
+            return -1
+        set value = value * 10 + found
+        set index = index + 1
+    return value
+
+# True when the `count` characters of `text` from `start` are all digits. Nothing is accumulated, so a
+# fraction of any length (a caller-supplied timeStamp) cannot reach the integer digit limit.
+fn all_digits(text: Text, start: Int, count: Int) -> Bool:
+    var index = 0
+    while index < count:
+        if text_find("0123456789", text_slice(text, start + index, start + index + 1), 0) < 0:
+            return false
+        set index = index + 1
+    return true
+
+fn is_leap_year(year: Int) -> Bool:
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+
+# Days in a month of a Gregorian year; month must be 1 to 12.
+fn days_in_month(year: Int, month: Int) -> Int:
+    if month == 2:
+        if is_leap_year(year):
+            return 29
+        return 28
+    if month == 4 or month == 6 or month == 9 or month == 11:
+        return 30
+    return 31
+
+# Days from 1970-01-01 to a civil date (proleptic Gregorian, year 1970 or later).
+fn days_from_civil(year: Int, month: Int, day: Int) -> Int:
+    var shifted = year
+    if month <= 2:
+        set shifted = year - 1
+    let era = shifted // 400
+    let year_of_era = shifted - era * 400
+    var month_index = month - 3
+    if month <= 2:
+        set month_index = month + 9
+    let day_of_year = (153 * month_index + 2) // 5 + day - 1
+    let day_of_era = year_of_era * 365 + year_of_era // 4 - year_of_era // 100 + day_of_year
+    return era * 146097 + day_of_era - 719468
+
+# A pulse's timeStamp ("2026-11-22T08:23:00.000Z": ISO 8601 UTC, optional fraction) as unix
+# seconds, fraction dropped. E_NIST_FORMAT for anything else.
+fn pulse_seconds(stamp: Text) -> Result[Int, StdError]:
+    let size = len(stamp)
+    let bad = nist_error("E_NIST_FORMAT", "the pulse's timeStamp is not an ISO 8601 UTC time")
+    if size < 20 or text_slice(stamp, size - 1, size) != "Z":
+        return Err(bad)
+    if text_slice(stamp, 4, 5) != "-" or text_slice(stamp, 7, 8) != "-" or text_slice(stamp, 10, 11) != "T":
+        return Err(bad)
+    if text_slice(stamp, 13, 14) != ":" or text_slice(stamp, 16, 17) != ":":
+        return Err(bad)
+    if size > 20:
+        if text_slice(stamp, 19, 20) != "." or size < 22:
+            return Err(bad)
+        if not all_digits(stamp, 20, size - 21):
+            return Err(bad)
+    let year = digits_at(stamp, 0, 4)
+    let month = digits_at(stamp, 5, 2)
+    let day = digits_at(stamp, 8, 2)
+    let hour = digits_at(stamp, 11, 2)
+    let minute = digits_at(stamp, 14, 2)
+    let second = digits_at(stamp, 17, 2)
+    if year < 1970 or month < 1 or month > 12 or day < 1 or day > days_in_month(year, month) or hour < 0 or hour > 23 or minute < 0 or minute > 59 or second < 0 or second > 59:
+        return Err(bad)
+    return Ok(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second)
+
+fn numbers_fit(pulse: NistPulse) -> Bool:
+    return fits(pulse.cipher_suite, 4) and fits(pulse.period, 4) and fits(pulse.external_status_code, 4) and fits(pulse.status_code, 4) and fits(pulse.chain_index, 8) and fits(pulse.pulse_index, 8)
+
+# nist_verify with the pins named instead of the package's own: `issuer_pem` is the issuer the
+# certificate must come from, `host` the name it must carry, `known_ids` the certificateId values
+# (lower-case hex) the pulse may name. Every check of nist_verify applies; Ok(true) needs all of them:
+#  1. certificateId is SHA-512 of the certificate's DER and is one of `known_ids`;
+#  2. the certificate was issued by `issuer_pem` (one link; algorithms as nist_verify_certificate);
+#  3. its SubjectAltName (its subject CN only when it has no SubjectAltName) includes `host`;
+#  4. the pulse's timeStamp lies within the certificate's notBefore and notAfter;
+#  5. the RSA PKCS#1 v1.5 / SHA-512 signature verifies under the certificate's key;
+#  6. outputValue is the hash of the serialization and signature.
+# Ok(false) when any of them fails. E_NIST_SUITE for a cipher suite other than 0, E_NIST_FORMAT for
+# a number the serialization cannot hold or a timeStamp that is not an ISO 8601 UTC time. This is how
+# the tests prove each check on its own with a certificate that satisfies the others.
+pub fn nist_verify_pinned(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text]) -> Result[Bool, StdError]:
+    return verify_core(pulse, certificate_pem, issuer_pem, host, known_ids, 0)
+
+fn nist_validity_end_with(not_after: Int, extension: Int) -> Int:
+    if extension > not_after:
+        return extension
+    return not_after
+
+pub fn nist_validity_end(certificate_id: Text, not_after: Int) -> Int:
+    return nist_validity_end_with(not_after, nist_validity_extension(certificate_id))
+
+# nist_verify_pinned with a validity extension: a pulse made after the certificate's notAfter but no later than
+# `extended_until` (unix seconds; 0 for none) still counts as within its validity. Only nist_verify's own pins use it.
+fn verify_core(pulse: NistPulse, certificate_pem: Text, issuer_pem: Text, host: Text, known_ids: List[Text], extended_until: Int) -> Result[Bool, StdError]:
+    if pulse.cipher_suite != 0:
+        return Err(nist_error("E_NIST_SUITE", f"cipher suite {pulse.cipher_suite} is not defined; only 0 is"))
+    if not numbers_fit(pulse):
+        return Err(nist_error("E_NIST_FORMAT", "a pulse number is out of range"))
+    let made = pulse_seconds(pulse.time_stamp)?
+    let der = crypto_pem_decode(certificate_pem)?
+    if crypto_sha512(der) != pulse.certificate_id:
+        return Ok(false)
+    if not list_has(known_ids, hex_encode(pulse.certificate_id)):
+        return Ok(false)
+    let issued = crypto_x509_verify_issued_by(der, crypto_pem_decode(issuer_pem)?)?
+    if not issued:
+        return Ok(false)
+    if not list_has(crypto_x509_dns_names(der)?, host):
+        return Ok(false)
+    let window = crypto_x509_validity(der)?
+    if made < window[0] or made > nist_validity_end_with(window[1], extended_until):
+        return Ok(false)
+    let key = crypto_x509_rsa_public_key(der)?
+    let signed = crypto_rsa_verify(key[0], key[1], nist_signed_bytes(pulse), pulse.signature, "pkcs1v15-sha512")?
+    if not signed:
+        return Ok(false)
+    return Ok(nist_output_value(pulse) == pulse.output_value)
+
+# Checks a pulse against the certificate PEM it names. Ok(true) only for NIST's own: the pulse names
+# a certificate this package pins (nist_known_certificate_ids, nist_legacy_certificate_ids,
+# nist_chain1_global_ca_g2_certificate_ids or nist_chain1_secure_server_certificate_ids), and the certificate
+# was issued by the one issuer paired with that list (nist_pinned_issuer_pem, nist_legacy_issuer_pem,
+# nist_chain1_global_ca_g2_issuer_pem or nist_chain1_secure_server_issuer_pem), never by another list's. It
+# names nist_beacon_host, the pulse's timeStamp lies within its validity (its notAfter, or for chain 1's first
+# certificate nist_validity_end, see nist_validity_extension), the RSA PKCS#1 v1.5 / SHA-512 signature
+# verifies under its key, and outputValue is the hash of the serialization and signature. Ok(false) on any
+# mismatch, including a certificate the paired issuer did not sign, one issued to another name, one that had
+# expired or not begun, or one NIST is not known to use.
+pub fn nist_verify(pulse: NistPulse, certificate_pem: Text) -> Result[Bool, StdError]:
+    # Each certificateId is paired with the one issuer that must have signed it: an id one list names is
+    # checked against that list's issuer only, every other id against the current issuer only, so no pinned
+    # issuer stands for another's certificates.
+    let id = hex_encode(pulse.certificate_id)
+    let extension = nist_validity_extension(id)
+    if list_has(nist_legacy_certificate_ids(), id):
+        return verify_core(pulse, certificate_pem, nist_legacy_issuer_pem(), nist_beacon_host(), nist_legacy_certificate_ids(), extension)
+    if list_has(nist_chain1_global_ca_g2_certificate_ids(), id):
+        return verify_core(pulse, certificate_pem, nist_chain1_global_ca_g2_issuer_pem(), nist_beacon_host(), nist_chain1_global_ca_g2_certificate_ids(), extension)
+    if list_has(nist_chain1_secure_server_certificate_ids(), id):
+        return verify_core(pulse, certificate_pem, nist_chain1_secure_server_issuer_pem(), nist_beacon_host(), nist_chain1_secure_server_certificate_ids(), extension)
+    return verify_core(pulse, certificate_pem, nist_pinned_issuer_pem(), nist_beacon_host(), nist_known_certificate_ids(), extension)
+
+# True when `current` is the pulse right after `previous` in the same chain, names it as its
+# previous, and previous's precommitmentValue is SHA-512 of current's localRandomValue. It does
+# not check either pulse's signature (nist_verify does).
+pub fn nist_verify_precommitment(previous: NistPulse, current: NistPulse) -> Result[Bool, StdError]:
+    if previous.chain_index != current.chain_index or previous.pulse_index + 1 != current.pulse_index:
+        return Ok(false)
+    if previous.output_value != current.previous:
+        return Ok(false)
+    return Ok(previous.precommitment_value == crypto_sha512(current.local_random_value))
+
+fn fetch_pulse(url: Text) -> Result[NistPulse, StdError]:
+    match http_get(url):
+        Err(failure):
+            return Err(nist_error("E_NIST_FETCH", f"{url}: {http_error_message(failure)}"))
+        Ok(body):
+            match json_parse(body):
+                Err(problem):
+                    return Err(nist_error("E_NIST_FETCH", f"{url} answered with text that is not JSON"))
+                Ok(value):
+                    return nist_pulse_from_json(value)
+
+# The newest pulse. Fetches only; check it with nist_verify.
+pub fn nist_fetch_last() -> Result[NistPulse, StdError]:
+    return fetch_pulse("https://beacon.nist.gov/beacon/2.0/pulse/last")
+
+# A pulse by chain and index (the live chain is 2; chain 1, 2018 to 2022, verifies too). Fetches only.
+pub fn nist_fetch(chain: Int, pulse: Int) -> Result[NistPulse, StdError]:
+    return fetch_pulse(f"https://beacon.nist.gov/beacon/2.0/chain/{chain}/pulse/{pulse}")
+
+# The PEM certificate a pulse names (certificateId). Fetches only; nist_verify checks that its hash
+# matches.
+pub fn nist_fetch_certificate(pulse: NistPulse) -> Result[Text, StdError]:
+    let url = f"https://beacon.nist.gov/beacon/2.0/certificate/{hex_encode(pulse.certificate_id)}"
+    match http_get(url):
+        Err(failure):
+            return Err(nist_error("E_NIST_FETCH", f"{url}: {http_error_message(failure)}"))
+        Ok(body):
+            return Ok(body)

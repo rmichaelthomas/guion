@@ -1,0 +1,75 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "src/lib.gu"
+
+# Live check, recorded to tapes/nist-live.tape: fetch NIST Beacon 2.0's newest pulse and its
+# certificate, verify the signature and output value, check the precommitment against the pulse
+# before it, verify five consecutive pulses, and verify a pulse pair across a UTC day boundary
+# (pulse 2038144 is 2026-11-21T23:59Z, 2038145 is 2026-11-22T00:00Z).
+#   guion run --allow-http-host beacon.nist.gov --record tapes/nist-live.tape live_nist.gu
+fn pulse_or_stop(result: Result[NistPulse, StdError]) -> NistPulse:
+    match result:
+        Ok(value):
+            return value
+        Err(problem):
+            print(f"fetch failed: {problem.code} {problem.message}")
+            return unwrap(nist_pulse_from_json(json_object()))
+
+fn report(label: Text, result: Result[Bool, StdError]) -> Bool:
+    match result:
+        Ok(value):
+            var verdict = "false"
+            if value:
+                set verdict = "true"
+            print(label + ": " + verdict)
+            return value
+        Err(problem):
+            print(f"{label}: error {problem.code} {problem.message}")
+            return false
+
+fn certificate_of(pulse: NistPulse) -> Text:
+    match nist_fetch_certificate(pulse):
+        Ok(pem):
+            return pem
+        Err(problem):
+            print(f"certificate fetch failed: {problem.code} {problem.message}")
+            return ""
+
+fn main() -> Int:
+    var good = 0
+    var total = 0
+    match nist_fetch_last():
+        Err(problem):
+            print(f"nist_fetch_last: {problem.code} {problem.message}")
+            return 1
+        Ok(last):
+            let pem = certificate_of(last)
+            set total = total + 1
+            if report("last pulse verifies", nist_verify(last, pem)):
+                set good = good + 1
+            var newer = last
+            var count = 0
+            while count < 5:
+                let older = pulse_or_stop(nist_fetch(last.chain_index, newer.pulse_index - 1))
+                set total = total + 2
+                if report(f"pulse -{count + 1} verifies", nist_verify(older, pem)):
+                    set good = good + 1
+                if report(f"pulse -{count + 1} precommitment", nist_verify_precommitment(older, newer)):
+                    set good = good + 1
+                set newer = older
+                set count = count + 1
+            let before = pulse_or_stop(nist_fetch(2, 2038144))
+            let after = pulse_or_stop(nist_fetch(2, 2038145))
+            set total = total + 3
+            if report("day boundary: 23:59 verifies", nist_verify(before, pem)):
+                set good = good + 1
+            if report("day boundary: 00:00 verifies", nist_verify(after, pem)):
+                set good = good + 1
+            if report("day boundary: precommitment", nist_verify_precommitment(before, after)):
+                set good = good + 1
+            print(f"{good}/{total} checks passed")
+            if good == total:
+                return 0
+            return 1

@@ -66,7 +66,7 @@ Task, host error, and live `NativeResource` runtime values are not transferable 
 | Artifact | 1 MiB |
 | Request JSON | 256 KiB |
 | Response JSON | 256 KiB |
-| Execution steps | 10,000 |
+| Execution steps | 10,000; up to 50,000,000 when the request sets `limits.allowRaisedSteps: true` |
 | Captured output | 64 KiB |
 | VM allocation | 16 MiB cumulative |
 | Live caller input buffers | 16 buffers / 2 MiB total |
@@ -75,6 +75,8 @@ Task, host error, and live `NativeResource` runtime values are not transferable 
 | Collection items | 4,096 |
 | Individual text/byte value | 64 KiB |
 | Integer digits | 4,096 |
+
+`limits.allowRaisedSteps` is an additive, explicit opt-in on ABI 1.0: without it (absent or `false`) a `steps` above 10,000 is `E_ABI_LIMIT` as before; with it, `steps` may be raised to the 50,000,000 hard ceiling and no further. It never raises the output, allocation or artifact ceilings. A module that predates it rejects the unknown field with `E_ABI_REQUEST`, so a page can fall back to the default budget.
 
 The effective VM ceilings are the minimum of caller request limits, module ceilings, and embedded artifact limits. The portable host denies filesystem, network, database, clock, process, and other unimplemented host operations. It does not inherit permissions from the native runtime.
 

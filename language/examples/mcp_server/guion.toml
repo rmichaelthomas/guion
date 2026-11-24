@@ -1,0 +1,12 @@
+[project]
+name = "mcp-server"
+version = "0.1.0"
+entry = "main.gu"
+
+[runtime]
+# A stdio tool stays up for as long as its client does, so the program-wide
+# budgets that suit a short script would stop it partway through a session.
+# Every request costs instructions and every reply counts against the output
+# limit; these allow several thousand calls in one process.
+instruction_limit = 100000000000
+output_limit_bytes = 1000000000

@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 pub fn regex_is_match(pattern: Text, text: Text) -> Result[Bool, StdError]:
     match native_regex_is_match(pattern, text):

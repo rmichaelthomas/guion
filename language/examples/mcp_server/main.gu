@@ -1,0 +1,164 @@
+import "std:io"
+import "std:json"
+
+# A Model Context Protocol server over stdio: one JSON-RPC 2.0 message per line.
+# Tools: `echo`, which returns its `text` argument.
+#
+# Try it: guion run language/examples/mcp_server
+
+fn ok_reply(id: Json, result: Json) -> Json:
+    var reply = json_object()
+    set reply = json_set(reply, "jsonrpc", json_text("2.0"))
+    set reply = json_set(reply, "id", id)
+    set reply = json_set(reply, "result", result)
+    return reply
+
+fn error_reply(id: Json, code: Int, message: Text) -> Json:
+    var problem = json_object()
+    set problem = json_set(problem, "code", json_int(code))
+    set problem = json_set(problem, "message", json_text(message))
+    var reply = json_object()
+    set reply = json_set(reply, "jsonrpc", json_text("2.0"))
+    set reply = json_set(reply, "id", id)
+    set reply = json_set(reply, "error", problem)
+    return reply
+
+# The protocol version the client asked for, the default when it named none, or Err when `params`
+# or `protocolVersion` has the wrong type.
+fn requested_version(request: Json) -> Result[Text, JsonError]:
+    match json_get_safe(request, "params"):
+        Ok(params):
+            match json_get_safe(params, "protocolVersion"):
+                Ok(version):
+                    return json_text_safe(version)
+                Err(problem):
+                    if json_error_code(problem) == "E_JSON_MISSING":
+                        return Ok("2024-11-05")
+                    return Err(problem)
+        Err(problem):
+            return Ok("2024-11-05")
+
+fn initialize_result(version: Text) -> Json:
+    var info = json_object()
+    set info = json_set(info, "name", json_text("guion-example"))
+    set info = json_set(info, "version", json_text("0.1.0"))
+    var capabilities = json_object()
+    set capabilities = json_set(capabilities, "tools", json_object())
+    var result = json_object()
+    set result = json_set(result, "protocolVersion", json_text(version))
+    set result = json_set(result, "capabilities", capabilities)
+    set result = json_set(result, "serverInfo", info)
+    return result
+
+fn tools_list_result() -> Json:
+    var text_property = json_object()
+    set text_property = json_set(text_property, "type", json_text("string"))
+    var properties = json_object()
+    set properties = json_set(properties, "text", text_property)
+    var required = json_array()
+    set required = json_push(required, json_text("text"))
+    var schema = json_object()
+    set schema = json_set(schema, "type", json_text("object"))
+    set schema = json_set(schema, "properties", properties)
+    set schema = json_set(schema, "required", required)
+    var tool = json_object()
+    set tool = json_set(tool, "name", json_text("echo"))
+    set tool = json_set(tool, "description", json_text("Return the text it is given."))
+    set tool = json_set(tool, "inputSchema", schema)
+    var tools = json_array()
+    set tools = json_push(tools, tool)
+    var result = json_object()
+    set result = json_set(result, "tools", tools)
+    return result
+
+fn echo_result(text: Text) -> Json:
+    var part = json_object()
+    set part = json_set(part, "type", json_text("text"))
+    set part = json_set(part, "text", json_text(text))
+    var content = json_array()
+    set content = json_push(content, part)
+    var result = json_object()
+    set result = json_set(result, "content", content)
+    return result
+
+# The `text` argument of a tools/call for `echo`, or None when the call is malformed or has a
+# field of the wrong type. The safe accessors report that as an Err instead of stopping the server.
+fn echo_argument(request: Json) -> Option[Text]:
+    match json_get_safe(request, "params"):
+        Ok(params):
+            match json_get_text_safe(params, "name"):
+                Ok(name):
+                    if name != "echo":
+                        return None
+                    match json_get_safe(params, "arguments"):
+                        Ok(arguments):
+                            match json_get_text_safe(arguments, "text"):
+                                Ok(text):
+                                    return Some(text)
+                                Err(problem):
+                                    return None
+                        Err(problem):
+                            return None
+                Err(problem):
+                    return None
+        Err(problem):
+            return None
+
+# The reply to one request that has an id.
+fn answer(id: Json, method: Text, request: Json) -> Json:
+    if method == "initialize":
+        match requested_version(request):
+            Ok(version):
+                return ok_reply(id, initialize_result(version))
+            Err(problem):
+                return error_reply(id, -32602, "Invalid params")
+    if method == "ping":
+        return ok_reply(id, json_object())
+    if method == "tools/list":
+        return ok_reply(id, tools_list_result())
+    if method == "tools/call":
+        match echo_argument(request):
+            Some(text):
+                return ok_reply(id, echo_result(text))
+            None:
+                return error_reply(id, -32602, "Unknown tool or bad arguments")
+    return error_reply(id, -32601, "Method not found")
+
+# One reply line per request; a notification (a request without an `id`) gets none.
+fn handle(request: Json) -> Option[Json]:
+    var id = json_null()
+    var noted = false
+    match json_get_safe(request, "id"):
+        Ok(found):
+            set id = found
+            set noted = true
+        Err(problem):
+            pass
+    match json_get_text_safe(request, "method"):
+        Ok(method):
+            if noted:
+                return Some(answer(id, method, request))
+            return None
+        Err(problem):
+            return Some(error_reply(id, -32600, "Invalid Request"))
+
+fn main() -> Int:
+    var going = true
+    while going:
+        match stdin_read_line():
+            Ok(next):
+                match next:
+                    Some(line):
+                        if len(line) > 0:
+                            match json_parse(line):
+                                Ok(request):
+                                    let answer = handle(request)
+                                    if is_some(answer):
+                                        print(json_stringify(unwrap(answer)))
+                                Err(problem):
+                                    print(json_stringify(error_reply(json_null(), -32700, "Parse error")))
+                    None:
+                        set going = false
+            Err(problem):
+                set going = false
+    return 0

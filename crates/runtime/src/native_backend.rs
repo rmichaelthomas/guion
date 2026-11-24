@@ -594,6 +594,7 @@ pub(crate) struct NativeSymbols {
     pub(crate) capture_vm_continuation_int2: *const u8,
     pub(crate) count_guest_branch: *const u8,
     pub(crate) loop_safepoint: *const u8,
+    pub(crate) flush_tick: *const u8,
 }
 
 #[repr(C)]
@@ -657,6 +658,10 @@ pub(crate) struct NativeBackend {
     count_guest_branch: Option<FuncId>,
     loop_safepoint: FuncId,
     loop_safepoint_functions: Vec<bool>,
+    flush_tick: FuncId,
+    /// Functions that print, or reach a print through calls: their loop backedges write out output
+    /// that has been held back too long.
+    flush_tick_functions: Vec<bool>,
     reaches_arena_allocation: Vec<bool>,
     arena_allocation_sites: Vec<Vec<bool>>,
     constant_handles: Vec<Vec<Option<i64>>>,
@@ -821,6 +826,7 @@ impl NativeBackend {
             builder.symbol("guion_count_guest_branch", symbols.count_guest_branch);
         }
         builder.symbol("guion_loop_safepoint", symbols.loop_safepoint);
+        builder.symbol("guion_flush_tick", symbols.flush_tick);
         let mut module = JITModule::new(builder);
         let pointer_type = module.target_config().pointer_type();
         if pointer_type != types::I64 {
@@ -1107,6 +1113,14 @@ impl NativeBackend {
         loop_safepoint_signature
             .returns
             .push(AbiParam::new(types::I32));
+        let mut flush_tick_signature = Signature::new(module.target_config().default_call_conv);
+        flush_tick_signature
+            .params
+            .push(AbiParam::new(pointer_type));
+        flush_tick_signature.returns.push(AbiParam::new(types::I32));
+        let flush_tick_id = module
+            .declare_function("guion_flush_tick", Linkage::Import, &flush_tick_signature)
+            .ok()?;
         let loop_safepoint_id = module
             .declare_function(
                 "guion_loop_safepoint",
@@ -1150,6 +1164,11 @@ impl NativeBackend {
             count_guest_branch: count_guest_branch_id,
             loop_safepoint: loop_safepoint_id,
             loop_safepoint_functions: loop_safepoint_functions(artifact),
+            flush_tick: flush_tick_id,
+            flush_tick_functions: functions_reaching_native_arena_allocations(
+                artifact,
+                &print_sites(artifact),
+            ),
             reaches_arena_allocation: functions_reaching_native_arena_allocations(
                 artifact,
                 &native_arena_allocation_sites(artifact),
@@ -1612,6 +1631,9 @@ impl NativeBackend {
         let loop_safepoint = self
             .module
             .declare_func_in_func(self.loop_safepoint, &mut context.func);
+        let flush_tick = self
+            .module
+            .declare_func_in_func(self.flush_tick, &mut context.func);
         let count_guest_branch = count_guest_branch.map(|function_id| {
             self.module
                 .declare_func_in_func(function_id, &mut context.func)
@@ -1801,6 +1823,27 @@ impl NativeBackend {
                         .brif(is_cancelled, cancelled, &exit_args, check_fuel, &[]);
                     builder.switch_to_block(check_fuel);
                     builder.seal_block(check_fuel);
+                }
+                // A backedge in a function that prints: lines held back for batching are written
+                // out once they are old enough, so a long loop cannot sit on a line.
+                if self.flush_tick_functions[index]
+                    && matches!(
+                        &instruction.op,
+                        Op::Jump(target) | Op::JumpIfFalse(target) if *target <= ip
+                    )
+                {
+                    let ticked = builder.ins().call(flush_tick, &[arena_pointer]);
+                    let ticked = builder.inst_results(ticked)[0];
+                    let zero = builder.ins().iconst(types::I32, 0);
+                    let succeeded = builder.ins().icmp(IntCC::NotEqual, ticked, zero);
+                    let exit_args =
+                        step_exit_args(&mut builder, steps_var, ip, block_instruction_offsets[ip]);
+                    let go_on = builder.create_block();
+                    builder
+                        .ins()
+                        .brif(succeeded, go_on, &[], fallback, &exit_args);
+                    builder.switch_to_block(go_on);
+                    builder.seal_block(go_on);
                 }
                 if let Some(required) = leader_indices[ip]
                     .map(|block_index| fuel_reservation_requirements[block_index])
@@ -6316,6 +6359,21 @@ fn native_arena_allocation_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
                             _ => false,
                         }
                 })
+                .collect()
+        })
+        .collect()
+}
+
+/// For each function, which instructions print.
+fn print_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
+    artifact
+        .functions
+        .iter()
+        .map(|function| {
+            function
+                .code
+                .iter()
+                .map(|instruction| matches!(instruction.op, Op::Print | Op::PrintErr))
                 .collect()
         })
         .collect()

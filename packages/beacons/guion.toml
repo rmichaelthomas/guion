@@ -1,0 +1,16 @@
+[package]
+name = "beacons"
+version = "0.3.0"
+entry = "src/lib.gu"
+exports = ["src/lib.gu", "src/multiformats.gu", "src/drand.gu", "src/twine.gu", "src/curby.gu", "src/nist.gu"]
+
+# Declared up front: the drand and CURBy/NIST beacons are fetched over HTTPS and `tlock_open` asks
+# the clock whether a round has come yet. A project that uses the package grants the same hosts and
+# the clock in its own guion.toml.
+[capabilities]
+network = ["api.drand.sh", "drand.cloudflare.com", "random.colorado.edu", "beacon.nist.gov"]
+clock = true
+
+# `guion test` reads the clock (tlock_open's too-early check). The tests make no network call.
+[clock]
+enabled = true

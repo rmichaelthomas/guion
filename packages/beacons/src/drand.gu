@@ -1,0 +1,160 @@
+import "std:types"
+import "std:crypto"
+import "std:encoding"
+import "std:json"
+import "std:text"
+
+# drand for beacons: the quicknet chain, fetching and checking rounds, round arithmetic, and
+# timelock encryption (the age `tlock` format, interoperable with drand's `tle` and tlock-js).
+#
+# Quicknet signs SHA-256(round as 8 big-endian bytes) with a BLS12-381 key (signature on G1, public
+# key on G2, domain tag BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_), and a round's randomness is
+# SHA-256 of its signature. drand_verify checks both.
+#
+# Needs the network grant for api.drand.sh and drand.cloudflare.com (drand_fetch, tlock_open) and the
+# clock grant (tlock_open). Everything else is pure.
+#
+# Error codes: E_DRAND_FETCH (both hosts failed or answered badly), E_DRAND_ROUND (a round is not the
+# one asked for), E_DRAND_VERIFY (a round's signature or randomness does not check), E_TLOCK_FORMAT
+# (not an age tlock file), E_TLOCK_CHAIN (sealed for another chain), E_TLOCK_TOO_EARLY (the round has
+# not happened yet; the message gives the round and its unix time), plus the codes crypto_tlock_*
+# and crypto_bls12381_verify_g1 give.
+
+pub record DrandChain:
+    hash: Text
+    public_key: Bytes
+    period: Int
+    genesis_time: Int
+    scheme: Text
+
+pub record DrandRound:
+    round: Int
+    randomness: Bytes
+    signature: Bytes
+
+pub fn drand_quicknet() -> DrandChain:
+    let key = unwrap(hex_decode("83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a"))
+    return DrandChain("52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971", key, 3, 1692803367, "bls-unchained-g1-rfc9380")
+
+pub fn drand_round_at(chain: DrandChain, unix_seconds: Int) -> Int:
+    if unix_seconds < chain.genesis_time:
+        return 1
+    return (unix_seconds - chain.genesis_time) // chain.period + 1
+
+pub fn drand_round_time(chain: DrandChain, round: Int) -> Int:
+    return chain.genesis_time + (round - 1) * chain.period
+
+fn drand_error(code: Text, message: Text) -> StdError:
+    return std_error(code, message)
+
+# The 8 big-endian bytes of a round, the input of its message hash.
+fn round_bytes(round: Int) -> Bytes:
+    var octets: List[Int] = []
+    var shift = 56
+    while shift >= 0:
+        set octets = list_push(octets, int_and(int_shift_right(round, shift), 255))
+        set shift = shift - 8
+    return bytes_from_ints(octets)
+
+fn round_message(round: Int) -> Bytes:
+    return crypto_sha256(round_bytes(round))
+
+fn quicknet_dst() -> Bytes:
+    return bytes_from_text("BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_")
+
+pub fn drand_verify(chain: DrandChain, value: DrandRound) -> Result[Bool, StdError]:
+    if value.round < 1 or value.round > 9223372036854775807:
+        return Err(drand_error("E_DRAND_ROUND", "a drand round is 1 to 2^63 - 1"))
+    let signed = crypto_bls12381_verify_g1(chain.public_key, round_message(value.round), value.signature, quicknet_dst())?
+    if not signed:
+        return Ok(false)
+    return Ok(crypto_sha256(value.signature) == value.randomness)
+
+fn hosts() -> List[Text]:
+    return ["api.drand.sh", "drand.cloudflare.com"]
+
+# Reads one public/<round> JSON body into a round, refusing a body for any other round. A body that
+# is not JSON or lacks round, randomness or signature is E_DRAND_FETCH, never a JSON error that ends
+# the program. The round is not checked; pass it to drand_verify.
+pub fn drand_parse_round(body: Text, round: Int) -> Result[DrandRound, StdError]:
+    var parsed = json_null()
+    match json_parse(body):
+        Ok(value):
+            set parsed = value
+        Err(problem):
+            return Err(drand_error("E_DRAND_FETCH", "drand answered with text that is not JSON"))
+    let got = json_get_int_safe(parsed, "round")
+    let randomness = json_get_text_safe(parsed, "randomness")
+    let signature = json_get_text_safe(parsed, "signature")
+    if not is_ok(got) or not is_ok(randomness) or not is_ok(signature):
+        return Err(drand_error("E_DRAND_FETCH", "drand's answer lacks round, randomness or signature"))
+    if unwrap(got) != round:
+        return Err(drand_error("E_DRAND_ROUND", f"asked drand for round {round} and got round {unwrap(got)}"))
+    let random_bytes = hex_decode(unwrap(randomness))
+    let signature_bytes = hex_decode(unwrap(signature))
+    if not is_ok(random_bytes) or not is_ok(signature_bytes):
+        return Err(drand_error("E_DRAND_FETCH", "drand's randomness or signature is not hex"))
+    return Ok(DrandRound(round, unwrap(random_bytes), unwrap(signature_bytes)))
+
+# Fetches one round from api.drand.sh, then from drand.cloudflare.com if that fails. The round is
+# not checked here; pass it to drand_verify. The error carries what each host said.
+pub fn drand_fetch(chain: DrandChain, round: Int) -> Result[DrandRound, StdError]:
+    var trail = ""
+    var index = 0
+    let names = hosts()
+    while index < len(names):
+        let url = f"https://{names[index]}/{chain.hash}/public/{round}"
+        match http_get(url):
+            Ok(body):
+                match drand_parse_round(body, round):
+                    Ok(value):
+                        return Ok(value)
+                    Err(problem):
+                        set trail = trail + f"{names[index]}: {problem.message}; "
+            Err(failure):
+                set trail = trail + f"{names[index]}: {http_error_message(failure)}; "
+        set index = index + 1
+    return Err(drand_error("E_DRAND_FETCH", "no drand host gave round " + int_to_text(round) + ": " + trail))
+
+# Seals plaintext so only round `round`'s signature opens it. Rounds before 1 do not exist.
+pub fn tlock_seal(chain: DrandChain, round: Int, plaintext: Bytes) -> Result[Text, StdError]:
+    if round < 1:
+        return Err(drand_error("E_DRAND_ROUND", "drand rounds start at 1"))
+    let hash = hex_decode(chain.hash)?
+    return crypto_tlock_encrypt(round, hash, chain.public_key, plaintext)
+
+pub fn tlock_armor_round(armored: Text) -> Result[Int, StdError]:
+    return crypto_tlock_round(armored)
+
+# The chain hash (lower-case hex) in the file's tlock stanza, read by `crypto_tlock_chain_hash`. The
+# header is not authenticated; a file whose chain is edited fails to decrypt anyway.
+pub fn tlock_armor_chain(armored: Text) -> Result[Text, StdError]:
+    return Ok(hex_encode(crypto_tlock_chain_hash(armored)?))
+
+# Opens `armored` with an already-fetched round value. It refuses a file sealed for another chain
+# (E_TLOCK_CHAIN), a value for another round (E_DRAND_ROUND) and one that does not verify
+# (E_DRAND_VERIFY) before it decrypts.
+pub fn tlock_open_with(chain: DrandChain, armored: Text, value: DrandRound) -> Result[Bytes, StdError]:
+    let sealed_round = crypto_tlock_round(armored)?
+    let sealed_chain = tlock_armor_chain(armored)?
+    if sealed_chain != chain.hash:
+        return Err(drand_error("E_TLOCK_CHAIN", f"the file is sealed for chain {sealed_chain}, not {chain.hash}"))
+    if value.round != sealed_round:
+        return Err(drand_error("E_DRAND_ROUND", f"the file opens at round {sealed_round}, not round {value.round}"))
+    let ok = drand_verify(chain, value)?
+    if not ok:
+        return Err(drand_error("E_DRAND_VERIFY", f"round {value.round} does not verify against the chain key"))
+    return crypto_tlock_decrypt(armored, value.signature)
+
+# Opens `armored` once its round has come: reads the round, refuses another chain, refuses a round
+# in the future (E_TLOCK_TOO_EARLY), fetches the round, checks it and decrypts.
+pub fn tlock_open(chain: DrandChain, armored: Text) -> Result[Bytes, StdError]:
+    let round = crypto_tlock_round(armored)?
+    let sealed_chain = tlock_armor_chain(armored)?
+    if sealed_chain != chain.hash:
+        return Err(drand_error("E_TLOCK_CHAIN", f"the file is sealed for chain {sealed_chain}, not {chain.hash}"))
+    let opens_at = drand_round_time(chain, round)
+    if opens_at > unix_time_ms() // 1000:
+        return Err(drand_error("E_TLOCK_TOO_EARLY", f"round {round} comes at unix time {opens_at}"))
+    let value = drand_fetch(chain, round)?
+    return tlock_open_with(chain, armored, value)

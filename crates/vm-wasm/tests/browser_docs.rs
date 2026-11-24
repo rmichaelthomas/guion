@@ -36,6 +36,10 @@ fn constants() -> Vec<(&'static str, usize)> {
         ("MAX_REQUEST_BYTES", MAX_REQUEST_BYTES),
         ("MAX_RESPONSE_BYTES", MAX_RESPONSE_BYTES),
         ("MAX_BROWSER_STEPS", MAX_BROWSER_STEPS as usize),
+        (
+            "MAX_RAISED_BROWSER_STEPS",
+            MAX_RAISED_BROWSER_STEPS as usize,
+        ),
         ("MAX_OUTPUT_BYTES", MAX_OUTPUT_BYTES),
         ("MAX_ERROR_BYTES", MAX_ERROR_BYTES),
         ("MAX_BROWSER_ALLOCATION_BYTES", MAX_BROWSER_ALLOCATION_BYTES),

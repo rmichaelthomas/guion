@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 pub record TcpConn:
     handle: Int

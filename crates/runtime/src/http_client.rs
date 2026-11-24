@@ -119,6 +119,94 @@ pub(crate) fn request_headers(
     Ok(result)
 }
 
+/// The client advertises no `Accept-Encoding`, yet some hosts answer with `Content-Encoding: zstd`
+/// anyway (their cache stores the compressed copy). A response in that one encoding is decoded here,
+/// so the program sees the body the host meant. The decoded size is held to the same response limit
+/// as the wire size, so a small frame cannot expand past it. Every concatenated frame is decoded (skippable frames are skipped) and the limit covers their total; bytes after the last frame are `R_HTTP_ENCODING`. A frame that carries a content checksum is verified against it (mismatch is `R_HTTP_ENCODING`). `content-encoding` and `content-length`
+/// are dropped from the headers because they no longer describe the body.
+fn decode_content_encoding(
+    mut headers: BTreeMap<String, String>,
+    body: Vec<u8>,
+    limit: usize,
+) -> Result<(BTreeMap<String, String>, Vec<u8>), HttpErrorValue> {
+    let is_zstd = headers
+        .get("content-encoding")
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("zstd"));
+    if !is_zstd {
+        return Ok((headers, body));
+    }
+    let encoding_error = || {
+        http_error(
+            "R_HTTP_ENCODING",
+            "HTTP response body is not valid zstd data",
+        )
+    };
+    // A body is one or more concatenated frames (RFC 8878 section 3.1), possibly with skippable frames
+    // in between; every frame is decoded, the limit applies to the total, and anything after the last
+    // frame that is not a frame is the same decode error as a corrupt frame.
+    use std::io::Read as _;
+    let mut rest: &[u8] = body.as_slice();
+    let mut decoded = Vec::new();
+    let mut frames = 0usize;
+    while !rest.is_empty() || frames == 0 {
+        if let Some(after) = skip_skippable_frame(rest).map_err(|_| encoding_error())? {
+            rest = after;
+            continue;
+        }
+        let mut decoder =
+            ruzstd::decoding::StreamingDecoder::new(rest).map_err(|_| encoding_error())?;
+        // Read one byte past the limit so an over-limit body is told apart from one that fits exactly.
+        let room = (limit as u64)
+            .saturating_add(1)
+            .saturating_sub(decoded.len() as u64);
+        (&mut decoder)
+            .take(room)
+            .read_to_end(&mut decoded)
+            .map_err(|_| encoding_error())?;
+        if decoded.len() > limit {
+            return Err(http_error(
+                "R_HTTP_LIMIT",
+                "HTTP response exceeds the configured byte limit",
+            ));
+        }
+        // The decoder reads the frame's content checksum but does not compare it. The frame has been
+        // read to its end here (the output fit the limit), so the checksum calculated while decoding
+        // and the one the frame carries are both final. A frame without a checksum has nothing to
+        // compare.
+        let (remaining, frame) = decoder.into_parts();
+        if let Some(expected) = frame.get_checksum_from_data() {
+            if frame.get_calculated_checksum() != Some(expected) {
+                return Err(http_error(
+                    "R_HTTP_ENCODING",
+                    "HTTP response body failed the zstd content checksum",
+                ));
+            }
+        }
+        rest = remaining;
+        frames += 1;
+    }
+    headers.remove("content-encoding");
+    headers.remove("content-length");
+    Ok((headers, decoded))
+}
+
+/// When `data` starts with a skippable zstd frame (magic 0x184D2A50 to 0x184D2A5F, little endian, then a
+/// 4-byte size and that many bytes), the bytes after it. `Ok(None)` when it starts with anything else;
+/// an error for a skippable frame cut short.
+fn skip_skippable_frame(data: &[u8]) -> Result<Option<&[u8]>, ()> {
+    let Some(magic) = data.get(..4) else {
+        return Ok(None);
+    };
+    let magic = u32::from_le_bytes([magic[0], magic[1], magic[2], magic[3]]);
+    if magic & 0xFFFF_FFF0 != 0x184D_2A50 {
+        return Ok(None);
+    }
+    let size = data.get(4..8).ok_or(())?;
+    let size = u32::from_le_bytes([size[0], size[1], size[2], size[3]]) as usize;
+    let end = 8usize.checked_add(size).ok_or(())?;
+    data.get(end..).map(Some).ok_or(())
+}
+
 async fn execute_http_bytes(
     client: &reqwest::Client,
     policy: &HostPolicy,
@@ -273,6 +361,8 @@ async fn execute_http_bytes(
             }
             bytes.extend_from_slice(&chunk);
         }
+        let (response_headers, bytes) =
+            decode_content_encoding(response_headers, bytes, policy.max_http_response_bytes)?;
         return Ok(HttpBytesResponse {
             status: status.as_u16(),
             headers: response_headers,

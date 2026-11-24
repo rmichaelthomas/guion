@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 pub fn sqlite_open(path: Text) -> Result[Db, StdError]:
     return native_sqlite_open(path)

@@ -878,3 +878,156 @@ fn http_response_json_observes_configured_text_limit() {
         Value::Text("HTTP response exceeds the configured text byte limit".into())
     );
 }
+
+fn serve_raw_once(response: Vec<u8>) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request);
+        stream.write_all(&response).unwrap();
+    });
+    format!("http://{address}/zstd")
+}
+
+/// A zstd frame holding `hello` as one raw block (single segment, content size 5).
+const ZSTD_HELLO: [u8; 14] = [
+    0x28, 0xB5, 0x2F, 0xFD, 0x20, 0x05, 0x29, 0x00, 0x00, b'h', b'e', b'l', b'l', b'o',
+];
+
+fn zstd_response(frame: &[u8]) -> Vec<u8> {
+    let mut response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Encoding: zstd\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        frame.len()
+    )
+    .into_bytes();
+    response.extend_from_slice(frame);
+    response
+}
+
+fn fetch_text_with_cap(url: &str, cap: usize) -> Value {
+    let source = format!(
+        "fn response() -> Result[Text, HttpError]:\n    return http_get({url:?})\n\nfn main() -> Int:\n    return 0\n"
+    );
+    let artifact = compile("http-zstd.gu", &source).unwrap();
+    let policy =
+        HostPolicy::default().with_network_hosts(["127.0.0.1"], Duration::from_secs(2), cap);
+    let mut instance = Runtime::new().load(artifact, policy).unwrap();
+    instance.invoke("response", vec![]).unwrap()
+}
+
+#[test]
+fn http_get_decodes_a_zstd_response_the_server_sent_unasked() {
+    let url = serve_raw_once(zstd_response(&ZSTD_HELLO));
+    assert_eq!(
+        fetch_text_with_cap(&url, 64),
+        Value::ResultOk(Box::new(Value::Text("hello".into())))
+    );
+}
+
+#[test]
+fn zstd_decoding_is_bounded_by_the_response_byte_limit() {
+    let url = serve_raw_once(zstd_response(&ZSTD_HELLO));
+    let error = fetch_text_with_cap(&url, 4);
+    assert!(format!("{error:?}").contains("R_HTTP_LIMIT"), "{error:?}");
+}
+
+#[test]
+fn a_corrupt_zstd_body_is_a_typed_error_not_a_panic() {
+    let url = serve_raw_once(zstd_response(&[0x28, 0xB5, 0x2F, 0xFD, 0x20, 0x05, 0xFF]));
+    let error = fetch_text_with_cap(&url, 64);
+    assert!(
+        format!("{error:?}").contains("R_HTTP_ENCODING"),
+        "{error:?}"
+    );
+}
+
+/// The same frame with the content-checksum flag set and the checksum (low 32 bits of XXH64) appended.
+fn zstd_hello_with_checksum(checksum: [u8; 4]) -> Vec<u8> {
+    let mut frame = vec![
+        0x28, 0xB5, 0x2F, 0xFD, 0x24, 0x05, 0x29, 0x00, 0x00, b'h', b'e', b'l', b'l', b'o',
+    ];
+    frame.extend_from_slice(&checksum);
+    frame
+}
+
+#[test]
+fn a_zstd_frame_with_a_correct_content_checksum_decodes() {
+    let url = serve_raw_once(zstd_response(&zstd_hello_with_checksum([
+        0xA3, 0x6D, 0x9F, 0x88,
+    ])));
+    assert_eq!(
+        fetch_text_with_cap(&url, 64),
+        Value::ResultOk(Box::new(Value::Text("hello".into())))
+    );
+}
+
+#[test]
+fn a_zstd_frame_with_a_corrupted_content_checksum_is_an_encoding_error() {
+    let url = serve_raw_once(zstd_response(&zstd_hello_with_checksum([
+        0xA3, 0x6D, 0x9F, 0x89,
+    ])));
+    let error = fetch_text_with_cap(&url, 64);
+    assert!(
+        format!("{error:?}").contains("R_HTTP_ENCODING"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn a_zstd_body_of_several_frames_decodes_every_frame() {
+    // hello, a skippable frame (magic 0x184D2A50, 3 bytes of data), then hello again.
+    let mut body = ZSTD_HELLO.to_vec();
+    body.extend_from_slice(&[0x50, 0x2A, 0x4D, 0x18, 0x03, 0x00, 0x00, 0x00, 1, 2, 3]);
+    body.extend_from_slice(&ZSTD_HELLO);
+    let url = serve_raw_once(zstd_response(&body));
+    assert_eq!(
+        fetch_text_with_cap(&url, 64),
+        Value::ResultOk(Box::new(Value::Text("hellohello".into())))
+    );
+}
+
+/// A frame holding 100 `a` bytes as one RLE block: 10 bytes on the wire.
+const ZSTD_100_A: [u8; 10] = [0x28, 0xB5, 0x2F, 0xFD, 0x20, 0x64, 0x23, 0x03, 0x00, b'a'];
+
+#[test]
+fn the_response_limit_covers_all_zstd_frames_together() {
+    let mut body = ZSTD_100_A.to_vec();
+    body.extend_from_slice(&ZSTD_100_A);
+    // 20 bytes on the wire, 200 decoded: each frame alone is under the limit, the total is not.
+    let url = serve_raw_once(zstd_response(&body));
+    assert_eq!(
+        fetch_text_with_cap(&url, 200),
+        Value::ResultOk(Box::new(Value::Text("a".repeat(200).as_str().into())))
+    );
+    let url = serve_raw_once(zstd_response(&body));
+    let error = fetch_text_with_cap(&url, 199);
+    assert!(format!("{error:?}").contains("R_HTTP_LIMIT"), "{error:?}");
+}
+
+#[test]
+fn trailing_bytes_after_the_last_zstd_frame_are_an_encoding_error() {
+    for tail in [&[0u8][..], b"junk", &[0x28, 0xB5, 0x2F][..]] {
+        let mut body = ZSTD_HELLO.to_vec();
+        body.extend_from_slice(tail);
+        let url = serve_raw_once(zstd_response(&body));
+        let error = fetch_text_with_cap(&url, 64);
+        assert!(
+            format!("{error:?}").contains("R_HTTP_ENCODING"),
+            "{tail:?}: {error:?}"
+        );
+    }
+}
+
+#[test]
+fn a_truncated_skippable_zstd_frame_is_an_encoding_error() {
+    let mut body = ZSTD_HELLO.to_vec();
+    body.extend_from_slice(&[0x50, 0x2A, 0x4D, 0x18, 0x09, 0x00, 0x00, 0x00, 1]);
+    let url = serve_raw_once(zstd_response(&body));
+    let error = fetch_text_with_cap(&url, 64);
+    assert!(
+        format!("{error:?}").contains("R_HTTP_ENCODING"),
+        "{error:?}"
+    );
+}

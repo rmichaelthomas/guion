@@ -155,6 +155,9 @@ impl TaskParts {
             policy,
             output: String::new(),
             program_stderr: String::new(),
+            streamed_bytes: 0,
+            replay_skip_stdout: Default::default(),
+            replay_skip_stderr: Default::default(),
             closed: false,
             worker_threads: HashSet::new(),
             cancelled: Some(cancelled),
@@ -266,7 +269,8 @@ impl Instance {
             native_deoptimizations: self.native_deoptimizations.clone(),
             native_deoptimization_sites: self.native_deoptimization_sites.clone(),
             native_compilations: self.native_compilations.clone(),
-            policy: self.policy.clone(),
+            // A task keeps its output for the parent to merge when it is waited for.
+            policy: self.policy.clone().with_streaming_output(false),
             http: self.http.clone(),
             sockets: self.sockets.share(),
             channels: Arc::clone(&self.channels),
@@ -364,7 +368,7 @@ impl Instance {
                         let _ = handle.join();
                     }
                     self.worker_threads.insert(report.thread_id);
-                    if self.output.len().saturating_add(report.output.len())
+                    if self.stdout_bytes().saturating_add(report.output.len())
                         > self.policy.output_limit_bytes
                     {
                         return Err(RuntimeError::new(
@@ -373,7 +377,7 @@ impl Instance {
                             span,
                         ));
                     }
-                    self.output.push_str(&report.output);
+                    self.append_stdout(&report.output)?;
                     let slot = &mut self.together.tasks[index];
                     slot.outcome = Some(match report.result {
                         Ok(value) => Outcome::Value(value),

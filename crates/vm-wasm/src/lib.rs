@@ -21,6 +21,9 @@ pub const MAX_ARTIFACT_BYTES: usize = 1024 * 1024;
 pub const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 pub const MAX_ERROR_BYTES: usize = 1024;
 pub const MAX_BROWSER_STEPS: u32 = 10_000;
+/// The hard ceiling on a run's steps when the request opts in with `limits.allowRaisedSteps`.
+/// Without that flag the ceiling stays [`MAX_BROWSER_STEPS`].
+pub const MAX_RAISED_BROWSER_STEPS: u32 = 50_000_000;
 pub const MAX_REQUEST_BYTES: usize = 256 * 1024;
 pub const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 pub const MAX_WIRE_DEPTH: usize = 64;
@@ -349,6 +352,10 @@ struct WireRequest {
 struct WireLimits {
     steps: Option<u32>,
     output_bytes: Option<u32>,
+    /// Explicit opt-in that lets `steps` rise above `MAX_BROWSER_STEPS`, up to
+    /// `MAX_RAISED_BROWSER_STEPS`. Absent or false keeps the default ceiling.
+    #[serde(default)]
+    allow_raised_steps: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -526,10 +533,21 @@ fn execute_typed(artifact_bytes: &[u8], request_json: &[u8]) -> Result<WireRespo
         .and_then(|limits| limits.output_bytes)
         .map(|bytes| bytes as usize)
         .unwrap_or(MAX_OUTPUT_BYTES);
-    if requested_steps > MAX_BROWSER_STEPS || requested_output > MAX_OUTPUT_BYTES {
+    let step_ceiling = if request
+        .limits
+        .as_ref()
+        .is_some_and(|limits| limits.allow_raised_steps)
+    {
+        MAX_RAISED_BROWSER_STEPS
+    } else {
+        MAX_BROWSER_STEPS
+    };
+    if requested_steps > step_ceiling || requested_output > MAX_OUTPUT_BYTES {
         return Err(AbiFailure::new(
             "E_ABI_LIMIT",
-            "requested limits exceed this module's browser ceilings",
+            format!(
+                "requested limits exceed this module's browser ceilings ({step_ceiling} steps, {MAX_OUTPUT_BYTES} output bytes)"
+            ),
         ));
     }
 

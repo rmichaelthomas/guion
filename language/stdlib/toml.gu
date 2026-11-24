@@ -1,4 +1,5 @@
 import "std:types"
+pub import "std:http_types"
 
 pub fn toml_parse(source: Text) -> Result[TomlDocument, StdError]:
     return native_toml_parse(source)

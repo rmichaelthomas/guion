@@ -45,7 +45,7 @@ The request:
 }
 ```
 
-`entry` names a function of the artifact (1 to 128 bytes); it does not have to be `main`. `arguments` are typed, tagged values: `Int` is a decimal string, `Float64` is 16 hexadecimal digits of IEEE-754 bits, `Bytes` is base64, and records, lists, maps, options, results and `Json` have their own tagged forms (see the SPEC). `capabilities` must be an empty array. `limits` is optional and may only lower the module's ceilings. Unknown request fields are rejected.
+`entry` names a function of the artifact (1 to 128 bytes); it does not have to be `main`. `arguments` are typed, tagged values: `Int` is a decimal string, `Float64` is 16 hexadecimal digits of IEEE-754 bits, `Bytes` is base64, and records, lists, maps, options, results and `Json` have their own tagged forms (see the SPEC). `capabilities` must be an empty array. `limits` is optional and may only lower the module's ceilings, with one explicit exception for the step budget (see "Raising the step budget"). Unknown request fields are rejected.
 
 A success response:
 
@@ -69,7 +69,8 @@ The effective limit of a run is the lowest of the request's `limits`, the module
 | Artifact (`.gub`) size; also the largest single input buffer | `MAX_ARTIFACT_BYTES` | 1,048,576 bytes | `E_ABI_LIMIT` |
 | Request JSON | `MAX_REQUEST_BYTES` | 262,144 bytes | `E_ABI_LIMIT` |
 | Response JSON | `MAX_RESPONSE_BYTES` | 262,144 bytes | `E_ABI_LIMIT` |
-| Execution steps (a request may lower this, never raise it) | `MAX_BROWSER_STEPS` | 10,000 steps | `E_ABI_LIMIT` for a request above it, `R_STEP_LIMIT` when a run reaches it |
+| Execution steps (a request may lower this; raising it takes the option below) | `MAX_BROWSER_STEPS` | 10,000 steps | `E_ABI_LIMIT` for a request above it, `R_STEP_LIMIT` when a run reaches it |
+| Execution steps with `limits.allowRaisedSteps` (the hard ceiling; a request must opt in) | `MAX_RAISED_BROWSER_STEPS` | 50,000,000 steps | `E_ABI_LIMIT` for a request above it, `R_STEP_LIMIT` when a run reaches it |
 | Captured output (a request may lower this, never raise it) | `MAX_OUTPUT_BYTES` | 65,536 bytes | `E_ABI_LIMIT` for a request above it, `R_OUTPUT_LIMIT` when a run reaches it |
 | Error text kept by the legacy getters | `MAX_ERROR_BYTES` | 1,024 bytes | none; the text is cut at a character boundary |
 | VM allocation per run | `MAX_BROWSER_ALLOCATION_BYTES` | 16,777,216 bytes | `R_ALLOCATION_LIMIT` |
@@ -83,9 +84,36 @@ The effective limit of a run is the lowest of the request's `limits`, the module
 
 <!-- browser-limits:end -->
 
+## Raising the step budget
+
+The default ceiling is `MAX_BROWSER_STEPS` (10,000 steps), and a request cannot go above it by default. A page that runs a bigger program, such as checking a beacon receipt, opts in per run:
+
+```json
+"limits": {"steps": 100000, "allowRaisedSteps": true}
+```
+
+With `allowRaisedSteps: true` the request's `steps` may be up to `MAX_RAISED_BROWSER_STEPS` (50,000,000), a hard ceiling that the option never moves. Without the option, or with `false`, a `steps` above 10,000 is `E_ABI_LIMIT` exactly as before, and a run that reaches its budget stops with `R_STEP_LIMIT`. The option leaves every other ceiling alone: output, allocation, artifact size (1 MiB) and the request size are unchanged. It is an additive request field on ABI 1.0; a module built before it rejects the unknown field with `E_ABI_REQUEST`, and the page can retry with the default budget. Choose `steps` as the program's measured cost with headroom, not the ceiling.
+
+## Beacon cryptography and JSON in the browser
+
+The pure cryptography of `std:crypto` and `std:encoding` runs in the browser VM, on the same code as the native runtime, with the same results and error codes (a test runs one set of vectors through both and compares them). Computation needs no grant, and nothing is fetched: a page passes recorded data in as program input (typed `Text` and `Bytes` arguments).
+
+| Available in the browser | Functions |
+|---|---|
+| Hashes | `crypto_sha256`, `crypto_sha512`, `crypto_sha3_512`, `crypto_sha1` |
+| Signatures and certificates | `crypto_rsa_verify` (PKCS#1 v1.5 and PSS), `crypto_ecdsa_p256_verify`, `crypto_bls12381_verify_g1`, `crypto_x509_rsa_public_key`, `crypto_x509_verify_issued_by`, `crypto_pem_decode` |
+| Timelock (drand tlock, age format) | `crypto_tlock_decrypt`, `crypto_tlock_round`, `crypto_tlock_chain_hash`, `crypto_x509_dns_names`, `crypto_x509_validity`, and encryption through `native_crypto_tlock_encrypt` when the caller supplies the 48 bytes of randomness |
+| Encoding | `dagcbor_encode`, `hex_encode`/`hex_decode`, `base64_*`, `bytes_xor_key` |
+| Bit operations | `int_and`, `int_or`, `int_xor`, `int_shift_left`, `int_shift_right` (64-bit; `R_INTEGER_RANGE` and `R_SHIFT_RANGE` as natively) |
+| JSON | `json_parse`, `json_stringify`, `json_get`, `json_index`, `json_has`, `json_len`, `json_set`, `json_push`, the `json_as_*` and `json_try_*` accessors and the JSON constructors, with native limits and error codes |
+
+Not available, and failing with `R_HOST_UNSUPPORTED` when reached: **HMAC** (`crypto_hmac_sha256`, `crypto_verify_hmac_sha256`) and **random bytes** (`crypto_random_bytes`, `crypto_random_hex`, `crypto_random_base64url`) stay native-only. The wrapper `crypto_tlock_encrypt` draws its randomness with `crypto_random_bytes`, so it is not available in the browser; `crypto_tlock_decrypt` is. A page that must seal a file supplies randomness itself (from `crypto.getRandomValues`) to `native_crypto_tlock_encrypt(round, chain_hash, public_key, plaintext, randomness)`. The column and projection instructions of the JSON data library (`json_int_column`, `json_project_columns` and their kin) and `json_stringify_pairs` also remain native-only.
+
+The beacon package (`packages/beacons`: drand, tlock, Twine/CURBy and NIST) checks a recorded receipt in the browser. One program that verifies a drand round, opens a tlock file, verifies a CURBy-Q pulse and verifies two NIST pulses with their precommitment chain, all from embedded data, was measured at **167,349 bytes** of artifact (limit 1 MiB) and **34,008 steps** (default budget 10,000), so it runs with `allowRaisedSteps` and a budget of 100,000 steps. `cargo test -p guion-vm-wasm --test crypto` runs it and records both numbers.
+
 ## Capabilities: none
 
-ABI 1.0 grants no capabilities. `capabilities` must be `[]`; any other value returns `E_CAPABILITY_UNSUPPORTED` before the artifact runs. The browser VM runs the same instruction loop as the native runtime, but it has no host behind it. Computation, calls, records, lists, maps, text and `print` to standard output work. An operation that needs the host fails when it is reached with `R_HOST_UNSUPPORTED`, and the message names the operation (for example `host operation `ReadText` is not available in this environment`). The five classes of host operation that are always unavailable are:
+ABI 1.0 grants no capabilities. `capabilities` must be `[]`; any other value returns `E_CAPABILITY_UNSUPPORTED` before the artifact runs. The browser VM runs the same instruction loop as the native runtime, but it has no host behind it. Computation, calls, records, lists, maps, text, JSON, the beacon cryptography below and `print` to standard output work. An operation that needs the host fails when it is reached with `R_HOST_UNSUPPORTED`, and the message names the operation (for example `host operation `ReadText` is not available in this environment`). The five classes of host operation that are always unavailable are:
 
 1. filesystem (`read_text`, `fs_*`, file readers and writers)
 2. network (HTTP, sockets, TLS)
