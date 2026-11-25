@@ -13,8 +13,9 @@ async function instantiate(bytes) {
   return instance.exports;
 }
 
+/** Pass `null` for `compilerBytes` to load only the VM, for a page that runs a prebuilt artifact and never compiles. */
 export async function loadModules(compilerBytes, vmBytes) {
-  const [compiler, vm] = await Promise.all([instantiate(compilerBytes), instantiate(vmBytes)]);
+  const [compiler, vm] = await Promise.all([compilerBytes === null ? null : instantiate(compilerBytes), instantiate(vmBytes)]);
   if (typeof vm.guion_wasm_abi_version !== 'function' || vm.guion_wasm_abi_version() >>> 16 !== 1) {
     throw new Error('This page needs Guion browser ABI 1.x');
   }
