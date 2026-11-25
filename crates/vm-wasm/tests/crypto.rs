@@ -1120,3 +1120,30 @@ fn browser_text_case_matches_native() {
     assert_eq!(native(&artifact, "transcript"), expected, "native");
     assert_eq!(browser(&artifact, "transcript"), expected, "browser");
 }
+
+const KEYS_PROGRAM: &str = "import \"std:json\"
+import \"std:text\"
+import \"std:types\"
+
+fn keys_of(text: Text) -> Text:
+    match json_keys(unwrap(json_parse(text))):
+        Ok(keys):
+            return \"[\" + text_join(keys, \"|\") + \"]\"
+        Err(problem):
+            return json_error_code(problem)
+
+fn transcript() -> Text:
+    return keys_of(\"{\\\"b\\\":1,\\\"a\\\":{\\\"z\\\":2}}\") + keys_of(\"{}\") + keys_of(\"[1]\")
+
+fn main() -> Int:
+    return 0
+";
+
+/// `json_keys` runs in the browser VM with the same keys and error code as the native runtime.
+#[test]
+fn browser_json_keys_matches_native() {
+    let artifact = gub_project("keys", KEYS_PROGRAM);
+    let expected = Outcome::Text("[a|b][]R_JSON_TYPE".to_owned());
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+}

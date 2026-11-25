@@ -314,6 +314,7 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "Sleep" => Op::Sleep,
         "TextLower" => Op::TextLower,
         "TextUpper" => Op::TextUpper,
+        "JsonKeys" => Op::JsonKeys,
         "StdinReadLine" => Op::StdinReadLine,
         "StdinReadAll" => Op::StdinReadAll,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,

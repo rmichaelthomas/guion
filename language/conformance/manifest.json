@@ -11526,6 +11526,36 @@
       "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
     },
     {
+      "id": "host_operation-json-keys",
+      "kind": "host_operation",
+      "name": "JSON keys",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.json-keys.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.json-keys.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.json-keys.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`json_keys(value: Json) -> Result[List[Text], JsonError]`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
       "id": "opcode-text-lower",
       "kind": "opcode",
       "name": "TextLower",

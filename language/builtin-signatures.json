@@ -2586,6 +2586,14 @@
       "operation": "TextUpper"
     },
     {
+      "name": "json_keys_native",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[List[Text], JsonError]",
+      "operation": "JsonKeys"
+    },
+    {
       "name": "sleep_ms",
       "parameters": [
         "Int"

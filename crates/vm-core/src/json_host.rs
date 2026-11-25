@@ -330,6 +330,48 @@ pub fn run_json_instruction(
             charge_allocation(budget, size_of::<String>().saturating_add(text.len()), span)?;
             stack.push(Value::Text(text.into()));
         }
+        Op::JsonKeys => {
+            let Value::Json(value) = pop(stack, span)? else {
+                return Err(invalid("json_keys requires Json", span));
+            };
+            let SharedJson::Object(object) = value.as_ref() else {
+                let found = match value.as_ref() {
+                    SharedJson::Null => "null",
+                    SharedJson::Bool(_) => "boolean",
+                    SharedJson::Number(_) => "number",
+                    SharedJson::String(_) => "string",
+                    SharedJson::Array(_) => "array",
+                    SharedJson::Object(_) => "object",
+                };
+                stack.push(Value::ResultErr(Box::new(Value::JsonError(Box::new(
+                    JsonErrorValue {
+                        code: "R_JSON_TYPE".into(),
+                        message: format!("json_keys expects a JSON object, found {found}"),
+                        line: 0,
+                        column: 0,
+                    },
+                )))));
+                return Ok(true);
+            };
+            if object.len() > limits.max_collection_items {
+                return Err(RuntimeError::new(
+                    "R_COLLECTION_LIMIT",
+                    "json_keys result exceeds the configured item limit",
+                    span,
+                ));
+            }
+            let key_bytes: usize = object.keys().map(String::len).sum();
+            charge_allocation(
+                budget,
+                crate::text_list_allocation(object.len(), key_bytes),
+                span,
+            )?;
+            let keys: Vec<Value> = object
+                .keys()
+                .map(|key| Value::Text(key.as_str().into()))
+                .collect();
+            stack.push(Value::ResultOk(Box::new(Value::from_list_items(keys))));
+        }
         Op::JsonErrorMessage | Op::JsonErrorLine | Op::JsonErrorColumn | Op::JsonErrorCode => {
             let Value::JsonError(error) = pop(stack, span)? else {
                 return Err(invalid("JSON error accessor requires JsonError", span));

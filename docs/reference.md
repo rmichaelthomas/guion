@@ -27,6 +27,8 @@ Import `std:time` and call `today_local() -> Date` when an application needs the
 
 `text_lower(value)` and `text_upper(value)` (`std:text`, artifact format 90) change case for display with the Unicode default case mapping: `text_upper("Straße")` is `"STRASSE"`, and a capital sigma ending a word lowercases to `ς`. To compare text without regard to case, use `text_casefold` instead.
 
+`json_keys(value)` (`std:json`, artifact format 90) returns `Ok` with an object's keys in the order `json_stringify` writes them (ascending by the key's bytes), or `Err` with code `R_JSON_TYPE` for any other kind of JSON.
+
 
 ## Commands
 

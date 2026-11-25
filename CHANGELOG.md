@@ -7,6 +7,7 @@ Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview
 Artifact format 90 (older artifacts still load; a program that uses anything below needs this runtime). Everything new here is pure, needs no grant and runs in the browser VM too.
 
 - Artifact format 90: `text_lower(value: Text) -> Text` and `text_upper(value: Text) -> Text` in `std:text` change case with the Unicode default case mapping (new `Op::TextLower` and `Op::TextUpper`, tags 225 and 226). `text_upper("Straße")` is `"STRASSE"`, a capital sigma ending a word lowercases to `ς`, and `İ` lowercases to `i` and a combining dot, so a result can be longer than its input; one over the text limit is `R_TEXT_LIMIT`. They are for display; to compare text without regard to case, use `text_casefold`. A function that calls them runs in the VM, not as machine code.
+- Artifact format 90: `json_keys(value: Json) -> Result[List[Text], JsonError]` in `std:json` (new `Op::JsonKeys`, tag 227) returns an object's top-level keys in the order `json_stringify` writes them, which is ascending byte order of the key text. A value that is not an object is `Err` with code `R_JSON_TYPE` and a message naming the type found.
 - Known issue 47 (undefined behaviour in the native code arena's raw pointers) is fixed; see "Resolved known issues" below.
 
 ## 0.8.0 — 2026-11-23
