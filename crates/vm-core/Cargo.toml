@@ -9,6 +9,13 @@ license.workspace = true
 [dependencies]
 guion-model.workspace = true
 guion-crypto.workspace = true
+flate2.workspace = true
+hmac.workspace = true
+icu_casemap.workspace = true
+icu_normalizer.workspace = true
+icu_properties.workspace = true
+sha2.workspace = true
+toml_edit.workspace = true
 memchr = "2"
 regex = "1"
 serde.workspace = true

@@ -107,9 +107,16 @@ The pure cryptography of `std:crypto` and `std:encoding` runs in the browser VM,
 | Bit operations | `int_and`, `int_or`, `int_xor`, `int_shift_left`, `int_shift_right` (64-bit; `R_INTEGER_RANGE` and `R_SHIFT_RANGE` as natively) |
 | Text case | `text_lower`, `text_upper` (Unicode default case mapping) |
 | Integer radix | `int_to_text_radix`, `text_parse_int_radix` (radix 2 to 36, any size of `Int`) |
-| JSON | `json_parse`, `json_stringify`, `json_stringify_pretty`, `json_keys`, `json_get`, `json_index`, `json_has`, `json_len`, `json_set`, `json_push`, the `json_as_*` and `json_try_*` accessors and the JSON constructors, with native limits and error codes |
+| HMAC | `crypto_hmac_sha256`, `crypto_verify_hmac_sha256` |
+| Numbers and errors | `text_parse_int`, `text_parse_float`, the `file_error_*` and `http_error_*` accessors, `task_code`, `task_index`, `task_message` (a `TaskError` comes from `try_map_list`) |
+| Lookups and data | `list_get`, `map_get`, `csv_encode`, `time_parse_date`, `time_parse_timestamp`, `time_format_utc`, `time_format_utc_date`, `time_zone_data_version`, `semver_parse`, `semver_compare`, `cli_parse` |
+| Unicode | `text_casefold`, `text_collapse_whitespace`, `text_normalize` |
+| Compression and formats | `gzip_compress`, `gzip_decompress`, `zlib_compress`, `zlib_decompress` (in memory), `yaml_parse`, the `toml_*` functions |
+| HTTP responses | `http_response_text`, `http_response_json` (decoding a response a page already holds) |
+| Processor cores | `core_count` answers 1 |
+| JSON | `json_parse`, `json_stringify`, `json_stringify_pretty`, `json_keys`, `json_get`, `json_index`, `json_has`, `json_len`, `json_set`, `json_push`, the `json_as_*` and `json_try_*` accessors and the JSON constructors, with native limits and error codes; and the data-library projections `json_int_column`, `json_as_int_list`, `json_text_categories`, `json_text_categories_values`, `json_project_columns` and `json_stringify_pairs` |
 
-Not available, and failing with `R_HOST_UNSUPPORTED` when reached: **HMAC** (`crypto_hmac_sha256`, `crypto_verify_hmac_sha256`) and **random bytes** (`crypto_random_bytes`, `crypto_random_hex`, `crypto_random_base64url`) stay native-only. The wrapper `crypto_tlock_encrypt` draws its randomness with `crypto_random_bytes`, so it is not available in the browser; `crypto_tlock_decrypt` is. A page that must seal a file supplies randomness itself (from `crypto.getRandomValues`) to `native_crypto_tlock_encrypt(round, chain_hash, public_key, plaintext, randomness)`. The column and projection instructions of the JSON data library (`json_int_column`, `json_project_columns` and their kin) and `json_stringify_pairs` also remain native-only.
+Not available, and failing with `R_HOST_UNSUPPORTED` when reached: **random bytes** (`crypto_random_bytes`, `crypto_random_hex`, `crypto_random_base64url`) stay native-only. The wrapper `crypto_tlock_encrypt` draws its randomness with `crypto_random_bytes`, so it is not available in the browser; `crypto_tlock_decrypt` is. A page that must seal a file supplies randomness itself (from `crypto.getRandomValues`) to `native_crypto_tlock_encrypt(round, chain_hash, public_key, plaintext, randomness)`.
 
 The beacon package (`packages/beacons`: drand, tlock, Twine/CURBy and NIST) checks a recorded receipt in the browser. One program that verifies a drand round, opens a tlock file, verifies a CURBy-Q pulse and verifies two NIST pulses with their precommitment chain, all from embedded data, was measured at **167,349 bytes** of artifact (limit 1 MiB) and **34,008 steps** (default budget 10,000), so it runs with `allowRaisedSteps` and a budget of 100,000 steps. `cargo test -p guion-vm-wasm --test crypto` runs it and records both numbers.
 
@@ -127,7 +134,22 @@ ABI 1.0 grants no capabilities. `capabilities` must be `[]`; any other value ret
 4. clock (the current time and date)
 5. process (running programs, standard error output, and the rest of the process surface)
 
-Other host-backed operations that the portable host does not implement fail the same way. `sleep_ms` is one of them: a page cannot block, so it returns `R_HOST_UNSUPPORTED`. The module does not inherit permissions from `guion.toml` or the command line, and nothing is skipped silently.
+Every operation the portable host does not implement fails the same way, and each one is listed below with its reason. Nothing else answers `R_HOST_UNSUPPORTED`: an operation that needs no host (numeric parsing, the error accessors, dates and versions, Unicode text, HMAC, gzip and zlib in memory, YAML, TOML, the JSON projections) runs in the browser on the same code as the native runtime. A test (`cargo test -p guion-vm-wasm --test pure_ops`) runs each of those through both VMs and compares the results.
+
+| Still unsupported | Operations (builtin names) | Why |
+|---|---|---|
+| Files | `read_text`, `write_text`, `write_text_atomic`, `read_bytes`, `write_bytes`, `file_open_lines` and the line and CSV readers (`csv_open`, `csv_read_columns`), `fs_walk`, every `std:fs`, `std:tar`, `std:compress` file function (`fs_*`, including `fs_confined_path`, which resolves symlinks) | A page has no filesystem. |
+| Network | `http_get`, `http_request*`, `std:net`, `std:tls` and the web server | A page has no sockets; use `fetch` and pass the bytes in as program input. `http_response_text` and `http_response_json` work on a response the program already holds. |
+| Database | `sqlite_*` | SQLite opens a file. |
+| Clock and sleep | `unix_time_ms`, `time_today_local`, `sleep_ms` | There is no clock to read and no thread to block. Pass the time in as input. |
+| Randomness | `crypto_random_bytes` and the wrappers on it (`crypto_random_hex`, `crypto_random_base64url`, `crypto_tlock_encrypt`) | No entropy source. Pass bytes in from `crypto.getRandomValues`. |
+| Process | `args`, `args_from`, `env`, standard input (`stdin_read_line`, `stdin_read_all`), standard error (`eprint`), `process_run`, `process_start` and its readers and writers, `process_pid`, `process_signal_poll` | A page has no command line, environment, standard streams or child processes. `process_stop_requested` runs and is false, and `core_count` is 1. |
+| Logging | `log_append`, `log_default_level` | The log is a file whose level comes from `guion.toml`, which a page does not have. |
+| Calendar and zones | `time_resolve_local` and `calendar_parse` | They use the native C timezone and iCalendar libraries, which are not in the wasm module. `time_zone_data_version` runs. |
+| Threads | `parallel_map`, `try_parallel_map`, `together:` blocks, tasks, channels, `first_ready` | The VM has no threads. |
+| Python | calls into Python (`python-interop`) | There is no Python in a page. |
+
+The module does not inherit permissions from `guion.toml` or the command line, and nothing is skipped silently. One difference in the operations that do run: `gzip_decompress` and `zlib_decompress` stop at the smaller of `max_output` and the run's allocation limit (`MAX_BROWSER_ALLOCATION_BYTES`), where the native runtime uses `[runtime] decompress_limit_bytes`; both fail with `E_COMPRESS_LIMIT`.
 
 ## What the browser VM does not have
 

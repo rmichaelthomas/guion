@@ -522,7 +522,7 @@ fn csrf_tokens_are_compared_only_with_the_constant_time_mac_check() {
         }
     }
     let runtime = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../runtime/src/stdlib_services.rs"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../vm-core/src/services.rs"),
     )
     .unwrap();
     assert!(

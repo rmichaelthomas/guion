@@ -6,7 +6,7 @@
 //! [`json_decode`](crate::json_decode) and [`json_try`](crate::json_try) modules. The column and
 //! projection instructions of the data library (`JsonIntColumn`, `JsonTextCategories`,
 //! `JsonAsIntList`, `JsonProjectColumns`, `JsonTextCategoriesValues`, `JsonStringifyPairs`) are
-//! not here and stay `R_HOST_UNSUPPORTED`.
+//! in [`run_pure_instruction`](crate::run_pure_instruction).
 
 use crate::json_decode::{parse_unique_shared_json, JsonDecodeError};
 use crate::{

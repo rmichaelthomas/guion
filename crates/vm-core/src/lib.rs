@@ -31,11 +31,22 @@ mod json_host;
 pub use json_host::run_json_instruction;
 mod text_host;
 pub use text_host::{run_radix_instruction, run_text_case_instruction};
+pub mod compress;
+pub mod data;
+mod pure_host;
+pub use pure_host::{
+    entropy_error_value, file_error_result, http_error, run_pure_instruction,
+    runtime_service_resource, runtime_text_path, service_error_value, service_result_value,
+    PureServices,
+};
+pub mod json_projection;
 pub mod json_try;
 mod matmul;
 pub mod ordering;
 mod register;
+pub mod services;
 mod verify;
+pub mod yaml;
 pub use verify::{verify, FlowState};
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
@@ -6487,6 +6498,7 @@ pub struct PortableHost {
     output: String,
     steps_used: u64,
     verified: Option<Result<(), RuntimeError>>,
+    toml: services::TomlRegistry,
 }
 
 impl PortableHost {
@@ -6497,6 +6509,7 @@ impl PortableHost {
             output: String::new(),
             steps_used: 0,
             verified: None,
+            toml: services::TomlRegistry::new(limits.max_text_bytes),
         }
     }
 
@@ -6636,6 +6649,25 @@ impl VmHost for PortableHost {
             return Ok(());
         }
         if run_radix_instruction(&mut context, &limits)? {
+            return Ok(());
+        }
+        // A browser has no more than one core to use.
+        if matches!(
+            context.instruction.op,
+            Op::Process(guion_model::ProcessFunction::CoreCount)
+        ) {
+            context.stack.push(Value::Int(BigInt::from_i64(1)));
+            return Ok(());
+        }
+        if run_pure_instruction(
+            &mut context,
+            &limits,
+            PureServices {
+                artifact: &self.artifact,
+                toml: &mut self.toml,
+                decompress_ceiling: limits.allocation_limit_bytes as u64,
+            },
+        )? {
             return Ok(());
         }
         let op = context.instruction.op.clone();

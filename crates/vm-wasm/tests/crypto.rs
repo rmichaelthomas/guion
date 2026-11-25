@@ -544,20 +544,18 @@ fn browser_checks_a_full_receipt() {
     assert_eq!(native_receipt(&artifact, &swapped), transcript);
 }
 
-/// HMAC and random bytes stay native-only, and with them the `crypto_tlock_encrypt` wrapper that
-/// draws its randomness; `docs/browser.md` says so.
+/// Random bytes stay native-only, and with them the `crypto_tlock_encrypt` wrapper that draws its
+/// randomness; `docs/browser.md` says so. (HMAC runs in the browser; see `pure_ops.rs`.)
 #[test]
-fn hmac_and_random_bytes_are_not_in_the_browser() {
+fn random_bytes_are_not_in_the_browser() {
     let artifact = gub_project(
         "native-only",
         "import \"std:crypto\"\nimport \"std:types\"\n\
-fn hmac() -> Int:\n    let tag = crypto_hmac_sha256(bytes_from_text(\"k\"), bytes_from_text(\"m\"))\n    return len(tag)\n\
-fn verify_hmac() -> Int:\n    let ok = crypto_verify_hmac_sha256(bytes_from_text(\"k\"), bytes_from_text(\"m\"), bytes_from_text(\"t\"))\n    if ok:\n        return 1\n    return 0\n\
 fn random() -> Int:\n    match crypto_random_bytes(4):\n        Ok(data):\n            return len(data)\n        Err(problem):\n            return 0\n\
 fn wrapper() -> Int:\n    match crypto_tlock_encrypt(1000, bytes_from_text(\"c\"), bytes_from_text(\"k\"), bytes_from_text(\"p\")):\n        Ok(text):\n            return 1\n        Err(problem):\n            return 0\n\
 fn main() -> Int:\n    return 0\n",
     );
-    for entry in ["hmac", "verify_hmac", "random", "wrapper"] {
+    for entry in ["random", "wrapper"] {
         let response = browser_response(&artifact, entry, 1000);
         assert_eq!(response["ok"], false, "{entry}");
         assert_eq!(

@@ -980,10 +980,6 @@ dependencies = [
  "guion-compiler",
  "guion-model",
  "guion-vm-core",
- "hmac",
- "icu_casemap",
- "icu_normalizer",
- "icu_properties",
  "libc",
  "memchr",
  "reqwest",
@@ -995,7 +991,6 @@ dependencies = [
  "sha2",
  "tar",
  "tokio",
- "toml_edit",
  "webpki-roots",
  "windows-sys 0.52.0",
 ]
@@ -1004,13 +999,20 @@ dependencies = [
 name = "guion-vm-core"
 version = "0.8.0"
 dependencies = [
+ "flate2",
  "guion-compiler",
  "guion-crypto",
  "guion-model",
+ "hmac",
+ "icu_casemap",
+ "icu_normalizer",
+ "icu_properties",
  "memchr",
  "regex",
  "serde",
  "serde_json",
+ "sha2",
+ "toml_edit",
 ]
 
 [[package]]

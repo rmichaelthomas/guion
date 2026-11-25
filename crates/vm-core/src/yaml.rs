@@ -22,7 +22,7 @@ const MAX_DEPTH: usize = 64;
 
 /// A typed failure with a 1-based position.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct YamlError {
+pub struct YamlError {
     pub code: &'static str,
     pub message: String,
     pub line: usize,
@@ -65,7 +65,7 @@ fn is_ws(c: char) -> bool {
 }
 
 /// Parses one YAML document into JSON.
-pub(crate) fn parse(text: &str) -> Result<Json, YamlError> {
+pub fn parse(text: &str) -> Result<Json, YamlError> {
     let mut parser = Parser::new(text);
     parser.document()
 }
