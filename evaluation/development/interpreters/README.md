@@ -7,7 +7,7 @@ One local comparison. Run with `python3 run.py [trials] [output.json]`; the comm
 
 - Apple M1 Pro, 16 GB (17179869184 bytes), macOS-27.0.1-arm64-arm-64bit-Mach-O.
 - Guion: `guion 0.9.0 (artifact format 90, timezone data 2026c)`, `target/release/guion`,
-  built from commit d1e6ccc (branch perf/data-speed).
+  built from commit d1e6ccc (a development build made after 0.9.0).
 - CPython: 3.14.7 (uv, `cpython-3.14.7-macos-aarch64-none`).
 - Free-threaded CPython: 3.14.10 (uv, `3.14t`; uv offers no 3.14.7 free-threaded build, so the
   newest 3.14t it provides was used).
