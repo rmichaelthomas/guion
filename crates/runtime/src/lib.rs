@@ -920,6 +920,28 @@ impl Instance {
         }
     }
 
+    /// Adds standard-error output a worker or task produced, writing it through when streaming.
+    /// Standard output and standard error share one output limit.
+    fn append_stderr(&mut self, text: &str, span: Span) -> Result<(), RuntimeError> {
+        let text = self.without_replayed_output(OutputStream::Stderr, text);
+        if text.is_empty() {
+            return Ok(());
+        }
+        if self.program_output_bytes().saturating_add(text.len()) > self.policy.output_limit_bytes {
+            return Err(RuntimeError::new(
+                "R_OUTPUT_LIMIT",
+                "program output exceeds the configured limit",
+                span,
+            ));
+        }
+        if self.policy.streaming_output {
+            self.stream_text(OutputStream::Stderr, text)
+        } else {
+            self.program_stderr.push_str(text);
+            Ok(())
+        }
+    }
+
     /// Drops the front of `text` that a native function already wrote before it fell back to the VM
     /// (see `replay_skip_stdout`), comparing it with what was written; the first difference ends the
     /// skipping and the rest is written.
@@ -5705,6 +5727,7 @@ impl Instance {
                                 span,
                             )),
                             String::new(),
+                            String::new(),
                             thread_id,
                         ));
                         continue;
@@ -5795,6 +5818,7 @@ impl Instance {
                         budget.clone(),
                     );
                     let mut output = worker.output;
+                    let mut errors = worker.program_stderr;
                     let mut result = result;
                     if try_mode {
                         // A deadline stops the item through the same cancellation check a failing
@@ -5813,6 +5837,7 @@ impl Instance {
                         };
                         if timed_out && !budget.cancellation.is_cancelled() {
                             output.clear();
+                            errors.clear();
                             let limit_name = match (each_deadline, all_deadline) {
                                 (Some(each), Some(all)) if each < all => "each_ms",
                                 (Some(_), None) => "each_ms",
@@ -5834,16 +5859,17 @@ impl Instance {
                         Err(_) if try_mode => {}
                         Err(_) => cancelled.store(true, Ordering::Relaxed),
                     }
-                    let _ = sender.send((index, result, output, thread_id));
+                    let _ = sender.send((index, result, output, errors, thread_id));
                 }
             }));
         }
         drop(sender);
-        let mut completed: Vec<Option<(Result<Value, RuntimeError>, String)>> =
-            (0..values.len()).map(|_| None).collect();
-        for (index, result, output, thread_id) in receiver {
+        // Per item: its result, then what it wrote to standard output and to standard error.
+        type Finished = (Result<Value, RuntimeError>, String, String);
+        let mut completed: Vec<Option<Finished>> = (0..values.len()).map(|_| None).collect();
+        for (index, result, output, errors, thread_id) in receiver {
             self.worker_threads.insert(thread_id);
-            completed[index] = Some((result, output));
+            completed[index] = Some((result, output, errors));
         }
         let mut worker_panicked = false;
         for handle in handles {
@@ -5855,7 +5881,7 @@ impl Instance {
             for (index, item) in completed.iter().enumerate() {
                 let cut_short = match item {
                     None => true,
-                    Some((Err(error), _)) => {
+                    Some((Err(error), _, _)) => {
                         error.code == "R_CANCELLED" || error.code == "R_DEADLINE"
                     }
                     Some(_) => false,
@@ -5881,13 +5907,14 @@ impl Instance {
         if try_mode {
             let mut items = Vec::with_capacity(values.len());
             for (index, item) in completed.into_iter().enumerate() {
-                let (result, output) = item.unwrap_or_else(|| {
+                let (result, output, errors) = item.unwrap_or_else(|| {
                     (
                         Err(RuntimeError::new(
                             "R_CANCELLED",
                             "the item did not run because a sibling used up the instruction budget",
                             span,
                         )),
+                        String::new(),
                         String::new(),
                     )
                 });
@@ -5900,6 +5927,7 @@ impl Instance {
                     ));
                 }
                 self.append_stdout(&output)?;
+                self.append_stderr(&errors, span)?;
                 items.push(result.map_err(|error| {
                     let mut trace = error.trace;
                     trace.push(span);
@@ -5923,7 +5951,7 @@ impl Instance {
         let mut results = Vec::with_capacity(values.len());
         let mut first_error = None;
         for (index, item) in completed.into_iter().enumerate() {
-            let Some((result, output)) = item else {
+            let Some((result, output, errors)) = item else {
                 continue;
             };
             if self.stdout_bytes().saturating_add(output.len()) > self.policy.output_limit_bytes {
@@ -5934,6 +5962,7 @@ impl Instance {
                 ));
             }
             self.append_stdout(&output)?;
+            self.append_stderr(&errors, span)?;
             match result {
                 Ok(value) => results.push(value),
                 Err(error) => {
