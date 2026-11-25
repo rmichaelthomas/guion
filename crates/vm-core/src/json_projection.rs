@@ -8,7 +8,7 @@ use std::{
 use guion_model::JsonErrorValue;
 use serde::de::{DeserializeSeed, Error as DeError, MapAccess, SeqAccess, Visitor};
 
-use crate::{
+use crate::json_decode::{
     duplicate_json_key, escape_reserved_json_keys, restore_reserved_json_keys, source_position,
     UniqueJsonSeed,
 };
@@ -152,7 +152,7 @@ impl State {
     }
 }
 
-pub(crate) fn project_columns(
+pub fn project_columns(
     source: &str,
     path: Vec<String>,
     fields: Vec<String>,

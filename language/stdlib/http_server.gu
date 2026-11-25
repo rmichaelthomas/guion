@@ -79,6 +79,20 @@ pub fn http_server_listen(host: Text, port: Int) -> Result[TcpListener, StdError
 pub fn http_server_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]:
     return tcp_accept(listener, timeout_ms)
 
+# The client's address; fails when the connection is already closed.
+pub fn http_server_peer(request: HttpServerRequest) -> Result[PeerAddress, StdError]:
+    return tcp_peer(request.conn)
+
+# `host:port`, IPv6 as `[host]:port`, or empty when the address cannot be read.
+fn hs_peer_text(request: HttpServerRequest) -> Text:
+    match tcp_peer(request.conn):
+        Ok(address):
+            if text_find(address.host, ":", 0) >= 0:
+                return "[" + address.host + "]:" + int_to_text(address.port)
+            return address.host + ":" + int_to_text(address.port)
+        Err(problem):
+            return ""
+
 pub fn http_server_header(request: HttpServerRequest, name: Text) -> Option[Text]:
     let wanted = text_casefold(name)
     var index = 0
@@ -165,22 +179,15 @@ fn hs_find_crlf(data: List[Int], start: Int) -> Int:
         set index = index + 1
     return -1
 
-# The value of one hexadecimal digit, or -1.
-fn hs_hex_digit(digit: Text) -> Int:
-    return text_find("0123456789abcdef", text_casefold(digit), 0)
-
+# The value of a chunk size written in hexadecimal (one to eight digits, either case), or -1.
 fn hs_hex_value(text: Text) -> Int:
-    if len(text) == 0 or len(text) > 8:
+    if len(text) == 0 or len(text) > 8 or text_slice(text, 0, 1) == "-":
         return -1
-    var value = 0
-    var index = 0
-    while index < len(text):
-        let digit = hs_hex_digit(text_slice(text, index, index + 1))
-        if digit < 0:
+    match text_parse_int_radix(text, 16):
+        Ok(value):
+            return value
+        Err(problem):
             return -1
-        set value = value * 16 + digit
-        set index = index + 1
-    return value
 
 # Reads one CRLF-terminated line from `buffer`, reading more from the connection as needed.
 # Returns the line and the bytes after it.
@@ -409,7 +416,7 @@ pub fn http_request_value(request: HttpServerRequest) -> Result[Request, HttpFai
         set headers = list_push(headers, Header(request.headers[next].name, request.headers[next].value))
         set next = next + 1
     let params: Map[Text, Text] = {}
-    return Ok(Request(request.method, request.path, query, headers, request.body, params))
+    return Ok(Request(request.method, request.path, query, headers, request.body, params, hs_peer_text(request)))
 
 # Sends a Response and, like http_server_reply, keeps the connection open only when the client asked
 # for that. A response that cannot be serialized (a bad header, a status outside 100 to 599, an

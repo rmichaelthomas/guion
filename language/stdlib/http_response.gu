@@ -47,7 +47,8 @@ pub record Response:
     headers: List[Header]
     body: Body
 
-# `params` is empty until a router fills it.
+# `params` is empty until a router fills it. `peer` is the client's address, `host:port` with an IPv6
+# host in brackets (`[::1]:4000`), and empty when the request did not come from a connection.
 pub record Request:
     method: Text
     path: Text
@@ -55,6 +56,7 @@ pub record Request:
     headers: List[Header]
     body: Bytes
     params: Map[Text, Text]
+    peer: Text
 
 # Where a file-backed body comes from and how it is framed, so a server can send it in blocks.
 pub record FilePlan:
@@ -238,7 +240,7 @@ pub fn response_redirect(status: Int, location: Text) -> Result[Response, HttpFa
 pub fn request_new(method: Text, path: Text) -> Request:
     let query: Map[Text, List[Text]] = {}
     let params: Map[Text, Text] = {}
-    return Request(method, path, query, [], bytes_from_ints([]), params)
+    return Request(method, path, query, [], bytes_from_ints([]), params, "")
 
 # The first header of that name, compared without case.
 pub fn request_header(request: Request, name: Text) -> Option[Text]:
@@ -251,16 +253,7 @@ pub fn request_header(request: Request, name: Text) -> Option[Text]:
     return None
 
 fn hr_hex(value: Int) -> Text:
-    if value == 0:
-        return "0"
-    let digits = "0123456789abcdef"
-    var out = ""
-    var rest = value
-    while rest > 0:
-        let digit = rest % 16
-        set out = text_slice(digits, digit, digit + 1) + out
-        set rest = rest // 16
-    return out
+    return int_to_text_radix(value, 16)
 
 fn hr_frame(data: Bytes) -> Bytes:
     return bytes_join([bytes_from_text(hr_hex(len(data)) + "\r\n"), data, bytes_from_text("\r\n")])

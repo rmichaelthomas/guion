@@ -69,7 +69,7 @@ fn with_trace(request: Request, mark: Text) -> Request:
             set kept = list_push(kept, request.headers[index])
         set index = index + 1
     set kept = list_push(kept, Header("x-trace", trace))
-    return Request(request.method, request.path, request.query, kept, request.body, request.params)
+    return Request(request.method, request.path, request.query, kept, request.body, request.params, request.peer)
 
 fn out_trace(response: Response, mark: Text) -> Result[Response, HttpFailure]:
     var trace = mark
@@ -121,6 +121,25 @@ fn test_a_handler_runs_without_a_socket() -> Unit:
     let response = unwrap(hello(get("/")))
     assert(response.status == 200)
     assert(text_of(response) == "hello")
+
+fn show_peer(request: Request) -> Result[Response, HttpFailure]:
+    return Ok(response_text(200, "peer " + request.peer))
+
+fn peer_before(request: Request) -> Result[Request, Response]:
+    if request.peer == "":
+        return Err(response_text(403, "no peer"))
+    return Ok(request)
+
+fn test_the_peer_reaches_handlers_and_middleware_through_the_router() -> Unit:
+    let table = unwrap(router([route("GET", "/peer/{id:int}", show_peer)]))
+    var request = request_new("GET", "/peer/7")
+    assert(request.peer == "")
+    assert(text_of(unwrap(router_handle(table, request))) == "peer ")
+    let located = Request(request.method, request.path, request.query, request.headers, request.body, request.params, "[::1]:4000")
+    assert(text_of(unwrap(router_handle(table, located))) == "peer [::1]:4000")
+    let guarded = wrap(app(table), layer_before(peer_before))
+    assert(app_respond(guarded, request).status == 403)
+    assert(text_of(app_respond(guarded, located)) == "peer [::1]:4000")
 
 fn test_router_dispatches_with_params() -> Unit:
     let table = sample_router()
@@ -315,14 +334,14 @@ fn open_store() -> SessionStore:
 fn add_header(request: Request, name: Text, value: Text) -> Request:
     var headers = request.headers
     set headers = list_push(headers, Header(name, value))
-    return Request(request.method, request.path, request.query, headers, request.body, request.params)
+    return Request(request.method, request.path, request.query, headers, request.body, request.params, request.peer)
 
 fn with_cookie(request: Request, name: Text, id: Text) -> Request:
     return add_header(request, "Cookie", name + "=" + id)
 
 fn with_body(request: Request, content_type: Text, body: Text) -> Request:
     let typed = add_header(request, "Content-Type", content_type)
-    return Request(typed.method, typed.path, typed.query, typed.headers, bytes_from_text(body), typed.params)
+    return Request(typed.method, typed.path, typed.query, typed.headers, bytes_from_text(body), typed.params, typed.peer)
 
 fn req(method: Text, path: Text, cookie: Text, token: Text) -> Request:
     var made = request_new(method, path)
@@ -1115,7 +1134,7 @@ fn test_static_files_refuse_escapes_and_answer_head_and_validators() -> Unit:
     assert(len(head.body.data) == 0)
     let served = app_respond(site, get("/assets/app.css"))
     let tag = unwrap(response_header(served, "etag"))
-    let conditional = Request("GET", "/assets/app.css", {},[Header("if-none-match", tag)], bytes_from_text(""), {})
+    let conditional = Request("GET", "/assets/app.css", {},[Header("if-none-match", tag)], bytes_from_text(""), {}, "")
     assert(app_respond(site, conditional).status == 304)
     # Other methods under the prefix are the router's: no route, so 404 rather than a file.
     assert(app_respond(site, request_new("POST", "/assets/app.css")).status == 404)

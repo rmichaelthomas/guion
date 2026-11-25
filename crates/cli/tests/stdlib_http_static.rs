@@ -119,7 +119,7 @@ import "std:encoding"
 import "std:types"
 fn req(method: Text, path: Text, headers: List[Header]) -> Request:
     let base = request_new(method, path)
-    return Request(base.method, base.path, base.query, headers, base.body, base.params)
+    return Request(base.method, base.path, base.query, headers, base.body, base.params, base.peer)
 fn show(r: Result[Response, HttpFailure]) -> Unit:
     match r:
         Ok(response):

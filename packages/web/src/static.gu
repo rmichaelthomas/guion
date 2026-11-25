@@ -49,7 +49,7 @@ fn sf_before(config: Map[Text, Text], request: Request) -> Result[Request, Respo
         None:
             return Ok(request)
         Some(rest):
-            let inner = Request(request.method, rest, request.query, request.headers, request.body, request.params)
+            let inner = Request(request.method, rest, request.query, request.headers, request.body, request.params, request.peer)
             match static_serve(inner, sf_setting(config, "root")):
                 Ok(response):
                     return Err(response)

@@ -36,7 +36,7 @@ fn text_of(response: Response) -> Text:
     return text_from_bytes_lossy(response.body.data)
 
 fn request(method: Text, path: Text, headers: List[Header], body: Text) -> Request:
-    return Request(method, path, {}, headers, bytes_from_text(body), {})
+    return Request(method, path, {}, headers, bytes_from_text(body), {}, "")
 
 # The first request of a visitor: the session cookie and the token it is answered with.
 fn visit(app: App) -> Client:

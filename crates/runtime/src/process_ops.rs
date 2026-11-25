@@ -227,6 +227,15 @@ pub(crate) fn run(policy: &HostPolicy, command: &str, arguments: &[String], stdi
 /// The pending-signal slot: 0 when none, otherwise the signal number.
 static PENDING_SIGNAL: AtomicI32 = AtomicI32::new(0);
 
+/// Set once a polled-for `INT`, `TERM` or `HUP` has arrived, and never cleared: reading the
+/// pending signal does not clear it, and every thread sees it.
+static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// Whether a polled-for stop signal has arrived (always false when the program never polls).
+pub(crate) fn stop_requested() -> bool {
+    STOP_REQUESTED.load(Ordering::SeqCst)
+}
+
 /// How many polled-for signals have arrived. Each thread remembers the count it has seen
 /// ([`SIGNAL_ARRIVALS_SEEN`]), so one arrival ends one sleep early on every thread that sleeps,
 /// once: a later sleep on the same thread runs its full time even while the signal waits, unread,
@@ -392,6 +401,7 @@ mod windows_jobs {
 #[cfg(unix)]
 extern "C" fn record_signal(signal: libc::c_int) {
     PENDING_SIGNAL.store(signal, Ordering::SeqCst);
+    STOP_REQUESTED.store(true, Ordering::SeqCst);
     SIGNAL_ARRIVALS.fetch_add(1, Ordering::SeqCst);
 }
 

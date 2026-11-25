@@ -2570,6 +2570,57 @@
       "operation": "UnixTimeMs"
     },
     {
+      "name": "text_lower_native",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextLower"
+    },
+    {
+      "name": "text_upper_native",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextUpper"
+    },
+    {
+      "name": "json_keys_native",
+      "parameters": [
+        "Json"
+      ],
+      "result": "Result[List[Text], JsonError]",
+      "operation": "JsonKeys"
+    },
+    {
+      "name": "int_to_text_radix_native",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "IntToTextRadix"
+    },
+    {
+      "name": "text_parse_int_radix_native",
+      "parameters": [
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "TextParseIntRadix"
+    },
+    {
+      "name": "json_stringify_pretty_native",
+      "parameters": [
+        "Json",
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "JsonStringifyPretty"
+    },
+    {
       "name": "sleep_ms",
       "parameters": [
         "Int"
@@ -3310,6 +3361,23 @@
       "operation": "FsOpConfinedPath"
     },
     {
+      "name": "native_fs_set_mode",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpSetMode"
+    },
+    {
+      "name": "native_fs_mode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpMode"
+    },
+    {
       "name": "native_fs_modified_ms",
       "parameters": [
         "Text"
@@ -3476,6 +3544,12 @@
       "operation": "ProcessCoreCount"
     },
     {
+      "name": "native_process_stop_requested",
+      "parameters": [],
+      "result": "Bool",
+      "operation": "ProcessStopRequested"
+    },
+    {
       "name": "native_process_start",
       "parameters": [
         "Text",
@@ -3609,6 +3683,14 @@
       ],
       "result": "Result[List[Bytes], List[Text]]",
       "operation": "NetUdpRecvFrom"
+    },
+    {
+      "name": "native_net_peer_address",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Text, List[Text]]",
+      "operation": "NetPeerAddress"
     },
     {
       "name": "native_tls_connect",

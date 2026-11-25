@@ -225,7 +225,7 @@ fn call(handler: fn(Request) -> Result[Response, HttpFailure], request: Request)
 fn main() -> Int:
     let query: Map[Text, List[Text]] = {}
     let params: Map[Text, Text] = {"name": "ada"}
-    let request = Request("GET", "/hi/ada", query, [Header("accept", "text/plain")], bytes_from_ints([]), params)
+    let request = Request("GET", "/hi/ada", query, [Header("accept", "text/plain")], bytes_from_ints([]), params, "")
     let result = call(greet, request)
     let response = unwrap(result)
     assert(response.status == 200)

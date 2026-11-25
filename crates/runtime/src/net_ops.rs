@@ -253,6 +253,12 @@ pub(crate) fn run(
             };
             local_port(table, handle.to_i64().unwrap_or(-1))
         }
+        NetFunction::PeerAddress => {
+            let Value::Int(handle) = next()? else {
+                return Err(type_error(span));
+            };
+            peer_address(table, handle.to_i64().unwrap_or(-1))
+        }
         NetFunction::Send => {
             let (Value::Int(handle), Value::Bytes(data)) = (next()?, next()?) else {
                 return Err(type_error(span));
@@ -501,6 +507,39 @@ fn local_port(table: &SocketTable, handle: i64) -> Result<Value, Failure> {
     }
     .map_err(|error| Failure::io(&error, "cannot read local address"))?;
     Ok(int(i64::from(address.port())))
+}
+
+/// The peer of a connected TCP or TLS socket as `host:port`, with an IPv6 host in brackets and an
+/// IPv4-mapped IPv6 address (a dual-stack listener) written as the IPv4 address it carries.
+fn peer_address(table: &SocketTable, handle: i64) -> Result<Value, Failure> {
+    let slot = table.get(handle).ok_or_else(|| {
+        Failure::new(
+            "E_NET_HANDLE",
+            "handle is not a connected TCP or TLS socket",
+        )
+    })?;
+    let address = match &*locked(&slot) {
+        Socket::Stream(socket) => socket.peer_addr(),
+        Socket::Tls(stream) => stream.tcp().peer_addr(),
+        _ => {
+            return Err(Failure::new(
+                "E_NET_HANDLE",
+                "handle is not a connected TCP or TLS socket",
+            ))
+        }
+    }
+    .map_err(|error| Failure::io(&error, "cannot read peer address"))?;
+    Ok(text(&format_peer(address)))
+}
+
+fn format_peer(address: SocketAddr) -> String {
+    match address.ip() {
+        std::net::IpAddr::V4(host) => format!("{host}:{}", address.port()),
+        std::net::IpAddr::V6(host) => match host.to_ipv4_mapped() {
+            Some(mapped) => format!("{mapped}:{}", address.port()),
+            None => format!("[{host}]:{}", address.port()),
+        },
+    }
 }
 
 fn send(
@@ -931,4 +970,20 @@ fn tls_accept(
     Ok(int(table.insert(Socket::Tls(TlsStream::Server(
         Box::new(stream),
     )))?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_peer;
+
+    #[test]
+    fn peers_are_written_as_host_and_port_with_ipv6_in_brackets() {
+        let peer = |text: &str| format_peer(text.parse().unwrap());
+        assert_eq!(peer("127.0.0.1:4000"), "127.0.0.1:4000");
+        assert_eq!(peer("[::1]:4000"), "[::1]:4000");
+        assert_eq!(peer("[2001:db8::7]:80"), "[2001:db8::7]:80");
+        // A dual-stack listener reports an IPv4 client as an IPv4-mapped IPv6 address.
+        assert_eq!(peer("[::ffff:192.0.2.9]:4000"), "192.0.2.9:4000");
+        assert_eq!(peer("[::ffff:7f00:1]:1"), "127.0.0.1:1");
+    }
 }

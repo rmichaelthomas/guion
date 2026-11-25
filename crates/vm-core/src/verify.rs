@@ -1009,6 +1009,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                         state.stack.push(Type::Int)
                     }
                     guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
+                    guion_model::ProcessFunction::StopRequested => state.stack.push(Type::Bool),
                     guion_model::ProcessFunction::Start => {
                         let arguments = pop_type(&mut state.stack, pc)?;
                         let command = pop_type(&mut state.stack, pc)?;
@@ -2023,6 +2024,55 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Text),
                     Box::new(Type::Record("StdError".into())),
                 ));
+            }
+            Op::TextLower | Op::TextUpper => {
+                if pop_type(&mut state.stack, pc)? != Type::Text {
+                    return Err(format!(
+                        "text_lower and text_upper require Text at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::IntToTextRadix => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Int
+                {
+                    return Err(format!(
+                        "int_to_text_radix requires Int and Int at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextParseIntRadix => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_parse_int_radix requires Text and Int at instruction {pc}"
+                    ));
+                }
+                state
+                    .stack
+                    .push(Type::Result(Box::new(Type::Int), Box::new(Type::FileError)));
+            }
+            Op::JsonKeys => {
+                if pop_type(&mut state.stack, pc)? != Type::Json {
+                    return Err(format!("json_keys requires Json at instruction {pc}"));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::List(Box::new(Type::Text))),
+                    Box::new(Type::JsonError),
+                ));
+            }
+            Op::JsonStringifyPretty => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Json
+                {
+                    return Err(format!(
+                        "json_stringify_pretty requires Json and Int at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
             }
             Op::Sleep => {
                 if pop_type(&mut state.stack, pc)? != Type::Int {

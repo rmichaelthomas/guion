@@ -544,20 +544,18 @@ fn browser_checks_a_full_receipt() {
     assert_eq!(native_receipt(&artifact, &swapped), transcript);
 }
 
-/// HMAC and random bytes stay native-only, and with them the `crypto_tlock_encrypt` wrapper that
-/// draws its randomness; `docs/browser.md` says so.
+/// Random bytes stay native-only, and with them the `crypto_tlock_encrypt` wrapper that draws its
+/// randomness; `docs/browser.md` says so. (HMAC runs in the browser; see `pure_ops.rs`.)
 #[test]
-fn hmac_and_random_bytes_are_not_in_the_browser() {
+fn random_bytes_are_not_in_the_browser() {
     let artifact = gub_project(
         "native-only",
         "import \"std:crypto\"\nimport \"std:types\"\n\
-fn hmac() -> Int:\n    let tag = crypto_hmac_sha256(bytes_from_text(\"k\"), bytes_from_text(\"m\"))\n    return len(tag)\n\
-fn verify_hmac() -> Int:\n    let ok = crypto_verify_hmac_sha256(bytes_from_text(\"k\"), bytes_from_text(\"m\"), bytes_from_text(\"t\"))\n    if ok:\n        return 1\n    return 0\n\
 fn random() -> Int:\n    match crypto_random_bytes(4):\n        Ok(data):\n            return len(data)\n        Err(problem):\n            return 0\n\
 fn wrapper() -> Int:\n    match crypto_tlock_encrypt(1000, bytes_from_text(\"c\"), bytes_from_text(\"k\"), bytes_from_text(\"p\")):\n        Ok(text):\n            return 1\n        Err(problem):\n            return 0\n\
 fn main() -> Int:\n    return 0\n",
     );
-    for entry in ["hmac", "verify_hmac", "random", "wrapper"] {
+    for entry in ["random", "wrapper"] {
         let response = browser_response(&artifact, entry, 1000);
         assert_eq!(response["ok"], false, "{entry}");
         assert_eq!(
@@ -1100,4 +1098,146 @@ fn main() -> Int:\n    return 0\n",
     // mostly the std:crypto wrapper building the TsaToken record), so both are far below the
     // default browser budget of MAX_BROWSER_STEPS.
     assert!(tsa_steps < 300 && ed_steps < 50, "{tsa_steps} {ed_steps}");
+}
+
+const CASE_PROGRAM: &str = "import \"std:text\"
+
+fn transcript() -> Text:
+    return text_upper(\"Stra\u{df}e\") + \"|\" + text_lower(\"\u{3a3}\u{391}\u{3a3}\") + \"|\" + text_lower(\"ABC\") + \"|\" + text_upper(\"\")
+
+fn main() -> Int:
+    return 0
+";
+
+/// `text_lower` and `text_upper` are pure, so the browser VM runs them with the same results as the
+/// native runtime.
+#[test]
+fn browser_text_case_matches_native() {
+    let artifact = gub_project("case", CASE_PROGRAM);
+    let expected = Outcome::Text("STRASSE|\u{3c3}\u{3b1}\u{3c2}|abc|".to_owned());
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+}
+
+const KEYS_PROGRAM: &str = "import \"std:json\"
+import \"std:text\"
+import \"std:types\"
+
+fn keys_of(text: Text) -> Text:
+    match json_keys(unwrap(json_parse(text))):
+        Ok(keys):
+            return \"[\" + text_join(keys, \"|\") + \"]\"
+        Err(problem):
+            return json_error_code(problem)
+
+fn transcript() -> Text:
+    return keys_of(\"{\\\"b\\\":1,\\\"a\\\":{\\\"z\\\":2}}\") + keys_of(\"{}\") + keys_of(\"[1]\")
+
+fn main() -> Int:
+    return 0
+";
+
+/// `json_keys` runs in the browser VM with the same keys and error code as the native runtime.
+#[test]
+fn browser_json_keys_matches_native() {
+    let artifact = gub_project("keys", KEYS_PROGRAM);
+    let expected = Outcome::Text("[a|b][]R_JSON_TYPE".to_owned());
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+}
+
+const PRETTY_PROGRAM: &str = "import \"std:json\"
+import \"std:types\"
+
+fn transcript() -> Text:
+    let value = unwrap(json_parse(\"{\\\"b\\\":[1,{}],\\\"a\\\":\\\"caf\u{e9}\\\",\\\"c\\\":[]}\"))
+    return json_stringify_pretty(value, 2)
+
+fn bad_indent() -> Text:
+    return json_stringify_pretty(json_object(), 17)
+
+fn main() -> Int:
+    return 0
+";
+
+/// `json_stringify_pretty` runs in the browser VM with the same text and error code as the native
+/// runtime.
+#[test]
+fn browser_json_stringify_pretty_matches_native() {
+    let artifact = gub_project("pretty", PRETTY_PROGRAM);
+    let expected = Outcome::Text(
+        "{\n  \"a\": \"caf\u{e9}\",\n  \"b\": [\n    1,\n    {}\n  ],\n  \"c\": []\n}".to_owned(),
+    );
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+    let error = Outcome::Error("R_JSON_INDENT".to_owned());
+    assert_eq!(native(&artifact, "bad_indent"), error, "native");
+    assert_eq!(browser(&artifact, "bad_indent"), error, "browser");
+}
+
+/// `fs_set_mode` and `fs_mode` need a host filesystem, which the browser VM does not have.
+#[test]
+fn file_modes_are_unsupported_in_the_browser() {
+    for (name, body) in [
+        ("fs-set-mode", "unwrap(fs_set_mode(\"a\", 0o600))"),
+        ("fs-mode", "print(unwrap(fs_mode(\"a\")))"),
+    ] {
+        let artifact = gub_project(
+            name,
+            &format!("import \"std:fs\"\nfn main() -> Int:\n    {body}\n    return 0\n"),
+        );
+        let response = browser_response(&artifact, "main", 1000);
+        assert_eq!(response["ok"], false, "{response}");
+        assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+    }
+}
+
+/// `tcp_peer` needs a socket, which the browser VM does not have.
+#[test]
+fn tcp_peer_is_unsupported_in_the_browser() {
+    let artifact = gub_project(
+        "tcp-peer",
+        "import \"std:net\"\nfn main() -> Int:\n    print(is_ok(tcp_peer(TcpConn(1))))\n    return 0\n",
+    );
+    let response = browser_response(&artifact, "main", 1000);
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+}
+
+const RADIX_PROGRAM: &str = "import \"std:text\"
+
+fn parsed(text: Text, radix: Int) -> Text:
+    let result = text_parse_int_radix(text, radix)
+    if is_ok(result):
+        return int_to_text(unwrap(result))
+    return \"err\"
+
+fn transcript() -> Text:
+    return int_to_text_radix(255, 16) + \"|\" + int_to_text_radix(-5, 2) + \"|\" + int_to_text_radix(0xFFFF_FFFF_FFFF_FFFF_FFFF, 36) + \"|\" + parsed(\"FF\", 16) + \"|\" + parsed(\"-zz\", 36) + \"|\" + parsed(\"ffffffffffffffffffff\", 16) + \"|\" + parsed(\"0x1f\", 16) + \"|\" + parsed(\"\", 10)
+
+fn bad_radix() -> Text:
+    return int_to_text_radix(1, 37)
+
+fn bad_parse_radix() -> Text:
+    return parsed(\"1\", 1)
+
+fn main() -> Int:
+    return 0
+";
+
+/// `int_to_text_radix` and `text_parse_int_radix` run in the browser VM with the same text and
+/// error codes as the native runtime.
+#[test]
+fn browser_radix_functions_match_native() {
+    let artifact = gub_project("radix", RADIX_PROGRAM);
+    let expected = Outcome::Text(
+        "ff|-101|5gv2rma270x9hhj3|255|-1295|1208925819614629174706175|err|err".to_owned(),
+    );
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+    let error = Outcome::Error("R_RADIX_RANGE".to_owned());
+    for function in ["bad_radix", "bad_parse_radix"] {
+        assert_eq!(native(&artifact, function), error, "native {function}");
+        assert_eq!(browser(&artifact, function), error, "browser {function}");
+    }
 }

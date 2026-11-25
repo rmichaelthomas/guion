@@ -11,6 +11,7 @@ use super::*;
 struct TaskReport {
     result: Result<Value, RuntimeError>,
     output: String,
+    errors: String,
     thread_id: String,
 }
 
@@ -288,6 +289,7 @@ impl Instance {
             let _ = sender.send(TaskReport {
                 result,
                 output: std::mem::take(&mut task.output),
+                errors: std::mem::take(&mut task.program_stderr),
                 thread_id,
             });
         });
@@ -378,6 +380,7 @@ impl Instance {
                         ));
                     }
                     self.append_stdout(&report.output)?;
+                    self.append_stderr(&report.errors, span)?;
                     let slot = &mut self.together.tasks[index];
                     slot.outcome = Some(match report.result {
                         Ok(value) => Outcome::Value(value),

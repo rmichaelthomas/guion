@@ -176,7 +176,7 @@ fn ss_with_id(request: Request, name: Text, id: Text) -> Request:
         else:
             set headers = list_push(headers, header)
         set index = index + 1
-    return Request(request.method, request.path, request.query, headers, request.body, request.params)
+    return Request(request.method, request.path, request.query, headers, request.body, request.params, request.peer)
 
 # ---- the store ----
 

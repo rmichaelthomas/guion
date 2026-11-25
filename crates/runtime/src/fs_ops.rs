@@ -88,6 +88,55 @@ fn temp_name(prefix: &str) -> String {
     format!("{prefix}-{}-{nanos:x}-{count}", std::process::id())
 }
 
+/// Permission bits from an `Int` mode: 0 to 0o7777, else `R_FILE_MODE_INVALID`.
+fn mode_bits(mode: &BigInt, span: Span) -> Result<u32, RuntimeError> {
+    match mode.to_i64() {
+        Some(bits @ 0..=0o7777) => Ok(bits as u32),
+        _ => Err(RuntimeError::new(
+            "R_FILE_MODE_INVALID",
+            format!(
+                "`{mode}` is not a file mode: write an Int from 0 to 0o7777 such as 0o600 or 0o755"
+            ),
+            span,
+        )),
+    }
+}
+
+#[cfg(unix)]
+fn set_mode(resolved: &Path, bits: u32, path: &str, span: Span) -> Result<(), RuntimeError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(resolved, fs::Permissions::from_mode(bits))
+        .map_err(|error| file_error(&error, "R_FILE_WRITE", "change the mode of", path, span))
+}
+
+#[cfg(not(unix))]
+fn set_mode(_resolved: &Path, _bits: u32, path: &str, span: Span) -> Result<(), RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!(
+            "cannot change the mode of `{path}`: file modes are not supported on this platform"
+        ),
+        span,
+    ))
+}
+
+#[cfg(unix)]
+fn read_mode(resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::metadata(resolved)
+        .map(|metadata| metadata.permissions().mode() & 0o7777)
+        .map_err(|error| file_error(&error, "R_FILE_READ", "read the mode of", path, span))
+}
+
+#[cfg(not(unix))]
+fn read_mode(_resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!("cannot read the mode of `{path}`: file modes are not supported on this platform"),
+        span,
+    ))
+}
+
 pub(crate) fn run(
     policy: &HostPolicy,
     function: FsFunction,
@@ -339,6 +388,20 @@ fn run_inner(
                 ));
             }
             Ok(ok(Value::Text(joined.as_str().into())))
+        }
+        FsFunction::SetMode => {
+            // The wrapper passes the Int mode as its decimal text, as `fs_read_range` does.
+            let mode = BigInt::parse(operands[1].as_str())
+                .map_err(|_| RuntimeError::new("R_TYPE_INVALID", "file mode must be an Int", span))
+                .and_then(|mode| mode_bits(&mode, span))?;
+            let resolved = host_file_path(policy, path, false, span)?;
+            set_mode(&resolved, mode, path, span)?;
+            Ok(ok(Value::Unit))
+        }
+        FsFunction::Mode => {
+            let resolved = host_file_path(policy, path, false, span)?;
+            let bits = read_mode(&resolved, path, span)?;
+            Ok(ok(Value::Int(BigInt::from_i64(i64::from(bits)))))
         }
         FsFunction::GzipCompressFile
         | FsFunction::GzipDecompressFile

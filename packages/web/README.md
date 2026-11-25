@@ -2,7 +2,7 @@
 
 Routing, middleware and serving for Guion applications, built on `std:http_response`, `std:http_server` and `std:log`.
 
-Use it from a project with `guion add web --path PATH/TO/web --approve-capabilities` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is published to the registry as `web` 0.2.0, so `guion add web --approve-capabilities` installs it without a checkout. The user guide is `docs/web.md` in the repository.
+Use it from a project with `guion add web --path PATH/TO/web --approve-capabilities` and `import "pkg:web/src/lib.gu"`. Check the package with `guion check tests.gu` and test it with `guion test tests.gu`. The package is published to the registry as `web` 0.3.0, so `guion add web --approve-capabilities` installs it without a checkout. The user guide is `docs/web.md` in the repository.
 
 ```
 import "pkg:web/src/lib.gu"
@@ -26,6 +26,8 @@ Run it with `guion run --allow-bind 127.0.0.1:8080 main.gu`.
 ## Handlers
 
 A handler is `fn(Request) -> Result[Response, HttpFailure]`. Guion has no type aliases, so write the type out. It names no socket, so a test calls it with `request_new("GET", "/")` and reads the `Response`. `HttpFailure(status, code, message)` is the failure type of `std:http_response`; the built-in `HttpError` cannot be built in Guion code.
+
+`request.peer` (new in 0.3.0, needs Guion 0.9.0 or later) is the client's address as `"host:port"`, an IPv6 host in brackets (`"[::1]:4000"`), and `""` when the request did not come from a connection (a `request_new` value in a test). The router and the built-in middleware pass it on unchanged, so handlers and middleware see it. Behind a proxy it is the proxy's address, not the end client's.
 
 ## Routes
 
@@ -136,7 +138,9 @@ A runtime fault inside a handler (an index out of range, say) is not recoverable
 
 ## Serving
 
-`serve(host, port, app, workers)` listens until the listener fails; `serve_for(host, port, app, workers, idle_ms)` lets each worker stop after `idle_ms` milliseconds with no connection and returns `Ok`. Both need `--allow-bind HOST:PORT` and follow the pattern of [docs/concurrency.md](../../docs/concurrency.md): `workers` workers share one listener, each accepts one connection, reads one request, runs the app and answers, so a stalled client holds one worker. The worker count is a ceiling for waiting, not a multiplier for computing.
+`serve(host, port, app, workers)` listens until the listener fails or the program is told to stop (below); `serve_for(host, port, app, workers, idle_ms)` lets each worker stop after `idle_ms` milliseconds with no connection and returns `Ok`. Both need `--allow-bind HOST:PORT` and follow the pattern of [docs/concurrency.md](../../docs/concurrency.md): `workers` workers share one listener, each accepts one connection, reads one request, runs the app and answers, so a stalled client holds one worker. The worker count is a ceiling for waiting, not a multiplier for computing.
+
+**Clean stop.** Call `process_signal_poll()` once at the start of `main` (`import "std:process"`) and `INT`, `TERM` and `HUP` become the program's own. Workers accept with a timeout of at most 200 ms and check `process_stop_requested()` between connections: a request being handled is finished and answered, then `serve` and `serve_for` return `Ok` and the code after them runs (close a database, print a line, return 0). A program that does not poll for signals is unchanged: the signal ends `guion` at once. `serve_for`'s `idle_ms` counts time without a connection and starts over after each one.
 
 Every response is sent with `Connection: close` (no keep-alive). Reading a request is limited to 10 seconds and 1 MiB. A malformed request is answered by `std:http_server` before any handler runs. If the client disconnects before the answer is written, the send fails, the failure is logged and the worker takes the next connection. No public function names a connection or listener.
 

@@ -2,7 +2,7 @@
 
 `web` is a Guion package for HTTP applications: a router, middleware, sessions with CSRF tokens, static files and checked templates, over `std:http_response`, `std:cookie`, `std:http_body`, `std:http_static` and `std:http_server`. It is a package, not part of the standard library: it is added to a project, pinned in `guion.lock`, and its capabilities are shown to you before it is installed. This page is the user guide. The package's own README (`packages/web/README.md`) carries the same API in more detail.
 
-The package is on the registry (0.2.0): `guion add web --approve-capabilities`. To use a checkout instead, `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
+The package is on the registry (0.3.0): `guion add web --approve-capabilities`. To use a checkout instead, `guion add web --path PATH/TO/packages/web --approve-capabilities`. The flag is needed because a project approves no package capabilities by default; it records what `web` declares (files, the local network, the clock) in your `guion.toml` under `[approved-capabilities.web]`.
 
 ## Quick start
 
@@ -75,7 +75,9 @@ fn main() -> Int:
 
 ## Serving
 
-`serve(host, port, app, workers)` listens until the listener fails; `serve_for(host, port, app, workers, idle_ms)` lets a worker stop after `idle_ms` without a connection. `workers` workers share one listener and each handles one connection at a time (pattern of `docs/concurrency.md`), so a stalled client holds one worker and the worker count is a ceiling for waiting, not for computing. Every response carries `Connection: close`. A request is read for at most 10 seconds and 1 MiB. No public function names a connection or listener.
+`serve(host, port, app, workers)` listens until the listener fails or, in a program that polls for signals, until it is told to stop (see below); `serve_for(host, port, app, workers, idle_ms)` lets a worker stop after `idle_ms` without a connection. `workers` workers share one listener and each handles one connection at a time (pattern of `docs/concurrency.md`), so a stalled client holds one worker and the worker count is a ceiling for waiting, not for computing. Every response carries `Connection: close`. A request is read for at most 10 seconds and 1 MiB. No public function names a connection or listener.
+
+To stop cleanly, call `process_signal_poll()` once at the start of `main` (import `std:process`). That makes `INT`, `TERM` and `HUP` the program's own, and `process_stop_requested()` turns true when one arrives. Each worker accepts with a timeout of at most 200 ms and looks at it between connections: a request being handled is finished and answered, then `serve` (or `serve_for`) returns `Ok` and the lines after it run, within a fraction of a second when the server is idle. A program that does not poll for signals is unchanged: `guion` ends on the signal at once, in-flight requests and all.
 
 ## Sessions and CSRF
 
@@ -143,7 +145,7 @@ Every public function declares its effects in `guion doc --json`.
 | Piece | Effects |
 | --- | --- |
 | `route`, `router`, `router_handle`, `path_param`, `app`, `wrap`, escapers, `html_response` | none |
-| `serve`, `serve_for` | `network.socket`, `concurrency.parallel` |
+| `serve`, `serve_for` | `network.socket`, `concurrency.parallel`, `process.signals` |
 | `static_files` | `filesystem.read` |
 | `session_*` and `csrf_*` that read the time | `clock.read` |
 | `app_respond` | `filesystem.write` (the standard-error log path) |

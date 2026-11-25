@@ -11494,6 +11494,384 @@
           "owner_task": 3
         }
       }
+    },
+    {
+      "id": "host_operation-text-case",
+      "kind": "host_operation",
+      "name": "text case",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.text-case.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.text-case.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.text-case.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`text_lower(value: Text) -> Text`, `text_upper(value: Text) -> Text`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
+      "id": "host_operation-json-keys",
+      "kind": "host_operation",
+      "name": "JSON keys",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.json-keys.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.json-keys.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.json-keys.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`json_keys(value: Json) -> Result[List[Text], JsonError]`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
+      "id": "host_operation-json-pretty-encode",
+      "kind": "host_operation",
+      "name": "JSON pretty encode",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.json-pretty-encode.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.json-pretty-encode.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.json-pretty-encode.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`json_stringify_pretty(value: Json, indent: Int) -> Text`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
+      "id": "host_operation-integer-radix",
+      "kind": "host_operation",
+      "name": "integer radix",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.integer-radix.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.integer-radix.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.integer-radix.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`int_to_text_radix(value: Int, radix: Int) -> Text`, `text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
+      "id": "host_operation-file-modes",
+      "kind": "host_operation",
+      "name": "file modes",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.file-modes.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.file-modes.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.file-modes.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]`, `fs_mode(path: Text) -> Result[Int, FileError]`",
+      "declared_status": "Implemented in artifact format 90"
+    },
+    {
+      "id": "host_operation-peer-address",
+      "kind": "host_operation",
+      "name": "peer address",
+      "owner_task": 6,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.peer-address.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "host_operation.peer-address.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "host_operation.peer-address.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      },
+      "source_signature": "`tcp_peer(conn: TcpConn) -> Result[PeerAddress, StdError]`, `http_server_peer(request: HttpServerRequest) -> Result[PeerAddress, StdError]`, `Request.peer`",
+      "declared_status": "Implemented in artifact format 90"
+    },
+    {
+      "id": "host_operation-stop-requested",
+      "kind": "host_operation",
+      "name": "stop requested",
+      "owner_task": 7,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.stop-requested.positive",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "negative": {
+          "case_id": "host_operation.stop-requested.negative",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "interaction": {
+          "case_id": "host_operation.stop-requested.interaction",
+          "state": "implemented",
+          "owner_task": 7
+        }
+      },
+      "source_signature": "`process_stop_requested() -> Bool`",
+      "declared_status": "Implemented in artifact format 90"
+    },
+    {
+      "id": "opcode-text-lower",
+      "kind": "opcode",
+      "name": "TextLower",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-text-lower.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-text-lower.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-text-lower.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-text-upper",
+      "kind": "opcode",
+      "name": "TextUpper",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-text-upper.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-text-upper.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-text-upper.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-json-keys",
+      "kind": "opcode",
+      "name": "JsonKeys",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-json-keys.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-json-keys.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-json-keys.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-json-stringify-pretty",
+      "kind": "opcode",
+      "name": "JsonStringifyPretty",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-json-stringify-pretty.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-json-stringify-pretty.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-json-stringify-pretty.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-int-to-text-radix",
+      "kind": "opcode",
+      "name": "IntToTextRadix",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-int-to-text-radix.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-int-to-text-radix.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-int-to-text-radix.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-text-parse-int-radix",
+      "kind": "opcode",
+      "name": "TextParseIntRadix",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-text-parse-int-radix.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-text-parse-int-radix.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-text-parse-int-radix.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
     }
   ],
   "regression_applications": [

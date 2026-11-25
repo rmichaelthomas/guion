@@ -417,6 +417,49 @@ fn an_application_using_web_by_path_serves_over_a_real_socket() {
     );
 }
 
+const PEER_APP: &str = r#"import "pkg:web/src/lib.gu"
+import "std:text"
+
+fn who(request: Request) -> Result[Response, HttpFailure]:
+    return Ok(response_text(200, "peer=" + request.peer))
+
+fn require_peer(request: Request) -> Result[Request, Response]:
+    if request.peer == "":
+        return Err(response_text(403, "no peer"))
+    return Ok(request)
+
+fn main() -> Int:
+    let port = unwrap(text_parse_int(args()[0]))
+    let table = unwrap(router([route("GET", "/who", who)]))
+    let application = wrap(app(table), layer_before(require_peer))
+    match serve_for("127.0.0.1", port, application, 1, 1500):
+        Ok(done):
+            return 0
+        Err(failure):
+            return 1
+"#;
+
+#[test]
+fn a_handler_and_middleware_see_the_client_address_as_request_peer() {
+    let server = start_app("peer", 1, PEER_APP, &[]);
+    let mut stream = connect_to(server.port).expect("connects");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(8)))
+        .unwrap();
+    let local = stream.local_addr().unwrap();
+    stream
+        .write_all(b"GET /who HTTP/1.1\r\nHost: x\r\n\r\n")
+        .unwrap();
+    let mut answer = Vec::new();
+    let _ = stream.read_to_end(&mut answer);
+    let answer = String::from_utf8_lossy(&answer).into_owned();
+    assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+    assert!(
+        answer.ends_with(&format!("peer=127.0.0.1:{}", local.port())),
+        "{answer}"
+    );
+}
+
 #[test]
 fn a_client_that_disconnects_before_the_answer_does_not_stop_the_server() {
     let server = start("disconnect", 1);
@@ -479,7 +522,7 @@ fn csrf_tokens_are_compared_only_with_the_constant_time_mac_check() {
         }
     }
     let runtime = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../runtime/src/stdlib_services.rs"),
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../vm-core/src/services.rs"),
     )
     .unwrap();
     assert!(
@@ -530,7 +573,7 @@ fn flow() -> Text:
     let policy = session_policy_default()
     let id = unwrap(session_open(store, policy, request_new("GET", "/")))
     let cookie = Header("Cookie", policy.cookie_name + "=" + id)
-    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {})
+    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {}, "")
     let token = unwrap(csrf_token(store, policy, request))
     return hex_encode(store.secret) + "|" + id + "|" + hex_encode(unwrap(base64url_decode(token)))
 
@@ -539,7 +582,7 @@ fn after_hours(hours: Int) -> Bool:
     let policy = session_policy_default()
     let id = unwrap(session_open_at(store, policy, request_new("GET", "/"), 1000))
     let cookie = Header("Cookie", policy.cookie_name + "=" + id)
-    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {})
+    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {}, "")
     return unwrap(session_open_at(store, policy, request, 1000 + hours * 3600000)) == id
 "#;
 
@@ -975,4 +1018,83 @@ fn static_files_declare_a_file_read_effect_and_the_manifest_grants_match_the_mod
             "{name} is not exported"
         );
     }
+}
+
+/// The child's exit status if it ends within `limit`.
+fn wait_within(child: &mut Child, limit: Duration) -> Option<std::process::ExitStatus> {
+    let began = std::time::Instant::now();
+    while began.elapsed() < limit {
+        if let Some(status) = child.try_wait().unwrap() {
+            return Some(status);
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    None
+}
+
+const STOPPABLE: &str = r#"import "pkg:web/src/lib.gu"
+import "std:process"
+import "std:text"
+
+fn slow(request: Request) -> Result[Response, HttpFailure]:
+    sleep_ms(300)
+    return Ok(response_text(200, "slow done"))
+
+fn quick(request: Request) -> Result[Response, HttpFailure]:
+    return Ok(response_text(200, "quick"))
+
+fn main() -> Int:
+    let arguments = args()
+    let port = unwrap(text_parse_int(arguments[0]))
+    let workers = unwrap(text_parse_int(arguments[1]))
+    let first = process_signal_poll()
+    let table = unwrap(router([route("GET", "/slow", slow), route("GET", "/quick", quick)]))
+    match serve("127.0.0.1", port, app(table), workers):
+        Ok(done):
+            print("stopped")
+            return 0
+        Err(failure):
+            print("failed " + failure.code)
+            return 1
+"#;
+
+#[cfg(unix)]
+#[test]
+fn serve_finishes_the_request_in_flight_and_returns_when_the_program_polls_and_is_told_to_stop() {
+    let mut server = start_app("stop", 2, STOPPABLE, &[]);
+    let port = server.port;
+    assert!(get(port, "/quick").ends_with("quick"));
+    let request = std::thread::spawn(move || get(port, "/slow"));
+    std::thread::sleep(Duration::from_millis(100));
+    // SAFETY: the pid is the child this test started and still owns.
+    unsafe {
+        libc::kill(server.child.id() as i32, libc::SIGTERM);
+    }
+    let answer = request.join().unwrap();
+    assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+    assert!(answer.ends_with("slow done"), "{answer}");
+    let status = wait_within(&mut server.child, Duration::from_secs(2));
+    assert!(status.expect("exits within 2 s").success());
+    let mut printed = String::new();
+    server
+        .child
+        .stdout
+        .take()
+        .unwrap()
+        .read_to_string(&mut printed)
+        .unwrap();
+    assert!(printed.lines().any(|line| line == "stopped"), "{printed}");
+}
+
+#[cfg(unix)]
+#[test]
+fn serve_in_a_program_that_does_not_poll_still_ends_on_the_signal() {
+    use std::os::unix::process::ExitStatusExt;
+    let mut server = start("stop-unpolled", 1);
+    // SAFETY: the pid is the child this test started and still owns.
+    unsafe {
+        libc::kill(server.child.id() as i32, libc::SIGTERM);
+    }
+    let status = wait_within(&mut server.child, Duration::from_secs(2)).expect("ends");
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
 }

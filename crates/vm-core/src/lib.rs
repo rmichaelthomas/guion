@@ -29,11 +29,24 @@ mod array_compute;
 pub mod json_decode;
 mod json_host;
 pub use json_host::run_json_instruction;
+mod text_host;
+pub use text_host::{run_radix_instruction, run_text_case_instruction};
+pub mod compress;
+pub mod data;
+mod pure_host;
+pub use pure_host::{
+    entropy_error_value, file_error_result, http_error, run_pure_instruction,
+    runtime_service_resource, runtime_text_path, service_error_value, service_result_value,
+    PureServices,
+};
+pub mod json_projection;
 pub mod json_try;
 mod matmul;
 pub mod ordering;
 mod register;
+pub mod services;
 mod verify;
+pub mod yaml;
 pub use verify::{verify, FlowState};
 
 pub use register::{build_register_programs, RegisterProgram, RegisterPrograms};
@@ -1262,7 +1275,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 if right.is_zero() {
                     return Err(RuntimeError::new(
                         "R_DIV_ZERO",
-                        "division by zero",
+                        "integer division by zero",
                         instruction.span,
                     ));
                 }
@@ -5176,6 +5189,12 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CallFn(_) => "CallFn",
         Op::RandomBytes => "RandomBytes",
         Op::Sleep => "Sleep",
+        Op::TextLower => "TextLower",
+        Op::TextUpper => "TextUpper",
+        Op::JsonKeys => "JsonKeys",
+        Op::JsonStringifyPretty => "JsonStringifyPretty",
+        Op::IntToTextRadix => "IntToTextRadix",
+        Op::TextParseIntRadix => "TextParseIntRadix",
         Op::StdinReadLine => "StdinReadLine",
         Op::StdinReadAll => "StdinReadAll",
         Op::HigherOrder(_) => "HigherOrder",
@@ -6479,6 +6498,7 @@ pub struct PortableHost {
     output: String,
     steps_used: u64,
     verified: Option<Result<(), RuntimeError>>,
+    toml: services::TomlRegistry,
 }
 
 impl PortableHost {
@@ -6489,6 +6509,7 @@ impl PortableHost {
             output: String::new(),
             steps_used: 0,
             verified: None,
+            toml: services::TomlRegistry::new(limits.max_text_bytes),
         }
     }
 
@@ -6623,8 +6644,39 @@ impl VmHost for PortableHost {
         if self.portable_json(&mut context)? {
             return Ok(());
         }
+        let limits = self.limits;
+        if run_text_case_instruction(&mut context, &limits)? {
+            return Ok(());
+        }
+        if run_radix_instruction(&mut context, &limits)? {
+            return Ok(());
+        }
+        // A browser has no more than one core to use.
+        if matches!(
+            context.instruction.op,
+            Op::Process(guion_model::ProcessFunction::CoreCount)
+        ) {
+            context.stack.push(Value::Int(BigInt::from_i64(1)));
+            return Ok(());
+        }
+        if run_pure_instruction(
+            &mut context,
+            &limits,
+            PureServices {
+                artifact: &self.artifact,
+                toml: &mut self.toml,
+                decompress_ceiling: limits.allocation_limit_bytes as u64,
+            },
+        )? {
+            return Ok(());
+        }
         let op = context.instruction.op.clone();
         let span = context.instruction.span;
+        // The browser has no signals, so no stop is ever requested.
+        if matches!(op, Op::Process(guion_model::ProcessFunction::StopRequested)) {
+            context.stack.push(Value::Bool(false));
+            return Ok(());
+        }
         // `parallel_map` needs threads, which this host does not have.
         match op {
             Op::HigherOrder(Kind::ParallelMap | Kind::TryParallelMap | Kind::StartTask)
@@ -7347,7 +7399,9 @@ fn fs_result_type(function: FsFunction) -> Type {
     let ok = match function {
         FsFunction::Exists => Type::Bool,
         FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
-        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
+        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy | FsFunction::Mode => {
+            Type::Int
+        }
         FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
         FsFunction::ConfinedPath => Type::Text,
         FsFunction::GzipCompressFile
@@ -7356,9 +7410,11 @@ fn fs_result_type(function: FsFunction) -> Type {
         | FsFunction::TarRead => Type::Int,
         FsFunction::TarList => Type::List(Box::new(Type::Text)),
         FsFunction::ListDir => Type::List(Box::new(Type::Text)),
-        FsFunction::MakeDir | FsFunction::Remove | FsFunction::RemoveAll | FsFunction::Rename => {
-            Type::Unit
-        }
+        FsFunction::MakeDir
+        | FsFunction::Remove
+        | FsFunction::RemoveAll
+        | FsFunction::Rename
+        | FsFunction::SetMode => Type::Unit,
     };
     Type::Result(Box::new(ok), Box::new(Type::FileError))
 }
@@ -7378,6 +7434,7 @@ fn net_signature(function: guion_model::NetFunction) -> (Vec<Type>, Type) {
             vec![Type::Int, Type::Text, Type::Int, Type::Bytes],
             Type::Int,
         ),
+        N::PeerAddress => (vec![Type::Int], Type::Text),
         N::UdpRecvFrom => (
             vec![Type::Int, Type::Int, Type::Int],
             Type::List(Box::new(Type::Bytes)),

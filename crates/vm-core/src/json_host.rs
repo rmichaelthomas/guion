@@ -6,7 +6,7 @@
 //! [`json_decode`](crate::json_decode) and [`json_try`](crate::json_try) modules. The column and
 //! projection instructions of the data library (`JsonIntColumn`, `JsonTextCategories`,
 //! `JsonAsIntList`, `JsonProjectColumns`, `JsonTextCategoriesValues`, `JsonStringifyPairs`) are
-//! not here and stay `R_HOST_UNSUPPORTED`.
+//! in [`run_pure_instruction`](crate::run_pure_instruction).
 
 use crate::json_decode::{parse_unique_shared_json, JsonDecodeError};
 use crate::{
@@ -18,6 +18,22 @@ use guion_model::{
     BigInt, Float64, JsonErrorValue, Op, RuntimeError, Shared, SharedJson, Span, Value,
 };
 use std::mem::size_of;
+
+/// The widest indent `json_stringify_pretty` accepts, in spaces per level.
+const MAX_PRETTY_INDENT: i64 = 16;
+
+/// Pretty JSON text: one array element or object member per line, `width` spaces per level, `": "`
+/// between a key and its value, no trailing newline, `{}` and `[]` on one line when empty. Strings
+/// and numbers are written exactly as `json_stringify` writes them.
+fn pretty_json_text(value: &SharedJson, width: usize) -> Result<String, serde_json::Error> {
+    use serde::Serialize;
+    let indent = vec![b' '; width];
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(&indent);
+    let mut output = Vec::new();
+    let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
+    value.serialize(&mut serializer)?;
+    Ok(String::from_utf8(output).expect("serde_json writes UTF-8"))
+}
 
 fn invalid(message: &str, span: Span) -> RuntimeError {
     RuntimeError::new("R_TYPE_INVALID", message, span)
@@ -329,6 +345,79 @@ pub fn run_json_instruction(
             }
             charge_allocation(budget, size_of::<String>().saturating_add(text.len()), span)?;
             stack.push(Value::Text(text.into()));
+        }
+        Op::JsonStringifyPretty => {
+            let Value::Int(indent) = pop(stack, span)? else {
+                return Err(invalid("json_stringify_pretty indent must be Int", span));
+            };
+            let Value::Json(value) = pop(stack, span)? else {
+                return Err(invalid("json_stringify_pretty requires Json", span));
+            };
+            let width = match indent.to_i64() {
+                Some(width) if (0..=MAX_PRETTY_INDENT).contains(&width) => width as usize,
+                _ => {
+                    return Err(RuntimeError::new(
+                        "R_JSON_INDENT",
+                        format!(
+                            "json_stringify_pretty takes an indent of 0 to {MAX_PRETTY_INDENT}"
+                        ),
+                        span,
+                    ));
+                }
+            };
+            let text = pretty_json_text(value.as_ref(), width)
+                .map_err(|error| RuntimeError::new("R_JSON_ENCODE", error.to_string(), span))?;
+            if text.len() > limits.max_text_bytes {
+                return Err(RuntimeError::new(
+                    "R_TEXT_LIMIT",
+                    "JSON output exceeds the configured byte limit",
+                    span,
+                ));
+            }
+            charge_allocation(budget, size_of::<String>().saturating_add(text.len()), span)?;
+            stack.push(Value::Text(text.into()));
+        }
+        Op::JsonKeys => {
+            let Value::Json(value) = pop(stack, span)? else {
+                return Err(invalid("json_keys requires Json", span));
+            };
+            let SharedJson::Object(object) = value.as_ref() else {
+                let found = match value.as_ref() {
+                    SharedJson::Null => "null",
+                    SharedJson::Bool(_) => "boolean",
+                    SharedJson::Number(_) => "number",
+                    SharedJson::String(_) => "string",
+                    SharedJson::Array(_) => "array",
+                    SharedJson::Object(_) => "object",
+                };
+                stack.push(Value::ResultErr(Box::new(Value::JsonError(Box::new(
+                    JsonErrorValue {
+                        code: "R_JSON_TYPE".into(),
+                        message: format!("json_keys expects a JSON object, found {found}"),
+                        line: 0,
+                        column: 0,
+                    },
+                )))));
+                return Ok(true);
+            };
+            if object.len() > limits.max_collection_items {
+                return Err(RuntimeError::new(
+                    "R_COLLECTION_LIMIT",
+                    "json_keys result exceeds the configured item limit",
+                    span,
+                ));
+            }
+            let key_bytes: usize = object.keys().map(String::len).sum();
+            charge_allocation(
+                budget,
+                crate::text_list_allocation(object.len(), key_bytes),
+                span,
+            )?;
+            let keys: Vec<Value> = object
+                .keys()
+                .map(|key| Value::Text(key.as_str().into()))
+                .collect();
+            stack.push(Value::ResultOk(Box::new(Value::from_list_items(keys))));
         }
         Op::JsonErrorMessage | Op::JsonErrorLine | Op::JsonErrorColumn | Op::JsonErrorCode => {
             let Value::JsonError(error) = pop(stack, span)? else {

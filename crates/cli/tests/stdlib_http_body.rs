@@ -48,7 +48,7 @@ import "std:http_response"
 import "std:types"
 fn main() -> Int:
     let body = unwrap(read_bytes("body.bin"))
-    let request = Request("POST", "/", {{}}, [Header("content-type", "{}")], body, {{}})
+    let request = Request("POST", "/", {{}}, [Header("content-type", "{}")], body, {{}}, "")
     let limits = BodyLimits({}, {}, {}, {}, {})
     match multipart_parse(request, "up", limits):
         Ok(parsed):

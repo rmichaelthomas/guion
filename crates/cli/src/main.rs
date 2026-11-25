@@ -3128,7 +3128,8 @@ fn inspection_report(
                     guion_model::ProcessFunction::Run | guion_model::ProcessFunction::Start => {
                         direct_effects[function_index].insert("process.spawn".into());
                     }
-                    guion_model::ProcessFunction::SignalPoll => {
+                    guion_model::ProcessFunction::SignalPoll
+                    | guion_model::ProcessFunction::StopRequested => {
                         direct_effects[function_index].insert("process.signals".into());
                     }
                     guion_model::ProcessFunction::Pid
@@ -4125,23 +4126,40 @@ fn format_source_line(line: &str) -> String {
         if character.is_ascii_digit() {
             let start = cursor;
             cursor += 1;
-            while cursor < characters.len() && characters[cursor].is_ascii_digit() {
+            let prefixed = character == '0'
+                && matches!(
+                    characters.get(cursor),
+                    Some('x' | 'X' | 'o' | 'O' | 'b' | 'B')
+                );
+            if prefixed {
+                // `0xFF_ff`: the literal is kept exactly as written.
                 cursor += 1;
-            }
-            if cursor < characters.len() && characters[cursor] == '.' {
-                cursor += 1;
-                while cursor < characters.len() && characters[cursor].is_ascii_digit() {
+                while cursor < characters.len()
+                    && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+                {
                     cursor += 1;
                 }
+                tokens.push((characters[start..cursor].iter().collect(), 1));
+                continue;
+            }
+            let digits = |cursor: &mut usize| {
+                while *cursor < characters.len()
+                    && (characters[*cursor].is_ascii_digit() || characters[*cursor] == '_')
+                {
+                    *cursor += 1;
+                }
+            };
+            digits(&mut cursor);
+            if cursor < characters.len() && characters[cursor] == '.' {
+                cursor += 1;
+                digits(&mut cursor);
             }
             if cursor < characters.len() && matches!(characters[cursor], 'e' | 'E') {
                 cursor += 1;
                 if cursor < characters.len() && matches!(characters[cursor], '+' | '-') {
                     cursor += 1;
                 }
-                while cursor < characters.len() && characters[cursor].is_ascii_digit() {
-                    cursor += 1;
-                }
+                digits(&mut cursor);
             }
             tokens.push((characters[start..cursor].iter().collect(), 1));
             continue;
@@ -4176,9 +4194,30 @@ fn format_source_line(line: &str) -> String {
 
     let mut formatted = String::from(indentation);
     let mut previous: Option<(String, u8)> = None;
+    // A `-` with no value before it is a sign, and stays against its number or name: `-1`, `x = -y`.
+    let mut previous_sign = false;
     for (text, kind) in &tokens {
+        let sign = text == "-"
+            && previous
+                .as_ref()
+                .is_none_or(|(previous_text, previous_kind)| {
+                    *previous_kind == 3
+                        || matches!(
+                            previous_text.as_str(),
+                            "(" | "["
+                                | ","
+                                | ":"
+                                | "{"
+                                | "return"
+                                | "in"
+                                | "if"
+                                | "while"
+                                | "match"
+                        )
+                });
         if let Some((previous_text, previous_kind)) = previous.as_ref() {
             let needs_space = match text.as_str() {
+                _ if previous_sign => false,
                 "," | ")" | "]" | "}" | "." | ":" => false,
                 "(" => previous_text == "fn" || previous_text == "record",
                 "[" => false,
@@ -4196,6 +4235,7 @@ fn format_source_line(line: &str) -> String {
         }
         formatted.push_str(text);
         previous = Some((text.clone(), *kind));
+        previous_sign = sign;
     }
     if let Some(comment) = comment {
         if !formatted.is_empty() && !formatted.chars().last().is_some_and(char::is_whitespace) {
@@ -4359,6 +4399,13 @@ fn source_identifiers(source: &str) -> Vec<(String, usize)> {
                     cursor += 1;
                 }
                 identifiers.push((characters[start..cursor].iter().collect(), line_index + 1));
+            } else if characters[cursor].is_ascii_digit() {
+                // A number literal (`0xFF`, `1_000`, `1e5`) is not an identifier.
+                while cursor < characters.len()
+                    && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
+                {
+                    cursor += 1;
+                }
             } else {
                 cursor += 1;
             }

@@ -36,6 +36,30 @@ pub fn tcp_listener_port(listener: TcpListener) -> Result[Int, StdError]:
         Err(failure):
             return Err(std_error(failure[0], failure[1]))
 
+pub record PeerAddress:
+    host: Text
+    port: Int
+
+# The other end of a connection: the client's address on an accepted connection, the server's on one
+# from tcp_connect. An IPv6 host has no brackets and an IPv4-mapped IPv6 address is the IPv4 one.
+# Works on a TLS connection too. Needs no grant beyond holding the connection.
+pub fn tcp_peer(conn: TcpConn) -> Result[PeerAddress, StdError]:
+    match native_net_peer_address(conn.handle):
+        Ok(address):
+            return Ok(net_split_address(address))
+        Err(failure):
+            return Err(std_error(failure[0], failure[1]))
+
+fn net_split_address(address: Text) -> PeerAddress:
+    var split = len(address) - 1
+    while split > 0 and address[split] != ":":
+        set split = split - 1
+    var host = text_slice(address, 0, split)
+    if len(host) > 1 and host[0] == "[":
+        set host = text_slice(host, 1, len(host) - 1)
+    let port = unwrap(text_parse_int(text_slice(address, split + 1, len(address))))
+    return PeerAddress(host, port)
+
 pub fn tcp_accept(listener: TcpListener, timeout_ms: Int) -> Result[TcpConn, StdError]:
     match native_net_tcp_accept(listener.handle, timeout_ms):
         Ok(handle):

@@ -1,6 +1,6 @@
 # The basics list
 
-**Version 1, as of Guion 0.8.0.**
+**Version 1, as of Guion 0.9.0.**
 
 This is the list of tasks a small program usually needs, with the function that covers each. The claim it supports is exactly this one: **Guion covers the basics as of this list.** It is not a claim that Guion covers everything a program might need, and the list is versioned so the claim can be checked: a test (`crates/cli/tests/basics_list.rs`) fails if any function named in the "Covered by" column is missing from the shipped standard library or the built-in functions.
 

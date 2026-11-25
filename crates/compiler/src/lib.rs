@@ -118,6 +118,150 @@ fn diagnostic(code: &str, message: impl Into<String>, span: Span) -> Diagnostic 
     Diagnostic::new(code, message, span)
 }
 
+/// The end of the number literal that starts at `start` in `line`. Integer literals may carry a
+/// `0x`, `0o` or `0b` prefix (any case) and `_` between digits in any base; floats take `_`
+/// between digits too. A separator that is not between two digits, a prefix without digits and a
+/// digit outside the base are `E_NUMBER_LITERAL` at the offending character.
+fn lex_number(
+    line: &str,
+    start: usize,
+    source_id: u32,
+    offset: usize,
+    row: usize,
+) -> Result<usize, Diagnostic> {
+    let bytes = line.as_bytes();
+    let error = |at: usize, message: String| {
+        diagnostic(
+            "E_NUMBER_LITERAL",
+            message,
+            Span {
+                source_id,
+                start: offset + at,
+                end: offset + (at + 1).min(bytes.len()),
+                line: row + 1,
+                column: line[..at].chars().count() + 1,
+            },
+        )
+    };
+    // One run of digits and separators starting at `at`; the run must start and end on a digit.
+    let digit_run = |at: usize, is_digit: &dyn Fn(u8) -> bool| -> Result<usize, Diagnostic> {
+        let mut end = at;
+        while end < bytes.len() && (is_digit(bytes[end]) || bytes[end] == b'_') {
+            if bytes[end] == b'_' && (end == at || bytes.get(end + 1).is_none_or(|b| !is_digit(*b)))
+            {
+                return Err(error(
+                    end,
+                    "a digit separator `_` must sit between two digits".to_owned(),
+                ));
+            }
+            end += 1;
+        }
+        Ok(end)
+    };
+    let decimal = |byte: u8| byte.is_ascii_digit();
+    if bytes[start] == b'0' {
+        let base = match bytes.get(start + 1) {
+            Some(b'x' | b'X') => Some(("hexadecimal", 16)),
+            Some(b'o' | b'O') => Some(("octal", 8)),
+            Some(b'b' | b'B') => Some(("binary", 2)),
+            _ => None,
+        };
+        if let Some((name, radix)) = base {
+            let first = start + 2;
+            let mut end = first;
+            while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+                end += 1;
+            }
+            if end == first {
+                return Err(error(
+                    start,
+                    format!("a {name} literal needs digits after its prefix"),
+                ));
+            }
+            let in_base = |byte: u8| (byte as char).is_digit(radix);
+            for (at, byte) in bytes.iter().enumerate().take(end).skip(first) {
+                if *byte != b'_' && !in_base(*byte) {
+                    return Err(error(
+                        at,
+                        format!("`{}` is not a {name} digit", *byte as char),
+                    ));
+                }
+            }
+            digit_run(first, &in_base)?;
+            return Ok(end);
+        }
+    }
+    let mut i = digit_run(start, &decimal)?;
+    if bytes.get(i) == Some(&b'.') {
+        i += 1;
+        let fractional_start = i;
+        i = digit_run(i, &decimal)?;
+        if i == fractional_start {
+            return Err(diagnostic(
+                "E_FLOAT_LITERAL",
+                "a decimal point must be followed by digits",
+                Span {
+                    source_id,
+                    start: offset + start,
+                    end: offset + i,
+                    line: row + 1,
+                    column: start + 1,
+                },
+            ));
+        }
+    }
+    if matches!(bytes.get(i), Some(b'e' | b'E')) {
+        i += 1;
+        if matches!(bytes.get(i), Some(b'+' | b'-')) {
+            i += 1;
+        }
+        let exponent_start = i;
+        i = digit_run(i, &decimal)?;
+        if i == exponent_start {
+            return Err(diagnostic(
+                "E_FLOAT_LITERAL",
+                "a floating-point exponent must contain digits",
+                Span {
+                    source_id,
+                    start: offset + start,
+                    end: offset + i,
+                    line: row + 1,
+                    column: start + 1,
+                },
+            ));
+        }
+    }
+    Ok(i)
+}
+
+/// Whether a number token is a float literal: a decimal point or exponent, and not a prefixed
+/// integer (`0xE` is an integer whose last digit is E).
+fn is_float_literal(text: &str) -> bool {
+    !has_radix_prefix(text) && text.contains(['.', 'e', 'E'])
+}
+
+fn has_radix_prefix(text: &str) -> bool {
+    matches!(
+        text.as_bytes(),
+        [b'0', b'x' | b'X' | b'o' | b'O' | b'b' | b'B', ..]
+    )
+}
+
+/// The value of an integer literal token as the lexer accepted it: decimal, or `0x`, `0o` or `0b`
+/// prefixed, with `_` separators.
+fn parse_int_literal(text: &str) -> Option<BigInt> {
+    let digits = text.replace('_', "");
+    if has_radix_prefix(&digits) {
+        let radix = match digits.as_bytes()[1] {
+            b'x' | b'X' => 16,
+            b'o' | b'O' => 8,
+            _ => 2,
+        };
+        return BigInt::parse_radix(&digits[2..], radix, false).ok();
+    }
+    BigInt::parse(&digits).ok()
+}
+
 fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
     let mut tokens = Vec::new();
     let mut indent = vec![0usize];
@@ -258,53 +402,7 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
                 kind = Kind::Name;
                 text = line[start..i].to_owned();
             } else if c.is_ascii_digit() {
-                i += 1;
-                while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
-                    i += 1;
-                }
-                if bytes.get(i) == Some(&b'.') {
-                    i += 1;
-                    let fractional_start = i;
-                    while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
-                        i += 1;
-                    }
-                    if i == fractional_start {
-                        return Err(diagnostic(
-                            "E_FLOAT_LITERAL",
-                            "a decimal point must be followed by digits",
-                            Span {
-                                source_id,
-                                start: offset + start,
-                                end: offset + i,
-                                line: row + 1,
-                                column: start + 1,
-                            },
-                        ));
-                    }
-                }
-                if matches!(bytes.get(i), Some(b'e' | b'E')) {
-                    i += 1;
-                    if matches!(bytes.get(i), Some(b'+' | b'-')) {
-                        i += 1;
-                    }
-                    let exponent_start = i;
-                    while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
-                        i += 1;
-                    }
-                    if i == exponent_start {
-                        return Err(diagnostic(
-                            "E_FLOAT_LITERAL",
-                            "a floating-point exponent must contain digits",
-                            Span {
-                                source_id,
-                                start: offset + start,
-                                end: offset + i,
-                                line: row + 1,
-                                column: start + 1,
-                            },
-                        ));
-                    }
-                }
+                i = lex_number(line, start, source_id, offset, row)?;
                 kind = Kind::Number;
                 text = line[start..i].to_owned();
             } else if c == '"' || format_literal {
@@ -708,12 +806,42 @@ enum MatchPattern {
 enum Pattern {
     Constructor(String, Vec<Pattern>, Span),
     Name(String, Span),
+    /// An `Int`, `Text` or `Bool` literal: the value matches when it is equal.
+    Literal(PatternLiteral, Span),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum PatternLiteral {
+    Int(BigInt),
+    Text(String),
+    Bool(bool),
+}
+
+impl PatternLiteral {
+    /// The type the literal has, as the words of a message.
+    fn kind(&self) -> &'static str {
+        match self {
+            PatternLiteral::Int(_) => "Int",
+            PatternLiteral::Text(_) => "Text",
+            PatternLiteral::Bool(_) => "Bool",
+        }
+    }
+    /// The literal as written, for a message.
+    fn spelled(&self) -> String {
+        match self {
+            PatternLiteral::Int(value) => value.to_string(),
+            PatternLiteral::Text(value) => format!("{value:?}"),
+            PatternLiteral::Bool(value) => value.to_string(),
+        }
+    }
 }
 
 impl Pattern {
     fn span(&self) -> Span {
         match self {
-            Pattern::Constructor(_, _, span) | Pattern::Name(_, span) => *span,
+            Pattern::Constructor(_, _, span)
+            | Pattern::Name(_, span)
+            | Pattern::Literal(_, span) => *span,
         }
     }
 }
@@ -915,6 +1043,9 @@ impl Parser {
     /// `Some(p)`, `Ok(p)`, `Err(p)`, `None`, `Variant`, `Variant(p, ...)` or a binding name.
     /// `Some`, `Ok` and `Err` take exactly one pattern; `None` takes none.
     fn match_pattern(&mut self) -> Result<Pattern, Diagnostic> {
+        if let Some(literal) = self.literal_pattern()? {
+            return Ok(literal);
+        }
         let head = self.name()?;
         match head.text.as_str() {
             "None" => Ok(Pattern::Constructor(head.text, Vec::new(), head.span)),
@@ -941,6 +1072,59 @@ impl Parser {
                 Ok(Pattern::Constructor(head.text, parts, head.span))
             }
         }
+    }
+    /// An `Int`, `Text` or `Bool` literal where a pattern is expected, if one starts here. A
+    /// leading `-` makes an `Int` negative; a `Float64` literal is refused.
+    fn literal_pattern(&mut self) -> Result<Option<Pattern>, Diagnostic> {
+        let token = self.cur().clone();
+        let negative = token.kind == Kind::Symbol
+            && token.text == "-"
+            && self
+                .tokens
+                .get(self.at + 1)
+                .is_some_and(|next| next.kind == Kind::Number);
+        let number = if negative {
+            self.tokens[self.at + 1].clone()
+        } else {
+            token.clone()
+        };
+        match token.kind {
+            Kind::Symbol if negative => {}
+            Kind::Number => {}
+            Kind::Text => {
+                self.advance();
+                return Ok(Some(Pattern::Literal(
+                    PatternLiteral::Text(token.text),
+                    token.span,
+                )));
+            }
+            Kind::Name if token.text == "true" || token.text == "false" => {
+                self.advance();
+                return Ok(Some(Pattern::Literal(
+                    PatternLiteral::Bool(token.text == "true"),
+                    token.span,
+                )));
+            }
+            _ => return Ok(None),
+        }
+        if is_float_literal(&number.text) {
+            return Err(diagnostic(
+                "E_MATCH_PATTERN",
+                "a Float64 cannot be matched against a literal; compare it with `==` or `<` in an `if`",
+                number.span,
+            ));
+        }
+        let mut value = parse_int_literal(&number.text)
+            .ok_or_else(|| diagnostic("E_INT_LITERAL", "invalid integer literal", number.span))?;
+        self.advance();
+        if negative {
+            self.advance();
+            value = &BigInt::zero() - &value;
+        }
+        Ok(Some(Pattern::Literal(
+            PatternLiteral::Int(value),
+            token.span,
+        )))
     }
     fn name(&mut self) -> Result<Token, Diagnostic> {
         if self.cur().kind == Kind::Name {
@@ -1676,12 +1860,13 @@ impl Parser {
                     let pattern = match self.match_pattern()? {
                         // A bare name at the top of an arm is a variant without values.
                         Pattern::Name(name, span) => MatchPattern::Variant(name, Vec::new(), span),
+                        literal @ Pattern::Literal(..) => MatchPattern::Nested(literal),
                         Pattern::Constructor(name, parts, span) => {
                             let names: Option<Vec<(String, Span)>> = parts
                                 .iter()
                                 .map(|part| match part {
                                     Pattern::Name(name, span) => Some((name.clone(), *span)),
-                                    Pattern::Constructor(..) => None,
+                                    Pattern::Constructor(..) | Pattern::Literal(..) => None,
                                 })
                                 .collect();
                             match (name.as_str(), names) {
@@ -1750,9 +1935,10 @@ impl Parser {
     fn expr(&mut self, min: u8) -> Result<Expr, Diagnostic> {
         let t = self.advance();
         let mut left = match t.kind {
-            Kind::Number if t.text.contains(['.', 'e', 'E']) => {
+            Kind::Number if is_float_literal(&t.text) => {
                 let value = t
                     .text
+                    .replace('_', "")
                     .parse::<f64>()
                     .ok()
                     .and_then(Float64::new)
@@ -1766,8 +1952,9 @@ impl Parser {
                 Expr::Float(value, t.span)
             }
             Kind::Number => Expr::Int(
-                BigInt::parse(&t.text)
-                    .map_err(|_| diagnostic("E_INT_LITERAL", "invalid integer literal", t.span))?,
+                parse_int_literal(&t.text).ok_or_else(|| {
+                    diagnostic("E_INT_LITERAL", "invalid integer literal", t.span)
+                })?,
                 t.span,
             ),
             Kind::Text => Expr::Text(t.text, t.span),
@@ -2357,6 +2544,12 @@ fn lower_pattern_rows(
     let at = |inner: &str| format!("`{}`", context.replace("{}", inner));
     if rows
         .iter()
+        .any(|(pattern, _, _)| matches!(pattern, Pattern::Literal(..)))
+    {
+        return lower_literal_rows(out, scrutinee, rows, span, context, variants, counter);
+    }
+    if rows
+        .iter()
         .all(|(pattern, _, _)| matches!(pattern, Pattern::Name(..)))
     {
         let mut rows = rows.into_iter();
@@ -2392,7 +2585,7 @@ fn lower_pattern_rows(
     }
     let constructor = |pattern: &Pattern| match pattern {
         Pattern::Constructor(name, _, _) => name.clone(),
-        Pattern::Name(..) => unreachable!("checked above"),
+        Pattern::Name(..) | Pattern::Literal(..) => unreachable!("checked above"),
     };
     let first = constructor(&rows[0].0);
     let family: &[(&str, usize)] = match first.as_str() {
@@ -2426,7 +2619,7 @@ fn lower_pattern_rows(
             for part in parts {
                 match part {
                     Pattern::Name(name, span) => names.push((name, span)),
-                    Pattern::Constructor(_, _, span) => {
+                    Pattern::Constructor(_, _, span) | Pattern::Literal(_, span) => {
                         return Err(diagnostic(
                             "E_MATCH_PATTERN",
                             "enum variant values are Int, Float64, Bool, Text or lists of those; bind them to names",
@@ -2528,6 +2721,201 @@ fn lower_pattern_rows(
         });
     }
     out.push(Stmt::Match(scrutinee, arms, span));
+    Ok(())
+}
+
+/// A hidden statement `lower_literal_rows` emits after binding the matched value: its arguments are
+/// the value, the type its literal arms have (`Int`, `Text` or `Bool`) and the first literal as
+/// written. The compiler checks the value has that type, reporting `E_MATCH_TYPE` if not; it emits
+/// no code.
+const LITERAL_MATCH_CHECK: &str = "%literal_match_check";
+
+/// Lowers the arms of a match on `Int`, `Text` or `Bool` literals to an `if` / `else` chain on
+/// equality, so the rest of the compiler, the VM and the machine-code backend see ordinary
+/// comparisons. The arms are tried in order; a name or `_` takes every other value and must come
+/// last. Two arms with the same literal, or an arm after the catch-all, are `E_MATCH_DUPLICATE`; an
+/// `Int` or `Text` match without a catch-all is `E_MATCH_NONEXHAUSTIVE` naming `_`; a `Bool` match
+/// is complete with both `true` and `false`.
+fn lower_literal_rows(
+    out: &mut Vec<Stmt>,
+    scrutinee: Expr,
+    rows: Vec<(Pattern, Vec<Stmt>, Span)>,
+    span: Span,
+    context: &str,
+    variants: &HashMap<String, (usize, usize)>,
+    counter: &mut usize,
+) -> Result<(), Diagnostic> {
+    let at = |inner: &str| format!("`{}`", context.replace("{}", inner));
+    let mut literals: Vec<(PatternLiteral, Span, Vec<Stmt>)> = Vec::new();
+    let mut catch_all: Option<(String, Span, Vec<Stmt>)> = None;
+    for (pattern, body, row_span) in rows {
+        if let Some((_, caught, _)) = &catch_all {
+            return Err(diagnostic(
+                "E_MATCH_DUPLICATE",
+                format!(
+                    "this arm can never match: the arm at line {} already takes every other value of {}",
+                    caught.line,
+                    at("_")
+                ),
+                row_span,
+            ));
+        }
+        match pattern {
+            Pattern::Literal(literal, literal_span) => {
+                if let Some((first, _, _)) = literals.first() {
+                    if first.kind() != literal.kind() {
+                        return Err(diagnostic(
+                            "E_MATCH_TYPE",
+                            format!(
+                                "the arms match a {} (`{}`), but this arm is a {} literal (`{}`)",
+                                first.kind(),
+                                first.spelled(),
+                                literal.kind(),
+                                literal.spelled()
+                            ),
+                            literal_span,
+                        ));
+                    }
+                }
+                if literals.iter().any(|(seen, _, _)| *seen == literal) {
+                    return Err(diagnostic(
+                        "E_MATCH_DUPLICATE",
+                        format!("two arms match {} at {}", literal.spelled(), at("_")),
+                        literal_span,
+                    ));
+                }
+                literals.push((literal, literal_span, body));
+            }
+            Pattern::Name(name, name_span) => catch_all = Some((name, name_span, body)),
+            Pattern::Constructor(name, parts, name_span)
+                if parts.is_empty()
+                    && !variants.contains_key(&name)
+                    && !matches!(name.as_str(), "None" | "Some" | "Ok" | "Err") =>
+            {
+                catch_all = Some((name, name_span, body))
+            }
+            Pattern::Constructor(name, _, name_span) => {
+                return Err(diagnostic(
+                    "E_MATCH_PATTERN",
+                    format!(
+                        "`{name}` and the literal `{}` cannot match the same value",
+                        literals[0].0.spelled()
+                    ),
+                    name_span,
+                ))
+            }
+        }
+    }
+    let kind = literals[0].0.kind();
+    let is_bool = kind == "Bool";
+    let has = |wanted: bool| {
+        literals
+            .iter()
+            .any(|(literal, _, _)| *literal == PatternLiteral::Bool(wanted))
+    };
+    if is_bool && has(true) && has(false) {
+        if let Some((_, caught, _)) = &catch_all {
+            return Err(diagnostic(
+                "E_MATCH_DUPLICATE",
+                format!(
+                    "this arm can never match: `true` and `false` are both handled at {}",
+                    at("_")
+                ),
+                *caught,
+            ));
+        }
+    }
+    if catch_all.is_none() {
+        if is_bool && !(has(true) && has(false)) {
+            let missing = if has(true) { "false" } else { "true" };
+            return Err(diagnostic(
+                "E_MATCH_NONEXHAUSTIVE",
+                format!(
+                    "match does not handle {}: add a `{missing}` arm or a `_` arm",
+                    at(missing)
+                ),
+                span,
+            ));
+        }
+        if !is_bool {
+            return Err(diagnostic(
+                "E_MATCH_NONEXHAUSTIVE",
+                format!(
+                    "match does not handle {}: a match on {kind} literals needs a `_` arm for the other values",
+                    at("_")
+                ),
+                span,
+            ));
+        }
+    }
+    *counter += 1;
+    // `%` cannot start a name in source, so the program cannot read this temporary.
+    let temp = format!("%match_literal_{counter}");
+    let first_span = literals[0].1;
+    out.push(Stmt::Let(temp.clone(), false, None, scrutinee, span));
+    out.push(Stmt::Expr(
+        Expr::Call(
+            LITERAL_MATCH_CHECK.to_owned(),
+            vec![
+                Expr::Name(temp.clone(), first_span),
+                Expr::Text(kind.to_owned(), first_span),
+                Expr::Text(literals[0].0.spelled(), first_span),
+            ],
+            Vec::new(),
+            span,
+        ),
+        span,
+    ));
+    let catch_block = catch_all.map(|(name, name_span, body)| {
+        let mut block = Vec::new();
+        if name != "_" {
+            block.push(Stmt::Let(
+                name,
+                false,
+                None,
+                Expr::Name(temp.clone(), name_span),
+                name_span,
+            ));
+        }
+        block.extend(body);
+        block
+    });
+    if is_bool {
+        let mut yes = None;
+        let mut no = None;
+        for (literal, _, body) in literals {
+            match literal {
+                PatternLiteral::Bool(true) => yes = Some(body),
+                _ => no = Some(body),
+            }
+        }
+        let yes = yes
+            .or_else(|| catch_block.clone())
+            .expect("a Bool arm is complete");
+        let no = no.or(catch_block).expect("a Bool arm is complete");
+        out.push(Stmt::If(Expr::Name(temp, first_span), yes, no, span));
+        return Ok(());
+    }
+    let mut chain = catch_block.expect("checked above");
+    for (literal, literal_span, body) in literals.into_iter().rev() {
+        let value = match literal {
+            PatternLiteral::Int(value) => Expr::Int(value, literal_span),
+            PatternLiteral::Text(value) => Expr::Text(value, literal_span),
+            PatternLiteral::Bool(_) => unreachable!("handled above"),
+        };
+        chain = vec![Stmt::If(
+            Expr::Binary(
+                "==".to_owned(),
+                Box::new(Expr::Name(temp.clone(), literal_span)),
+                Box::new(value),
+                literal_span,
+            ),
+            body,
+            chain,
+            literal_span,
+        )];
+    }
+    out.extend(chain);
     Ok(())
 }
 
@@ -2815,6 +3203,7 @@ fn mentioned_in_block(body: &[Stmt], out: &mut Vec<String>, bound: &mut Vec<Stri
                                     Pattern::Constructor(_, parts, _) => {
                                         parts.iter().for_each(|part| names(part, bound))
                                     }
+                                    Pattern::Literal(..) => {}
                                 }
                             }
                             names(tree, bound);
@@ -6786,6 +7175,30 @@ impl<'a> FnCompiler<'a> {
                         },
                         *span,
                     );
+                }
+                Stmt::Expr(Expr::Call(name, args, _, _), _) if name == LITERAL_MATCH_CHECK => {
+                    let [value, Expr::Text(kind, _), Expr::Text(example, _)] = args.as_slice()
+                    else {
+                        unreachable!("lower_literal_rows emits three arguments")
+                    };
+                    let mark = self.code.len();
+                    let found = self.expr(value)?;
+                    self.code.truncate(mark);
+                    let expected = match kind.as_str() {
+                        "Int" => Type::Int,
+                        "Text" => Type::Text,
+                        _ => Type::Bool,
+                    };
+                    if found != expected {
+                        return Err(diagnostic(
+                            "E_MATCH_TYPE",
+                            format!(
+                                "the arms match a {kind} (`{example}`), but this value is {}",
+                                type_label(&found)
+                            ),
+                            value.span(),
+                        ));
+                    }
                 }
                 Stmt::Expr(Expr::Call(name, args, _, span), _) if name == ENUM_MATCH_CHECK => {
                     let [value, Expr::Text(enum_name, _), Expr::Text(variant, _), Expr::Text(missing, _)] =

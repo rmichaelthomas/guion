@@ -48,8 +48,13 @@ impl<T> AddressedBoxes<T> {
     }
 
     pub(crate) fn push(&mut self, item: Box<T>) {
-        self.addresses.insert((&*item as *const T) as usize);
         self.items.push(item);
+        // Moving a Box into the Vec retags it, which invalidates any pointer taken from it
+        // earlier. Take (and expose) the address from the stored Box so the handle's
+        // provenance is the one that stays valid.
+        if let Some(stored) = self.items.last() {
+            self.addresses.insert((&**stored as *const T) as usize);
+        }
     }
 
     pub(crate) fn last_mut(&mut self) -> Option<&mut Box<T>> {
@@ -94,7 +99,10 @@ pub(crate) struct NativeListArena {
     pub(crate) native_record_indices: HashMap<i64, usize>,
     pub(crate) values: Vec<Value>,
     pub(crate) constant_values: Arc<Vec<Value>>,
-    pub(crate) inline_tagged_values: [NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES],
+    /// Heap block of `NATIVE_INLINE_TAGGED_VALUES` slots, owned through this raw pointer so that
+    /// no reference to the arena (or to a slot) can retag the memory native code writes to.
+    /// Freed in `Drop`.
+    pub(crate) inline_tagged_base: *mut NativeTaggedValue,
     pub(crate) inline_tagged_value_len: usize,
     pub(crate) tagged_values: Vec<Vec<NativeTaggedValue>>,
     pub(crate) tagged_chunk_starts: std::collections::BTreeMap<usize, usize>,
@@ -185,6 +193,18 @@ pub(crate) struct NativeJsonOperationRequest<'a> {
     pub(crate) runtime: &'a NativeRuntimeContext,
 }
 
+impl Drop for NativeListArena {
+    fn drop(&mut self) {
+        // Allocated in `new` as a boxed array of `NATIVE_INLINE_TAGGED_VALUES` slots.
+        drop(unsafe {
+            Box::from_raw(
+                self.inline_tagged_base
+                    .cast::<[NativeTaggedValue; NATIVE_INLINE_TAGGED_VALUES]>(),
+            )
+        });
+    }
+}
+
 impl NativeListArena {
     pub(crate) fn new(
         budget: *const Budget,
@@ -207,12 +227,15 @@ impl NativeListArena {
             native_record_indices: HashMap::new(),
             values: Vec::new(),
             constant_values: Arc::new(Vec::new()),
-            inline_tagged_values: [NativeTaggedValue {
-                kind: 0,
-                payload_tag: 0,
-                payload: 0,
-                clone_charge_bytes: 0,
-            }; NATIVE_INLINE_TAGGED_VALUES],
+            inline_tagged_base: Box::into_raw(Box::new(
+                [NativeTaggedValue {
+                    kind: 0,
+                    payload_tag: 0,
+                    payload: 0,
+                    clone_charge_bytes: 0,
+                }; NATIVE_INLINE_TAGGED_VALUES],
+            ))
+            .cast::<NativeTaggedValue>(),
             inline_tagged_value_len: 0,
             tagged_values: Vec::new(),
             tagged_chunk_starts: std::collections::BTreeMap::new(),
@@ -528,15 +551,19 @@ impl NativeListArena {
         self.native_record_fields.try_reserve(1).ok()?;
         self.native_record_indices.try_reserve(1).ok()?;
         let fields = encoded_fields.into_boxed_slice();
-        let descriptor = Box::new(NativeRecord {
-            fields: fields.as_ptr(),
-            len: fields.len(),
-        });
-        let address = (&*descriptor as *const NativeRecord) as usize;
-        let handle = i64::try_from(address).ok()?;
-        let index = self.native_records.len();
+        let field_count = fields.len();
+        // Move the boxed slice into its owner first and take the field pointer from there:
+        // a pointer taken before the move would be invalidated when the Box is retagged.
         self.native_record_fields.push(fields);
+        let fields_ptr = self.native_record_fields.last()?.as_ptr();
+        let descriptor = Box::new(NativeRecord {
+            fields: fields_ptr,
+            len: field_count,
+        });
+        let index = self.native_records.len();
         self.native_records.push(descriptor);
+        let address = (&**self.native_records.last()? as *const NativeRecord) as usize;
+        let handle = i64::try_from(address).ok()?;
         self.native_record_types.push(record_index);
         self.native_record_indices.insert(handle, index);
         Some(handle)
@@ -675,9 +702,12 @@ impl NativeListArena {
 
     pub(crate) fn tagged_value(&self, handle: i64) -> Option<&NativeTaggedValue> {
         let address = usize::try_from(handle.checked_neg()?).ok()?;
-        self.inline_tagged_values[..self.inline_tagged_value_len]
-            .iter()
-            .find(|value| (*value as *const NativeTaggedValue) as usize == address)
+        let base = self.inline_tagged_base;
+        (0..self.inline_tagged_value_len)
+            .map(|index| base.wrapping_add(index))
+            .find(|slot| *slot as usize == address)
+            // The slot lies in the live heap block owned by `inline_tagged_base`.
+            .map(|slot| unsafe { &*slot })
             .or_else(|| {
                 let (start, chunk_index) =
                     self.tagged_chunk_starts.range(..=address).next_back()?;
@@ -753,16 +783,26 @@ impl NativeListArena {
     pub(crate) fn store_tagged_descriptor(&mut self, value: NativeTaggedValue) -> Option<i64> {
         if self.inline_tagged_value_len < NATIVE_INLINE_TAGGED_VALUES {
             let index = self.inline_tagged_value_len;
-            self.inline_tagged_values[index] = value;
+            // The pointer comes from the heap block's raw base, never from a reference.
+            let slot = self.inline_tagged_base.wrapping_add(index);
+            unsafe { slot.write(value) };
             self.inline_tagged_value_len += 1;
-            let address = (&self.inline_tagged_values[index] as *const NativeTaggedValue) as usize;
-            return i64::try_from(address).ok()?.checked_neg();
+            return i64::try_from(slot as usize).ok()?.checked_neg();
         }
         self.ensure_tagged_capacity()?;
         let chunk = self.tagged_values.last_mut()?;
-        chunk.push(value);
-        let address = (chunk.last()? as *const NativeTaggedValue) as usize;
-        i64::try_from(address).ok()?.checked_neg()
+        if chunk.len() == chunk.capacity() {
+            return None;
+        }
+        // Write through the buffer's raw pointer so the handed-out address keeps its
+        // provenance when the next entry is added; the capacity is fixed, so it never moves.
+        let len = chunk.len();
+        let slot = unsafe { chunk.as_mut_ptr().add(len) };
+        unsafe {
+            slot.write(value);
+            chunk.set_len(len + 1);
+        }
+        i64::try_from(slot as usize).ok()?.checked_neg()
     }
 
     pub(crate) fn encode_native_value(&mut self, value: Value) -> Option<i64> {
@@ -2650,17 +2690,23 @@ impl NativeListArena {
         // Each chunk is filled only up to its fixed capacity. Moving its Vec
         // header never moves the backing allocation referenced by JIT code.
         let chunk = self.inline_int_lists.last_mut().unwrap();
-        chunk.push(NativeIntList {
-            data: std::ptr::null_mut(),
-            len: source.len(),
-            storage_id: usize::MAX,
-            owned: true,
-            inline_storage: true,
-            inline,
-        });
-        let descriptor = chunk.last_mut().unwrap();
-        descriptor.data = descriptor.inline.as_mut_ptr();
-        (descriptor as *mut NativeIntList).cast()
+        let len = chunk.len();
+        // Derive the pointer from the buffer's raw base, not from a reference that the next
+        // `last_mut()` would invalidate. `chunk` has spare capacity, so nothing reallocates.
+        let descriptor = unsafe { chunk.as_mut_ptr().add(len) };
+        unsafe {
+            descriptor.write(NativeIntList {
+                data: std::ptr::null_mut(),
+                len: source.len(),
+                storage_id: usize::MAX,
+                owned: true,
+                inline_storage: true,
+                inline,
+            });
+            chunk.set_len(len + 1);
+            (*descriptor).data = std::ptr::addr_of_mut!((*descriptor).inline).cast::<i64>();
+        }
+        descriptor.cast()
     }
 
     pub(crate) fn record_list_set_operation(&self) {

@@ -17,6 +17,17 @@ cargo check --locked --offline --workspace
 cargo test --locked --offline --workspace
 ```
 
+A change to the native code arena (`crates/runtime/src/native_arena.rs`) or to how generated code holds pointers into it is also checked with Miri, locally and under both aliasing models (there is no CI job for it). It needs the nightly toolchain with the `miri` component:
+
+```sh
+CARGO_TARGET_DIR=target/miri MIRIFLAGS="-Zmiri-disable-isolation" \
+  cargo +nightly miri test -p guion-runtime --lib native_inline_arena_tests
+CARGO_TARGET_DIR=target/miri MIRIFLAGS="-Zmiri-disable-isolation -Zmiri-tree-borrows" \
+  cargo +nightly miri test -p guion-runtime --lib native_inline_arena_tests
+```
+
+Miri stops at the first undefined behaviour in a test binary, so name a single test after `native_inline_arena_tests::` to see each one.
+
 Changes to the language, compiler seed, artifact reader, runtime, standard library, or packaging path may need the matching `cargo xtask` conformance, bootstrap, runtime, product, release, and closeout checks. The approved pre-release plan lists the full matrix. Do not describe a target as passing if it was skipped.
 
 Artifact-format assertions in Rust tests must compare against `guion_model::Artifact::CURRENT_VERSION`, not a numeric format literal. The conformance, bootstrap, standard-library, runtime, product, release, performance, and builders gates run this source audit before their longer checks; `cargo xtask artifact-format-audit` runs the quick check by itself.

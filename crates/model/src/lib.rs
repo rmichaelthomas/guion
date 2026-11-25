@@ -1597,6 +1597,36 @@ mod tests {
     }
 
     #[test]
+    fn text_case_and_json_instructions_are_gated_on_format_90() {
+        assert_gated(Op::TextLower, 90);
+        assert_gated(Op::TextUpper, 90);
+        assert_gated(Op::JsonKeys, 90);
+        assert_gated(Op::JsonStringifyPretty, 90);
+    }
+
+    #[test]
+    fn radix_instructions_are_gated_on_format_90() {
+        assert_gated(Op::IntToTextRadix, 90);
+        assert_gated(Op::TextParseIntRadix, 90);
+    }
+
+    #[test]
+    fn file_mode_instructions_are_gated_on_format_90() {
+        assert_gated(Op::Fs(FsFunction::SetMode), 90);
+        assert_gated(Op::Fs(FsFunction::Mode), 90);
+    }
+
+    #[test]
+    fn stop_requested_instruction_is_gated_on_format_90() {
+        assert_gated(Op::Process(ProcessFunction::StopRequested), 90);
+    }
+
+    #[test]
+    fn peer_address_instruction_is_gated_on_format_90() {
+        assert_gated(Op::Net(NetFunction::PeerAddress), 90);
+    }
+
+    #[test]
     fn stdin_instructions_are_gated_on_format_77() {
         assert_gated(Op::StdinReadLine, 77);
         assert_gated(Op::StdinReadAll, 77);
@@ -2112,6 +2142,92 @@ impl BigInt {
         ))
     }
 
+    /// The value of `digits`, an unsigned run of digits in `radix` (2 to 36, either case), negated
+    /// when `negative`. An empty run or a character that is not a digit of the radix is an error.
+    pub fn parse_radix(digits: &str, radix: u32, negative: bool) -> Result<Self, &'static str> {
+        assert!((2..=36).contains(&radix), "radix is 2 to 36");
+        if digits.is_empty() {
+            return Err("empty integer");
+        }
+        let mut values = Vec::with_capacity(digits.len());
+        for character in digits.chars() {
+            match character.to_digit(radix) {
+                Some(value) => values.push(value),
+                None => return Err("invalid digit"),
+            }
+        }
+        let sign: i8 = if negative { -1 } else { 1 };
+        // Most values fit a machine word.
+        let machine = values.iter().try_fold(0u64, |total, digit| {
+            total
+                .checked_mul(u64::from(radix))?
+                .checked_add(u64::from(*digit))
+        });
+        if let Some(magnitude) = machine {
+            if let Ok(magnitude) = i64::try_from(magnitude) {
+                return Ok(Self::from_i64(if negative {
+                    -magnitude
+                } else {
+                    magnitude
+                }));
+            }
+        }
+        // Decimal digits, least significant first, multiplied by the radix and added to per digit.
+        let mut decimal: Vec<u8> = vec![0];
+        for digit in values {
+            let mut carry = digit;
+            for place in decimal.iter_mut() {
+                let product = u32::from(*place) * radix + carry;
+                *place = (product % 10) as u8;
+                carry = product / 10;
+            }
+            while carry != 0 {
+                decimal.push((carry % 10) as u8);
+                carry /= 10;
+            }
+        }
+        Ok(Self::from_parts(sign, decimal))
+    }
+
+    /// The digits of the value in `radix` (2 to 36): lowercase, `-` first for a negative value, no
+    /// prefix.
+    pub fn to_radix_string(&self, radix: u32) -> String {
+        assert!((2..=36).contains(&radix), "radix is 2 to 36");
+        let mut reversed: Vec<u8> = Vec::new();
+        if let Some(value) = self.small() {
+            let mut magnitude = value.unsigned_abs();
+            if magnitude == 0 {
+                reversed.push(b'0');
+            }
+            while magnitude != 0 {
+                reversed.push(radix_digit((magnitude % u64::from(radix)) as u32));
+                magnitude /= u64::from(radix);
+            }
+        } else {
+            // Long division of the decimal digits (most significant first) by the radix.
+            let mut remaining: Vec<u8> = self.decimal_digits().iter().rev().copied().collect();
+            while !(remaining.is_empty()) {
+                let mut remainder = 0u32;
+                let mut quotient = Vec::with_capacity(remaining.len());
+                for digit in &remaining {
+                    let current = remainder * 10 + u32::from(*digit);
+                    let next = current / radix;
+                    remainder = current % radix;
+                    if !quotient.is_empty() || next != 0 {
+                        quotient.push(next as u8);
+                    }
+                }
+                reversed.push(radix_digit(remainder));
+                remaining = quotient;
+            }
+        }
+        if self.is_negative() {
+            reversed.push(b'-');
+        }
+        reversed.reverse();
+        String::from_utf8(reversed).expect("digits are ASCII")
+    }
+
     pub fn zero() -> Self {
         Self::from_i64(0)
     }
@@ -2336,6 +2452,10 @@ impl BigInt {
         }
         out
     }
+}
+
+fn radix_digit(value: u32) -> u8 {
+    char::from_digit(value, 36).expect("a digit below 36") as u8
 }
 
 fn normalize_decimal_digits(digits: &mut Vec<u8>) {
@@ -4191,10 +4311,16 @@ pub enum FsFunction {
     ReadRange,
     /// Checks that a relative path stays inside a root after symlink resolution (format 73).
     ConfinedPath,
+    /// Sets the permission bits of a file or directory from octal text, following symlinks
+    /// (format 90); needs the file-write grant.
+    SetMode,
+    /// Reads the permission bits of a file or directory as octal text, following symlinks
+    /// (format 90); needs the file-read grant.
+    Mode,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 20] = [
+    const ALL: [FsFunction; 22] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -4215,6 +4341,8 @@ impl FsFunction {
         FsFunction::TarList,
         FsFunction::ReadRange,
         FsFunction::ConfinedPath,
+        FsFunction::SetMode,
+        FsFunction::Mode,
     ];
 
     pub fn code(self) -> u8 {
@@ -4251,6 +4379,8 @@ impl FsFunction {
             FsFunction::TarList => "FsOpTarList",
             FsFunction::ReadRange => "FsOpReadRange",
             FsFunction::ConfinedPath => "FsOpConfinedPath",
+            FsFunction::SetMode => "FsOpSetMode",
+            FsFunction::Mode => "FsOpMode",
         }
     }
 
@@ -4270,7 +4400,8 @@ impl FsFunction {
             | FsFunction::GzipDecompressFile
             | FsFunction::TarWrite
             | FsFunction::TarRead
-            | FsFunction::ConfinedPath => 2,
+            | FsFunction::ConfinedPath
+            | FsFunction::SetMode => 2,
             FsFunction::ReadRange => 3,
             _ => 1,
         }
@@ -4289,6 +4420,7 @@ impl FsFunction {
                 | FsFunction::TarList
                 | FsFunction::ReadRange
                 | FsFunction::ConfinedPath
+                | FsFunction::Mode
         )
     }
 
@@ -4389,10 +4521,13 @@ pub enum ProcessFunction {
     CloseInput,
     /// Waits for a started command to exit (format 76).
     Wait,
+    /// Whether an `INT`, `TERM` or `HUP` has arrived in a program that polls for signals (format
+    /// 90). Sticky and shared by every thread; does not read the pending signal.
+    StopRequested,
 }
 
 impl ProcessFunction {
-    const ALL: [ProcessFunction; 9] = [
+    const ALL: [ProcessFunction; 10] = [
         ProcessFunction::Run,
         ProcessFunction::Pid,
         ProcessFunction::SignalPoll,
@@ -4402,6 +4537,7 @@ impl ProcessFunction {
         ProcessFunction::Write,
         ProcessFunction::CloseInput,
         ProcessFunction::Wait,
+        ProcessFunction::StopRequested,
     ];
 
     pub fn code(self) -> u8 {
@@ -4427,6 +4563,7 @@ impl ProcessFunction {
             ProcessFunction::Write => "ProcessWrite",
             ProcessFunction::CloseInput => "ProcessCloseInput",
             ProcessFunction::Wait => "ProcessWait",
+            ProcessFunction::StopRequested => "ProcessStopRequested",
         }
     }
 
@@ -4443,7 +4580,10 @@ impl ProcessFunction {
             ProcessFunction::Run => 3,
             ProcessFunction::Start | ProcessFunction::Write => 2,
             ProcessFunction::Line | ProcessFunction::CloseInput | ProcessFunction::Wait => 1,
-            ProcessFunction::Pid | ProcessFunction::SignalPoll | ProcessFunction::CoreCount => 0,
+            ProcessFunction::Pid
+            | ProcessFunction::SignalPoll
+            | ProcessFunction::CoreCount
+            | ProcessFunction::StopRequested => 0,
         }
     }
 }
@@ -4463,10 +4603,13 @@ pub enum NetFunction {
     UdpBind,
     UdpSendTo,
     UdpRecvFrom,
+    /// The remote address of a connected TCP or TLS socket as `host:port`, IPv6 in brackets
+    /// (format 90); needs no grant beyond holding the connection.
+    PeerAddress,
 }
 
 impl NetFunction {
-    const ALL: [NetFunction; 10] = [
+    const ALL: [NetFunction; 11] = [
         NetFunction::TcpConnect,
         NetFunction::TcpListen,
         NetFunction::TcpAccept,
@@ -4477,6 +4620,7 @@ impl NetFunction {
         NetFunction::UdpBind,
         NetFunction::UdpSendTo,
         NetFunction::UdpRecvFrom,
+        NetFunction::PeerAddress,
     ];
 
     pub fn code(self) -> u8 {
@@ -4503,6 +4647,7 @@ impl NetFunction {
             NetFunction::UdpBind => "NetUdpBind",
             NetFunction::UdpSendTo => "NetUdpSendTo",
             NetFunction::UdpRecvFrom => "NetUdpRecvFrom",
+            NetFunction::PeerAddress => "NetPeerAddress",
         }
     }
 
@@ -4516,7 +4661,7 @@ impl NetFunction {
     /// Number of operands the function pops.
     pub fn arity(self) -> usize {
         match self {
-            NetFunction::LocalPort | NetFunction::Close => 1,
+            NetFunction::LocalPort | NetFunction::Close | NetFunction::PeerAddress => 1,
             NetFunction::TcpListen | NetFunction::TcpAccept | NetFunction::UdpBind => 2,
             NetFunction::Send => 2,
             NetFunction::TcpConnect | NetFunction::Recv | NetFunction::UdpRecvFrom => 3,
@@ -4739,6 +4884,12 @@ pub enum Op {
     StdinReadAll,
     Crypto(CryptoFunction),
     Sleep,
+    TextLower,
+    TextUpper,
+    JsonKeys,
+    JsonStringifyPretty,
+    IntToTextRadix,
+    TextParseIntRadix,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4943,7 +5094,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 89;
+    pub const CURRENT_VERSION: u32 = 90;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5315,6 +5466,36 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_format_90_text_json(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_stop_requested(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "process_stop_requested requires artifact format 90",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_peer_address(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "tcp_peer requires artifact format 90",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_file_modes(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fs_set_mode and fs_mode require artifact format 90",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_radix(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "int_to_text_radix and text_parse_int_radix require artifact format 90",
             ));
         }
         if self.format_version < 88 && artifact_uses_sleep(self) {
@@ -5749,6 +5930,12 @@ impl Artifact {
                         w.u8(function.code());
                     }
                     Op::Sleep => w.u8(224),
+                    Op::TextLower => w.u8(225),
+                    Op::TextUpper => w.u8(226),
+                    Op::JsonKeys => w.u8(227),
+                    Op::JsonStringifyPretty => w.u8(228),
+                    Op::IntToTextRadix => w.u8(229),
+                    Op::TextParseIntRadix => w.u8(230),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -6151,6 +6338,12 @@ impl Artifact {
                     }
                     186 if format_version >= 57 => {
                         let code = r.u8()?;
+                        if code >= 10 && format_version < 90 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "tcp_peer requires artifact format 90",
+                            ));
+                        }
                         Op::Net(NetFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -6170,6 +6363,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "core_count requires artifact format 76",
+                            ));
+                        }
+                        if code >= 9 && format_version < 90 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "process_stop_requested requires artifact format 90",
                             ));
                         }
                         Op::Process(ProcessFunction::from_code(code).ok_or_else(|| {
@@ -6218,6 +6417,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "ranged file reads and confined paths require artifact format 73",
+                            ));
+                        }
+                        if code >= 20 && format_version < 90 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "fs_set_mode and fs_mode require artifact format 90",
                             ));
                         }
                         Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
@@ -6387,6 +6592,24 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "the sleep instruction requires artifact format 88",
+                        ));
+                    }
+                    225 if format_version >= 90 => Op::TextLower,
+                    226 if format_version >= 90 => Op::TextUpper,
+                    227 if format_version >= 90 => Op::JsonKeys,
+                    228 if format_version >= 90 => Op::JsonStringifyPretty,
+                    225..=228 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
+                        ));
+                    }
+                    229 if format_version >= 90 => Op::IntToTextRadix,
+                    230 if format_version >= 90 => Op::TextParseIntRadix,
+                    229..=230 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "int_to_text_radix and text_parse_int_radix require artifact format 90",
                         ));
                     }
                     210 if format_version >= 74 => {
@@ -7246,6 +7469,54 @@ fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 84)
+        })
+    })
+}
+
+fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::TextLower | Op::TextUpper | Op::JsonKeys | Op::JsonStringifyPretty
+            )
+        })
+    })
+}
+
+fn artifact_uses_stop_requested(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(instruction.op, Op::Process(ProcessFunction::StopRequested))
+        })
+    })
+}
+
+fn artifact_uses_peer_address(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Net(NetFunction::PeerAddress)))
+    })
+}
+
+fn artifact_uses_radix(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::IntToTextRadix | Op::TextParseIntRadix))
+    })
+}
+
+fn artifact_uses_file_modes(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Fs(FsFunction::SetMode | FsFunction::Mode)
+            )
         })
     })
 }

@@ -44,3 +44,16 @@ pub fn json_int_list_safe(value: Json) -> Result[List[Int], JsonError]:
                 return Err(problem)
         set index += 1
     return Ok(items)
+
+# The keys of a JSON object, in the order json_stringify writes them (ascending by the bytes of the
+# key). Err with code R_JSON_TYPE when the value is not an object. Looks at the top level only.
+pub fn json_keys(value: Json) -> Result[List[Text], JsonError]:
+    return json_keys_native(value)
+
+# The value as indented text: each array element and object member on its own line, indented by
+# `indent` spaces per level (0 to 16, otherwise R_JSON_INDENT; 0 puts the lines at the left edge).
+# A colon is followed by one space, an empty object or array is `{}` or `[]`, and there is no
+# newline at the end. Strings and numbers are written as json_stringify writes them, and
+# non-ASCII text is kept as it is.
+pub fn json_stringify_pretty(value: Json, indent: Int) -> Text:
+    return json_stringify_pretty_native(value, indent)
