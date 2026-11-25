@@ -185,6 +185,10 @@ In the `null` lane of `results_large.json` the first Guion sample (22 ms) is abo
 
 Guion is faster than both CPythons on all 11 workloads and faster than PyPy on all but the array-loop program, where PyPy's JIT is 2.5 times faster than Guion. The array lanes compare Guion's native arrays with plain-Python loops, the Python programs are single-threaded so free-threading is not exercised, and the first-source workloads are start-up dominated. One machine, one run.
 
+### A fix made after the runs
+
+`cargo test --workspace` found one failing test on the branch, `arrays_edges::kernel_temporaries_are_charged_to_the_allocation_budget`: the radix sort charged its second buffer before allocating the first, so under the command line's live-memory refill a sort fit in one buffer less than it is charged for. The sort and argsort now allocate the first buffer before charging the second (`crates/vm-core/src/array_compute.rs`). Sort timing was spot-checked after the change with the large arrays lane (15 trials, written outside the repository): sort 0.367 times NumPy end to end (0.370 in the committed run), `a*b+c` 0.557 (0.568). The committed result files are the earlier runs.
+
 ### Kit changes in this task
 
 `read_compute.py` now records the interpreter that ran pandas (the `.venv` Python's `sys.version`) in `machine.python`, not the system Python's, and its docstring says the script creates the hard link and runs `guion update` itself.
