@@ -75,7 +75,9 @@ fn main() -> Int:
 
 ## Serving
 
-`serve(host, port, app, workers)` listens until the listener fails; `serve_for(host, port, app, workers, idle_ms)` lets a worker stop after `idle_ms` without a connection. `workers` workers share one listener and each handles one connection at a time (pattern of `docs/concurrency.md`), so a stalled client holds one worker and the worker count is a ceiling for waiting, not for computing. Every response carries `Connection: close`. A request is read for at most 10 seconds and 1 MiB. No public function names a connection or listener.
+`serve(host, port, app, workers)` listens until the listener fails or, in a program that polls for signals, until it is told to stop (see below); `serve_for(host, port, app, workers, idle_ms)` lets a worker stop after `idle_ms` without a connection. `workers` workers share one listener and each handles one connection at a time (pattern of `docs/concurrency.md`), so a stalled client holds one worker and the worker count is a ceiling for waiting, not for computing. Every response carries `Connection: close`. A request is read for at most 10 seconds and 1 MiB. No public function names a connection or listener.
+
+To stop cleanly, call `process_signal_poll()` once at the start of `main` (import `std:process`). That makes `INT`, `TERM` and `HUP` the program's own, and `process_stop_requested()` turns true when one arrives. Each worker accepts with a timeout of at most 200 ms and looks at it between connections: a request being handled is finished and answered, then `serve` (or `serve_for`) returns `Ok` and the lines after it run, within a fraction of a second when the server is idle. A program that does not poll for signals is unchanged: `guion` ends on the signal at once, in-flight requests and all.
 
 ## Sessions and CSRF
 
@@ -143,7 +145,7 @@ Every public function declares its effects in `guion doc --json`.
 | Piece | Effects |
 | --- | --- |
 | `route`, `router`, `router_handle`, `path_param`, `app`, `wrap`, escapers, `html_response` | none |
-| `serve`, `serve_for` | `network.socket`, `concurrency.parallel` |
+| `serve`, `serve_for` | `network.socket`, `concurrency.parallel`, `process.signals` |
 | `static_files` | `filesystem.read` |
 | `session_*` and `csrf_*` that read the time | `clock.read` |
 | `app_respond` | `filesystem.write` (the standard-error log path) |

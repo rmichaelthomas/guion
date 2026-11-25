@@ -18,6 +18,7 @@ import "std:types"
 import "std:net"
 import "std:http_server"
 import "std:log"
+import "std:process"
 import "std:http_response"
 import "middleware.gu"
 
@@ -71,19 +72,30 @@ fn sv_connection(app: App, conn: TcpConn) -> Unit:
         Err(problem):
             return sv_close(conn)
 
+# Each accept waits at most 200 ms, so a worker looks at process_stop_requested() between
+# connections at least five times a second. serve_for's idle_ms is the total time without a
+# connection (it starts over after each connection).
 fn sv_worker(worker: Worker) -> Int:
     var served = 0
-    var wait = 30000
-    if worker.idle_ms > 0:
-        set wait = worker.idle_ms
+    var idle_left = worker.idle_ms
     while true:
+        if process_stop_requested():
+            return served
+        var wait = 200
+        if worker.idle_ms > 0 and idle_left < wait:
+            set wait = idle_left
         match http_server_accept(worker.listener, wait):
             Ok(conn):
                 let done = sv_connection(worker.app, conn)
                 set served = served + 1
+                set idle_left = worker.idle_ms
             Err(problem):
-                if problem.code != "E_NET_TIMEOUT" or worker.idle_ms > 0:
+                if problem.code != "E_NET_TIMEOUT":
                     return served
+                if worker.idle_ms > 0:
+                    set idle_left = idle_left - wait
+                    if idle_left < 1:
+                        return served
     return served
 
 fn sv_run(host: Text, port: Int, app: App, workers: Int, idle_ms: Int) -> Result[Unit, HttpFailure]:
@@ -104,12 +116,15 @@ fn sv_run(host: Text, port: Int, app: App, workers: Int, idle_ms: Int) -> Result
                 Err(problem):
                     return Err(HttpFailure(500, task_code(problem), "a worker stopped on a runtime fault"))
 
-# Listens on host:port and serves until the listener fails. Needs `--allow-bind HOST:PORT`.
+# Listens on host:port and serves until the listener fails, or until the program is told to stop
+# (INT, TERM or HUP) when it polls for signals: call process_signal_poll() once at the start and
+# serve finishes the requests being handled, then returns Ok. A program that does not poll for
+# signals is ended by the signal as usual. Needs `--allow-bind HOST:PORT`.
 pub fn serve(host: Text, port: Int, app: App, workers: Int) -> Result[Unit, HttpFailure]:
     return sv_run(host, port, app, workers, 0)
 
 # Like serve, but each worker stops after `idle_ms` milliseconds with no connection, so the call
-# returns Ok. For tests and short-lived tools.
+# returns Ok (it also returns Ok on a stop signal, as serve does). For tests and short-lived tools.
 pub fn serve_for(host: Text, port: Int, app: App, workers: Int, idle_ms: Int) -> Result[Unit, HttpFailure]:
     if idle_ms < 1:
         return Err(HttpFailure(500, "E_SERVE_IDLE", "idle_ms must be at least 1"))
