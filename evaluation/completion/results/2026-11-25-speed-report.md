@@ -1,4 +1,6 @@
-# Speed report: baseline on 0.9.0
+# Speed report: 0.9.0 baseline and after the data-speed branch
+
+The baseline sections below were measured first (commit 34a7e4f). The section "After the data-speed branch" at the end re-runs every kit on the finished branch and sets the two side by side.
 
 Date: 2026-11-25. Branch `perf/data-speed`. Guion 0.9.0 (artifact format 90, timezone data 2026c). This is the "before" measurement for the data-speed work: nothing in the engine changed between the 12 Nov report ([2026-11-12-speed-report.md](2026-11-12-speed-report.md)) and these runs except the releases since.
 
@@ -116,3 +118,79 @@ Raw samples: `evaluation/development/arrays/results.json`.
 - One machine, one size, one day. The per-trial ratios for the in-process lanes span a factor of 2.5 to 5; the medians are what to compare, and a later task should expect about 10% movement between runs of the same build.
 - NumPy is 2.5.4 here, 2.5.1 in the 12 Nov arrays rows.
 - The machine was not idle (see Setup); start-up lanes ran 5 to 10 ms slower than on 12 Nov.
+
+## After the data-speed branch
+
+Date: 2026-11-25, same machine, same Guion version string (0.9.0, artifact format 90, timezone data 2026c), release build of branch `perf/data-speed` at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
+
+### Compute-only ratios and targets
+
+| Workload | Baseline Guion / competitor | **After** Guion / competitor | Target (at most) | Result |
+|---|---|---|---|---|
+| CSV read, 1M rows (in-process, `read_compute.py`) | 2.67 (132.9 ms vs pandas 49.7 ms) | **0.75** (35.0 ms vs pandas 46.7 ms; per-trial 0.65-0.92) | 1.0 | met |
+| `a*b+c`, 5 passes, 10M `f64` | 1.34 (127.2 ms vs 94.8 ms) | **0.77** (73.4 ms vs NumPy 95.6 ms) | 1.0 | met |
+| sum, 10 passes, 10M `f64` | 0.79 (28.4 ms vs 36.1 ms) | **0.83** (28.5 ms vs 34.4 ms) | none (not changed) | unchanged within run-to-run spread |
+| stable sort, 1M `f64` | 1.50 (31.6 ms vs 21.1 ms) | **0.66** (13.1 ms vs NumPy 20.0 ms) | 1.0 | met |
+| 512x512 `f64` matmul, per multiply | 2.24 (1.380 ms vs 0.617 ms) | **2.02** (1.310 ms vs 0.649 ms; per-trial 0.84-4.38) | none (out of scope) | unchanged within spread |
+
+The `a*b+c`, sum and sort figures use the baseline's method (per-trial subtraction of the `null` lane, then the median), applied to `arrays/results_large.json`. Matmul was not changed; its per-trial spread (0.84 to 4.38) is wider than the difference between 2.24 and 2.02, so the two runs are not distinguishable. The sum ratio moved from 0.79 to 0.83 with no change to sum; about 10% run-to-run movement was expected in the baseline's caveats.
+
+### End to end, frames against pandas, 1,000,000 rows
+
+| Workload | Baseline Guion / pandas | **After** Guion / pandas (95% interval) | After Guion (s) | After pandas (s) |
+|---|---|---|---|---|
+| start-up only | 0.089 | 0.085 (0.084-0.088) | 0.0234 | 0.2745 |
+| read the CSV | 0.479 | **0.226** (0.222-0.232) | 0.0754 | 0.3306 |
+| read, filter, sum | 0.494 | 0.256 (0.252-0.263) | 0.0848 | 0.3347 |
+| read, group by, mean and count | 0.501 | 0.258 (0.255-0.268) | 0.0910 | 0.3495 |
+| read, inner join | 0.522 | 0.302 (0.295-0.310) | 0.1153 | 0.3847 |
+| read, sort by two keys | 0.465 | 0.297 (0.294-0.302) | 0.1528 | 0.5197 |
+
+Compute alone by the end-to-end difference method (workload minus start-up lane, median of per-trial differences): read 51.8 ms Guion against 53.5 ms pandas (0.97); the baseline was 153.2 ms against 67.1 ms (2.28). The in-process figure for the same read is 35.0 ms against 46.7 ms (0.75). The two differ because the end-to-end difference includes everything the first read costs once in a process (for Guion, starting the thread pool and touching fresh memory; for pandas, its first-call set-up) while the in-process lane runs 1 and 6 reads and cancels those one-time costs. I did not separate which part is which. The in-process figure is the one the targets and the public text use.
+
+### End to end, arrays against NumPy (10M elements, 512x512 matmul, 1M sort)
+
+| Workload | Baseline Guion / NumPy | **After** Guion / NumPy (95% interval) | After Guion (s) | After NumPy (s) |
+|---|---|---|---|---|
+| start-up only | 0.292 | 0.275 (0.264-0.295) | 0.0175 | 0.0639 |
+| `a*b+c`, 5 passes | 0.888 | **0.568** (0.554-0.586) | 0.0906 | 0.1594 |
+| sum, 10 passes | 0.461 | 0.461 (0.456-0.487) | 0.0464 | 0.0988 |
+| 512x512 matmul | 0.306 | 0.308 (0.290-0.313) | 0.0198 | 0.0648 |
+| stable sort of 1M | 0.565 | **0.370** (0.362-0.374) | 0.0309 | 0.0843 |
+| 1M `array_get` loop | 0.458 | 0.461 (0.447-0.465) | 0.0902 | 0.1951 |
+
+Smaller sizes with plain CPython (`arrays/results.json`, 4M elements, 256x256): Guion / NumPy `a*b+c` 0.46 (0.0448 s vs 0.0981 s), sum 0.36, matmul 0.28, sort 0.38, loop 0.45; Guion / CPython sort 0.17, loop 0.67 (baseline: 0.682, 0.367, 0.291, 0.597 and 0.452 against NumPy). The per-workload intervals are in the `summary` of the file.
+
+In the `null` lane of `results_large.json` the first Guion sample (22 ms) is above the 17.5 ms median but is not a cold outlier of the size Task 4 saw in the threaded result; it does not move the median. The smaller-size ratios above are ratios of the medians in the file, not the paired-ratio medians of its `summary`.
+
+### What the branch changed (so the numbers above can be read)
+
+- Parallel CSV reader with a cheaper hash and float parse (Task 3): CSV read 2.67 to 0.75 times pandas.
+- Element-wise kernels on a persistent thread pool (Task 4): `a*b+c` 1.34 to 0.77 times NumPy. Sum was not threaded.
+- Allocator gives a finished thread's memory back (Task 4b, `crates/cli/src/pool_alloc.rs`): before it, each thread that made a small allocation stranded a 256 KB chunk, and a program reading a 2 MiB CSV 300 times failed with `R_ALLOCATION_LIMIT`; after, it completes under a 32 MiB limit. The no-slowdown check for single-threaded code (0.7449 to 0.7446 s) was made on macOS aarch64 only; Linux and x86 were not measured.
+- Stable radix sort for `sort` and `argsort` (Task 5): stable sort of 1M `f64` 1.50 to 0.66 times NumPy; `argsort` charges the same memory as before (16n bytes) and 1M `f64` argsort went from 27.2 to 21.6 ms.
+
+### Interpreters (Task 6)
+
+`evaluation/development/interpreters/` (README and `results.json`), one run of 15 trials on this machine: Guion 0.9.0 against CPython 3.14.7, free-threaded CPython 3.14.10 (uv offers no 3.14.7 free-threaded build) and PyPy 3.11.17 (PyPy 8.0.1). Guion / other, median of paired ratios, below 1 means Guion is faster:
+
+| workload | CPython | free-threaded | PyPy |
+|---|---|---|---|
+| arrays elementwise | 0.023 | 0.020 | 0.051 |
+| arrays sum | 0.058 | 0.049 | 0.234 |
+| arrays matmul | 0.012 | 0.010 | 0.043 |
+| arrays sort | 0.124 | 0.122 | 0.379 |
+| arrays loop | 0.763 | 0.628 | 2.527 |
+| first source (5 programs) | 0.260-0.411 | 0.244-0.395 | 0.155-0.283 |
+
+Guion is faster than both CPythons on all 11 workloads and faster than PyPy on all but the array-loop program, where PyPy's JIT is 2.5 times faster than Guion. The array lanes compare Guion's native arrays with plain-Python loops, the Python programs are single-threaded so free-threading is not exercised, and the first-source workloads are start-up dominated. One machine, one run.
+
+### Kit changes in this task
+
+`read_compute.py` now records the interpreter that ran pandas (the `.venv` Python's `sys.version`) in `machine.python`, not the system Python's, and its docstring says the script creates the hard link and runs `guion update` itself.
+
+### Caveats
+
+- One machine, one day, one run per kit; matmul and in-process read ratios have wide per-trial spread (matmul 0.84 to 4.38); compare medians.
+- The machine was not idle.
+- Allocator claims are for macOS aarch64.

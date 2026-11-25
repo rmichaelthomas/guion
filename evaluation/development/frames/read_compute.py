@@ -9,7 +9,8 @@ relative tolerance of 1e-9 or the run stops.
 Usage: python3 read_compute.py [trials] [output.json]
 Needs a release build (`cargo build --release -p guion-cli`), the `.venv` from
 requirements.txt, programs/data/rows.csv (python3 generate.py), and
-programs_compute/data/rows.csv (a hard link to it; `guion update` run in programs_compute).
+programs_compute/data/rows.csv (a hard link to it; the script creates it and runs `guion update`
+in programs_compute itself before timing).
 """
 
 import json
@@ -92,7 +93,13 @@ def main():
     result = {
         "schema": "guion-read-compute/v1",
         "trials": TRIALS,
-        "machine": {"platform": platform.platform(), "python": platform.python_version()},
+        "machine": {
+            "platform": platform.platform(),
+            "python": subprocess.run(
+                [PANDAS_PYTHON, "-I", "-c", "import sys; print(sys.version)"],
+                capture_output=True, text=True,
+            ).stdout.strip(),
+        },
         "guion": subprocess.run([GUION, "--version"], capture_output=True, text=True).stdout.strip(),
         "pandas": subprocess.run(
             [PANDAS_PYTHON, "-I", "-c", "import pandas, numpy; print(pandas.__version__, numpy.__version__)"],
