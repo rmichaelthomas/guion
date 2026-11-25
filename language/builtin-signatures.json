@@ -3544,6 +3544,12 @@
       "operation": "ProcessCoreCount"
     },
     {
+      "name": "native_process_stop_requested",
+      "parameters": [],
+      "result": "Bool",
+      "operation": "ProcessStopRequested"
+    },
+    {
       "name": "native_process_start",
       "parameters": [
         "Text",

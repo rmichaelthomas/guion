@@ -6640,6 +6640,11 @@ impl VmHost for PortableHost {
         }
         let op = context.instruction.op.clone();
         let span = context.instruction.span;
+        // The browser has no signals, so no stop is ever requested.
+        if matches!(op, Op::Process(guion_model::ProcessFunction::StopRequested)) {
+            context.stack.push(Value::Bool(false));
+            return Ok(());
+        }
         // `parallel_map` needs threads, which this host does not have.
         match op {
             Op::HigherOrder(Kind::ParallelMap | Kind::TryParallelMap | Kind::StartTask)

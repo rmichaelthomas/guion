@@ -3128,7 +3128,8 @@ fn inspection_report(
                     guion_model::ProcessFunction::Run | guion_model::ProcessFunction::Start => {
                         direct_effects[function_index].insert("process.spawn".into());
                     }
-                    guion_model::ProcessFunction::SignalPoll => {
+                    guion_model::ProcessFunction::SignalPoll
+                    | guion_model::ProcessFunction::StopRequested => {
                         direct_effects[function_index].insert("process.signals".into());
                     }
                     guion_model::ProcessFunction::Pid

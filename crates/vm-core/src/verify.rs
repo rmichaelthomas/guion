@@ -1009,6 +1009,7 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                         state.stack.push(Type::Int)
                     }
                     guion_model::ProcessFunction::SignalPoll => state.stack.push(Type::Text),
+                    guion_model::ProcessFunction::StopRequested => state.stack.push(Type::Bool),
                     guion_model::ProcessFunction::Start => {
                         let arguments = pop_type(&mut state.stack, pc)?;
                         let command = pop_type(&mut state.stack, pc)?;

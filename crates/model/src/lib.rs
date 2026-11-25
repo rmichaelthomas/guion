@@ -1617,6 +1617,11 @@ mod tests {
     }
 
     #[test]
+    fn stop_requested_instruction_is_gated_on_format_90() {
+        assert_gated(Op::Process(ProcessFunction::StopRequested), 90);
+    }
+
+    #[test]
     fn peer_address_instruction_is_gated_on_format_90() {
         assert_gated(Op::Net(NetFunction::PeerAddress), 90);
     }
@@ -4516,10 +4521,13 @@ pub enum ProcessFunction {
     CloseInput,
     /// Waits for a started command to exit (format 76).
     Wait,
+    /// Whether an `INT`, `TERM` or `HUP` has arrived in a program that polls for signals (format
+    /// 90). Sticky and shared by every thread; does not read the pending signal.
+    StopRequested,
 }
 
 impl ProcessFunction {
-    const ALL: [ProcessFunction; 9] = [
+    const ALL: [ProcessFunction; 10] = [
         ProcessFunction::Run,
         ProcessFunction::Pid,
         ProcessFunction::SignalPoll,
@@ -4529,6 +4537,7 @@ impl ProcessFunction {
         ProcessFunction::Write,
         ProcessFunction::CloseInput,
         ProcessFunction::Wait,
+        ProcessFunction::StopRequested,
     ];
 
     pub fn code(self) -> u8 {
@@ -4554,6 +4563,7 @@ impl ProcessFunction {
             ProcessFunction::Write => "ProcessWrite",
             ProcessFunction::CloseInput => "ProcessCloseInput",
             ProcessFunction::Wait => "ProcessWait",
+            ProcessFunction::StopRequested => "ProcessStopRequested",
         }
     }
 
@@ -4570,7 +4580,10 @@ impl ProcessFunction {
             ProcessFunction::Run => 3,
             ProcessFunction::Start | ProcessFunction::Write => 2,
             ProcessFunction::Line | ProcessFunction::CloseInput | ProcessFunction::Wait => 1,
-            ProcessFunction::Pid | ProcessFunction::SignalPoll | ProcessFunction::CoreCount => 0,
+            ProcessFunction::Pid
+            | ProcessFunction::SignalPoll
+            | ProcessFunction::CoreCount
+            | ProcessFunction::StopRequested => 0,
         }
     }
 }
@@ -5461,6 +5474,12 @@ impl Artifact {
                 "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
             ));
         }
+        if self.format_version < 90 && artifact_uses_stop_requested(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "process_stop_requested requires artifact format 90",
+            ));
+        }
         if self.format_version < 90 && artifact_uses_peer_address(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -6344,6 +6363,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "core_count requires artifact format 76",
+                            ));
+                        }
+                        if code >= 9 && format_version < 90 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "process_stop_requested requires artifact format 90",
                             ));
                         }
                         Op::Process(ProcessFunction::from_code(code).ok_or_else(|| {
@@ -7455,6 +7480,14 @@ fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
                 instruction.op,
                 Op::TextLower | Op::TextUpper | Op::JsonKeys | Op::JsonStringifyPretty
             )
+        })
+    })
+}
+
+fn artifact_uses_stop_requested(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(instruction.op, Op::Process(ProcessFunction::StopRequested))
         })
     })
 }

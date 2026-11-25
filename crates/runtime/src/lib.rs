@@ -3727,6 +3727,9 @@ impl Instance {
                     guion_model::ProcessFunction::SignalPoll => {
                         Value::Text(SharedText::from(process_ops::signal_poll()))
                     }
+                    guion_model::ProcessFunction::StopRequested => {
+                        Value::Bool(process_ops::stop_requested())
+                    }
                     guion_model::ProcessFunction::CoreCount => {
                         let cores = thread::available_parallelism().map_or(1, |count| count.get());
                         Value::Int(BigInt::from_i64(cores as i64))

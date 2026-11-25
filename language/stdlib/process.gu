@@ -37,6 +37,13 @@ pub fn process_pid() -> Int:
 pub fn process_signal_poll() -> Text:
     return native_process_signal_poll()
 
+# True once INT, TERM or HUP has arrived in a program that polls for signals (called
+# process_signal_poll at least once). Sticky: it stays true, reading it does not take the pending
+# signal, and every thread sees it. A program that never polls for signals is ended by the signal
+# instead, so this stays false. Always false in the browser.
+pub fn process_stop_requested() -> Bool:
+    return native_process_stop_requested()
+
 pub fn core_count() -> Int:
     return native_process_core_count()
 

@@ -11676,6 +11676,36 @@
       "declared_status": "Implemented in artifact format 90"
     },
     {
+      "id": "host_operation-stop-requested",
+      "kind": "host_operation",
+      "name": "stop requested",
+      "owner_task": 7,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.stop-requested.positive",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "negative": {
+          "case_id": "host_operation.stop-requested.negative",
+          "state": "implemented",
+          "owner_task": 7
+        },
+        "interaction": {
+          "case_id": "host_operation.stop-requested.interaction",
+          "state": "implemented",
+          "owner_task": 7
+        }
+      },
+      "source_signature": "`process_stop_requested() -> Bool`",
+      "declared_status": "Implemented in artifact format 90"
+    },
+    {
       "id": "opcode-text-lower",
       "kind": "opcode",
       "name": "TextLower",

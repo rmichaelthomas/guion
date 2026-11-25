@@ -61,6 +61,7 @@ Each operation has an explicit failure result. Host failures carry a stable code
 | integer radix | `int_to_text_radix(value: Int, radix: Int) -> Text`, `text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]` | Radix 2 to 36 (else `R_RADIX_RANGE`); lowercase digits, `-` for negatives, no prefix or separators; parsing takes either case and one leading `-`, else `E_INT_PARSE`; a value over the digit limit is `R_INTEGER_LIMIT`; no grant | Implemented in artifact format 90 |
 | file modes | `fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]`, `fs_mode(path: Text) -> Result[Int, FileError]` | Permission bits as an `Int` (0 to 0o7777 to set), as `chmod`; path resolved against the file root like the other `std:fs` functions; write grant to set, read grant to read; `R_FILE_MODE_INVALID`, `R_FILE_UNSUPPORTED` (no permission bits) | Implemented in artifact format 90 |
 | peer address | `tcp_peer(conn: TcpConn) -> Result[PeerAddress, StdError]`, `http_server_peer(request: HttpServerRequest) -> Result[PeerAddress, StdError]`, `Request.peer` | The remote end of a connected TCP or TLS socket as host and port (IPv6 without brackets, IPv4-mapped IPv6 as IPv4); `Request.peer` is `host:port` with IPv6 in brackets, empty when unknown; no grant beyond holding the connection; effect `network.socket`; `E_NET_HANDLE` for anything but a connected socket; `R_HOST_UNSUPPORTED` in the browser VM | Implemented in artifact format 90 |
+| stop requested | `process_stop_requested() -> Bool` | True once an `INT`, `TERM` or `HUP` has arrived in a program that polls for signals (`process_signal_poll` called at least once); sticky, the same on every thread, does not clear the pending signal or change `process_signal_poll` or `sleep_ms`; no grant; effect `process.signals`; false in the browser VM; recorded on tapes like `process_signal_poll` | Implemented in artifact format 90 |
 | JSON values | `json_null`, `json_bool`, `json_int`, `json_float`, `json_text`, `json_array`, `json_object` | Typed constructors; same JSON and allocation ceilings; artifact format 20 | Implemented |
 | JSON updates | `json_push(array: Json, value: Json) -> Json`, `json_set(object: Json, key: Text, value: Json) -> Json` | Immutable updated copy; rejects the wrong container kind and enforces collection/text ceilings; artifact format 20 | Implemented |
 | HTTP text GET | `http_get(url: Text) -> Result[Text, HttpError]` | Exact-host grant required; HTTP/HTTPS only; proxy auto-discovery disabled; time, redirect and streamed body limits; non-2xx status is `Err` | Implemented |
@@ -128,6 +129,7 @@ text_parse_int_radix(Text, Int) -> Result[Int, FileError]
 fs_set_mode(Text, Int) -> Result[Unit, FileError]
 fs_mode(Text) -> Result[Int, FileError]
 tcp_peer(TcpConn) -> Result[PeerAddress, StdError]
+process_stop_requested() -> Bool
 crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 sqlite_open(Text) -> Result[Db, StdError]
