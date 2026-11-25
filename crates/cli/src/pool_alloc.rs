@@ -198,7 +198,34 @@ impl Shared {
         self.lock.store(false, Ordering::Release);
         result
     }
+
+    /// Like `with`, but gives up after `spins` failed attempts and returns `None`.
+    fn try_with<R>(&self, spins: usize, action: impl FnOnce(&mut SharedState) -> R) -> Option<R> {
+        let mut attempts = 0;
+        while self
+            .lock
+            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            attempts += 1;
+            if attempts > spins {
+                return None;
+            }
+            std::hint::spin_loop();
+        }
+        // SAFETY: the spin lock gives exclusive access.
+        let result = action(unsafe { &mut *self.state.get() });
+        self.lock.store(false, Ordering::Release);
+        Some(result)
+    }
 }
+
+/// How long a retiring thread waits for the shared lock. Where a process exit runs thread-local
+/// destructors after the other threads were killed, the lock may be held forever by a dead
+/// thread; the exiting thread then leaks its lists (already counted in `HELD_BYTES`) rather than
+/// hang. Every other holder keeps the lock for a few instructions, so this is never reached in
+/// normal running.
+const RETIRE_SPINS: usize = 1 << 22;
 
 pub struct PoolAllocator;
 
@@ -287,9 +314,16 @@ unsafe fn pop_region(shared: &mut SharedState, size: usize) -> Option<(*mut u8, 
 /// Hands the exiting thread's free lists and unused bump region to the shared state, and sends
 /// every later allocation or free on this thread straight there.
 unsafe fn retire(local: &mut Local) {
+    unsafe { retire_into(local, &SHARED, RETIRE_SPINS) }
+}
+
+/// `retire` into `shared`, waiting at most `spins` attempts for its lock. If the lock cannot be
+/// taken the thread's lists and region are leaked: the thread is ending and the memory is
+/// already counted in `HELD_BYTES`.
+unsafe fn retire_into(local: &mut Local, shared: &Shared, spins: usize) {
     local.retired = true;
     let mut lists = [(ptr::null_mut::<u8>(), ptr::null_mut::<u8>()); CLASSES];
-    for class in 0..CLASSES {
+    for (class, list) in lists.iter_mut().enumerate() {
         let head = local.heads[class];
         if !head.is_null() {
             let mut tail = head;
@@ -300,7 +334,7 @@ unsafe fn retire(local: &mut Local) {
                 }
                 tail = next;
             }
-            lists[class] = (head, tail);
+            *list = (head, tail);
         }
         local.heads[class] = ptr::null_mut();
         local.counts[class] = RETIRED_COUNT;
@@ -308,15 +342,15 @@ unsafe fn retire(local: &mut Local) {
     let (start, end) = (local.bump, local.bump_end);
     local.bump = ptr::null_mut();
     local.bump_end = ptr::null_mut();
-    SHARED.with(|shared| {
+    let _ = shared.try_with(spins, |state| {
         for (class, &(head, tail)) in lists.iter().enumerate() {
             if !head.is_null() {
-                unsafe { tail.cast::<*mut u8>().write(shared.heads[class]) };
-                shared.heads[class] = head;
+                unsafe { tail.cast::<*mut u8>().write(state.heads[class]) };
+                state.heads[class] = head;
             }
         }
         if (end as usize) - (start as usize) >= MIN_REGION {
-            unsafe { push_region(shared, start, end) };
+            unsafe { push_region(state, start, end) };
         }
     });
 }
@@ -466,7 +500,9 @@ unsafe impl GlobalAlloc for PoolAllocator {
 
 #[cfg(test)]
 mod tests {
-    use super::{held_bytes, CHUNK_BYTES};
+    use super::{
+        held_bytes, retire, retire_into, Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
+    };
 
     /// `held_bytes` is process-wide and the other tests allocate at the same time, so each test
     /// here re-runs itself alone in a child process and measures there.
@@ -485,7 +521,12 @@ mod tests {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        print!("{}", String::from_utf8_lossy(&output.stdout));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains("test result: ok. 1 passed;"),
+            "the child must run exactly the test {name}: {stdout}"
+        );
+        print!("{stdout}");
         false
     }
 
@@ -544,6 +585,25 @@ mod tests {
             assert!(block.iter().all(|&value| value == i as u64));
         }
         drop(made);
+        // A thread that starts now must find the exited thread's memory through the shared
+        // state: it takes no new chunk for the same amount of small allocations.
+        let before_fresh = held_bytes();
+        std::thread::spawn(|| {
+            let again: Vec<Vec<u64>> = (0..1_000u64)
+                .map(|i| vec![i; 1 + (i % 30) as usize])
+                .collect();
+            for (i, block) in again.iter().enumerate() {
+                assert!(block.iter().all(|&value| value == i as u64));
+            }
+        })
+        .join()
+        .unwrap();
+        let fresh_growth = held_bytes().saturating_sub(before_fresh);
+        println!("fresh thread grew held bytes by {fresh_growth}");
+        assert!(
+            fresh_growth < CHUNK_BYTES,
+            "fresh thread grew by {fresh_growth}"
+        );
         let before = held_bytes();
         for round in 0..50u64 {
             let again: Vec<Vec<u64>> = (0..1_000u64)
@@ -554,5 +614,97 @@ mod tests {
             }
         }
         assert!(held_bytes().saturating_sub(before) <= 4 * CHUNK_BYTES);
+    }
+
+    #[test]
+    fn a_retiring_thread_that_cannot_take_the_shared_lock_leaks_and_returns() {
+        if !isolated(
+            "pool_alloc::tests::a_retiring_thread_that_cannot_take_the_shared_lock_leaks_and_returns",
+        ) {
+            return;
+        }
+        // The lock is held by "a thread that was killed": retiring must give up, not spin.
+        let shared = Shared {
+            lock: std::sync::atomic::AtomicBool::new(true),
+            state: std::cell::UnsafeCell::new(SharedState {
+                heads: [std::ptr::null_mut(); CLASSES],
+                regions: std::ptr::null_mut(),
+            }),
+        };
+        let block = Box::leak(Box::new([0usize; 2])).as_mut_ptr().cast::<u8>();
+        let mut local = Local::EMPTY;
+        local.heads[0] = block;
+        local.counts[0] = 1;
+        let before = held_bytes();
+        // SAFETY: `local` is a private `Local` whose list is one valid, leaked block.
+        unsafe { retire_into(&mut local, &shared, 1_000) };
+        assert!(local.retired);
+        assert!(local.heads.iter().all(|head| head.is_null()));
+        assert_eq!(held_bytes(), before);
+        // Nothing reached the shared state, and the lock is still the other holder's.
+        assert!(shared.lock.load(std::sync::atomic::Ordering::Relaxed));
+        // SAFETY: the lock is held by nobody who touches the state in this test.
+        let state = unsafe { &*shared.state.get() };
+        assert!(state.heads.iter().all(|head| head.is_null()) && state.regions.is_null());
+    }
+
+    #[test]
+    fn a_retired_thread_allocates_and_frees_through_the_shared_state() {
+        if !isolated(
+            "pool_alloc::tests::a_retired_thread_allocates_and_frees_through_the_shared_state",
+        ) {
+            return;
+        }
+        std::thread::spawn(|| {
+            // Some memory of the thread's own first, so retiring hands lists and a region on.
+            let own: Vec<Vec<u8>> = (0..300).map(|i| vec![i as u8; 1 + i % 500]).collect();
+            drop(own);
+            // SAFETY: this thread's own storage, and no allocator call is in progress.
+            LOCAL.with(|local| unsafe { retire(&mut *local.get()) });
+            let before = held_bytes();
+            for round in 0..40usize {
+                let blocks: Vec<Vec<u8>> = (0..400usize)
+                    .map(|i| {
+                        let size = 1 + (i * 37 + round * 11) % 512;
+                        vec![(i + round) as u8; size]
+                    })
+                    .collect();
+                for (i, block) in blocks.iter().enumerate() {
+                    assert_eq!(block.len(), 1 + (i * 37 + round * 11) % 512);
+                    assert!(block.iter().all(|&byte| byte == (i + round) as u8));
+                }
+            }
+            let grown = held_bytes().saturating_sub(before);
+            println!("retired thread grew held bytes by {grown}");
+            assert!(grown <= 2 * CHUNK_BYTES, "grew by {grown}");
+            // Far more than the shared state holds: new chunks come in through `shared_alloc`
+            // (the first pass), and what is freed is found again (the second).
+            for (pass, expected_chunks) in [(0, 1..=6usize), (1, 0..=0usize)] {
+                let before = held_bytes();
+                let blocks: Vec<Vec<u8>> = (0..2_000usize)
+                    .map(|i| vec![(i + pass) as u8; 496 + i % 16])
+                    .collect();
+                for (i, block) in blocks.iter().enumerate() {
+                    assert!(block.iter().all(|&byte| byte == (i + pass) as u8));
+                }
+                drop(blocks);
+                let chunks = held_bytes().saturating_sub(before) / CHUNK_BYTES;
+                println!("pass {pass}: {chunks} new chunks");
+                assert!(
+                    expected_chunks.contains(&chunks),
+                    "pass {pass}: {chunks} chunks"
+                );
+            }
+            // It kept nothing of its own after retiring.
+            LOCAL.with(|local| {
+                // SAFETY: this thread's own storage, no allocator call in progress.
+                let local = unsafe { &*local.get() };
+                assert!(local.retired);
+                assert!(local.heads.iter().all(|head| head.is_null()));
+                assert!(local.bump.is_null());
+            });
+        })
+        .join()
+        .unwrap();
     }
 }
