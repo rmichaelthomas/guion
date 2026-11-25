@@ -1,7 +1,7 @@
 //! Threads for the element-wise array kernels.
 //!
 //! A kernel hands `for_each_chunk_mut` its output buffer; disjoint chunks of it are filled on
-//! scoped threads. The result is the one a single thread would give: each chunk reports the
+//! the threads of a persistent pool. The result is the one a single thread would give: each chunk reports the
 //! first failure inside it in index order, and the failure of the lowest-offset chunk wins.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -19,7 +19,8 @@ const MIN_CHUNK: usize = 1 << 16;
 #[cfg(test)]
 thread_local! {
     static FORCED_THREADS: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
-    static THREADED_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static OFF_THREAD_CHUNKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static LAST_JOINING: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static NO_NEW_THREADS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -32,10 +33,16 @@ pub(crate) fn with_forced_threads<R>(threads: usize, body: impl FnOnce() -> R) -
     result
 }
 
-/// How many times this thread has fanned work out to several threads.
+/// How many chunks calls made from this thread have had run by other threads.
 #[cfg(test)]
-pub(crate) fn threaded_calls() -> usize {
-    THREADED_CALLS.with(|calls| calls.get())
+pub(crate) fn off_thread_chunks() -> usize {
+    OFF_THREAD_CHUNKS.with(|chunks| chunks.get())
+}
+
+/// How many pool workers the latest call from this thread asked to join.
+#[cfg(test)]
+fn last_joining() -> usize {
+    LAST_JOINING.with(|joining| joining.get())
 }
 
 /// 1 below the threshold and on wasm32; otherwise `available_parallelism`.
@@ -165,6 +172,8 @@ fn run_on_workers(threads: usize, worker: &(dyn Fn() + Sync)) {
         pool.workers.load(Ordering::Relaxed)
     };
     let joining = threads.saturating_sub(1).min(available);
+    #[cfg(test)]
+    LAST_JOINING.with(|last| last.set(joining));
     if joining == 0 || pool.busy.swap(true, Ordering::Acquire) {
         return worker();
     }
@@ -200,8 +209,9 @@ fn run_on_workers(threads: usize, worker: &(dyn Fn() + Sync)) {
     assert!(!helper_panicked, "an array worker thread panicked");
 }
 
-/// Runs `work(offset, chunk)` over disjoint chunks of `out` on scoped threads and returns
-/// the result of the lowest-offset chunk that failed. A refused spawn means fewer workers.
+/// Runs `work(offset, chunk)` over disjoint chunks of `out` on the pool's threads and the
+/// calling thread, and returns the result of the lowest-offset chunk that failed. No workers
+/// (none started, or the pool busy) means the caller does every chunk.
 pub(crate) fn for_each_chunk_mut<T: Send, E: Send>(
     out: &mut [T],
     threads: usize,
@@ -211,15 +221,19 @@ pub(crate) fn for_each_chunk_mut<T: Send, E: Send>(
     if threads <= 1 || len <= MIN_CHUNK {
         return work(0, out);
     }
-    #[cfg(test)]
-    THREADED_CALLS.with(|calls| calls.set(calls.get() + 1));
     let size = len.div_ceil(threads * 4).max(MIN_CHUNK);
     let queue = Mutex::new(out.chunks_mut(size).enumerate());
     let failure: Mutex<Option<(usize, E)>> = Mutex::new(None);
+    #[cfg(test)]
+    let (caller, off_thread) = (std::thread::current().id(), AtomicUsize::new(0));
     let worker = || loop {
         let next = queue.lock().unwrap_or_else(|e| e.into_inner()).next();
         let Some((index, chunk)) = next else { return };
         let offset = index * size;
+        #[cfg(test)]
+        if std::thread::current().id() != caller {
+            off_thread.fetch_add(1, Ordering::Relaxed);
+        }
         if let Err(error) = work(offset, chunk) {
             let mut slot = failure.lock().unwrap_or_else(|e| e.into_inner());
             if slot.as_ref().is_none_or(|(known, _)| offset < *known) {
@@ -227,7 +241,10 @@ pub(crate) fn for_each_chunk_mut<T: Send, E: Send>(
             }
         }
     };
-    run_on_workers(threads, &worker);
+    // More workers than chunks would only be woken to find the queue empty.
+    run_on_workers(threads.min(len.div_ceil(size)), &worker);
+    #[cfg(test)]
+    OFF_THREAD_CHUNKS.with(|chunks| chunks.set(chunks.get() + off_thread.load(Ordering::Relaxed)));
     match failure.into_inner().unwrap_or_else(|e| e.into_inner()) {
         Some((_, error)) => Err(error),
         None => Ok(()),
@@ -312,6 +329,20 @@ mod tests {
         });
         assert_eq!(result, Ok(()));
         assert!(data.iter().all(|byte| *byte == 1));
+    }
+
+    #[test]
+    fn a_two_chunk_call_wakes_at_most_one_worker() {
+        let mut data = vec![0u8; MIN_CHUNK + 1000];
+        let result: Result<(), ()> = for_each_chunk_mut(&mut data, 8, |_, chunk| {
+            chunk.fill(1);
+            Ok(())
+        });
+        assert_eq!(result, Ok(()));
+        assert!(last_joining() <= 1, "woke {}", last_joining());
+        let mut data = vec![0u8; 8 * 4 * MIN_CHUNK];
+        let _: Result<(), ()> = for_each_chunk_mut(&mut data, 8, |_, _| Ok(()));
+        assert!(last_joining() > 1 || available_threads() <= 2);
     }
 
     #[test]

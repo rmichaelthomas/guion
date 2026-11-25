@@ -586,7 +586,7 @@ fn zip_numeric<T: Numeric>(
     if threads > 1 {
         let flag = std::sync::atomic::AtomicBool::new(false);
         let other_whole = other.len() == items.len();
-        let y = other[0];
+        let y = other.first().copied().unwrap_or_default();
         for_each_chunk_mut(&mut *items, threads, |offset, chunk| {
             let mut bad = false;
             let result = (|| {
@@ -2355,7 +2355,7 @@ mod budget_tests {
 #[cfg(test)]
 mod threaded_tests {
     use super::*;
-    use crate::parallel::{threaded_calls, with_forced_threads};
+    use crate::parallel::{off_thread_chunks, with_forced_threads};
 
     const SIZE: usize = 3_000_000;
 
@@ -2561,17 +2561,38 @@ mod threaded_tests {
                 Add => vec![a, filled::<f64>(|_| 1)],
                 _ => vec![a],
             };
-            let before = threaded_calls();
-            with_forced_threads(4, || apply(function, ElementType::F64, args)).expect("ok");
+            // Another test may hold the pool, in which case the caller does everything; the
+            // call then runs again, since an idle pool must hand some chunk to a worker.
+            let mut args = Some(args);
+            let mut fanned = false;
+            for attempt in 0..200 {
+                let before = off_thread_chunks();
+                let this = match (attempt, args.take()) {
+                    (0, Some(first)) => first,
+                    _ => {
+                        let a = filled::<f64>(|i| (i % 10) as i64);
+                        match function {
+                            AddScalar => vec![a, scalar::<f64>()],
+                            Add => vec![a, filled::<f64>(|_| 1)],
+                            _ => vec![a],
+                        }
+                    }
+                };
+                with_forced_threads(4, || apply(function, ElementType::F64, this)).expect("ok");
+                if off_thread_chunks() > before {
+                    fanned = true;
+                    break;
+                }
+            }
             drop(keep);
             assert!(
-                threaded_calls() > before,
-                "{function:?} in_place={in_place} stayed on one thread"
+                fanned,
+                "{function:?} in_place={in_place} never reached a worker"
             );
         }
-        let before = threaded_calls();
+        let before = off_thread_chunks();
         let small = make(vec![1.0f64; 1000]);
         apply(Add, ElementType::F64, vec![small.clone(), small]).expect("ok");
-        assert_eq!(threaded_calls(), before);
+        assert_eq!(off_thread_chunks(), before);
     }
 }
