@@ -13,8 +13,9 @@ async function instantiate(bytes) {
   return instance.exports;
 }
 
+/** Pass `null` for `compilerBytes` to load only the VM, for a page that runs a prebuilt artifact and never compiles. */
 export async function loadModules(compilerBytes, vmBytes) {
-  const [compiler, vm] = await Promise.all([instantiate(compilerBytes), instantiate(vmBytes)]);
+  const [compiler, vm] = await Promise.all([compilerBytes === null ? null : instantiate(compilerBytes), instantiate(vmBytes)]);
   if (typeof vm.guion_wasm_abi_version !== 'function' || vm.guion_wasm_abi_version() >>> 16 !== 1) {
     throw new Error('This page needs Guion browser ABI 1.x');
   }
@@ -59,14 +60,24 @@ export function compile(modules, sourceText) {
   return { ok: true, artifact: readBytes(compiler, compiler.result_artifact_ptr(), compiler.result_artifact_len()) };
 }
 
-export function run(modules, artifact, limits = {}) {
+/**
+ * Run an artifact. `call` names the entry and its arguments (default: `main` with none); a plain string
+ * argument is sent as Text, anything else must already be an ABI value such as { type: 'Int', value: '3' }.
+ * `limits.allowRaisedSteps` lets `limits.steps` go above 10,000 (the VM's ceiling is 50,000,000).
+ */
+export function run(modules, artifact, limits = {}, call = {}) {
   const { vm } = modules;
+  const wire = (argument) => (typeof argument === 'string' ? { type: 'Text', value: argument } : argument);
   const request = encoder.encode(JSON.stringify({
     abi: ABI,
-    entry: 'main',
-    arguments: [],
+    entry: call.entry ?? 'main',
+    arguments: (call.arguments ?? []).map(wire),
     capabilities: [],
-    limits: { steps: limits.steps ?? LIMITS.steps, outputBytes: limits.outputBytes ?? LIMITS.outputBytes },
+    limits: {
+      steps: limits.steps ?? LIMITS.steps,
+      outputBytes: limits.outputBytes ?? LIMITS.outputBytes,
+      ...(limits.allowRaisedSteps === true ? { allowRaisedSteps: true } : {}),
+    },
   }));
   const artifactPointer = place(vm, vm.allocate_input, artifact);
   const requestPointer = artifactPointer === 0 ? 0 : place(vm, vm.allocate_input, request);
