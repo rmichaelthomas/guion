@@ -54,17 +54,6 @@
       }
     },
     {
-      "id": "python-accordion-learn",
-      "mode": "render",
-      "instrumentId": "ahi.reveals-discoveries.accordion",
-      "content": {
-        "heading": "Learning it",
-        "body": "In the project's comprehension study, assistants were given the shipped guides and five small tasks. Across 17 runs none took a wrong turn; four tasks closed in every run, and the fifth was reworded after early runs and then closed in its three reruns. That measures assistants, not people: whether a person can learn Guion from the guides and make a realistic change is not yet tested.",
-        "caption": "Learning it",
-        "note": "The receipts are in the repository under evaluation/comprehension/receipts. Learnability is still listed as an open outcome on the project status page."
-      }
-    },
-    {
       "id": "python-accordion-compare",
       "mode": "render",
       "instrumentId": "ahi.reveals-discoveries.accordion",

@@ -60,7 +60,7 @@ test('llms.txt states the status, lists the claims with conditions, and invents 
 test('llms.txt and agents.json carry every "where Python still leads" entry the page shows', async () => {
   const { slots } = JSON.parse(await readFile(path.join(SITE_ROOT, 'src', 'instruments.json'), 'utf8'));
   const gaps = slots.filter((slot) => slot.id.startsWith('python-accordion-'));
-  assert.ok(gaps.length >= 5, 'the page lists its open gaps');
+  assert.ok(gaps.length >= 4, 'the page lists its open gaps');
   const text = await read('llms.txt');
   const agents = JSON.parse(await read('agents.json'));
   assert.match(text, /## Where Python still leads/);
