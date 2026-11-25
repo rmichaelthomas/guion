@@ -189,6 +189,38 @@ fn parse_clause(clause: &str, bounds: &mut Vec<Bound>) -> Result<(), String> {
     Ok(())
 }
 
+/// The stable code of every refusal that comes from a package's `[package] guion` requirement.
+pub const GUION_VERSION_CODE: &str = "E_PACKAGE_GUION_VERSION";
+
+/// The version of the running Guion toolchain.
+pub fn running_guion_version() -> Version {
+    let text = env!("CARGO_PKG_VERSION");
+    let numbers = text.split(['-', '+']).next().unwrap_or(text);
+    Version::parse(numbers).unwrap_or(Version {
+        major: 0,
+        minor: 0,
+        patch: 0,
+    })
+}
+
+/// Parses the text of a `[package] guion` field.
+pub fn parse_guion_requirement(text: &str) -> Result<VersionReq, String> {
+    VersionReq::parse(text)
+}
+
+/// Whether the running Guion meets `requirement`.
+pub fn running_guion_satisfies(requirement: &VersionReq) -> bool {
+    requirement.matches(running_guion_version())
+}
+
+/// The refusal for one named release whose requirement the running Guion does not meet.
+pub fn guion_version_error(name: &str, version: &str, requirement: &VersionReq) -> String {
+    format!(
+        "{GUION_VERSION_CODE}: package `{name}` {version} requires Guion {requirement}, but this is Guion {}; upgrade Guion, or depend on an older release of `{name}`",
+        running_guion_version()
+    )
+}
+
 /// One published version of a package and what it needs.
 #[derive(Clone, Debug)]
 pub struct Candidate {
@@ -196,6 +228,16 @@ pub struct Candidate {
     pub dependencies: Vec<(String, VersionReq)>,
     /// Yanked versions are skipped unless the lock already pins them.
     pub yanked: bool,
+}
+
+/// Splits a leading stable code (`E_SOMETHING: message`) off an error string.
+pub fn split_error_code(message: &str) -> Option<(&str, &str)> {
+    let (code, rest) = message.split_once(": ")?;
+    (code.starts_with("E_")
+        && code
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte == b'_'))
+    .then_some((code, rest))
 }
 
 /// Where the resolver learns which versions exist.
@@ -378,6 +420,20 @@ mod tests {
 
     fn v(text: &str) -> Version {
         Version::parse(text).unwrap()
+    }
+
+    #[test]
+    fn the_running_guion_is_a_real_version_and_codes_split_off_messages() {
+        assert!(running_guion_version() > Version::parse("0.0.0").unwrap());
+        assert!(running_guion_satisfies(&VersionReq::parse("*").unwrap()));
+        assert!(!running_guion_satisfies(
+            &VersionReq::parse(">=999.0.0").unwrap()
+        ));
+        assert_eq!(
+            split_error_code("E_PACKAGE_GUION_VERSION: package `x` 1.0.0"),
+            Some(("E_PACKAGE_GUION_VERSION", "package `x` 1.0.0"))
+        );
+        assert_eq!(split_error_code("cannot read: file"), None);
     }
 
     fn r(text: &str) -> VersionReq {

@@ -1217,3 +1217,93 @@ fn the_web_package_packs_installs_from_a_local_registry_and_tests_itself_there()
     assert!(text(&tested).contains("tests passed"), "{}", text(&tested));
     let _ = std::fs::remove_dir_all(&work);
 }
+
+#[test]
+fn a_release_whose_guion_requirement_is_unmet_is_skipped_for_an_older_one() {
+    if skip_without_wrangler() {
+        return;
+    }
+    let registry = start_registry("guion-requirement");
+    let alice = new_publisher(&registry, "alice");
+    let work = scratch_dir("guion-requirement");
+    let library = work.join("needy");
+    let publish = |version: &str, requirement: Option<&str>, factor: u32| {
+        write_library(
+            &library,
+            "needy",
+            version,
+            &requirement
+                .map(|text| format!("guion = \"{text}\"\n"))
+                .unwrap_or_default(),
+            &format!("pub fn step(value: Int) -> Int:\n    return value * {factor}\n"),
+        );
+        let published = guion(&library, &registry, Some(&alice), &["publish"]);
+        assert!(published.status.success(), "{}", text(&published));
+    };
+    publish("1.0.0", None, 2);
+    publish("1.1.0", Some(">=99.0.0"), 3);
+
+    // The requirement reaches the index; the older release has none.
+    let index: serde_json::Value = serde_json::from_str(&curl(&[
+        "-s",
+        &format!("{}/index/needy.json", registry.url),
+    ]))
+    .unwrap();
+    assert!(index["versions"][0]
+        .get("guion")
+        .is_none_or(|v| v.is_null()));
+    assert_eq!(index["versions"][1]["guion"], ">=99.0.0");
+
+    let app = work.join("app");
+    new_project(&app, "pkg:needy/src/lib.gu", "step(10)");
+    let added = guion(&app, &registry, None, &["add", "needy"]);
+    assert!(added.status.success(), "{}", text(&added));
+    assert!(std::fs::read_to_string(app.join("guion.lock"))
+        .unwrap()
+        .contains("version = \"1.0.0\""));
+
+    // `update` does not move to the newer release either.
+    let updated = guion(&app, &registry, None, &["update"]);
+    assert!(updated.status.success(), "{}", text(&updated));
+    assert!(std::fs::read_to_string(app.join("guion.lock"))
+        .unwrap()
+        .contains("version = \"1.0.0\""));
+    let _ = std::fs::remove_dir_all(&work);
+}
+
+#[test]
+fn add_fails_with_a_clear_error_when_no_release_meets_the_guion_requirement() {
+    if skip_without_wrangler() {
+        return;
+    }
+    let registry = start_registry("guion-requirement-none");
+    let alice = new_publisher(&registry, "alice");
+    let work = scratch_dir("guion-requirement-none");
+    let library = work.join("needy");
+    for (version, requirement) in [("1.0.0", ">=98.0.0"), ("1.1.0", ">=99.0.0")] {
+        write_library(
+            &library,
+            "needy",
+            version,
+            &format!("guion = \"{requirement}\"\n"),
+            "pub fn step(value: Int) -> Int:\n    return value\n",
+        );
+        let published = guion(&library, &registry, Some(&alice), &["publish"]);
+        assert!(published.status.success(), "{}", text(&published));
+    }
+    let app = work.join("app");
+    new_project(&app, "pkg:needy/src/lib.gu", "step(10)");
+    let added = guion(&app, &registry, None, &["add", "needy"]);
+    assert!(!added.status.success(), "{}", text(&added));
+    let message = text(&added);
+    assert!(message.contains("E_PACKAGE_GUION_VERSION"), "{message}");
+    assert!(
+        message.contains("`needy`") && message.contains("1.1.0"),
+        "{message}"
+    );
+    assert!(message.contains(">=99.0.0"), "{message}");
+    assert!(message.contains(env!("CARGO_PKG_VERSION")), "{message}");
+    assert!(message.contains("upgrade Guion"), "{message}");
+    assert!(!app.join("guion.lock").exists());
+    let _ = std::fs::remove_dir_all(&work);
+}

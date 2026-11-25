@@ -177,8 +177,16 @@ function cleanMeta(raw) {
     throw new HttpError(400, "E_META_INVALID", "dependencies must map package names to requirement text");
   }
   if (!isObject(capabilities)) throw new HttpError(400, "E_META_INVALID", "capabilities must be an object");
+  // The Guion version the package needs, as requirement text (">=0.9.0"). Optional; clients check it
+  // with their own parser, the registry only keeps it plain.
+  const guion = meta.guion;
+  if (guion !== undefined && guion !== null) {
+    if (typeof guion !== "string" || guion.length > 100 || !/^[0-9A-Za-z.,<>=^~* ]+$/.test(guion)) {
+      throw new HttpError(400, "E_META_INVALID", "guion must be a Guion version requirement such as \">=0.9.0\"");
+    }
+  }
   // Earlier clients sent an empty `cache` list; precompiled attachments are deferred, so it is ignored.
-  return { dependencies, capabilities };
+  return guion === undefined || guion === null ? { dependencies, capabilities } : { dependencies, capabilities, guion };
 }
 
 /** Appends one signed entry to the hash-chained log and returns it. */
@@ -235,6 +243,7 @@ async function rebuildIndex(store, key) {
       log_seq: record.log_seq,
       capabilities: record.capabilities,
       dependencies: record.dependencies,
+      guion: record.guion,
       signature: null,
     })),
   };

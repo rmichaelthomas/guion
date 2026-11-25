@@ -1892,8 +1892,14 @@ fn compile_project(
     templates::prepass(entry, project_root).map_err(|error| error.to_diagnostic())?;
     let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
+            let (code, message) = match package_version::split_error_code(&message) {
+                Some((code, rest)) if code == package_version::GUION_VERSION_CODE => {
+                    (code.to_owned(), rest.to_owned())
+                }
+                _ => ("E_PACKAGE_LOCK".to_owned(), message),
+            };
             guion_model::Diagnostic::new(
-                "E_PACKAGE_LOCK",
+                &code,
                 message,
                 guion_model::Span {
                     source_id: 0,
@@ -1939,8 +1945,14 @@ fn compile_project_for_run(
     templates::prepass(entry, project_root).map_err(|error| error.to_diagnostic())?;
     let package_roots = if project_manifest_path(project_root).is_file() {
         native_packages::load_locked_roots(project_root).map_err(|message| {
+            let (code, message) = match package_version::split_error_code(&message) {
+                Some((code, rest)) if code == package_version::GUION_VERSION_CODE => {
+                    (code.to_owned(), rest.to_owned())
+                }
+                _ => ("E_PACKAGE_LOCK".to_owned(), message),
+            };
             guion_model::Diagnostic::new(
-                "E_PACKAGE_LOCK",
+                &code,
                 message,
                 guion_model::Span {
                     source_id: 0,
