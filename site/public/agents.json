@@ -1,6 +1,6 @@
 {
   "product": "Guion",
-  "status": "Pre-1.0. Release 0.8.0 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64).",
+  "status": "Pre-1.0. Release 0.9.0 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64).",
   "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",
@@ -16,7 +16,7 @@
     },
     {
       "heading": "A release you can use",
-      "body": "Guion 0.8.0 is out for Linux (Debian 12 on ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64). It has a written stability policy, a live package registry, native arrays, closures, enums, generic functions, an editor server, and a web package with sessions, CSRF protection and checked templates. Both Mac builds are signed and notarized by Apple, so they open without a warning; the first launch checks with Apple and needs an internet connection. The Windows build is not signed, so Windows may warn the first time it runs, and the Intel Mac and Windows builds have had a build and a short smoke test, not the full test suite. Guion is still pre-1.0, and Python is a released language with a long track record."
+      "body": "Guion 0.9.0 is out for Linux (Debian 12 on ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64). It has a written stability policy, a live package registry, native arrays, closures, enums, generic functions, an editor server, and a web package with sessions, CSRF protection and checked templates. Both Mac builds are signed and notarized by Apple, so they open without a warning; the first launch checks with Apple and needs an internet connection. The Windows build is not signed, so Windows may warn the first time it runs, and the Intel Mac and Windows builds have had a build and a short smoke test, not the full test suite. Guion is still pre-1.0, and Python is a released language with a long track record."
     },
     {
       "heading": "Learning it",
@@ -28,7 +28,7 @@
     }
   ],
   "cli": {
-    "version": "guion 0.8.0 (artifact format 89, timezone data 2026c)",
+    "version": "guion 0.9.0 (artifact format 90, timezone data 2026c)",
     "commands": [
       "new",
       "check",

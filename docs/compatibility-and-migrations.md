@@ -26,6 +26,15 @@ The rename is a pre-1.0 transition. The current CLI retains read compatibility f
 
 This compatibility is a migration aid, not a guarantee that old names will remain supported through 1.0. New projects and new outputs use Guion names. A Guion project may continue to contain a legacy-named manifest while it is being migrated; avoid creating both old and new manifest or lock files in the same project, because that makes project identity ambiguous.
 
+## Moving from 0.8.0 to 0.9.0
+
+Nothing is removed or renamed, and no word is newly reserved. Programs written for 0.8.0 compile and run unchanged except for the one change below.
+
+- **`Request` has a seventh field, `peer`.** In `std:http_response`, `Request` is `Request(method, path, headers, query, body, params, peer)`. A `Request(...)` record literal needs the extra argument: add `peer: ""`, or positionally `Request("GET", "/", {}, [], body, {}, "")`. Code that only reads a `Request`, or builds one with `request_new`, is unaffected; `request_new` sets `peer` to `""` and `http_request_value` fills it from the connection. The `web` package is version 0.3.0 and passes it through its router and middleware.
+- **Artifact format 90.** The runtime reads formats 14 through 90 and writes 90. A program that uses `text_lower`, `text_upper`, `json_keys`, `json_stringify_pretty`, `fs_set_mode`, `fs_mode`, `int_to_text_radix`, `text_parse_int_radix`, `tcp_peer`, `http_server_peer` or `process_stop_requested` needs a runtime that reads its format and is refused by an older one with `E_ARTIFACT_VERSION`. `web` 0.3.0 needs Guion 0.9.0.
+- **`serve` and `serve_for` stop on signals.** In a program that polls for signals, `INT`, `TERM` and `HUP` now make them finish the requests being handled and return `Ok`; a program that never polls is unchanged.
+- **`match` literal patterns.** `Int`, `Text` and `Bool` literals are patterns now. A name that was bound in an arm is still a name; only a literal is new.
+
 ## Moving from 0.7.0 to 0.8.0
 
 Nothing is removed or renamed, and no word is newly reserved. Programs written for 0.7.0 compile and run unchanged except for the three stricter behaviours below.
