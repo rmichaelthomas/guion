@@ -4194,9 +4194,30 @@ fn format_source_line(line: &str) -> String {
 
     let mut formatted = String::from(indentation);
     let mut previous: Option<(String, u8)> = None;
+    // A `-` with no value before it is a sign, and stays against its number or name: `-1`, `x = -y`.
+    let mut previous_sign = false;
     for (text, kind) in &tokens {
+        let sign = text == "-"
+            && previous
+                .as_ref()
+                .is_none_or(|(previous_text, previous_kind)| {
+                    *previous_kind == 3
+                        || matches!(
+                            previous_text.as_str(),
+                            "(" | "["
+                                | ","
+                                | ":"
+                                | "{"
+                                | "return"
+                                | "in"
+                                | "if"
+                                | "while"
+                                | "match"
+                        )
+                });
         if let Some((previous_text, previous_kind)) = previous.as_ref() {
             let needs_space = match text.as_str() {
+                _ if previous_sign => false,
                 "," | ")" | "]" | "}" | "." | ":" => false,
                 "(" => previous_text == "fn" || previous_text == "record",
                 "[" => false,
@@ -4214,6 +4235,7 @@ fn format_source_line(line: &str) -> String {
         }
         formatted.push_str(text);
         previous = Some((text.clone(), *kind));
+        previous_sign = sign;
     }
     if let Some(comment) = comment {
         if !formatted.is_empty() && !formatted.chars().last().is_some_and(char::is_whitespace) {
