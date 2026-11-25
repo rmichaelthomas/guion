@@ -245,7 +245,7 @@ enum Merge {
     /// The kinds do not combine without reading the file again.
     Reread,
     /// The budget refused this many bytes for a transient copy.
-    Budget(usize),
+    Budget,
 }
 
 /// Why a builder refused a field.
@@ -463,7 +463,7 @@ impl Builder {
                 // The same transient copy the sequential promotion charges.
                 let copy = self.ints.len().saturating_mul(8);
                 if !(meter.charge)(copy) {
-                    return Err(Merge::Budget(copy));
+                    return Err(Merge::Budget);
                 }
                 self.floats = self.ints.iter().map(|&int| int as f64).collect();
                 self.floats.extend_from_slice(&piece.floats);
@@ -1096,6 +1096,7 @@ fn read_tracked(
 #[cfg(test)]
 thread_local! {
     static LAST_PATH: Cell<&'static str> = const { Cell::new("") };
+    static LAST_ROUNDS: Cell<usize> = const { Cell::new(0) };
     static NO_NEW_THREADS: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -1294,20 +1295,40 @@ fn read_parallel(
             return Ok(None);
         }};
     }
+    // A budget refusal here is never the read's answer: the sequential reader may need less,
+    // so it decides. Cancellation and everything else still ends the read.
+    macro_rules! budgeted {
+        ($result:expr) => {
+            match $result {
+                Ok(()) => {}
+                Err(ColumnsError::Allocation(_)) => sequential!(settler),
+                Err(error) => return Err(error),
+            }
+        };
+    }
+    let mut read_total = 0u64;
+    #[cfg(test)]
+    let mut rounds = 0usize;
     loop {
-        // Charge the block before reading it, as the buffer grows to hold it.
-        settler.settle_live(
+        // Charge what the block will hold before reading it: no more than is left of the file.
+        let left = size.saturating_sub(read_total).min(block as u64) as usize;
+        budgeted!(settler.settle_live(
             buffer
                 .capacity()
-                .max(buffer.len() + block)
+                .max(buffer.len() + left)
                 .saturating_add(globals.iter().map(Builder::accounted_bytes).sum::<usize>()),
-        )?;
+        ));
         let wanted = block;
         let got = match (&mut file).take(wanted as u64).read_to_end(&mut buffer) {
             Ok(got) => got,
             Err(_) => sequential!(settler),
         };
+        read_total += got as u64;
         let eof = got < wanted;
+        #[cfg(test)]
+        {
+            rounds += 1;
+        }
         if first {
             first = false;
             if buffer.starts_with(&[0xEF, 0xBB, 0xBF]) {
@@ -1435,11 +1456,11 @@ fn read_parallel(
                 .chain(&globals)
                 .map(Builder::accounted_bytes)
                 .fold(buffer.capacity(), usize::saturating_add);
-            settler.settle_live(live)?;
+            budgeted!(settler.settle_live(live));
             for piece in &pieces {
                 if piece.transient > 0 {
                     if !(settler.meter.charge)(piece.transient) {
-                        return Err(ColumnsError::Allocation(piece.transient));
+                        sequential!(settler);
                     }
                     (settler.meter.release)(piece.transient);
                 }
@@ -1449,7 +1470,7 @@ fn read_parallel(
                     match global.absorb(part, settler.meter) {
                         Ok(()) => {}
                         Err(Merge::Reread) => sequential!(settler),
-                        Err(Merge::Budget(bytes)) => return Err(ColumnsError::Allocation(bytes)),
+                        Err(Merge::Budget) => sequential!(settler),
                     }
                 }
             }
@@ -1463,14 +1484,18 @@ fn read_parallel(
     if header.is_none() {
         sequential!(settler);
     }
-    let live = globals
-        .iter()
-        .map(Builder::accounted_bytes)
-        .fold(0usize, usize::saturating_add);
-    settler.settle_live(live)?;
     if globals.iter().any(Builder::needs_text_pass) {
         sequential!(settler);
     }
+    // What stays charged is what the returned columns hold; the block buffer and the pieces'
+    // builders are gone, as after a sequential read.
+    let retained = globals
+        .iter()
+        .map(Builder::accounted_bytes)
+        .fold(0usize, usize::saturating_add);
+    (settler.meter.release)(settler.charged.saturating_sub(retained));
+    #[cfg(test)]
+    LAST_ROUNDS.with(|last| last.set(rounds));
     Ok(Some(globals.into_iter().map(Builder::finish).collect()))
 }
 
@@ -1758,6 +1783,7 @@ mod tests {
     struct Pool {
         limit: usize,
         used: std::cell::Cell<usize>,
+        peak: std::cell::Cell<usize>,
         charges: std::cell::RefCell<Vec<usize>>,
         releases: std::cell::RefCell<Vec<usize>>,
     }
@@ -2125,21 +2151,41 @@ mod tests {
 
     #[test]
     fn parallel_read_keeps_a_negative_zero_a_float_column_would_read() {
+        let bits = |columns: &Vec<Column>| {
+            columns[0]
+                .floats
+                .iter()
+                .map(|f| f.to_bits())
+                .collect::<Vec<_>>()
+        };
+        // Floats first, then integers among which `-0`: a float column reads it as -0.0, so a
+        // piece that read it as an integer cannot be joined onto it.
         let mut body = String::from("x\n1.5\n");
-        for row in 0..400_000 {
+        for row in 0..1_500_000 {
             body.push_str(if row % 1000 == 0 { "-0\n" } else { "2\n" });
         }
+        assert!(body.len() >= PARALLEL_MIN_BYTES);
         let path = temp_csv("negative-zero", &body);
+        let one = read_threads(&path, &BTreeMap::new(), 1).unwrap();
+        assert!(one[0].floats[1].is_sign_negative());
+        for threads in [2, 3, 8] {
+            let many = read_threads(&path, &BTreeMap::new(), threads).unwrap();
+            assert_eq!(last_path(), "sequential", "{threads} threads");
+            assert_eq!(bits(&one), bits(&many), "{threads} threads");
+        }
+        let _ = std::fs::remove_file(&path);
+        // Integers with `-0`, and a float only at the end: the promotion happens the same way
+        // in both readers (every `-0` becomes 0.0), so the parallel read stands.
+        let mut body = String::from("x\n");
+        for row in 0..1_500_000 {
+            body.push_str(if row % 1000 == 0 { "-0\n" } else { "2\n" });
+        }
+        body.push_str("1.5\n");
+        let path = temp_csv("negative-zero-ints", &body);
         let one = read_threads(&path, &BTreeMap::new(), 1).unwrap();
         for threads in [2, 3, 8] {
             let many = read_threads(&path, &BTreeMap::new(), threads).unwrap();
-            let bits = |columns: &Vec<Column>| {
-                columns[0]
-                    .floats
-                    .iter()
-                    .map(|f| f.to_bits())
-                    .collect::<Vec<_>>()
-            };
+            assert_eq!(last_path(), "parallel", "{threads} threads");
             assert_eq!(bits(&one), bits(&many), "{threads} threads");
         }
         let _ = std::fs::remove_file(&path);
@@ -2168,6 +2214,7 @@ mod tests {
                 return false;
             }
             pool.used.set(pool.used.get() + bytes);
+            pool.peak.set(pool.peak.get().max(pool.used.get()));
             true
         };
         let mut release = |bytes: usize| pool.used.set(pool.used.get() - bytes);
@@ -2235,6 +2282,166 @@ mod tests {
         assert!(pooled_threads(&failing, &path, 8).is_err());
         assert_eq!(failing.used.get(), 0);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_successful_parallel_read_holds_what_a_sequential_one_does() {
+        let body = mixed_rows(300_000);
+        let path = temp_csv("pool-held", &body);
+        let sequential = Pool {
+            limit: 1 << 30,
+            ..Pool::default()
+        };
+        let columns = pooled_threads(&sequential, &path, 1).unwrap();
+        let data: usize = columns
+            .iter()
+            .map(|c| c.ints.len() * 8 + c.floats.len() * 8 + c.codes.len() * 8 + c.valid.len())
+            .sum();
+        for threads in [2, 3, 8] {
+            let pool = Pool {
+                limit: 1 << 30,
+                ..Pool::default()
+            };
+            let again = pooled_threads(&pool, &path, threads).unwrap();
+            assert_eq!(last_path(), "parallel");
+            assert_eq!(again, columns);
+            // Only what the columns hold stays charged: the arrays, whose capacity may exceed
+            // their length by the growth of a vector (at most twice), and not the block
+            // buffer or the pieces. Never more than twice what the sequential read holds.
+            let held = pool.used.get();
+            assert!(
+                held >= data,
+                "{threads} threads hold {held} for {data} bytes"
+            );
+            assert!(
+                held <= 2 * sequential.used.get(),
+                "{threads} threads hold {held}, sequential {}",
+                sequential.used.get()
+            );
+        }
+        // A budget the sequential reader fits is one every thread count fits, because a
+        // refusal inside the parallel path sends the read to the sequential one.
+        for limit in [sequential.peak.get(), sequential.peak.get() + 1] {
+            for threads in [1, 2, 3, 8] {
+                let pool = Pool {
+                    limit,
+                    ..Pool::default()
+                };
+                let result = pooled_threads(&pool, &path, threads);
+                assert_eq!(
+                    result.as_ref().ok(),
+                    Some(&columns),
+                    "limit {limit}, {threads} threads: {:?}",
+                    result.as_ref().map(|c| c.len())
+                );
+            }
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A file of at least `rows` rows, read in 3 or more rounds by 2 threads: CRLF endings, a
+    /// byte-order mark, blank lines before the header and between records, and no newline at
+    /// the end. `bad` replaces one record.
+    fn rounds_fixture(rows: usize, bad: Option<(usize, &str)>) -> String {
+        let mut body = String::from("\u{feff}\r\n\r\nid,a,b,s,flag,fixed\r\n");
+        for row in 0..rows {
+            if row % 5000 == 4999 {
+                body.push_str("\r\n");
+            }
+            if let Some((at, text)) = bad {
+                if at == row {
+                    body.push_str(text);
+                    continue;
+                }
+            }
+            // a: integers, floats in the last tenth (Int to Float). b: floats, then integers
+            // from the middle (Float to Int). s: texts that keep turning up new.
+            let a = if row > rows - rows / 10 && row % 50 == 0 {
+                format!("{row}.25")
+            } else {
+                format!("{row}")
+            };
+            let b = if row < rows / 2 {
+                format!("{row}.5")
+            } else {
+                format!("{row}")
+            };
+            let s = format!("t{}", (row / 3) % 40_000);
+            let flag = if row % 3 == 0 { "true" } else { "" };
+            body.push_str(&format!("{row},{a},{b},{s},{flag},{}\r\n", row % 1000));
+        }
+        // No newline after the last record.
+        body.truncate(body.len() - 2);
+        body
+    }
+
+    #[test]
+    fn parallel_read_across_many_rounds() {
+        let rows = 900_000;
+        let kinds = BTreeMap::from([("fixed".to_string(), "i64".to_string())]);
+        let body = rounds_fixture(rows, None);
+        assert!(body.len() > (3 * 8) << 20, "{} bytes", body.len());
+        let path = temp_csv("rounds", &body);
+        let one = read_threads(&path, &kinds, 1).unwrap();
+        for threads in [2, 3, 8] {
+            let many = read_threads(&path, &kinds, threads).unwrap();
+            assert_eq!(last_path(), "parallel");
+            if threads == 2 {
+                assert!(
+                    LAST_ROUNDS.with(|last| last.get()) >= 3,
+                    "only {} rounds",
+                    LAST_ROUNDS.with(|last| last.get())
+                );
+            }
+            assert_eq!(one, many, "{threads} threads");
+        }
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(one[1].kind, ColumnKind::F64);
+        assert_eq!(one[2].kind, ColumnKind::F64);
+        assert_eq!(one[3].kind, ColumnKind::Text);
+        assert_eq!(one[4].kind, ColumnKind::Bool);
+        assert_eq!(one[5].kind, ColumnKind::I64);
+        assert_eq!(one[0].ints.len(), rows);
+        assert_eq!(one[0].name, "id");
+    }
+
+    #[test]
+    fn parallel_read_error_past_the_first_round_names_the_same_line() {
+        let rows = 900_000;
+        let at = rows - rows / 10;
+        let kinds = BTreeMap::from([("fixed".to_string(), "i64".to_string())]);
+        for (text, is_value) in [("1,2,3\r\n", false), ("1,2,3,x,true,oops\r\n", true)] {
+            let body = rounds_fixture(rows, Some((at, text)));
+            let path = temp_csv("rounds-error", &body);
+            let one = read_threads(&path, &kinds, 1).unwrap_err();
+            for threads in [2, 3, 8] {
+                let many = read_threads(&path, &kinds, threads).unwrap_err();
+                assert_eq!(last_path(), "parallel");
+                assert_eq!(one, many, "{threads} threads");
+            }
+            let line = match &one {
+                ColumnsError::Malformed { line, .. } | ColumnsError::Value { line, .. } => *line,
+                other => panic!("{other:?}"),
+            };
+            assert!(line > at && is_value == matches!(one, ColumnsError::Value { .. }));
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    #[test]
+    fn parallel_read_of_one_column_keeps_blank_lines_as_missing() {
+        let mut body = String::from("x\n");
+        for row in 0..400_000 {
+            if row % 7 == 0 {
+                body.push('\n');
+            } else {
+                body.push_str(&format!("{row}\n"));
+            }
+        }
+        let columns =
+            same_for_every_thread_count("one-column", &body, &BTreeMap::new(), true).unwrap();
+        assert_eq!(columns[0].valid.len(), 400_000);
+        assert!(!columns[0].valid[0]);
     }
 
     #[test]
