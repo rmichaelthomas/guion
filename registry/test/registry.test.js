@@ -60,6 +60,30 @@ test("name rules match the documented ones", () => {
   assert.ok(compareVersions("1.10.0", "1.9.9") > 0);
 });
 
+test("a Guion version requirement is carried into the index and is optional", async () => {
+  const { call } = registry();
+  const token = await newPublisher(call, "alice");
+  assert.equal((await publish(call, token, "needy", "1.0.0", "archive one")).status, 201);
+  assert.equal((await publish(call, token, "needy", "1.1.0", "archive two", { guion: ">=0.9.0" })).status, 201);
+  const index = await (await call("GET", "index/needy.json")).json();
+  assert.equal("guion" in index.versions[0], false);
+  assert.equal(index.versions[1].guion, ">=0.9.0");
+  // The signed log entry keeps its fixed shape: the requirement is index metadata only.
+  const entry = await (await call("GET", "log/0000000002.json")).json();
+  assert.equal("guion" in entry, false);
+});
+
+test("a malformed Guion version requirement is refused at publish", async () => {
+  const { call } = registry();
+  const token = await newPublisher(call, "alice");
+  for (const bad of [5, "x".repeat(101), "$(rm -rf)", ["a"]]) {
+    const made = await publish(call, token, "needy", "1.0.0", "archive", { guion: bad });
+    assert.equal(made.status, 400, JSON.stringify(bad));
+    assert.equal((await made.json()).error.code, "E_META_INVALID");
+  }
+  assert.equal((await publish(call, token, "needy", "1.0.0", "archive", { guion: null })).status, 201);
+});
+
 test("publish, download and verify the log chain", async () => {
   const { call } = registry();
   const token = await newPublisher(call, "alice");
