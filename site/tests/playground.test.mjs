@@ -111,3 +111,12 @@ test('steps above 10,000 are refused unless allowRaisedSteps is set, and then th
   assert.equal(allowed.value, '5000');
   assert.ok(allowed.steps > 10000);
 });
+
+test('the VM can be loaded without the compiler and still runs a built artifact', async () => {
+  const compiled = compile(modules, 'fn main() -> Int:\n    return 7\n');
+  const vmOnly = await loadModules(null, await readFile(path.join(PLAYGROUND, 'guion_vm.wasm')));
+  assert.equal(vmOnly.compiler, null);
+  const result = run(vmOnly, compiled.artifact);
+  assert.equal(result.ok, true);
+  assert.equal(result.value, '7');
+});
