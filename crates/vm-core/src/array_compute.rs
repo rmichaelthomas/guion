@@ -1180,35 +1180,59 @@ fn radix_sort_stable<T: Numeric>(
 }
 
 /// The input positions that put the elements in ascending order; equal elements keep their
-/// input order. Sorts (key, position) pairs so no pass reads the elements at random.
+/// input order. Holds one scratch buffer of eight bytes per element and charges the output, so
+/// the whole sort is charged what the comparison sort was: sixteen bytes per element. The final
+/// buffer is the output itself.
+///
+/// Types of at most four key bytes sort (key, position) packed in one `u64`, so no pass reads
+/// the elements; the rest sort the positions and read each key from the elements.
 fn radix_argsort_stable<T: Numeric>(
     items: &[T],
     charge: &mut Charge<'_>,
     held: &mut usize,
-) -> Result<Vec<usize>, ArrayError> {
+) -> Result<Vec<i64>, ArrayError> {
     let len = items.len();
-    let pair_bytes = len.saturating_mul(size_of::<(u64, usize)>());
-    hold(charge, held, pair_bytes.saturating_mul(2))?;
+    hold(charge, held, array_bytes(ElementType::I64, 1, len))?;
     charge(array_bytes(ElementType::I64, 1, len))?;
     let passes = radix_passes::<T>(len, |each| {
         items.iter().for_each(|item| each(item.radix_key()))
     });
-    let mut from: Vec<(u64, usize)> = items
-        .iter()
-        .enumerate()
-        .map(|(index, item)| (item.radix_key(), index))
-        .collect();
-    let mut to = vec![(0u64, 0usize); len];
+    if T::KEY_BYTES <= 4 && len <= u32::MAX as usize {
+        let mut from: Vec<u64> = items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| (item.radix_key() << 32) | index as u64)
+            .collect();
+        let mut to = vec![0u64; len];
+        for (shift, count) in passes {
+            let shift = shift + 32;
+            let mut offsets = radix_offsets(&count);
+            for packed in &from {
+                let digit = ((packed >> shift) & 0xff) as usize;
+                to[offsets[digit]] = *packed;
+                offsets[digit] += 1;
+            }
+            std::mem::swap(&mut from, &mut to);
+        }
+        drop(to);
+        // Same size and alignment: the collect reuses the allocation.
+        return Ok(from
+            .into_iter()
+            .map(|packed| (packed & 0xffff_ffff) as i64)
+            .collect());
+    }
+    let mut from: Vec<i64> = (0..len as i64).collect();
+    let mut to = vec![0i64; len];
     for (shift, count) in passes {
         let mut offsets = radix_offsets(&count);
-        for pair in &from {
-            let digit = ((pair.0 >> shift) & 0xff) as usize;
-            to[offsets[digit]] = *pair;
+        for &position in &from {
+            let digit = ((items[position as usize].radix_key() >> shift) & 0xff) as usize;
+            to[offsets[digit]] = position;
             offsets[digit] += 1;
         }
         std::mem::swap(&mut from, &mut to);
     }
-    Ok(from.into_iter().map(|(_, index)| index).collect())
+    Ok(from)
 }
 
 /// The comparison sort the radix sort replaces; kept as the reference its tests compare to.
@@ -1252,9 +1276,10 @@ fn order<T: Numeric>(
     }
     if items.len() >= RADIX_MIN_LEN {
         if function == Argsort {
-            let indices = radix_argsort_stable(items, charge, held)?;
-            let out: Vec<i64> = indices.into_iter().map(|index| index as i64).collect();
-            return finish(vec![items.len()], out);
+            return finish(
+                vec![items.len()],
+                radix_argsort_stable(items, charge, held)?,
+            );
         }
         let out = radix_sort_stable(items, charge, held)?;
         return finish(vec![items.len()], out);
@@ -2309,6 +2334,42 @@ mod budget_tests {
         }
     }
 
+    /// The radix path (at least 1,024 elements) under a tight limit: a budget that holds only
+    /// the output fails, nothing stays charged after the failure, and a budget of exactly
+    /// scratch plus output succeeds and leaves only the output.
+    #[test]
+    fn the_radix_sort_obeys_the_limit_and_releases_its_scratch() {
+        let n = 2048;
+        for function in [ArrayFunction::Sort, ArrayFunction::Argsort] {
+            for element in [ElementType::F64, ElementType::I64, ElementType::F32] {
+                let make = || array(element, vec![n], |i| (i as i64 * 7919) % 513 - 256);
+                let out_element = if function == ArrayFunction::Sort {
+                    element
+                } else {
+                    ElementType::I64
+                };
+                let output = array_bytes(out_element, 1, n);
+                let scratch = if function == ArrayFunction::Sort {
+                    array_bytes(element, 1, n)
+                } else {
+                    array_bytes(ElementType::I64, 1, n)
+                };
+                let used = Cell::new(0);
+                let result = run(function, element, vec![make()], output, &used);
+                assert_limit(result, "radix scratch");
+                assert_eq!(used.get(), 0, "nothing stays charged after a failure");
+                let used = Cell::new(0);
+                let result = run(function, element, vec![make()], output + scratch - 1, &used);
+                assert_limit(result, "radix scratch plus output, one byte short");
+                assert_eq!(used.get(), 0, "nothing stays charged after a failure");
+                let used = Cell::new(0);
+                let result = run(function, element, vec![make()], output + scratch, &used);
+                assert!(result.is_ok(), "{function:?} {element:?} fits exactly");
+                assert_eq!(used.get(), output, "only the output stays charged");
+            }
+        }
+    }
+
     #[test]
     fn factorize_hash_table_is_released() {
         let a = array(ElementType::I64, vec![256], |i| i as i64);
@@ -2761,7 +2822,7 @@ mod radix_tests {
         }
     }
 
-    fn radix<T: Numeric>(items: &[T]) -> (Vec<T>, Vec<usize>) {
+    fn radix<T: Numeric>(items: &[T]) -> (Vec<T>, Vec<i64>) {
         let mut charge = |_: usize| Ok(());
         let mut held = 0;
         (
@@ -2773,9 +2834,10 @@ mod radix_tests {
     /// Both outputs equal the comparison sort's, bit for bit.
     fn assert_matches_reference<T: Numeric>(items: &[T]) {
         let reference = comparison_order(items);
+        let expected_order: Vec<i64> = reference.iter().map(|&i| i as i64).collect();
         let expected: Vec<T> = reference.iter().map(|&i| items[i]).collect();
         let (sorted, order) = radix(items);
-        assert_eq!(order, reference, "argsort");
+        assert_eq!(order, expected_order, "argsort");
         assert_eq!(bits(&sorted), bits(&expected), "sort");
     }
 
@@ -2915,43 +2977,142 @@ mod radix_tests {
         let items: Vec<i32> = (0..50_000).map(|i| (i * 31 % 17) - 8).collect();
         let (_, order) = radix(&items);
         for pair in order.windows(2) {
-            let (a, b) = (items[pair[0]], items[pair[1]]);
+            let (a, b) = (items[pair[0] as usize], items[pair[1] as usize]);
             assert!(a < b || (a == b && pair[0] < pair[1]));
         }
     }
 
-    #[test]
-    fn the_radix_sort_charges_its_second_buffer() {
-        let items: Vec<i64> = (0..RADIX_MIN_LEN as i64).rev().collect();
-        let used = std::cell::Cell::new(0usize);
+    /// Total bytes charged by the radix sort and argsort of `items`, and what stays held.
+    fn charged<T: Numeric>(items: &[T]) -> (usize, usize, usize, usize) {
+        let total = std::cell::Cell::new(0usize);
         let mut charge = |bytes: usize| {
-            used.set(used.get() + bytes);
+            total.set(total.get() + bytes);
             Ok(())
         };
         let mut held = 0;
-        let sorted = radix_sort_stable(&items, &mut charge, &mut held).expect("sort");
-        assert_eq!(
-            held,
-            array_bytes(ElementType::I64, 1, items.len()),
-            "the scratch buffer is held"
+        radix_sort_stable(items, &mut charge, &mut held).expect("sort");
+        let sort = (total.get(), held);
+        total.set(0);
+        let mut held = 0;
+        radix_argsort_stable(items, &mut charge, &mut held).expect("argsort");
+        (sort.0, sort.1, total.get(), held)
+    }
+
+    /// Sort charges its scratch buffer and its output; argsort charges no more than the
+    /// comparison sort did, eight bytes per element of scratch and eight of output, for every
+    /// element type.
+    #[test]
+    fn the_radix_sorts_charge_what_the_comparison_sort_did() {
+        fn check<T: Numeric>(items: Vec<T>) {
+            let len = items.len();
+            let element = array_bytes(T::TYPE, 1, len);
+            let index = array_bytes(ElementType::I64, 1, len);
+            let (sort_total, sort_held, arg_total, arg_held) = charged(&items);
+            assert_eq!(sort_total, 2 * element, "sort: scratch and output");
+            assert_eq!(sort_held, element, "sort: the scratch buffer is held");
+            assert_eq!(arg_held, index, "argsort: one scratch buffer is held");
+            assert_eq!(arg_total, 2 * index, "argsort: scratch and output");
+            assert!(
+                arg_total <= 2 * len * size_of::<usize>() + 2 * (index - 8 * len),
+                "argsort stays within 16 bytes per element plus the headers"
+            );
+        }
+        let n = 4096;
+        check((0..n).map(|i| (i * 7 % 101) as i8).collect::<Vec<_>>());
+        check((0..n).map(|i| (i * 7 % 101) as i16).collect::<Vec<_>>());
+        check((0..n).map(|i| i * 7 % 101).collect::<Vec<_>>());
+        check((0..n).map(|i| (i * 7 % 101) as i64).collect::<Vec<_>>());
+        check((0..n).map(|i| (i * 7 % 101) as u8).collect::<Vec<_>>());
+        check((0..n).map(|i| (i * 7 % 101) as u32).collect::<Vec<_>>());
+        check((0..n).map(|i| (i * 7 % 101) as u64).collect::<Vec<_>>());
+        check(
+            (0..n)
+                .map(|i| (i * 7 % 101) as f32 / 4.0)
+                .collect::<Vec<_>>(),
         );
-        assert_eq!(
-            used.get(),
-            2 * array_bytes(ElementType::I64, 1, items.len()),
-            "scratch and output"
+        check(
+            (0..n)
+                .map(|i| (i * 7 % 101) as f64 / 4.0)
+                .collect::<Vec<_>>(),
         );
-        assert!(sorted.windows(2).all(|w| w[0] <= w[1]));
-        let used2 = std::cell::Cell::new(0usize);
-        let mut charge2 = |bytes: usize| {
-            used2.set(used2.get() + bytes);
-            Ok(())
+    }
+
+    fn make<T: Element>(items: Vec<T>) -> Value {
+        Value::Array(Shared::new(
+            ArrayValue::new(vec![items.len()], T::wrap(items)).expect("array"),
+        ))
+    }
+
+    fn through_apply<T: Numeric>(function: ArrayFunction, items: &[T]) -> Value {
+        let mut charge = |_: usize| Ok(());
+        let mut release = |_: usize| {};
+        crate::array::apply(
+            function,
+            T::TYPE,
+            &mut [make(items.to_vec())],
+            &mut charge,
+            &mut release,
+        )
+        .expect("applied")
+    }
+
+    /// `sort` and `argsort` through the public entry point equal the comparison sort.
+    fn assert_apply_matches_reference<T: Numeric>(items: &[T]) {
+        let reference = comparison_order(items);
+        let expected: Vec<T> = reference.iter().map(|&i| items[i]).collect();
+        let Value::Array(sorted) = through_apply(ArrayFunction::Sort, items) else {
+            panic!("an array")
         };
-        let mut held2 = 0;
-        radix_argsort_stable(&items, &mut charge2, &mut held2).expect("argsort");
-        assert_eq!(
-            held2,
-            items.len() * 32,
-            "two (key, position) buffers are held"
-        );
+        assert_eq!(bits(T::items(&sorted.data)), bits(&expected), "sort");
+        let Value::Array(order) = through_apply(ArrayFunction::Argsort, items) else {
+            panic!("an array")
+        };
+        let expected: Vec<i64> = reference.iter().map(|&i| i as i64).collect();
+        assert_eq!(i64::items(&order.data), &expected[..], "argsort");
+    }
+
+    #[test]
+    fn the_threshold_and_its_neighbours_match_the_comparison_sort() {
+        for len in [1023, 1024, 1025] {
+            let mut next = stream(len as u64);
+            let ints: Vec<i32> = (0..len).map(|_| (next() % 61) as i32 - 30).collect();
+            assert_apply_matches_reference(&ints);
+            let floats: Vec<f64> = (0..len)
+                .map(|i| match next() % 3 {
+                    0 => 0.0,
+                    1 if i % 2 == 0 => -0.0,
+                    _ => (next() % 41) as f64 / 8.0 - 2.0,
+                })
+                .collect();
+            assert_apply_matches_reference(&floats);
+        }
+    }
+
+    #[test]
+    fn an_array_of_equal_elements_skips_every_pass_and_keeps_its_order() {
+        let ints = vec![7i64; 5000];
+        assert_apply_matches_reference(&ints);
+        let (sorted, order) = radix(&ints);
+        assert_eq!(sorted, ints);
+        assert!(order.iter().enumerate().all(|(i, &p)| p == i as i64));
+        let floats = vec![-2.5f64; 5000];
+        assert_apply_matches_reference(&floats);
+        // Only the zeros differ in sign: one key, no pass.
+        let zeros: Vec<f64> = (0..5000)
+            .map(|i| if i % 3 == 0 { -0.0 } else { 0.0 })
+            .collect();
+        assert_apply_matches_reference(&zeros);
+    }
+
+    #[test]
+    fn one_varying_middle_byte_is_sorted_by_that_byte() {
+        let mut next = stream(99);
+        // Only byte 1 of the key varies for these i32 values; i64 and u32 likewise.
+        let a: Vec<i32> = (0..5000).map(|_| ((next() % 200) as i32) << 8).collect();
+        assert_apply_matches_reference(&a);
+        let b: Vec<i64> = (0..5000).map(|_| ((next() % 200) as i64) << 24).collect();
+        assert_apply_matches_reference(&b);
+        let c: Vec<u32> = (0..5000).map(|_| ((next() % 200) as u32) << 16).collect();
+        assert_apply_matches_reference(&c);
     }
 }
