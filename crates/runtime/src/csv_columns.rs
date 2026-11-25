@@ -505,6 +505,16 @@ impl Builder {
         Ok(())
     }
 
+    /// Drops the room the vectors hold beyond their length.
+    fn shrink(&mut self) {
+        self.ints.shrink_to_fit();
+        self.floats.shrink_to_fit();
+        self.flags.shrink_to_fit();
+        self.codes.shrink_to_fit();
+        self.valid.shrink_to_fit();
+        self.dictionary.values.shrink_to_fit();
+    }
+
     fn accounted_bytes(&self) -> usize {
         self.ints
             .capacity()
@@ -1124,22 +1134,16 @@ fn refuse_spawn() -> bool {
     false
 }
 
-/// Why a piece stopped before its end.
-enum PieceStop {
-    /// The piece holds something only the sequential reader handles.
-    Sequential,
-    /// A record failed; its line counts from the start of the piece.
-    Error(ColumnsError),
-}
-
 /// What one piece of the file produced.
 struct Piece {
     builders: Vec<Builder>,
-    /// Physical lines the piece covered, blank ones included.
-    lines: usize,
     /// The largest transient copy a promotion inside the piece would have charged.
     transient: usize,
-    stop: Option<PieceStop>,
+    /// The piece met something the sequential reader must read (a quote, a stray carriage
+    /// return, bytes that are not UTF-8, a long record) or a record that fails. Errors are
+    /// left to the sequential reader, which reports them with their physical lines, and
+    /// which a tight budget may refuse before it gets to them.
+    stopped: bool,
 }
 
 /// Parses `data`, whole records from the start of one. It takes only what the sequential
@@ -1173,9 +1177,9 @@ fn parse_piece(
     let mut spans: Vec<Span> = Vec::new();
     let mut position = 0usize;
     let mut line = 0usize;
-    let stop = loop {
+    let stopped = loop {
         if position >= data.len() {
-            break None;
+            break false;
         }
         let rest = &data[position..];
         let (used, record) = match memchr::memchr(b'\n', rest) {
@@ -1184,15 +1188,15 @@ fn parse_piece(
                 (newline + 1, record.strip_suffix(b"\r").unwrap_or(record))
             }
             None if last => (rest.len(), rest),
-            None => break Some(PieceStop::Sequential),
+            None => break true,
         };
         // The sequential fast path takes a record when its bytes with the newline are within
         // the limit; one byte of margin keeps the two readers' limits from disagreeing.
         if used >= max_record_bytes || memchr::memchr2(b'"', b'\r', record).is_some() {
-            break Some(PieceStop::Sequential);
+            break true;
         }
         let Some(text) = as_str(record) else {
-            break Some(PieceStop::Sequential);
+            break true;
         };
         if !text.is_empty() || blank_is_value {
             spans.clear();
@@ -1210,8 +1214,8 @@ fn parse_piece(
                 end: text.len(),
                 quoted: false,
             });
-            if let Err(error) = ingest_record(&mut builders, &spans, text, line, &mut meter) {
-                break Some(PieceStop::Error(error));
+            if ingest_record(&mut builders, &spans, text, line, &mut meter).is_err() {
+                break true;
             }
         }
         position += used;
@@ -1219,34 +1223,8 @@ fn parse_piece(
     };
     Piece {
         builders,
-        lines: line,
         transient: transient.get(),
-        stop,
-    }
-}
-
-/// Adds the lines before a piece to the line of the error it reported.
-fn offset_error(error: ColumnsError, before: usize) -> ColumnsError {
-    match error {
-        ColumnsError::Malformed {
-            line,
-            column,
-            message,
-        } => ColumnsError::Malformed {
-            line: line + before,
-            column,
-            message,
-        },
-        ColumnsError::Value {
-            line,
-            column,
-            message,
-        } => ColumnsError::Value {
-            line: line + before,
-            column,
-            message,
-        },
-        other => other,
+        stopped,
     }
 }
 
@@ -1284,8 +1262,6 @@ fn read_parallel(
     let mut buffer: Vec<u8> = Vec::new();
     let mut header: Option<(Specs, bool)> = None;
     let mut globals: Vec<Builder> = Vec::new();
-    // Physical lines before the first byte of the current piece.
-    let mut lines_before = 0usize;
     let mut start = 0usize;
     let mut first = true;
     // Gives back the charge and sends the read to the sequential path.
@@ -1336,7 +1312,6 @@ fn read_parallel(
             }
             // The header: the first line that is not blank. It must be plain.
             let mut at = start;
-            lines_before = 1;
             let names = loop {
                 let Some(newline) = memchr::memchr(b'\n', &buffer[at..]) else {
                     sequential!(settler);
@@ -1345,7 +1320,6 @@ fn read_parallel(
                 let line = line.strip_suffix(b"\r").unwrap_or(line);
                 at += newline + 1;
                 if line.is_empty() {
-                    lines_before += 1;
                     continue;
                 }
                 if newline + 1 >= max_record_bytes || memchr::memchr2(b'"', b'\r', line).is_some() {
@@ -1356,14 +1330,16 @@ fn read_parallel(
                 };
                 break text.split(',').collect::<Vec<&str>>();
             };
-            let specs = column_specs(&names, kinds)?;
+            // A header error is the sequential reader's to report.
+            let Ok(specs) = column_specs(&names, kinds) else {
+                sequential!(settler);
+            };
             let one_column = specs.len() == 1;
             globals = specs
                 .iter()
                 .map(|(name, kind)| Builder::new(name.clone(), *kind))
                 .collect();
             header = Some((specs, one_column));
-            lines_before += 1;
             start = at;
         }
         let (specs, one_column) = header.as_ref().expect("the header was read");
@@ -1431,25 +1407,9 @@ fn read_parallel(
                         .expect("every piece was parsed")
                 })
                 .collect();
-            if pieces
-                .iter()
-                .any(|piece| matches!(piece.stop, Some(PieceStop::Sequential)))
-            {
+            if pieces.iter().any(|piece| piece.stopped) {
                 sequential!(settler);
             }
-            let mut before = lines_before;
-            let mut failure = None;
-            for piece in &pieces {
-                if let Some(PieceStop::Error(error)) = &piece.stop {
-                    failure = Some(offset_error(error.clone(), before));
-                    break;
-                }
-                before += piece.lines;
-            }
-            if let Some(error) = failure {
-                return Err(error);
-            }
-            lines_before = before;
             let live = pieces
                 .iter()
                 .flat_map(|piece| &piece.builders)
@@ -1489,10 +1449,17 @@ fn read_parallel(
     }
     // What stays charged is what the returned columns hold; the block buffer and the pieces'
     // builders are gone, as after a sequential read.
+    // The merge grew the columns after the round was charged, and may have left room in them
+    // that a sequential read of the same file would not hold: trim it, charge what is left (a
+    // refusal is the sequential reader's to decide) and give back the rest.
+    for global in &mut globals {
+        global.shrink();
+    }
     let retained = globals
         .iter()
         .map(Builder::accounted_bytes)
         .fold(0usize, usize::saturating_add);
+    budgeted!(settler.settle_live(retained));
     (settler.meter.release)(settler.charged.saturating_sub(retained));
     #[cfg(test)]
     LAST_ROUNDS.with(|last| last.set(rounds));
@@ -2110,12 +2077,12 @@ mod tests {
         };
         let late = rows - rows / 20;
         let fields = build(Some((late, "1,2\r\n")));
-        let error = same_for_every_thread_count("error-fields", &fields, &BTreeMap::new(), true)
+        let error = same_for_every_thread_count("error-fields", &fields, &BTreeMap::new(), false)
             .unwrap_err();
         assert!(matches!(error, ColumnsError::Malformed { line, .. } if line > late));
         let kinds = BTreeMap::from([("b".to_string(), "i64".to_string())]);
         let value = build(Some((late, "1,x,w\r\n")));
-        let error = same_for_every_thread_count("error-value", &value, &kinds, true).unwrap_err();
+        let error = same_for_every_thread_count("error-value", &value, &kinds, false).unwrap_err();
         assert!(
             matches!(error, ColumnsError::Value { column: 2, .. }),
             "{error:?}"
@@ -2123,7 +2090,7 @@ mod tests {
         // Two bad records: the first one, in file order, is the one reported.
         let mut two = build(Some((late, "1,x,w\r\n")));
         two.push_str("1,y,w\r\n");
-        let error = same_for_every_thread_count("error-two", &two, &kinds, true).unwrap_err();
+        let error = same_for_every_thread_count("error-two", &two, &kinds, false).unwrap_err();
         assert!(matches!(error, ColumnsError::Value { .. }));
     }
 
@@ -2209,6 +2176,15 @@ mod tests {
         path: &Path,
         threads: usize,
     ) -> Result<Vec<Column>, ColumnsError> {
+        pooled_kinds(pool, path, &BTreeMap::new(), threads)
+    }
+
+    fn pooled_kinds(
+        pool: &Pool,
+        path: &Path,
+        kinds: &BTreeMap<String, String>,
+        threads: usize,
+    ) -> Result<Vec<Column>, ColumnsError> {
         let mut charge = |bytes: usize| {
             if pool.used.get().saturating_add(bytes) > pool.limit {
                 return false;
@@ -2224,7 +2200,7 @@ mod tests {
             release: &mut release,
             cancelled: &cancelled,
         };
-        read_csv_columns_with_threads(path, &BTreeMap::new(), 1 << 20, &mut meter, threads)
+        read_csv_columns_with_threads(path, kinds, 1 << 20, &mut meter, threads)
     }
 
     #[test]
@@ -2305,16 +2281,15 @@ mod tests {
             let again = pooled_threads(&pool, &path, threads).unwrap();
             assert_eq!(last_path(), "parallel");
             assert_eq!(again, columns);
-            // Only what the columns hold stays charged: the arrays, whose capacity may exceed
-            // their length by the growth of a vector (at most twice), and not the block
-            // buffer or the pieces. Never more than twice what the sequential read holds.
+            // Only what the columns hold stays charged, not the block buffer or the pieces,
+            // and never more than what the sequential read holds.
             let held = pool.used.get();
             assert!(
                 held >= data,
                 "{threads} threads hold {held} for {data} bytes"
             );
             assert!(
-                held <= 2 * sequential.used.get(),
+                held <= sequential.used.get(),
                 "{threads} threads hold {held}, sequential {}",
                 sequential.used.get()
             );
@@ -2339,6 +2314,58 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
+    /// What the columns of a read hold, as the budget counts it: the capacity of every array,
+    /// the dictionary text, its entries and its hash table.
+    fn accounted(columns: &[Column]) -> usize {
+        columns
+            .iter()
+            .map(|c| {
+                let mut table = 16usize;
+                while c.dictionary.len() * 2 > table {
+                    table *= 2;
+                }
+                let table = if c.dictionary.is_empty() { 0 } else { table };
+                let text: usize = c.dictionary.iter().map(String::len).sum();
+                c.ints.capacity() * 8
+                    + c.floats.capacity() * 8
+                    + c.flags.capacity()
+                    + c.codes.capacity() * 8
+                    + c.valid.capacity()
+                    + text
+                    + c.dictionary.capacity() * ENTRY_OVERHEAD
+                    + table * 8
+            })
+            .sum()
+    }
+
+    #[test]
+    fn a_successful_parallel_read_charges_exactly_what_its_columns_hold() {
+        let kinds = BTreeMap::from([("fixed".to_string(), "i64".to_string())]);
+        let body = rounds_fixture(900_000, None);
+        let path = temp_csv("pool-exact", &body);
+        let sequential = Pool {
+            limit: 1 << 30,
+            ..Pool::default()
+        };
+        let one = pooled_kinds(&sequential, &path, &kinds, 1).unwrap();
+        assert_eq!(sequential.used.get(), accounted(&one));
+        for threads in [2, 3, 8] {
+            let pool = Pool {
+                limit: 1 << 30,
+                ..Pool::default()
+            };
+            let many = pooled_kinds(&pool, &path, &kinds, threads).unwrap();
+            assert_eq!(last_path(), "parallel");
+            assert_eq!(many, one);
+            assert_eq!(pool.used.get(), accounted(&many), "{threads} threads");
+            assert!(
+                pool.used.get() <= sequential.used.get(),
+                "{threads} threads"
+            );
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
     /// A file of at least `rows` rows, read in 3 or more rounds by 2 threads: CRLF endings, a
     /// byte-order mark, blank lines before the header and between records, and no newline at
     /// the end. `bad` replaces one record.
@@ -2355,7 +2382,7 @@ mod tests {
                 }
             }
             // a: integers, floats in the last tenth (Int to Float). b: floats, then integers
-            // from the middle (Float to Int). s: texts that keep turning up new.
+            // from the middle (Float to Int). s: new texts through the whole file, some repeated.
             let a = if row > rows - rows / 10 && row % 50 == 0 {
                 format!("{row}.25")
             } else {
@@ -2366,7 +2393,12 @@ mod tests {
             } else {
                 format!("{row}")
             };
-            let s = format!("t{}", (row / 3) % 40_000);
+            // New texts keep appearing in every round, some of them seen before.
+            let s = if row % 7 == 0 {
+                format!("t{}", row % 1000)
+            } else {
+                format!("t{}", row / 3)
+            };
             let flag = if row % 3 == 0 { "true" } else { "" };
             body.push_str(&format!("{row},{a},{b},{s},{flag},{}\r\n", row % 1000));
         }
@@ -2416,7 +2448,8 @@ mod tests {
             let one = read_threads(&path, &kinds, 1).unwrap_err();
             for threads in [2, 3, 8] {
                 let many = read_threads(&path, &kinds, threads).unwrap_err();
-                assert_eq!(last_path(), "parallel");
+                // An error is the sequential reader's to report.
+                assert_eq!(last_path(), "sequential");
                 assert_eq!(one, many, "{threads} threads");
             }
             let line = match &one {
@@ -2442,6 +2475,29 @@ mod tests {
             same_for_every_thread_count("one-column", &body, &BTreeMap::new(), true).unwrap();
         assert_eq!(columns[0].valid.len(), 400_000);
         assert!(!columns[0].valid[0]);
+    }
+
+    #[test]
+    fn a_tight_budget_refuses_before_a_late_bad_record_as_sequential_does() {
+        let mut body = mixed_rows(150_000);
+        body.push_str("1,2\n");
+        let path = temp_csv("tight-then-bad", &body);
+        let pool = Pool {
+            limit: 1 << 20,
+            ..Pool::default()
+        };
+        let one = pooled_threads(&pool, &path, 1);
+        assert!(matches!(one, Err(ColumnsError::Allocation(_))), "{one:?}");
+        for threads in [2, 8] {
+            let pool = Pool {
+                limit: 1 << 20,
+                ..Pool::default()
+            };
+            let many = pooled_threads(&pool, &path, threads);
+            assert!(matches!(many, Err(ColumnsError::Allocation(_))), "{many:?}");
+            assert_eq!(pool.used.get(), 0);
+        }
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
