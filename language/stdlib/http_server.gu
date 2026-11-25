@@ -179,22 +179,15 @@ fn hs_find_crlf(data: List[Int], start: Int) -> Int:
         set index = index + 1
     return -1
 
-# The value of one hexadecimal digit, or -1.
-fn hs_hex_digit(digit: Text) -> Int:
-    return text_find("0123456789abcdef", text_casefold(digit), 0)
-
+# The value of a chunk size written in hexadecimal (one to eight digits, either case), or -1.
 fn hs_hex_value(text: Text) -> Int:
-    if len(text) == 0 or len(text) > 8:
+    if len(text) == 0 or len(text) > 8 or text_slice(text, 0, 1) == "-":
         return -1
-    var value = 0
-    var index = 0
-    while index < len(text):
-        let digit = hs_hex_digit(text_slice(text, index, index + 1))
-        if digit < 0:
+    match text_parse_int_radix(text, 16):
+        Ok(value):
+            return value
+        Err(problem):
             return -1
-        set value = value * 16 + digit
-        set index = index + 1
-    return value
 
 # Reads one CRLF-terminated line from `buffer`, reading more from the connection as needed.
 # Returns the line and the bytes after it.

@@ -253,16 +253,7 @@ pub fn request_header(request: Request, name: Text) -> Option[Text]:
     return None
 
 fn hr_hex(value: Int) -> Text:
-    if value == 0:
-        return "0"
-    let digits = "0123456789abcdef"
-    var out = ""
-    var rest = value
-    while rest > 0:
-        let digit = rest % 16
-        set out = text_slice(digits, digit, digit + 1) + out
-        set rest = rest // 16
-    return out
+    return int_to_text_radix(value, 16)
 
 fn hr_frame(data: Bytes) -> Bytes:
     return bytes_join([bytes_from_text(hr_hex(len(data)) + "\r\n"), data, bytes_from_text("\r\n")])
