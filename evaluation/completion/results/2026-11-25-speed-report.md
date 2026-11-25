@@ -2,7 +2,7 @@
 
 The baseline sections below were measured first (commit 34a7e4f). The section "After the data-speed work" at the end re-runs every kit on the finished branch and sets the two side by side.
 
-Date: 2026-11-25. Branch `perf/data-speed`. Guion 0.9.0 (artifact format 90, timezone data 2026c). This is the "before" measurement for the data-speed work: nothing in the engine changed between the 12 Nov report ([2026-11-12-speed-report.md](2026-11-12-speed-report.md)) and these runs except the releases since.
+Date: 2026-11-25. Guion 0.9.0 (artifact format 90, timezone data 2026c). This is the "before" measurement for the data-speed work: nothing in the engine changed between the 12 Nov report ([2026-11-12-speed-report.md](2026-11-12-speed-report.md)) and these runs except the releases since.
 
 ## Setup
 
@@ -121,7 +121,7 @@ Raw samples: `evaluation/development/arrays/results.json`.
 
 ## After the data-speed work (a development build made after 0.9.0)
 
-Date: 2026-11-25, same machine. The build is not the released 0.9.0: it reports the same version string (0.9.0, artifact format 90, timezone data 2026c) but contains the data-speed changes, a release build of branch `perf/data-speed` at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
+Date: 2026-11-25, same machine. The build is not the released 0.9.0: it reports the same version string (0.9.0, artifact format 90, timezone data 2026c) but contains the data-speed changes, a release build of the development tree at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
 
 ### Compute-only ratios and targets
 
@@ -172,7 +172,7 @@ In the `null` lane of `results_large.json` the first Guion sample (22 ms) is abo
 
 ### Interpreters (Task 6)
 
-`evaluation/development/interpreters/` (README and `results.json`), one run of 15 trials on this machine: Guion 0.9.0 against CPython 3.14.7, free-threaded CPython 3.14.10 (uv offers no 3.14.7 free-threaded build) and PyPy 3.11.17 (PyPy 8.0.1). Guion / other, median of paired ratios, below 1 means Guion is faster:
+`evaluation/development/interpreters/` (README and `results.json`), one run of 15 trials on this machine: a development build made after 0.9.0 against CPython 3.14.7, free-threaded CPython 3.14.10 (uv offers no 3.14.7 free-threaded build) and PyPy 3.11.17 (PyPy 8.0.1). Guion / other, median of paired ratios, below 1 means Guion is faster:
 
 | workload | CPython | free-threaded | PyPy |
 |---|---|---|---|
