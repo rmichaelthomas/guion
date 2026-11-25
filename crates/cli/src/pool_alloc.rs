@@ -223,8 +223,8 @@ impl Shared {
 /// How long a retiring thread waits for the shared lock. Where a process exit runs thread-local
 /// destructors after the other threads were killed, the lock may be held forever by a dead
 /// thread; the exiting thread then leaks its lists (already counted in `HELD_BYTES`) rather than
-/// hang. Every other holder keeps the lock for a few instructions, so this is never reached in
-/// normal running.
+/// hang. Every other holder keeps the lock for a few instructions, so this is practically never
+/// reached; under preemption of a holder it can be, and the only outcome is a leak.
 const RETIRE_SPINS: usize = 1 << 22;
 
 pub struct PoolAllocator;
@@ -253,14 +253,7 @@ unsafe fn push(local: &mut Local, class: usize, block: *mut u8) {
 #[cold]
 unsafe fn spill(local: &mut Local, class: usize) {
     if local.retired {
-        // A retired thread keeps nothing: the one block just freed goes to the shared list.
-        let block = local.heads[class];
-        local.heads[class] = ptr::null_mut();
-        local.counts[class] = RETIRED_COUNT;
-        SHARED.with(|shared| {
-            unsafe { block.cast::<*mut u8>().write(shared.heads[class]) };
-            shared.heads[class] = block;
-        });
+        unsafe { spill_retired(local, class, &SHARED, RETIRE_SPINS) };
         return;
     }
     let keep = SPILL_LIMIT / 2;
@@ -285,6 +278,19 @@ unsafe fn spill(local: &mut Local, class: usize) {
     });
 }
 
+/// A retired thread keeps nothing: the one block just freed goes to `shared`. If its lock cannot
+/// be taken within `spins` attempts the block is leaked (it is already counted in `HELD_BYTES`).
+unsafe fn spill_retired(local: &mut Local, class: usize, shared: &Shared, spins: usize) {
+    let block = local.heads[class];
+    local.heads[class] = ptr::null_mut();
+    local.counts[class] = RETIRED_COUNT;
+    let _ = shared.try_with(spins, |state| {
+        // SAFETY: `block` is a free block of this class that no list holds any more.
+        unsafe { block.cast::<*mut u8>().write(state.heads[class]) };
+        state.heads[class] = block;
+    });
+}
+
 /// Writes the header of an unused region `[start, end)` and pushes it on the shared stack.
 /// The caller holds the shared lock and has checked the region is at least `MIN_REGION` long.
 unsafe fn push_region(shared: &mut SharedState, start: *mut u8, end: *mut u8) {
@@ -296,17 +302,25 @@ unsafe fn push_region(shared: &mut SharedState, start: *mut u8, end: *mut u8) {
     shared.regions = start;
 }
 
-/// Pops a shared region of at least `size` bytes, dropping any smaller ones on the way (each is
-/// under `MAX_SMALL`). Returns its start and end.
+/// Pops a shared region of at least `size` bytes and returns its start and end. A smaller region
+/// met on the way (each is under `MAX_SMALL` bytes) is not dropped: it is cut into blocks of the
+/// largest class it holds and pushed on that free list, so it is reused and stays counted.
 unsafe fn pop_region(shared: &mut SharedState, size: usize) -> Option<(*mut u8, *mut u8)> {
     while !shared.regions.is_null() {
         let start = shared.regions;
         let header = start.cast::<*mut u8>();
         let (next, end) = unsafe { (header.read(), header.add(1).read()) };
         shared.regions = next;
-        if (end as usize) - (start as usize) >= size {
+        let length = (end as usize) - (start as usize);
+        if length >= size {
             return Some((start, end));
         }
+        // Regions are at least `MIN_REGION` (one class-1 block), so a class always fits.
+        let class = (length / GRANULE).min(CLASSES) - 1;
+        // SAFETY: the region is unused memory of `length` bytes, aligned to `GRANULE`, and no
+        // list holds it; its first `(class + 1) * GRANULE <= length` bytes become one free block.
+        unsafe { start.cast::<*mut u8>().write(shared.heads[class]) };
+        shared.heads[class] = start;
     }
     None
 }
@@ -359,33 +373,44 @@ unsafe fn retire_into(local: &mut Local, shared: &Shared, spins: usize) {
 /// chunk held as a shared region.
 #[cold]
 unsafe fn shared_alloc(class: usize) -> *mut u8 {
+    unsafe { shared_alloc_from(class, &SHARED, RETIRE_SPINS) }
+}
+
+/// `shared_alloc` from `shared`, waiting at most `spins` attempts for its lock. If the lock
+/// cannot be taken the block comes from a fresh chunk that is not shared (counted in
+/// `HELD_BYTES`; the rest of it is leaked): the process may be exiting with the lock held by a
+/// thread that no longer runs.
+unsafe fn shared_alloc_from(class: usize, shared: &Shared, spins: usize) -> *mut u8 {
     let size = (class + 1) * GRANULE;
-    let fresh = SHARED.with(|shared| {
-        let block = shared.heads[class];
+    let found = shared.try_with(spins, |state| {
+        let block = state.heads[class];
         if !block.is_null() {
-            shared.heads[class] = unsafe { block.cast::<*mut u8>().read() };
+            state.heads[class] = unsafe { block.cast::<*mut u8>().read() };
             return Some(block);
         }
-        if let Some((start, end)) = unsafe { pop_region(shared, size) } {
+        if let Some((start, end)) = unsafe { pop_region(state, size) } {
             let rest = unsafe { start.add(size) };
             if (end as usize) - (rest as usize) >= MIN_REGION {
-                unsafe { push_region(shared, rest, end) };
+                unsafe { push_region(state, rest, end) };
             }
             return Some(start);
         }
         None
     });
-    if fresh.is_some() {
-        return fresh.unwrap_or(ptr::null_mut());
+    if let Some(Some(block)) = found {
+        return block;
     }
     let chunk = unsafe { System.alloc(Layout::from_size_align_unchecked(CHUNK_BYTES, GRANULE)) };
     if chunk.is_null() {
         return ptr::null_mut();
     }
     HELD_BYTES.fetch_add(CHUNK_BYTES, Ordering::Relaxed);
-    SHARED.with(|shared| unsafe {
-        push_region(shared, chunk.add(size), chunk.add(CHUNK_BYTES));
-    });
+    if found.is_some() {
+        // The lock was taken and nothing was there: share the rest of the chunk.
+        let _ = shared.try_with(spins, |state| unsafe {
+            push_region(state, chunk.add(size), chunk.add(CHUNK_BYTES));
+        });
+    }
     chunk
 }
 
@@ -501,8 +526,20 @@ unsafe impl GlobalAlloc for PoolAllocator {
 #[cfg(test)]
 mod tests {
     use super::{
-        held_bytes, retire, retire_into, Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
+        held_bytes, pop_region, push_region, retire, retire_into, shared_alloc_from, spill_retired,
+        Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
     };
+
+    /// A private shared state whose lock is `locked`.
+    fn private_shared(locked: bool) -> Shared {
+        Shared {
+            lock: std::sync::atomic::AtomicBool::new(locked),
+            state: std::cell::UnsafeCell::new(SharedState {
+                heads: [std::ptr::null_mut(); CLASSES],
+                regions: std::ptr::null_mut(),
+            }),
+        }
+    }
 
     /// `held_bytes` is process-wide and the other tests allocate at the same time, so each test
     /// here re-runs itself alone in a child process and measures there.
@@ -646,6 +683,84 @@ mod tests {
         // SAFETY: the lock is held by nobody who touches the state in this test.
         let state = unsafe { &*shared.state.get() };
         assert!(state.heads.iter().all(|head| head.is_null()) && state.regions.is_null());
+    }
+
+    #[test]
+    fn a_retired_thread_that_cannot_take_the_shared_lock_leaks_a_freed_block() {
+        if !isolated(
+            "pool_alloc::tests::a_retired_thread_that_cannot_take_the_shared_lock_leaks_a_freed_block",
+        ) {
+            return;
+        }
+        let shared = private_shared(true);
+        let block = Box::leak(Box::new([0usize; 2])).as_mut_ptr().cast::<u8>();
+        let mut local = Local::EMPTY;
+        local.retired = true;
+        local.heads[0] = block;
+        local.counts[0] = 1;
+        let before = held_bytes();
+        // SAFETY: `local` is a private `Local` whose list is one valid, leaked block.
+        unsafe { spill_retired(&mut local, 0, &shared, 1_000) };
+        assert!(local.heads[0].is_null());
+        assert_eq!(held_bytes(), before);
+        assert!(shared.lock.load(std::sync::atomic::Ordering::Relaxed));
+        // SAFETY: the lock is held by nobody who touches the state in this test.
+        let state = unsafe { &*shared.state.get() };
+        assert!(state.heads.iter().all(|head| head.is_null()));
+        // With the lock free, the same call hands the block on.
+        let shared = private_shared(false);
+        local.heads[0] = block;
+        unsafe { spill_retired(&mut local, 0, &shared, 1_000) };
+        let state = unsafe { &*shared.state.get() };
+        assert_eq!(state.heads[0], block);
+    }
+
+    #[test]
+    fn a_retired_thread_that_cannot_take_the_shared_lock_allocates_from_a_fresh_chunk() {
+        if !isolated(
+            "pool_alloc::tests::a_retired_thread_that_cannot_take_the_shared_lock_allocates_from_a_fresh_chunk",
+        ) {
+            return;
+        }
+        let shared = private_shared(true);
+        let before = held_bytes();
+        // SAFETY: `shared` is private and nothing else frees what it returns.
+        let block = unsafe { shared_alloc_from(3, &shared, 1_000) };
+        assert!(!block.is_null());
+        // SAFETY: the block is 64 bytes of a fresh chunk.
+        unsafe { std::ptr::write_bytes(block, 0xAB, 64) };
+        assert_eq!(held_bytes(), before + CHUNK_BYTES);
+        assert!(shared.lock.load(std::sync::atomic::Ordering::Relaxed));
+        // SAFETY: the lock is held by nobody who touches the state in this test.
+        let state = unsafe { &*shared.state.get() };
+        assert!(state.heads.iter().all(|head| head.is_null()) && state.regions.is_null());
+    }
+
+    #[test]
+    fn a_region_too_small_for_the_request_is_kept_as_free_blocks() {
+        if !isolated("pool_alloc::tests::a_region_too_small_for_the_request_is_kept_as_free_blocks")
+        {
+            return;
+        }
+        let small = Box::leak(Box::new([0u128; 3])).as_mut_ptr().cast::<u8>(); // 48 bytes
+        let big = Box::leak(Box::new([0u128; 32])).as_mut_ptr().cast::<u8>(); // 512 bytes
+        let mut state = SharedState {
+            heads: [std::ptr::null_mut(); CLASSES],
+            regions: std::ptr::null_mut(),
+        };
+        let before = held_bytes();
+        // SAFETY: both regions are leaked, 16-aligned and at least `MIN_REGION` long.
+        unsafe {
+            push_region(&mut state, big, big.add(512));
+            push_region(&mut state, small, small.add(48));
+        }
+        // SAFETY: as above; `state` is private.
+        let got = unsafe { pop_region(&mut state, 256) };
+        assert_eq!(got, Some((big, unsafe { big.add(512) })));
+        // The 48-byte region was met first and became one free 48-byte block (class 2).
+        assert_eq!(state.heads[2], small);
+        assert!(state.regions.is_null());
+        assert_eq!(held_bytes(), before);
     }
 
     #[test]

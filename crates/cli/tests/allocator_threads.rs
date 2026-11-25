@@ -1,5 +1,5 @@
 //! A program that starts threads over and over (the parallel CSV reader does, on every read of a
-//! large file) must not creep toward the allocation limit: a finished thread gives back what it
+//! large file) must not creep toward the allocation limit (the test sets 32 MiB): a finished thread gives back what it
 //! held.
 
 use std::process::Command;
@@ -27,13 +27,13 @@ fn main() -> Int:
 "#;
 
 #[test]
-fn three_hundred_large_csv_reads_stay_under_the_default_allocation_limit() {
+fn three_hundred_large_csv_reads_complete_under_a_32_mib_allocation_limit() {
     let dir = std::env::temp_dir().join(format!("guion-alloc-threads-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("guion.toml"),
-        "[package]\nname = \"alloc-threads\"\nversion = \"0.1.0\"\n\n[capabilities]\nfiles = [\"read\"]\n",
+        "[package]\nname = \"alloc-threads\"\nversion = \"0.1.0\"\n\n[runtime]\nallocation_limit_bytes = 33554432\n\n[capabilities]\nfiles = [\"read\"]\n",
     )
     .unwrap();
     let mut csv = String::from("a,b,c\n");
