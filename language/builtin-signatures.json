@@ -3343,6 +3343,23 @@
       "operation": "FsOpConfinedPath"
     },
     {
+      "name": "native_fs_set_mode",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpSetMode"
+    },
+    {
+      "name": "native_fs_mode",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Text, FileError]",
+      "operation": "FsOpMode"
+    },
+    {
       "name": "native_fs_modified_ms",
       "parameters": [
         "Text"

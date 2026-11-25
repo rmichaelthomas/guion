@@ -31,6 +31,8 @@ Import `std:time` and call `today_local() -> Date` when an application needs the
 
 `json_stringify_pretty(value, indent)` (`std:json`, artifact format 90) returns the value with one member or element per line, `indent` spaces per level (0 to 16; anything else is `R_JSON_INDENT`), and no newline at the end.
 
+`fs_set_mode(path, mode)` and `fs_mode(path)` (`std:fs`, artifact format 90) set and read file permission bits as octal text, as `chmod` does, following symlinks. `mode` is 1 to 4 octal digits: `fs_set_mode("key.pem", "600")`, `"0755"`, `"4755"`; anything else is `R_FILE_MODE_INVALID`. `fs_mode` returns `"600"` or `"755"`, with a fourth leading digit only when setuid, setgid or the sticky bit is set. The path resolves against the file root like the other `std:fs` functions, not the working directory. `fs_set_mode` needs the file-write grant (`filesystem.write`), `fs_mode` the file-read grant (`filesystem.read`). Windows gives `R_FILE_UNSUPPORTED` and the browser VM `R_HOST_UNSUPPORTED`.
+
 ## Commands
 
 The default build is the Python-free core. Core commands do not discover or launch Python or uv. The Python bridge and managed Python dependency manager are available only in a build made with the explicit `python-interop` feature.

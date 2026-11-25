@@ -88,6 +88,64 @@ fn temp_name(prefix: &str) -> String {
     format!("{prefix}-{}-{nanos:x}-{count}", std::process::id())
 }
 
+/// Parses 1 to 4 octal digits (`600`, `0700`, `4755`) into permission bits.
+fn parse_octal_mode(text: &str, span: Span) -> Result<u32, RuntimeError> {
+    let valid =
+        (1..=4).contains(&text.len()) && text.bytes().all(|byte| (b'0'..=b'7').contains(&byte));
+    match u32::from_str_radix(text, 8) {
+        Ok(bits) if valid && bits <= 0o7777 => Ok(bits),
+        _ => Err(RuntimeError::new(
+            "R_FILE_MODE_INVALID",
+            format!("`{text}` is not a file mode: write 1 to 4 octal digits such as \"600\" or \"0755\""),
+            span,
+        )),
+    }
+}
+
+/// Three octal digits, or four when setuid, setgid or the sticky bit is set.
+fn format_octal_mode(bits: u32) -> String {
+    if bits & 0o7000 != 0 {
+        format!("{:04o}", bits & 0o7777)
+    } else {
+        format!("{:03o}", bits & 0o777)
+    }
+}
+
+#[cfg(unix)]
+fn set_mode(resolved: &Path, bits: u32, path: &str, span: Span) -> Result<(), RuntimeError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(resolved, fs::Permissions::from_mode(bits))
+        .map_err(|error| file_error(&error, "R_FILE_WRITE", "change the mode of", path, span))
+}
+
+#[cfg(not(unix))]
+fn set_mode(_resolved: &Path, _bits: u32, path: &str, span: Span) -> Result<(), RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!(
+            "cannot change the mode of `{path}`: file modes are not supported on this platform"
+        ),
+        span,
+    ))
+}
+
+#[cfg(unix)]
+fn read_mode(resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::metadata(resolved)
+        .map(|metadata| metadata.permissions().mode() & 0o7777)
+        .map_err(|error| file_error(&error, "R_FILE_READ", "read the mode of", path, span))
+}
+
+#[cfg(not(unix))]
+fn read_mode(_resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!("cannot read the mode of `{path}`: file modes are not supported on this platform"),
+        span,
+    ))
+}
+
 pub(crate) fn run(
     policy: &HostPolicy,
     function: FsFunction,
@@ -339,6 +397,17 @@ fn run_inner(
                 ));
             }
             Ok(ok(Value::Text(joined.as_str().into())))
+        }
+        FsFunction::SetMode => {
+            let mode = parse_octal_mode(operands[1].as_str(), span)?;
+            let resolved = host_file_path(policy, path, false, span)?;
+            set_mode(&resolved, mode, path, span)?;
+            Ok(ok(Value::Unit))
+        }
+        FsFunction::Mode => {
+            let resolved = host_file_path(policy, path, false, span)?;
+            let bits = read_mode(&resolved, path, span)?;
+            Ok(ok(Value::Text(format_octal_mode(bits).as_str().into())))
         }
         FsFunction::GzipCompressFile
         | FsFunction::GzipDecompressFile

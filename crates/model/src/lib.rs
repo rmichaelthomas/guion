@@ -1605,6 +1605,12 @@ mod tests {
     }
 
     #[test]
+    fn file_mode_instructions_are_gated_on_format_90() {
+        assert_gated(Op::Fs(FsFunction::SetMode), 90);
+        assert_gated(Op::Fs(FsFunction::Mode), 90);
+    }
+
+    #[test]
     fn stdin_instructions_are_gated_on_format_77() {
         assert_gated(Op::StdinReadLine, 77);
         assert_gated(Op::StdinReadAll, 77);
@@ -4199,10 +4205,16 @@ pub enum FsFunction {
     ReadRange,
     /// Checks that a relative path stays inside a root after symlink resolution (format 73).
     ConfinedPath,
+    /// Sets the permission bits of a file or directory from octal text, following symlinks
+    /// (format 90); needs the file-write grant.
+    SetMode,
+    /// Reads the permission bits of a file or directory as octal text, following symlinks
+    /// (format 90); needs the file-read grant.
+    Mode,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 20] = [
+    const ALL: [FsFunction; 22] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -4223,6 +4235,8 @@ impl FsFunction {
         FsFunction::TarList,
         FsFunction::ReadRange,
         FsFunction::ConfinedPath,
+        FsFunction::SetMode,
+        FsFunction::Mode,
     ];
 
     pub fn code(self) -> u8 {
@@ -4259,6 +4273,8 @@ impl FsFunction {
             FsFunction::TarList => "FsOpTarList",
             FsFunction::ReadRange => "FsOpReadRange",
             FsFunction::ConfinedPath => "FsOpConfinedPath",
+            FsFunction::SetMode => "FsOpSetMode",
+            FsFunction::Mode => "FsOpMode",
         }
     }
 
@@ -4278,7 +4294,8 @@ impl FsFunction {
             | FsFunction::GzipDecompressFile
             | FsFunction::TarWrite
             | FsFunction::TarRead
-            | FsFunction::ConfinedPath => 2,
+            | FsFunction::ConfinedPath
+            | FsFunction::SetMode => 2,
             FsFunction::ReadRange => 3,
             _ => 1,
         }
@@ -4297,6 +4314,7 @@ impl FsFunction {
                 | FsFunction::TarList
                 | FsFunction::ReadRange
                 | FsFunction::ConfinedPath
+                | FsFunction::Mode
         )
     }
 
@@ -5335,6 +5353,12 @@ impl Artifact {
                 "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
             ));
         }
+        if self.format_version < 90 && artifact_uses_file_modes(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fs_set_mode and fs_mode require artifact format 90",
+            ));
+        }
         if self.format_version < 88 && artifact_uses_sleep(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -6240,6 +6264,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "ranged file reads and confined paths require artifact format 73",
+                            ));
+                        }
+                        if code >= 20 && format_version < 90 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "fs_set_mode and fs_mode require artifact format 90",
                             ));
                         }
                         Op::Fs(FsFunction::from_code(code).ok_or_else(|| {
@@ -7288,6 +7318,17 @@ fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
             matches!(
                 instruction.op,
                 Op::TextLower | Op::TextUpper | Op::JsonKeys | Op::JsonStringifyPretty
+            )
+        })
+    })
+}
+
+fn artifact_uses_file_modes(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Fs(FsFunction::SetMode | FsFunction::Mode)
             )
         })
     })

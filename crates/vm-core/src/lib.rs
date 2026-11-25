@@ -7356,7 +7356,9 @@ pub fn splitmix64_mix(state: u64) -> u64 {
 fn fs_result_type(function: FsFunction) -> Type {
     let ok = match function {
         FsFunction::Exists => Type::Bool,
-        FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
+        FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile | FsFunction::Mode => {
+            Type::Text
+        }
         FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
         FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
         FsFunction::ConfinedPath => Type::Text,
@@ -7366,9 +7368,11 @@ fn fs_result_type(function: FsFunction) -> Type {
         | FsFunction::TarRead => Type::Int,
         FsFunction::TarList => Type::List(Box::new(Type::Text)),
         FsFunction::ListDir => Type::List(Box::new(Type::Text)),
-        FsFunction::MakeDir | FsFunction::Remove | FsFunction::RemoveAll | FsFunction::Rename => {
-            Type::Unit
-        }
+        FsFunction::MakeDir
+        | FsFunction::Remove
+        | FsFunction::RemoveAll
+        | FsFunction::Rename
+        | FsFunction::SetMode => Type::Unit,
     };
     Type::Result(Box::new(ok), Box::new(Type::FileError))
 }

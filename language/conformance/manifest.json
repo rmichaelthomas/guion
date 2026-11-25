@@ -11586,6 +11586,36 @@
       "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
     },
     {
+      "id": "host_operation-file-modes",
+      "kind": "host_operation",
+      "name": "file modes",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.file-modes.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.file-modes.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.file-modes.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]`, `fs_mode(path: Text) -> Result[Text, FileError]`",
+      "declared_status": "Implemented in artifact format 90"
+    },
+    {
       "id": "opcode-text-lower",
       "kind": "opcode",
       "name": "TextLower",

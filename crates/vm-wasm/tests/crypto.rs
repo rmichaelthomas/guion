@@ -1176,3 +1176,20 @@ fn browser_json_stringify_pretty_matches_native() {
     assert_eq!(native(&artifact, "bad_indent"), error, "native");
     assert_eq!(browser(&artifact, "bad_indent"), error, "browser");
 }
+
+/// `fs_set_mode` and `fs_mode` need a host filesystem, which the browser VM does not have.
+#[test]
+fn file_modes_are_unsupported_in_the_browser() {
+    for (name, body) in [
+        ("fs-set-mode", "unwrap(fs_set_mode(\"a\", \"600\"))"),
+        ("fs-mode", "print(unwrap(fs_mode(\"a\")))"),
+    ] {
+        let artifact = gub_project(
+            name,
+            &format!("import \"std:fs\"\nfn main() -> Int:\n    {body}\n    return 0\n"),
+        );
+        let response = browser_response(&artifact, "main", 1000);
+        assert_eq!(response["ok"], false, "{response}");
+        assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+    }
+}

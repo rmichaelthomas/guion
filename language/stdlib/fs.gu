@@ -55,6 +55,12 @@ pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]:
 pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]:
     return native_fs_copy(from, to)
 
+pub fn fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]:
+    return native_fs_set_mode(path, mode)
+
+pub fn fs_mode(path: Text) -> Result[Text, FileError]:
+    return native_fs_mode(path)
+
 pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]:
     return native_fs_temp_dir(prefix)
 
