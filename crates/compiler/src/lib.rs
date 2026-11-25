@@ -118,6 +118,150 @@ fn diagnostic(code: &str, message: impl Into<String>, span: Span) -> Diagnostic 
     Diagnostic::new(code, message, span)
 }
 
+/// The end of the number literal that starts at `start` in `line`. Integer literals may carry a
+/// `0x`, `0o` or `0b` prefix (any case) and `_` between digits in any base; floats take `_`
+/// between digits too. A separator that is not between two digits, a prefix without digits and a
+/// digit outside the base are `E_NUMBER_LITERAL` at the offending character.
+fn lex_number(
+    line: &str,
+    start: usize,
+    source_id: u32,
+    offset: usize,
+    row: usize,
+) -> Result<usize, Diagnostic> {
+    let bytes = line.as_bytes();
+    let error = |at: usize, message: String| {
+        diagnostic(
+            "E_NUMBER_LITERAL",
+            message,
+            Span {
+                source_id,
+                start: offset + at,
+                end: offset + (at + 1).min(bytes.len()),
+                line: row + 1,
+                column: line[..at].chars().count() + 1,
+            },
+        )
+    };
+    // One run of digits and separators starting at `at`; the run must start and end on a digit.
+    let digit_run = |at: usize, is_digit: &dyn Fn(u8) -> bool| -> Result<usize, Diagnostic> {
+        let mut end = at;
+        while end < bytes.len() && (is_digit(bytes[end]) || bytes[end] == b'_') {
+            if bytes[end] == b'_' && (end == at || bytes.get(end + 1).is_none_or(|b| !is_digit(*b)))
+            {
+                return Err(error(
+                    end,
+                    "a digit separator `_` must sit between two digits".to_owned(),
+                ));
+            }
+            end += 1;
+        }
+        Ok(end)
+    };
+    let decimal = |byte: u8| byte.is_ascii_digit();
+    if bytes[start] == b'0' {
+        let base = match bytes.get(start + 1) {
+            Some(b'x' | b'X') => Some(("hexadecimal", 16)),
+            Some(b'o' | b'O') => Some(("octal", 8)),
+            Some(b'b' | b'B') => Some(("binary", 2)),
+            _ => None,
+        };
+        if let Some((name, radix)) = base {
+            let first = start + 2;
+            let mut end = first;
+            while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+                end += 1;
+            }
+            if end == first {
+                return Err(error(
+                    start,
+                    format!("a {name} literal needs digits after its prefix"),
+                ));
+            }
+            let in_base = |byte: u8| (byte as char).is_digit(radix);
+            for at in first..end {
+                if bytes[at] != b'_' && !in_base(bytes[at]) {
+                    return Err(error(
+                        at,
+                        format!("`{}` is not a {name} digit", bytes[at] as char),
+                    ));
+                }
+            }
+            digit_run(first, &in_base)?;
+            return Ok(end);
+        }
+    }
+    let mut i = digit_run(start, &decimal)?;
+    if bytes.get(i) == Some(&b'.') {
+        i += 1;
+        let fractional_start = i;
+        i = digit_run(i, &decimal)?;
+        if i == fractional_start {
+            return Err(diagnostic(
+                "E_FLOAT_LITERAL",
+                "a decimal point must be followed by digits",
+                Span {
+                    source_id,
+                    start: offset + start,
+                    end: offset + i,
+                    line: row + 1,
+                    column: start + 1,
+                },
+            ));
+        }
+    }
+    if matches!(bytes.get(i), Some(b'e' | b'E')) {
+        i += 1;
+        if matches!(bytes.get(i), Some(b'+' | b'-')) {
+            i += 1;
+        }
+        let exponent_start = i;
+        i = digit_run(i, &decimal)?;
+        if i == exponent_start {
+            return Err(diagnostic(
+                "E_FLOAT_LITERAL",
+                "a floating-point exponent must contain digits",
+                Span {
+                    source_id,
+                    start: offset + start,
+                    end: offset + i,
+                    line: row + 1,
+                    column: start + 1,
+                },
+            ));
+        }
+    }
+    Ok(i)
+}
+
+/// Whether a number token is a float literal: a decimal point or exponent, and not a prefixed
+/// integer (`0xE` is an integer whose last digit is E).
+fn is_float_literal(text: &str) -> bool {
+    !has_radix_prefix(text) && text.contains(['.', 'e', 'E'])
+}
+
+fn has_radix_prefix(text: &str) -> bool {
+    matches!(
+        text.as_bytes(),
+        [b'0', b'x' | b'X' | b'o' | b'O' | b'b' | b'B', ..]
+    )
+}
+
+/// The value of an integer literal token as the lexer accepted it: decimal, or `0x`, `0o` or `0b`
+/// prefixed, with `_` separators.
+fn parse_int_literal(text: &str) -> Option<BigInt> {
+    let digits = text.replace('_', "");
+    if has_radix_prefix(&digits) {
+        let radix = match digits.as_bytes()[1] {
+            b'x' | b'X' => 16,
+            b'o' | b'O' => 8,
+            _ => 2,
+        };
+        return BigInt::parse_radix(&digits[2..], radix, false).ok();
+    }
+    BigInt::parse(&digits).ok()
+}
+
 fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
     let mut tokens = Vec::new();
     let mut indent = vec![0usize];
@@ -258,53 +402,7 @@ fn lex(source: &str, source_id: u32) -> Result<Vec<Token>, Diagnostic> {
                 kind = Kind::Name;
                 text = line[start..i].to_owned();
             } else if c.is_ascii_digit() {
-                i += 1;
-                while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
-                    i += 1;
-                }
-                if bytes.get(i) == Some(&b'.') {
-                    i += 1;
-                    let fractional_start = i;
-                    while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
-                        i += 1;
-                    }
-                    if i == fractional_start {
-                        return Err(diagnostic(
-                            "E_FLOAT_LITERAL",
-                            "a decimal point must be followed by digits",
-                            Span {
-                                source_id,
-                                start: offset + start,
-                                end: offset + i,
-                                line: row + 1,
-                                column: start + 1,
-                            },
-                        ));
-                    }
-                }
-                if matches!(bytes.get(i), Some(b'e' | b'E')) {
-                    i += 1;
-                    if matches!(bytes.get(i), Some(b'+' | b'-')) {
-                        i += 1;
-                    }
-                    let exponent_start = i;
-                    while i < bytes.len() && (bytes[i] as char).is_ascii_digit() {
-                        i += 1;
-                    }
-                    if i == exponent_start {
-                        return Err(diagnostic(
-                            "E_FLOAT_LITERAL",
-                            "a floating-point exponent must contain digits",
-                            Span {
-                                source_id,
-                                start: offset + start,
-                                end: offset + i,
-                                line: row + 1,
-                                column: start + 1,
-                            },
-                        ));
-                    }
-                }
+                i = lex_number(line, start, source_id, offset, row)?;
                 kind = Kind::Number;
                 text = line[start..i].to_owned();
             } else if c == '"' || format_literal {
@@ -1750,9 +1848,10 @@ impl Parser {
     fn expr(&mut self, min: u8) -> Result<Expr, Diagnostic> {
         let t = self.advance();
         let mut left = match t.kind {
-            Kind::Number if t.text.contains(['.', 'e', 'E']) => {
+            Kind::Number if is_float_literal(&t.text) => {
                 let value = t
                     .text
+                    .replace('_', "")
                     .parse::<f64>()
                     .ok()
                     .and_then(Float64::new)
@@ -1766,8 +1865,9 @@ impl Parser {
                 Expr::Float(value, t.span)
             }
             Kind::Number => Expr::Int(
-                BigInt::parse(&t.text)
-                    .map_err(|_| diagnostic("E_INT_LITERAL", "invalid integer literal", t.span))?,
+                parse_int_literal(&t.text).ok_or_else(|| {
+                    diagnostic("E_INT_LITERAL", "invalid integer literal", t.span)
+                })?,
                 t.span,
             ),
             Kind::Text => Expr::Text(t.text, t.span),

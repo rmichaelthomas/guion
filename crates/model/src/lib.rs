@@ -2131,6 +2131,92 @@ impl BigInt {
         ))
     }
 
+    /// The value of `digits`, an unsigned run of digits in `radix` (2 to 36, either case), negated
+    /// when `negative`. An empty run or a character that is not a digit of the radix is an error.
+    pub fn parse_radix(digits: &str, radix: u32, negative: bool) -> Result<Self, &'static str> {
+        assert!((2..=36).contains(&radix), "radix is 2 to 36");
+        if digits.is_empty() {
+            return Err("empty integer");
+        }
+        let mut values = Vec::with_capacity(digits.len());
+        for character in digits.chars() {
+            match character.to_digit(radix) {
+                Some(value) => values.push(value),
+                None => return Err("invalid digit"),
+            }
+        }
+        let sign: i8 = if negative { -1 } else { 1 };
+        // Most values fit a machine word.
+        let machine = values.iter().try_fold(0u64, |total, digit| {
+            total
+                .checked_mul(u64::from(radix))?
+                .checked_add(u64::from(*digit))
+        });
+        if let Some(magnitude) = machine {
+            if let Ok(magnitude) = i64::try_from(magnitude) {
+                return Ok(Self::from_i64(if negative {
+                    -magnitude
+                } else {
+                    magnitude
+                }));
+            }
+        }
+        // Decimal digits, least significant first, multiplied by the radix and added to per digit.
+        let mut decimal: Vec<u8> = vec![0];
+        for digit in values {
+            let mut carry = digit;
+            for place in decimal.iter_mut() {
+                let product = u32::from(*place) * radix + carry;
+                *place = (product % 10) as u8;
+                carry = product / 10;
+            }
+            while carry != 0 {
+                decimal.push((carry % 10) as u8);
+                carry /= 10;
+            }
+        }
+        Ok(Self::from_parts(sign, decimal))
+    }
+
+    /// The digits of the value in `radix` (2 to 36): lowercase, `-` first for a negative value, no
+    /// prefix.
+    pub fn to_radix_string(&self, radix: u32) -> String {
+        assert!((2..=36).contains(&radix), "radix is 2 to 36");
+        let mut reversed: Vec<u8> = Vec::new();
+        if let Some(value) = self.small() {
+            let mut magnitude = value.unsigned_abs();
+            if magnitude == 0 {
+                reversed.push(b'0');
+            }
+            while magnitude != 0 {
+                reversed.push(radix_digit((magnitude % u64::from(radix)) as u32));
+                magnitude /= u64::from(radix);
+            }
+        } else {
+            // Long division of the decimal digits (most significant first) by the radix.
+            let mut remaining: Vec<u8> = self.decimal_digits().iter().rev().copied().collect();
+            while !(remaining.is_empty()) {
+                let mut remainder = 0u32;
+                let mut quotient = Vec::with_capacity(remaining.len());
+                for digit in &remaining {
+                    let current = remainder * 10 + u32::from(*digit);
+                    let next = current / radix;
+                    remainder = current % radix;
+                    if !quotient.is_empty() || next != 0 {
+                        quotient.push(next as u8);
+                    }
+                }
+                reversed.push(radix_digit(remainder));
+                remaining = quotient;
+            }
+        }
+        if self.is_negative() {
+            reversed.push(b'-');
+        }
+        reversed.reverse();
+        String::from_utf8(reversed).expect("digits are ASCII")
+    }
+
     pub fn zero() -> Self {
         Self::from_i64(0)
     }
@@ -2355,6 +2441,10 @@ impl BigInt {
         }
         out
     }
+}
+
+fn radix_digit(value: u32) -> u8 {
+    char::from_digit(value, 36).expect("a digit below 36") as u8
 }
 
 fn normalize_decimal_digits(digits: &mut Vec<u8>) {

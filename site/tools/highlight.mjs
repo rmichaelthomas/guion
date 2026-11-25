@@ -4,7 +4,7 @@ const wrap = (kind, text) => `<span class="${kind}">${escapeHtml(text)}</span>`;
 
 /** Minimal, dependency-free highlighter for Guion source. Output text equals the input once tags are removed. */
 export function highlightGuion(source) {
-  const pattern = /(#[^\n]*)|("(?:\\.|[^"\\\n])*")|(\b\d[\d_]*(?:\.\d+)?\b)|([A-Za-z_][A-Za-z0-9_]*)/g;
+  const pattern = /(#[^\n]*)|("(?:\\.|[^"\\\n])*")|(\b0[xX][0-9A-Fa-f_]+\b|\b0[oO][0-7_]+\b|\b0[bB][01_]+\b|\b\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d[\d_]*)?\b)|([A-Za-z_][A-Za-z0-9_]*)/g;
   let output = '';
   let last = 0;
   for (const match of source.matchAll(pattern)) {
