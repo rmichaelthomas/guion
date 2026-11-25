@@ -19,6 +19,22 @@ use guion_model::{
 };
 use std::mem::size_of;
 
+/// The widest indent `json_stringify_pretty` accepts, in spaces per level.
+const MAX_PRETTY_INDENT: i64 = 16;
+
+/// Pretty JSON text: one array element or object member per line, `width` spaces per level, `": "`
+/// between a key and its value, no trailing newline, `{}` and `[]` on one line when empty. Strings
+/// and numbers are written exactly as `json_stringify` writes them.
+fn pretty_json_text(value: &SharedJson, width: usize) -> Result<String, serde_json::Error> {
+    use serde::Serialize;
+    let indent = vec![b' '; width];
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(&indent);
+    let mut output = Vec::new();
+    let mut serializer = serde_json::Serializer::with_formatter(&mut output, formatter);
+    value.serialize(&mut serializer)?;
+    Ok(String::from_utf8(output).expect("serde_json writes UTF-8"))
+}
+
 fn invalid(message: &str, span: Span) -> RuntimeError {
     RuntimeError::new("R_TYPE_INVALID", message, span)
 }
@@ -319,6 +335,37 @@ pub fn run_json_instruction(
                 return Err(invalid("json_stringify requires Json", span));
             };
             let text = serde_json::to_string(value.as_ref())
+                .map_err(|error| RuntimeError::new("R_JSON_ENCODE", error.to_string(), span))?;
+            if text.len() > limits.max_text_bytes {
+                return Err(RuntimeError::new(
+                    "R_TEXT_LIMIT",
+                    "JSON output exceeds the configured byte limit",
+                    span,
+                ));
+            }
+            charge_allocation(budget, size_of::<String>().saturating_add(text.len()), span)?;
+            stack.push(Value::Text(text.into()));
+        }
+        Op::JsonStringifyPretty => {
+            let Value::Int(indent) = pop(stack, span)? else {
+                return Err(invalid("json_stringify_pretty indent must be Int", span));
+            };
+            let Value::Json(value) = pop(stack, span)? else {
+                return Err(invalid("json_stringify_pretty requires Json", span));
+            };
+            let width = match indent.to_i64() {
+                Some(width) if (0..=MAX_PRETTY_INDENT).contains(&width) => width as usize,
+                _ => {
+                    return Err(RuntimeError::new(
+                        "R_JSON_INDENT",
+                        format!(
+                            "json_stringify_pretty takes an indent of 0 to {MAX_PRETTY_INDENT}"
+                        ),
+                        span,
+                    ));
+                }
+            };
+            let text = pretty_json_text(value.as_ref(), width)
                 .map_err(|error| RuntimeError::new("R_JSON_ENCODE", error.to_string(), span))?;
             if text.len() > limits.max_text_bytes {
                 return Err(RuntimeError::new(

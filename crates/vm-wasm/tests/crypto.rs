@@ -1147,3 +1147,32 @@ fn browser_json_keys_matches_native() {
     assert_eq!(native(&artifact, "transcript"), expected, "native");
     assert_eq!(browser(&artifact, "transcript"), expected, "browser");
 }
+
+const PRETTY_PROGRAM: &str = "import \"std:json\"
+import \"std:types\"
+
+fn transcript() -> Text:
+    let value = unwrap(json_parse(\"{\\\"b\\\":[1,{}],\\\"a\\\":\\\"caf\u{e9}\\\",\\\"c\\\":[]}\"))
+    return json_stringify_pretty(value, 2)
+
+fn bad_indent() -> Text:
+    return json_stringify_pretty(json_object(), 17)
+
+fn main() -> Int:
+    return 0
+";
+
+/// `json_stringify_pretty` runs in the browser VM with the same text and error code as the native
+/// runtime.
+#[test]
+fn browser_json_stringify_pretty_matches_native() {
+    let artifact = gub_project("pretty", PRETTY_PROGRAM);
+    let expected = Outcome::Text(
+        "{\n  \"a\": \"caf\u{e9}\",\n  \"b\": [\n    1,\n    {}\n  ],\n  \"c\": []\n}".to_owned(),
+    );
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+    let error = Outcome::Error("R_JSON_INDENT".to_owned());
+    assert_eq!(native(&artifact, "bad_indent"), error, "native");
+    assert_eq!(browser(&artifact, "bad_indent"), error, "browser");
+}

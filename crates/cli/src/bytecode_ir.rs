@@ -452,6 +452,7 @@ fn parse_instruction(
         "TextLower" => Op::TextLower,
         "TextUpper" => Op::TextUpper,
         "JsonKeys" => Op::JsonKeys,
+        "JsonStringifyPretty" => Op::JsonStringifyPretty,
         "StdinReadLine" => Op::StdinReadLine,
         "StdinReadAll" => Op::StdinReadAll,
         "CryptoHmacSha256" => Op::CryptoHmacSha256,

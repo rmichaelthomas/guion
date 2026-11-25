@@ -11556,6 +11556,36 @@
       "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
     },
     {
+      "id": "host_operation-json-pretty-encode",
+      "kind": "host_operation",
+      "name": "JSON pretty encode",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.json-pretty-encode.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.json-pretty-encode.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.json-pretty-encode.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`json_stringify_pretty(value: Json, indent: Int) -> Text`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
       "id": "opcode-text-lower",
       "kind": "opcode",
       "name": "TextLower",

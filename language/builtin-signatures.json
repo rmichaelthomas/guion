@@ -2594,6 +2594,15 @@
       "operation": "JsonKeys"
     },
     {
+      "name": "json_stringify_pretty_native",
+      "parameters": [
+        "Json",
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "JsonStringifyPretty"
+    },
+    {
       "name": "sleep_ms",
       "parameters": [
         "Int"

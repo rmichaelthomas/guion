@@ -1,7 +1,7 @@
 {
   "artifact_format": 90,
   "artifact_schema_sha256": "894d07a20b8d290271e3075b50c3c4a27fc15b978f3283a7eea081634f9016ef",
-  "artifact_sha256": "e75f91e0db31cc29ec72e4da011cca4792246bfdb65e7347f59ea68d115c3e89",
+  "artifact_sha256": "35d42bb893dfbcc099c89e7f2bc23ad49f4a87e28cbdda4e328dcf11deaf8f4d",
   "compiler_entry": "compiler.gu",
   "compiler_source_files": [
     "compiler.gu",
@@ -10,7 +10,7 @@
     "builtin_catalog.gu",
     "artifact.gu"
   ],
-  "compiler_source_sha256": "4ee959f22691bb629a2440c554408c87c14bcb24a32fc558bf606ddb9d7e171d",
+  "compiler_source_sha256": "f531aa7470aa61020ee451bed0f4f48611fa0ed73ff808a14efe42b2c130cab4",
   "host_abi_version": 1,
   "regeneration_command": "cargo run --locked --offline -p guion-bootstrap --bin guion-stage0 -- seed .",
   "schema_version": 1

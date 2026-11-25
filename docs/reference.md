@@ -29,6 +29,7 @@ Import `std:time` and call `today_local() -> Date` when an application needs the
 
 `json_keys(value)` (`std:json`, artifact format 90) returns `Ok` with an object's keys in the order `json_stringify` writes them (ascending by the key's bytes), or `Err` with code `R_JSON_TYPE` for any other kind of JSON.
 
+`json_stringify_pretty(value, indent)` (`std:json`, artifact format 90) returns the value with one member or element per line, `indent` spaces per level (0 to 16; anything else is `R_JSON_INDENT`), and no newline at the end.
 
 ## Commands
 
