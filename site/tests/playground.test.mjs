@@ -75,3 +75,39 @@ test('describe gives every outcome a headline and a detail in plain words', asyn
   const loop = describe(outcomes.find((o) => o.code === 'R_STEP_LIMIT'));
   assert.match(loop.detail, /10,000/);
 });
+
+test('run() calls a named entry with typed Text arguments and returns its value', async () => {
+  const compiled = compile(modules, 'fn main() -> Int:\n    return 0\n\nfn greet(name: Text, punctuation: Text) -> Text:\n    return "hello " + name + punctuation\n');
+  assert.equal(compiled.ok, true, JSON.stringify(compiled));
+  const result = run(modules, compiled.artifact, {}, { entry: 'greet', arguments: ['world', { type: 'Text', value: '!' }] });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.value, 'hello world!');
+});
+
+test('run() with no options still runs main with no arguments', async () => {
+  const compiled = compile(modules, 'fn main() -> Int:\n    return 7\n');
+  const result = run(modules, compiled.artifact);
+  assert.equal(result.ok, true);
+  assert.equal(result.value, '7');
+});
+
+test('run() reports an entry the program does not have', async () => {
+  const compiled = compile(modules, 'fn main() -> Int:\n    return 7\n');
+  const result = run(modules, compiled.artifact, {}, { entry: 'missing', arguments: [] });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'R_EXPORT_UNKNOWN');
+});
+
+const BUSY = 'fn main() -> Int:\n    return 0\n\nfn busy() -> Int:\n    var n = 0\n    while n < 5000:\n        set n = n + 1\n    return n\n';
+
+test('steps above 10,000 are refused unless allowRaisedSteps is set, and then they are used', async () => {
+  const compiled = compile(modules, BUSY);
+  assert.equal(compiled.ok, true, JSON.stringify(compiled));
+  const refused = run(modules, compiled.artifact, { steps: 200000 }, { entry: 'busy', arguments: [] });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.code, 'E_ABI_LIMIT');
+  const allowed = run(modules, compiled.artifact, { steps: 200000, allowRaisedSteps: true }, { entry: 'busy', arguments: [] });
+  assert.equal(allowed.ok, true, JSON.stringify(allowed));
+  assert.equal(allowed.value, '5000');
+  assert.ok(allowed.steps > 10000);
+});
