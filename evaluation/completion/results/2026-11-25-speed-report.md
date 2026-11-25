@@ -1,6 +1,6 @@
-# Speed report: 0.9.0 baseline and after the data-speed branch
+# Speed report: 0.9.0 baseline and a development build made after it
 
-The baseline sections below were measured first (commit 34a7e4f). The section "After the data-speed branch" at the end re-runs every kit on the finished branch and sets the two side by side.
+The baseline sections below were measured first (commit 34a7e4f). The section "After the data-speed work" at the end re-runs every kit on the finished branch and sets the two side by side.
 
 Date: 2026-11-25. Branch `perf/data-speed`. Guion 0.9.0 (artifact format 90, timezone data 2026c). This is the "before" measurement for the data-speed work: nothing in the engine changed between the 12 Nov report ([2026-11-12-speed-report.md](2026-11-12-speed-report.md)) and these runs except the releases since.
 
@@ -119,9 +119,9 @@ Raw samples: `evaluation/development/arrays/results.json`.
 - NumPy is 2.5.4 here, 2.5.1 in the 12 Nov arrays rows.
 - The machine was not idle (see Setup); start-up lanes ran 5 to 10 ms slower than on 12 Nov.
 
-## After the data-speed branch
+## After the data-speed work (a development build made after 0.9.0)
 
-Date: 2026-11-25, same machine, same Guion version string (0.9.0, artifact format 90, timezone data 2026c), release build of branch `perf/data-speed` at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
+Date: 2026-11-25, same machine. The build is not the released 0.9.0: it reports the same version string (0.9.0, artifact format 90, timezone data 2026c) but contains the data-speed changes, a release build of branch `perf/data-speed` at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
 
 ### Compute-only ratios and targets
 
@@ -167,8 +167,8 @@ In the `null` lane of `results_large.json` the first Guion sample (22 ms) is abo
 
 - Parallel CSV reader with a cheaper hash and float parse (Task 3): CSV read 2.67 to 0.75 times pandas.
 - Element-wise kernels on a persistent thread pool (Task 4): `a*b+c` 1.34 to 0.77 times NumPy. Sum was not threaded.
-- Allocator gives a finished thread's memory back (Task 4b, `crates/cli/src/pool_alloc.rs`): before it, each thread that made a small allocation stranded a 256 KB chunk, and a program reading a 2 MiB CSV 300 times failed with `R_ALLOCATION_LIMIT`; after, it completes under a 32 MiB limit. The no-slowdown check for single-threaded code (0.7449 to 0.7446 s) was made on macOS aarch64 only; Linux and x86 were not measured.
-- Stable radix sort for `sort` and `argsort` (Task 5): stable sort of 1M `f64` 1.50 to 0.66 times NumPy; `argsort` charges the same memory as before (16n bytes) and 1M `f64` argsort went from 27.2 to 21.6 ms.
+- Allocator gives a finished thread's memory back (Task 4b, `crates/cli/src/pool_alloc.rs`): before it, each thread that made a small allocation stranded a 256 KB chunk, and a program reading a 2 MiB CSV 300 times failed with `R_ALLOCATION_LIMIT`; after, it completes under a 32 MiB limit. Single-threaded speed was unchanged on macOS aarch64 (checked during the task, not committed as a result file) and was not measured elsewhere; Linux and x86 were not measured.
+- Stable radix sort for `sort` and `argsort` (Task 5): stable sort of 1M `f64` 1.50 to 0.66 times NumPy; `argsort` charges the same memory as before (16n bytes).
 
 ### Interpreters (Task 6)
 
