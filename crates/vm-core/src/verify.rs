@@ -2032,6 +2032,28 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                 }
                 state.stack.push(Type::Text);
             }
+            Op::IntToTextRadix => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Int
+                {
+                    return Err(format!(
+                        "int_to_text_radix requires Int and Int at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Text);
+            }
+            Op::TextParseIntRadix => {
+                if pop_type(&mut state.stack, pc)? != Type::Int
+                    || pop_type(&mut state.stack, pc)? != Type::Text
+                {
+                    return Err(format!(
+                        "text_parse_int_radix requires Text and Int at instruction {pc}"
+                    ));
+                }
+                state
+                    .stack
+                    .push(Type::Result(Box::new(Type::Int), Box::new(Type::FileError)));
+            }
             Op::JsonKeys => {
                 if pop_type(&mut state.stack, pc)? != Type::Json {
                     return Err(format!("json_keys requires Json at instruction {pc}"));

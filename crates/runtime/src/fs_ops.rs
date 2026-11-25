@@ -88,26 +88,17 @@ fn temp_name(prefix: &str) -> String {
     format!("{prefix}-{}-{nanos:x}-{count}", std::process::id())
 }
 
-/// Parses 1 to 4 octal digits (`600`, `0700`, `4755`) into permission bits.
-fn parse_octal_mode(text: &str, span: Span) -> Result<u32, RuntimeError> {
-    let valid =
-        (1..=4).contains(&text.len()) && text.bytes().all(|byte| (b'0'..=b'7').contains(&byte));
-    match u32::from_str_radix(text, 8) {
-        Ok(bits) if valid && bits <= 0o7777 => Ok(bits),
+/// Permission bits from an `Int` mode: 0 to 0o7777, else `R_FILE_MODE_INVALID`.
+fn mode_bits(mode: &BigInt, span: Span) -> Result<u32, RuntimeError> {
+    match mode.to_i64() {
+        Some(bits @ 0..=0o7777) => Ok(bits as u32),
         _ => Err(RuntimeError::new(
             "R_FILE_MODE_INVALID",
-            format!("`{text}` is not a file mode: write 1 to 4 octal digits such as \"600\" or \"0755\""),
+            format!(
+                "`{mode}` is not a file mode: write an Int from 0 to 0o7777 such as 0o600 or 0o755"
+            ),
             span,
         )),
-    }
-}
-
-/// Three octal digits, or four when setuid, setgid or the sticky bit is set.
-fn format_octal_mode(bits: u32) -> String {
-    if bits & 0o7000 != 0 {
-        format!("{:04o}", bits & 0o7777)
-    } else {
-        format!("{:03o}", bits & 0o777)
     }
 }
 
@@ -399,7 +390,10 @@ fn run_inner(
             Ok(ok(Value::Text(joined.as_str().into())))
         }
         FsFunction::SetMode => {
-            let mode = parse_octal_mode(operands[1].as_str(), span)?;
+            // The wrapper passes the Int mode as its decimal text, as `fs_read_range` does.
+            let mode = BigInt::parse(operands[1].as_str())
+                .map_err(|_| RuntimeError::new("R_TYPE_INVALID", "file mode must be an Int", span))
+                .and_then(|mode| mode_bits(&mode, span))?;
             let resolved = host_file_path(policy, path, false, span)?;
             set_mode(&resolved, mode, path, span)?;
             Ok(ok(Value::Unit))
@@ -407,7 +401,7 @@ fn run_inner(
         FsFunction::Mode => {
             let resolved = host_file_path(policy, path, false, span)?;
             let bits = read_mode(&resolved, path, span)?;
-            Ok(ok(Value::Text(format_octal_mode(bits).as_str().into())))
+            Ok(ok(Value::Int(BigInt::from_i64(i64::from(bits)))))
         }
         FsFunction::GzipCompressFile
         | FsFunction::GzipDecompressFile

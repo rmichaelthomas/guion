@@ -17,7 +17,7 @@ Statements: `let`, `var`, `set`, `return`, `if`/`else`, `while`, `for name in li
 
 Everyday forms: see `docs/reference.md`.
 
-- Expressions: arbitrary-precision decimal integer literals, finite `Float64` literals with a decimal point or exponent, booleans (`true`, `false`), double-quoted UTF-8 text with `\u{H...}` Unicode scalar escapes (one to six hexadecimal digits; surrogate values and values above U+10FFFF are invalid), local/function names, calls, record construction/access, list literals, map literals with unique text keys, list/map/text/bytes indexing, parentheses, unary `-` and `not`, and binary `*`, `/`, `//`, `%`, `+`, `-`, comparisons `== != < <= > >=`, and short-circuit `and` / `or`. `Float64` is IEEE 754 binary64; its arithmetic and comparisons require two `Float64` values, reject non-finite literals/results, and never convert `Int` implicitly. `sqrt(Float64)` returns the non-negative square root; a negative input raises `R_MATH_DOMAIN`. Float division by zero raises `R_DIV_ZERO`. Integer `/` truncates toward zero; `//` rounds down; `%` follows the divisor's sign, so `a == (a // b) * b + (a % b)`. All three integer division operators raise `R_DIV_ZERO` on a zero divisor. Map literals infer one homogeneous value type; an empty map needs a `Map[Text, T]` annotation or other expected type, and keys must be text literals. Empty list literals likewise need an expected `List[T]` type. `list_push(List[T], T)` appends and `list_set(List[T], Int, T)` replaces an existing zero-based index; both return immutable copies, and the compiler may use copy-on-write for updates assigned back to the same mutable local while preserving aliases; out-of-range replacement raises `R_LIST_INDEX`. `Map[Text, T]` is immutable, `map_set` returns an updated copy, `map_has` tests membership, keys iterate and display in Unicode scalar lexicographic order, lookup of an absent key raises `R_MAP_KEY_MISSING`, and `len` supports lists, maps, Bytes (byte count), and Text (Unicode scalar count). Text indexing is zero-based by Unicode scalar and out-of-range access is a runtime error. `Bytes` indexing (artifact format 89) `data[i]` gives the byte at zero-based `i` as an `Int` from 0 to 255; an index outside `0` to `len(data) - 1` raises `R_INDEX_BOUNDS` and a negative one `R_INDEX_INVALID`. `text_slice(text, start, end)` returns a copied half-open range by Unicode scalar index, with a non-negative start, an exclusive end, and `0 <= start <= end <= len(text)`; an invalid range raises `R_INDEX_BOUNDS`. Types include `List[T]`, `Map[Text, T]`, `Option[T]`, and `Result[T, E]`; `Some(value)`, `None`, `Ok(value)` and `Err(error)` build a value wherever its type is known from where it goes: a return, an annotated `let`, a `set`, an argument, a record field, a list or map element, or another constructor (`return Ok(None)` in a function returning `Result[Option[T], E]`, `Some(Ok(x))`). `Some(x)` with nothing else to go on takes the type of `x`; where the type cannot be known (`let v = None`) or another type is expected, it is `E_OPTION_CONSTRUCTOR_CONTEXT` or `E_RESULT_CONSTRUCTOR_CONTEXT`, and the fix is to write the type: `let v: Option[Int] = None`. Precedence from low to high: `or`, `and`, comparisons, `+ -`, `* / // %`, unary, calls/indexing/field access/atoms. `+` accepts two Ints, two Float64 values, or two Text values.
+- Expressions: arbitrary-precision integer literals (decimal, or `0x`/`0X` hexadecimal, `0o`/`0O` octal and `0b`/`0B` binary, with `_` allowed between any two digits as in `1_000_000` and `0xFF_FF`; a misplaced `_`, a prefix with no digits or a digit outside the base is `E_NUMBER_LITERAL` at that character; a negative value is the unary `-`; `007` is 7), finite `Float64` literals with a decimal point or exponent (digits may be separated with `_` too), booleans (`true`, `false`), double-quoted UTF-8 text with `\u{H...}` Unicode scalar escapes (one to six hexadecimal digits; surrogate values and values above U+10FFFF are invalid), local/function names, calls, record construction/access, list literals, map literals with unique text keys, list/map/text/bytes indexing, parentheses, unary `-` and `not`, and binary `*`, `/`, `//`, `%`, `+`, `-`, comparisons `== != < <= > >=`, and short-circuit `and` / `or`. `Float64` is IEEE 754 binary64; its arithmetic and comparisons require two `Float64` values, reject non-finite literals/results, and never convert `Int` implicitly. `sqrt(Float64)` returns the non-negative square root; a negative input raises `R_MATH_DOMAIN`. Float division by zero raises `R_DIV_ZERO`. Integer `/` truncates toward zero; `//` rounds down; `%` follows the divisor's sign, so `a == (a // b) * b + (a % b)`. All three integer division operators raise `R_DIV_ZERO` on a zero divisor. Map literals infer one homogeneous value type; an empty map needs a `Map[Text, T]` annotation or other expected type, and keys must be text literals. Empty list literals likewise need an expected `List[T]` type. `list_push(List[T], T)` appends and `list_set(List[T], Int, T)` replaces an existing zero-based index; both return immutable copies, and the compiler may use copy-on-write for updates assigned back to the same mutable local while preserving aliases; out-of-range replacement raises `R_LIST_INDEX`. `Map[Text, T]` is immutable, `map_set` returns an updated copy, `map_has` tests membership, keys iterate and display in Unicode scalar lexicographic order, lookup of an absent key raises `R_MAP_KEY_MISSING`, and `len` supports lists, maps, Bytes (byte count), and Text (Unicode scalar count). Text indexing is zero-based by Unicode scalar and out-of-range access is a runtime error. `Bytes` indexing (artifact format 89) `data[i]` gives the byte at zero-based `i` as an `Int` from 0 to 255; an index outside `0` to `len(data) - 1` raises `R_INDEX_BOUNDS` and a negative one `R_INDEX_INVALID`. `text_slice(text, start, end)` returns a copied half-open range by Unicode scalar index, with a non-negative start, an exclusive end, and `0 <= start <= end <= len(text)`; an invalid range raises `R_INDEX_BOUNDS`. Types include `List[T]`, `Map[Text, T]`, `Option[T]`, and `Result[T, E]`; `Some(value)`, `None`, `Ok(value)` and `Err(error)` build a value wherever its type is known from where it goes: a return, an annotated `let`, a `set`, an argument, a record field, a list or map element, or another constructor (`return Ok(None)` in a function returning `Result[Option[T], E]`, `Some(Ok(x))`). `Some(x)` with nothing else to go on takes the type of `x`; where the type cannot be known (`let v = None`) or another type is expected, it is `E_OPTION_CONSTRUCTOR_CONTEXT` or `E_RESULT_CONSTRUCTOR_CONTEXT`, and the fix is to write the type: `let v: Option[Int] = None`. Precedence from low to high: `or`, `and`, comparisons, `+ -`, `* / // %`, unary, calls/indexing/field access/atoms. `+` accepts two Ints, two Float64 values, or two Text values.
 
 ## Runtime rules
 
@@ -36,7 +36,8 @@ Everyday forms: see `docs/reference.md`.
 - `text_lower(value: Text) -> Text` and `text_upper(value: Text) -> Text` in `std:text` (artifact format 90) change case with the Unicode default case mapping, for display: `Straße` uppercases to `STRASSE`, a capital sigma ending a word lowercases to the final form `ς`, and `İ` lowercases to `i` followed by a combining dot, so the result can be longer than the input (a result over the text limit is `R_TEXT_LIMIT`). To compare text without regard to case, use `text_casefold`. They need no grant and run in the browser VM.
 - `json_keys(value: Json) -> Result[List[Text], JsonError]` in `std:json` (artifact format 90) lists an object's top-level keys in the order `json_stringify` writes them, which is ascending byte order of the key text; a value that is not an object is `Err` with code `R_JSON_TYPE`. It needs no grant and runs in the browser VM.
 - `json_stringify_pretty(value: Json, indent: Int) -> Text` in `std:json` (artifact format 90) writes the value with each array element and object member on its own line, indented by `indent` spaces per level (0 to 16, else the runtime fault `R_JSON_INDENT`; 0 puts the lines at the left edge), `": "` after a key, `,` at the end of every line but the last of a container, `{}` and `[]` for empty containers, no trailing newline, non-ASCII text as is, and strings and numbers written as `json_stringify` writes them. It needs no grant and runs in the browser VM.
-- `fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]` and `fs_mode(path: Text) -> Result[Text, FileError]` in `std:fs` (artifact format 90) set and read permission bits as octal text, as `chmod` does and following symlinks. `mode` is 1 to 4 octal digits (`"600"`, `"0700"`, `"4755"`); anything else is `R_FILE_MODE_INVALID`. `fs_mode` returns three digits (`"600"`, `"755"`), or four when the setuid, setgid or sticky bit is set (`"4755"`). The path resolves against the granted file root like every other `std:fs` function, never the working directory, so it cannot leave the root; `fs_set_mode` needs the file-write grant and is reported as `filesystem.write`, `fs_mode` needs the file-read grant and is reported as `filesystem.read`. A missing path is `R_FILE_NOT_FOUND` and a refusal by the operating system is `R_FILE_PERMISSION`. Where the host has no permission bits (Windows) both are `R_FILE_UNSUPPORTED`, and the browser VM refuses them with `R_HOST_UNSUPPORTED`. A recording keeps them on the tape like the other file operations.
+- `int_to_text_radix(value: Int, radix: Int) -> Text` and `text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]` in `std:text` (artifact format 90) write and read an `Int` of any size in radix 2 to 36: lowercase digits, a leading `-` for a negative value, no prefix, no separators; parsing accepts either case and one optional leading `-` and gives `Err` with code `E_INT_PARSE` for anything else. A radix outside 2 to 36 is `R_RADIX_RANGE`, a parsed value over the digit limit `R_INTEGER_LIMIT`. Pure, no grant; the browser VM runs them.
+- `fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]` and `fs_mode(path: Text) -> Result[Int, FileError]` in `std:fs` (artifact format 90) set and read permission bits as an `Int`, as `chmod` does and following symlinks. `mode` is 0 to `0o7777` (`0o600`, `0o755`, `0o4755`); anything else is `R_FILE_MODE_INVALID`. `fs_mode` returns the bits as an `Int` (`0o600` is 384), so `int_to_text_radix(mode, 8)` shows `"600"`. The path resolves against the granted file root like every other `std:fs` function, never the working directory, so it cannot leave the root; `fs_set_mode` needs the file-write grant and is reported as `filesystem.write`, `fs_mode` needs the file-read grant and is reported as `filesystem.read`. A missing path is `R_FILE_NOT_FOUND` and a refusal by the operating system is `R_FILE_PERMISSION`. Where the host has no permission bits (Windows) both are `R_FILE_UNSUPPORTED`, and the browser VM refuses them with `R_HOST_UNSUPPORTED`. A recording keeps them on the tape like the other file operations.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
 - Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64` (in `[0, 2^64)`), `random_next_i64` (the same 64 bits read as a signed integer), `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling; a range of more than 2^64 values raises `R_RANDOM_RANGE`); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted. From artifact format 61 the generator state in `Rng.state` is the 64-bit state read as a signed integer, and every function except `random_next_u64` runs on the machine-code path; the sequences are the same as in format 52.
 - Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
@@ -273,6 +274,7 @@ int_shift_left(Int, Int) -> Int
 int_shift_right(Int, Int) -> Int
 int_to_float(Int) -> Float64
 int_to_text(Int) -> Text
+int_to_text_radix_native(Int, Int) -> Text
 int_xor(Int, Int) -> Int
 is_ok(Result[$T, $E]) -> Bool
 is_some(Option[$T]) -> Bool
@@ -364,7 +366,7 @@ native_fs_gzip_decompress_file(Text, Text) -> Result[Int, FileError]
 native_fs_kind(Text) -> Result[Text, FileError]
 native_fs_list_dir(Text) -> Result[List[Text], FileError]
 native_fs_make_dir(Text) -> Result[Unit, FileError]
-native_fs_mode(Text) -> Result[Text, FileError]
+native_fs_mode(Text) -> Result[Int, FileError]
 native_fs_modified_ms(Text) -> Result[Int, FileError]
 native_fs_read_range(Text, Text, Text) -> Result[Bytes, FileError]
 native_fs_remove(Text) -> Result[Unit, FileError]
@@ -491,6 +493,7 @@ text_join_native(List[Text], Text) -> Text
 text_lower_native(Text) -> Text
 text_parse_float(Text) -> Result[Float64, FileError]
 text_parse_int(Text) -> Result[Int, FileError]
+text_parse_int_radix_native(Text, Int) -> Result[Int, FileError]
 text_replace_native(Text, Text, Text) -> Text
 text_slice(Text, Int, Int) -> Text
 text_split_native(Text, Text) -> List[Text]
@@ -599,8 +602,8 @@ std:fs — pub fn fs_remove(path: Text) -> Result[Unit, FileError]
 std:fs — pub fn fs_remove_all(path: Text) -> Result[Unit, FileError]
 std:fs — pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]
 std:fs — pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]
-std:fs — pub fn fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]
-std:fs — pub fn fs_mode(path: Text) -> Result[Text, FileError]
+std:fs — pub fn fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]
+std:fs — pub fn fs_mode(path: Text) -> Result[Int, FileError]
 std:fs — pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]
 std:fs — pub fn fs_temp_file(prefix: Text) -> Result[Text, FileError]
 std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
@@ -779,6 +782,8 @@ std:text — pub fn text_collapse_whitespace(value: Text) -> Text
 std:text — pub fn text_normalize(value: Text, form: Text) -> Result[Text, StdError]
 std:text — pub fn text_lower(value: Text) -> Text
 std:text — pub fn text_upper(value: Text) -> Text
+std:text — pub fn int_to_text_radix(value: Int, radix: Int) -> Text
+std:text — pub fn text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]
 std:time — pub fn today_local() -> Date
 std:time — pub fn parse_date(value: Text) -> Result[Date, FileError]
 std:time — pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]
@@ -899,8 +904,10 @@ text_collapse_whitespace(Text) -> Text
 text_normalize(Text, Text) -> Result[Text, StdError]
 text_lower(Text) -> Text
 text_upper(Text) -> Text
-fs_set_mode(Text, Text) -> Result[Unit, FileError]
-fs_mode(Text) -> Result[Text, FileError]
+int_to_text_radix(Int, Int) -> Text
+text_parse_int_radix(Text, Int) -> Result[Int, FileError]
+fs_set_mode(Text, Int) -> Result[Unit, FileError]
+fs_mode(Text) -> Result[Int, FileError]
 tcp_peer(TcpConn) -> Result[PeerAddress, StdError]
 crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
@@ -1217,6 +1224,7 @@ E_NORMALIZATION_FORM
 E_NOT_OWNER
 E_NO_LOOP
 E_NUMBER_KEY
+E_NUMBER_LITERAL
 E_OBJECT_KEYS
 E_OID
 E_OPEN_CREATE
@@ -1527,6 +1535,7 @@ R_PYTHON_START
 R_PYTHON_TIMEOUT
 R_PYTHON_UNAVAILABLE
 R_PYTHON_UNCONFIGURED
+R_RADIX_RANGE
 R_RANDOM_RANGE
 R_RESOURCE_CLOSED
 R_RESOURCE_MODE
@@ -1790,4 +1799,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:7d3ecf994ba57eb7bc4043e6446ef19e6e461a93c95670943fc87803cf4deef6. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:f0fe8075f79cc8f5f9b5475da6b567bad31d2bc22ad6cf23b155f27f11ea4232. Validated by `cargo xtask agent-reference --check`. -->

@@ -53,3 +53,16 @@ pub fn text_lower(value: Text) -> Text:
 # text without regard to case, use text_casefold instead.
 pub fn text_upper(value: Text) -> Text:
     return text_upper_native(value)
+
+# The digits of `value` in `radix` (2 to 36): lowercase letters for digits above 9, a leading `-`
+# for a negative value, no prefix and no separators, so `int_to_text_radix(255, 16)` is `"ff"` and
+# `int_to_text_radix(493, 8)` is `"755"`. Any radix outside 2 to 36 is R_RADIX_RANGE.
+pub fn int_to_text_radix(value: Int, radix: Int) -> Text:
+    return int_to_text_radix_native(value, radix)
+
+# Reads an integer written in `radix` (2 to 36): digits in either case with one optional leading
+# `-`, no `+`, no prefix such as `0x` and no `_`. Anything else is Err with code E_INT_PARSE, as
+# text_parse_int gives; a value over the digit limit is R_INTEGER_LIMIT and a radix outside 2 to
+# 36 is R_RADIX_RANGE. The value can be as large as an Int can be.
+pub fn text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]:
+    return text_parse_int_radix_native(text, radix)

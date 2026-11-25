@@ -1181,7 +1181,7 @@ fn browser_json_stringify_pretty_matches_native() {
 #[test]
 fn file_modes_are_unsupported_in_the_browser() {
     for (name, body) in [
-        ("fs-set-mode", "unwrap(fs_set_mode(\"a\", \"600\"))"),
+        ("fs-set-mode", "unwrap(fs_set_mode(\"a\", 0o600))"),
         ("fs-mode", "print(unwrap(fs_mode(\"a\")))"),
     ] {
         let artifact = gub_project(
@@ -1204,4 +1204,42 @@ fn tcp_peer_is_unsupported_in_the_browser() {
     let response = browser_response(&artifact, "main", 1000);
     assert_eq!(response["ok"], false, "{response}");
     assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+}
+
+const RADIX_PROGRAM: &str = "import \"std:text\"
+
+fn parsed(text: Text, radix: Int) -> Text:
+    let result = text_parse_int_radix(text, radix)
+    if is_ok(result):
+        return int_to_text(unwrap(result))
+    return \"err\"
+
+fn transcript() -> Text:
+    return int_to_text_radix(255, 16) + \"|\" + int_to_text_radix(-5, 2) + \"|\" + int_to_text_radix(0xFFFF_FFFF_FFFF_FFFF_FFFF, 36) + \"|\" + parsed(\"FF\", 16) + \"|\" + parsed(\"-zz\", 36) + \"|\" + parsed(\"ffffffffffffffffffff\", 16) + \"|\" + parsed(\"0x1f\", 16) + \"|\" + parsed(\"\", 10)
+
+fn bad_radix() -> Text:
+    return int_to_text_radix(1, 37)
+
+fn bad_parse_radix() -> Text:
+    return parsed(\"1\", 1)
+
+fn main() -> Int:
+    return 0
+";
+
+/// `int_to_text_radix` and `text_parse_int_radix` run in the browser VM with the same text and
+/// error codes as the native runtime.
+#[test]
+fn browser_radix_functions_match_native() {
+    let artifact = gub_project("radix", RADIX_PROGRAM);
+    let expected = Outcome::Text(
+        "ff|-101|5gv2rma270x9hhj3|255|-1295|1208925819614629174706175|err|err".to_owned(),
+    );
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+    let error = Outcome::Error("R_RADIX_RANGE".to_owned());
+    for function in ["bad_radix", "bad_parse_radix"] {
+        assert_eq!(native(&artifact, function), error, "native {function}");
+        assert_eq!(browser(&artifact, function), error, "browser {function}");
+    }
 }

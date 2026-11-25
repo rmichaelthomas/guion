@@ -1,4 +1,4 @@
-//! `fs_set_mode` and `fs_mode` in `std:fs` (artifact format 90): permission bits as octal text,
+//! `fs_set_mode` and `fs_mode` in `std:fs` (artifact format 90): permission bits as an `Int` (`0o600`),
 //! resolved against the file root like every other file operation.
 
 use std::path::{Path, PathBuf};
@@ -71,13 +71,14 @@ fn setting_600_on_a_file_reads_back_600() {
     let output = run_from_elsewhere(
         &scratch,
         r#"import "std:fs"
+import "std:text"
 fn main() -> Int:
-    unwrap(fs_set_mode("secret.txt", "600"))
-    print(unwrap(fs_mode("secret.txt")))
-    unwrap(fs_set_mode("secret.txt", "0644"))
-    print(unwrap(fs_mode("secret.txt")))
-    unwrap(fs_set_mode("secret.txt", "4755"))
-    print(unwrap(fs_mode("secret.txt")))
+    unwrap(fs_set_mode("secret.txt", 0o600))
+    print(int_to_text_radix(unwrap(fs_mode("secret.txt")), 8))
+    unwrap(fs_set_mode("secret.txt", 0o644))
+    print(int_to_text_radix(unwrap(fs_mode("secret.txt")), 8))
+    unwrap(fs_set_mode("secret.txt", 0o4755))
+    print(int_to_text_radix(unwrap(fs_mode("secret.txt")), 8))
     return 0
 "#,
     );
@@ -88,15 +89,42 @@ fn main() -> Int:
 
 #[cfg(unix)]
 #[test]
+fn modes_are_ints_so_they_compare_and_combine_with_the_bit_functions() {
+    let scratch = Scratch::new("int");
+    std::fs::write(scratch.root().join("f.txt"), "x").unwrap();
+    let output = run_from_elsewhere(
+        &scratch,
+        r#"import "std:fs"
+fn main() -> Int:
+    unwrap(fs_set_mode("f.txt", 0o640))
+    let mode = unwrap(fs_mode("f.txt"))
+    print(mode)
+    print(mode == 0o640)
+    print(int_and(mode, 0o077) == 0)
+    unwrap(fs_set_mode("f.txt", 0))
+    print(unwrap(fs_mode("f.txt")))
+    unwrap(fs_set_mode("f.txt", 0o7777))
+    print(unwrap(fs_mode("f.txt")))
+    unwrap(fs_set_mode("f.txt", 0o644))
+    return 0
+"#,
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "416\ntrue\nfalse\n0\n4095\n");
+}
+
+#[cfg(unix)]
+#[test]
 fn setting_700_on_a_directory_works() {
     let scratch = Scratch::new("dir");
     std::fs::create_dir_all(scratch.root().join("private")).unwrap();
     let output = run_from_elsewhere(
         &scratch,
         r#"import "std:fs"
+import "std:text"
 fn main() -> Int:
-    unwrap(fs_set_mode("private", "700"))
-    print(unwrap(fs_mode("private")))
+    unwrap(fs_set_mode("private", 0o700))
+    print(int_to_text_radix(unwrap(fs_mode("private")), 8))
     return 0
 "#,
     );
@@ -125,8 +153,9 @@ fn a_relative_path_resolves_under_the_file_root_not_the_working_directory() {
     let output = run_from_elsewhere(
         &scratch,
         r#"import "std:fs"
+import "std:text"
 fn main() -> Int:
-    unwrap(fs_set_mode("target.txt", "600"))
+    unwrap(fs_set_mode("target.txt", 0o600))
     return 0
 "#,
     );
@@ -147,9 +176,10 @@ fn a_symlink_is_followed_like_chmod() {
     let output = run_from_elsewhere(
         &scratch,
         r#"import "std:fs"
+import "std:text"
 fn main() -> Int:
-    unwrap(fs_set_mode("alias.txt", "640"))
-    print(unwrap(fs_mode("real.txt")))
+    unwrap(fs_set_mode("alias.txt", 0o640))
+    print(int_to_text_radix(unwrap(fs_mode("real.txt")), 8))
     return 0
 "#,
     );
@@ -166,14 +196,15 @@ fn paths_outside_the_root_and_missing_paths_are_refused() {
     let output = run_from_elsewhere(
         &scratch,
         r#"import "std:fs"
+import "std:text"
 fn code_of(result: Result[Unit, FileError]) -> Text:
     if is_ok(result):
         return "ok"
     return file_error_code(error(result))
 
 fn main() -> Int:
-    print(code_of(fs_set_mode("../outside.txt", "600")))
-    print(code_of(fs_set_mode("missing.txt", "600")))
+    print(code_of(fs_set_mode("../outside.txt", 0o600)))
+    print(code_of(fs_set_mode("missing.txt", 0o600)))
     assert(not is_ok(fs_mode("../outside.txt")))
     match fs_mode("missing.txt"):
         Ok(_):
@@ -200,8 +231,9 @@ fn invalid_modes_are_r_file_mode_invalid() {
     let output = run_from_elsewhere(
         &scratch,
         r#"import "std:fs"
+import "std:text"
 fn main() -> Int:
-    for mode in ["", "8", "12345", "abc", "-1", "10000", " 600", "7777x"]:
+    for mode in [-1, -4096, 4096, 0o10000, 99999, 1000000000000, -9223372036854775807 - 1, 0xFFFF_FFFF_FFFF_FFFF_FFFF]:
         match fs_set_mode("f.txt", mode):
             Ok(_):
                 print("ok")
@@ -222,8 +254,9 @@ fn without_a_file_root_both_functions_are_denied() {
     std::fs::write(
         &program,
         r#"import "std:fs"
+import "std:text"
 fn main() -> Int:
-    match fs_set_mode("a.txt", "600"):
+    match fs_set_mode("a.txt", 0o600):
         Ok(_):
             print("ok")
         Err(problem):
@@ -252,7 +285,7 @@ fn an_absolute_path_is_denied_with_the_same_fix_as_the_other_file_operations() {
     let outside = scratch.0.join("outside.txt");
     let folder = scratch.0.clone();
     let source = format!(
-        "import \"std:fs\"\nfn main() -> Int:\n    match fs_set_mode(\"{0}\", \"600\"):\n        Ok(_):\n            print(\"ok\")\n        Err(problem):\n            print(file_error_code(problem))\n    return 0\n",
+        "import \"std:fs\"\nimport \"std:text\"\nfn main() -> Int:\n    match fs_set_mode(\"{0}\", 0o600):\n        Ok(_):\n            print(\"ok\")\n        Err(problem):\n            print(file_error_code(problem))\n    return 0\n",
         outside.display()
     );
     let program = scratch.0.join("main.gu");
@@ -285,7 +318,7 @@ fn an_artifact_below_format_90_that_uses_them_is_refused() {
     let program = scratch.0.join("main.gu");
     std::fs::write(
         &program,
-        "import \"std:fs\"\nfn main() -> Int:\n    print(is_ok(fs_mode(\"a\")))\n    return 0\n",
+        "import \"std:fs\"\nimport \"std:text\"\nfn main() -> Int:\n    print(is_ok(fs_mode(\"a\")))\n    return 0\n",
     )
     .unwrap();
     let artifact = scratch.0.join("main.gub");
@@ -313,12 +346,12 @@ fn inspect_reports_filesystem_write_and_read() {
     let scratch = Scratch::new("inspect");
     std::fs::write(
         scratch.0.join("writer.gu"),
-        "import \"std:fs\"\nfn main() -> Int:\n    unwrap(fs_set_mode(\"x\", \"600\"))\n    return 0\n",
+        "import \"std:fs\"\nimport \"std:text\"\nfn main() -> Int:\n    unwrap(fs_set_mode(\"x\", 0o600))\n    return 0\n",
     )
     .unwrap();
     std::fs::write(
         scratch.0.join("reader.gu"),
-        "import \"std:fs\"\nfn main() -> Int:\n    print(unwrap(fs_mode(\"x\")))\n    return 0\n",
+        "import \"std:fs\"\nimport \"std:text\"\nfn main() -> Int:\n    print(int_to_text_radix(unwrap(fs_mode(\"x\")), 8))\n    return 0\n",
     )
     .unwrap();
     let effects = |file: &str| -> Vec<String> {
@@ -348,11 +381,11 @@ fn guion_doc_lists_both_functions() {
     assert!(output.status.success(), "{}", stderr(&output));
     let text = stdout(&output);
     assert!(
-        text.contains("fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]"),
+        text.contains("fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]"),
         "{text}"
     );
     assert!(
-        text.contains("fs_mode(path: Text) -> Result[Text, FileError]"),
+        text.contains("fs_mode(path: Text) -> Result[Int, FileError]"),
         "{text}"
     );
 }
@@ -366,7 +399,7 @@ fn a_recording_replays_without_touching_the_file() {
     let program = scratch.0.join("main.gu");
     std::fs::write(
         &program,
-        "import \"std:fs\"\nfn main() -> Int:\n    unwrap(fs_set_mode(\"t.txt\", \"600\"))\n    print(unwrap(fs_mode(\"t.txt\")))\n    return 0\n",
+        "import \"std:fs\"\nimport \"std:text\"\nfn main() -> Int:\n    unwrap(fs_set_mode(\"t.txt\", 0o600))\n    print(int_to_text_radix(unwrap(fs_mode(\"t.txt\")), 8))\n    return 0\n",
     )
     .unwrap();
     let root = scratch.root();

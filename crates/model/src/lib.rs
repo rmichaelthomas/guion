@@ -1605,6 +1605,12 @@ mod tests {
     }
 
     #[test]
+    fn radix_instructions_are_gated_on_format_90() {
+        assert_gated(Op::IntToTextRadix, 90);
+        assert_gated(Op::TextParseIntRadix, 90);
+    }
+
+    #[test]
     fn file_mode_instructions_are_gated_on_format_90() {
         assert_gated(Op::Fs(FsFunction::SetMode), 90);
         assert_gated(Op::Fs(FsFunction::Mode), 90);
@@ -4869,6 +4875,8 @@ pub enum Op {
     TextUpper,
     JsonKeys,
     JsonStringifyPretty,
+    IntToTextRadix,
+    TextParseIntRadix,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -5465,6 +5473,12 @@ impl Artifact {
                 "fs_set_mode and fs_mode require artifact format 90",
             ));
         }
+        if self.format_version < 90 && artifact_uses_radix(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "int_to_text_radix and text_parse_int_radix require artifact format 90",
+            ));
+        }
         if self.format_version < 88 && artifact_uses_sleep(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -5901,6 +5915,8 @@ impl Artifact {
                     Op::TextUpper => w.u8(226),
                     Op::JsonKeys => w.u8(227),
                     Op::JsonStringifyPretty => w.u8(228),
+                    Op::IntToTextRadix => w.u8(229),
+                    Op::TextParseIntRadix => w.u8(230),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -6561,6 +6577,14 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
+                        ));
+                    }
+                    229 if format_version >= 90 => Op::IntToTextRadix,
+                    230 if format_version >= 90 => Op::TextParseIntRadix,
+                    229..=230 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "int_to_text_radix and text_parse_int_radix require artifact format 90",
                         ));
                     }
                     210 if format_version >= 74 => {
@@ -7441,6 +7465,15 @@ fn artifact_uses_peer_address(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::Net(NetFunction::PeerAddress)))
+    })
+}
+
+fn artifact_uses_radix(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::IntToTextRadix | Op::TextParseIntRadix))
     })
 }
 

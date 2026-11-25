@@ -314,6 +314,8 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "Sleep" => Op::Sleep,
         "TextLower" => Op::TextLower,
         "TextUpper" => Op::TextUpper,
+        "IntToTextRadix" => Op::IntToTextRadix,
+        "TextParseIntRadix" => Op::TextParseIntRadix,
         "JsonKeys" => Op::JsonKeys,
         "JsonStringifyPretty" => Op::JsonStringifyPretty,
         "StdinReadLine" => Op::StdinReadLine,

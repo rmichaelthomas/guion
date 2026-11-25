@@ -106,6 +106,7 @@ The pure cryptography of `std:crypto` and `std:encoding` runs in the browser VM,
 | Encoding | `dagcbor_encode`, `hex_encode`/`hex_decode`, `base64_*`, `bytes_xor_key` |
 | Bit operations | `int_and`, `int_or`, `int_xor`, `int_shift_left`, `int_shift_right` (64-bit; `R_INTEGER_RANGE` and `R_SHIFT_RANGE` as natively) |
 | Text case | `text_lower`, `text_upper` (Unicode default case mapping) |
+| Integer radix | `int_to_text_radix`, `text_parse_int_radix` (radix 2 to 36, any size of `Int`) |
 | JSON | `json_parse`, `json_stringify`, `json_stringify_pretty`, `json_keys`, `json_get`, `json_index`, `json_has`, `json_len`, `json_set`, `json_push`, the `json_as_*` and `json_try_*` accessors and the JSON constructors, with native limits and error codes |
 
 Not available, and failing with `R_HOST_UNSUPPORTED` when reached: **HMAC** (`crypto_hmac_sha256`, `crypto_verify_hmac_sha256`) and **random bytes** (`crypto_random_bytes`, `crypto_random_hex`, `crypto_random_base64url`) stay native-only. The wrapper `crypto_tlock_encrypt` draws its randomness with `crypto_random_bytes`, so it is not available in the browser; `crypto_tlock_decrypt` is. A page that must seal a file supplies randomness itself (from `crypto.getRandomValues`) to `native_crypto_tlock_encrypt(round, chain_hash, public_key, plaintext, randomness)`. The column and projection instructions of the JSON data library (`json_int_column`, `json_project_columns` and their kin) and `json_stringify_pairs` also remain native-only.

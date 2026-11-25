@@ -55,10 +55,14 @@ pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]:
 pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]:
     return native_fs_copy(from, to)
 
-pub fn fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]:
-    return native_fs_set_mode(path, mode)
+# Sets the permission bits of a file or directory (following symlinks, as chmod does). `mode` is an
+# Int from 0 to 0o7777, so `fs_set_mode("key.pem", 0o600)`; anything else is R_FILE_MODE_INVALID.
+pub fn fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]:
+    return native_fs_set_mode(path, int_to_text(mode))
 
-pub fn fs_mode(path: Text) -> Result[Text, FileError]:
+# The permission bits as an Int from 0 to 0o7777 (so `fs_mode("f") == 0o600`); show them as octal
+# with int_to_text_radix(mode, 8). Needs the file-read grant.
+pub fn fs_mode(path: Text) -> Result[Int, FileError]:
     return native_fs_mode(path)
 
 pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]:

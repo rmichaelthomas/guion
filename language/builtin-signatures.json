@@ -2594,6 +2594,24 @@
       "operation": "JsonKeys"
     },
     {
+      "name": "int_to_text_radix_native",
+      "parameters": [
+        "Int",
+        "Int"
+      ],
+      "result": "Text",
+      "operation": "IntToTextRadix"
+    },
+    {
+      "name": "text_parse_int_radix_native",
+      "parameters": [
+        "Text",
+        "Int"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "TextParseIntRadix"
+    },
+    {
       "name": "json_stringify_pretty_native",
       "parameters": [
         "Json",
@@ -3356,7 +3374,7 @@
       "parameters": [
         "Text"
       ],
-      "result": "Result[Text, FileError]",
+      "result": "Result[Int, FileError]",
       "operation": "FsOpMode"
     },
     {

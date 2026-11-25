@@ -30,7 +30,7 @@ pub mod json_decode;
 mod json_host;
 pub use json_host::run_json_instruction;
 mod text_host;
-pub use text_host::run_text_case_instruction;
+pub use text_host::{run_radix_instruction, run_text_case_instruction};
 pub mod json_try;
 mod matmul;
 pub mod ordering;
@@ -5182,6 +5182,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TextUpper => "TextUpper",
         Op::JsonKeys => "JsonKeys",
         Op::JsonStringifyPretty => "JsonStringifyPretty",
+        Op::IntToTextRadix => "IntToTextRadix",
+        Op::TextParseIntRadix => "TextParseIntRadix",
         Op::StdinReadLine => "StdinReadLine",
         Op::StdinReadAll => "StdinReadAll",
         Op::HigherOrder(_) => "HigherOrder",
@@ -6633,6 +6635,9 @@ impl VmHost for PortableHost {
         if run_text_case_instruction(&mut context, &limits)? {
             return Ok(());
         }
+        if run_radix_instruction(&mut context, &limits)? {
+            return Ok(());
+        }
         let op = context.instruction.op.clone();
         let span = context.instruction.span;
         // `parallel_map` needs threads, which this host does not have.
@@ -7356,10 +7361,10 @@ pub fn splitmix64_mix(state: u64) -> u64 {
 fn fs_result_type(function: FsFunction) -> Type {
     let ok = match function {
         FsFunction::Exists => Type::Bool,
-        FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile | FsFunction::Mode => {
-            Type::Text
+        FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
+        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy | FsFunction::Mode => {
+            Type::Int
         }
-        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy => Type::Int,
         FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
         FsFunction::ConfinedPath => Type::Text,
         FsFunction::GzipCompressFile

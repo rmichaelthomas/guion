@@ -179,11 +179,11 @@ fn lex_number(
                 ));
             }
             let in_base = |byte: u8| (byte as char).is_digit(radix);
-            for at in first..end {
-                if bytes[at] != b'_' && !in_base(bytes[at]) {
+            for (at, byte) in bytes.iter().enumerate().take(end).skip(first) {
+                if *byte != b'_' && !in_base(*byte) {
                     return Err(error(
                         at,
-                        format!("`{}` is not a {name} digit", bytes[at] as char),
+                        format!("`{}` is not a {name} digit", *byte as char),
                     ));
                 }
             }
