@@ -55,6 +55,7 @@ Each operation has an explicit failure result. Host failures carry a stable code
 | JSON column extraction | `json_int_column(rows, field) -> List[Int]`, `json_text_categories(rows, field) -> Json`, `json_as_int_list(values) -> List[Int]` | Typed bulk extraction from row arrays; exact integers only; category codes follow first-seen label order; traced type/field errors and normal collection/allocation ceilings | Implemented in artifact format 29 |
 | JSON projection | `json_project_columns(source, rows_path, field_names) -> Result[Json, JsonError]`, `json_text_categories_values(values) -> Json` | Streaming projection retains requested fields as columns; validates ignored JSON for syntax, duplicate keys, and limits; category codes follow first-seen label order | Implemented in artifact format 30 |
 | JSON encode | `json_stringify(value: Json) -> Text` | Stable object key order; bounded output; encode failures are stable runtime errors | Implemented |
+| text case | `text_lower(value: Text) -> Text`, `text_upper(value: Text) -> Text` | Unicode default case mapping, for display (`text_casefold` compares without case); no grant; a result over the text limit is `R_TEXT_LIMIT` | Implemented in artifact format 90 |
 | JSON values | `json_null`, `json_bool`, `json_int`, `json_float`, `json_text`, `json_array`, `json_object` | Typed constructors; same JSON and allocation ceilings; artifact format 20 | Implemented |
 | JSON updates | `json_push(array: Json, value: Json) -> Json`, `json_set(object: Json, key: Text, value: Json) -> Json` | Immutable updated copy; rejects the wrong container kind and enforces collection/text ceilings; artifact format 20 | Implemented |
 | HTTP text GET | `http_get(url: Text) -> Result[Text, HttpError]` | Exact-host grant required; HTTP/HTTPS only; proxy auto-discovery disabled; time, redirect and streamed body limits; non-2xx status is `Err` | Implemented |
@@ -115,6 +116,8 @@ The public signatures are:
 text_casefold(Text) -> Text
 text_collapse_whitespace(Text) -> Text
 text_normalize(Text, Text) -> Result[Text, StdError]
+text_lower(Text) -> Text
+text_upper(Text) -> Text
 crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 sqlite_open(Text) -> Result[Db, StdError]

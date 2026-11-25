@@ -42,3 +42,14 @@ pub fn text_collapse_whitespace(value: Text) -> Text:
 
 pub fn text_normalize(value: Text, form: Text) -> Result[Text, StdError]:
     return unicode_normalize(value, form)
+
+# Lowercases with the Unicode default case mapping, for display: a capital sigma ending a word
+# becomes the final form, and a dotted capital I becomes `i` and a combining dot. To compare text
+# without regard to case, use text_casefold instead.
+pub fn text_lower(value: Text) -> Text:
+    return text_lower_native(value)
+
+# Uppercases with the Unicode default case mapping, for display: Straße becomes STRASSE. To compare
+# text without regard to case, use text_casefold instead.
+pub fn text_upper(value: Text) -> Text:
+    return text_upper_native(value)

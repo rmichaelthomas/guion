@@ -1597,6 +1597,14 @@ mod tests {
     }
 
     #[test]
+    fn text_case_and_json_instructions_are_gated_on_format_90() {
+        assert_gated(Op::TextLower, 90);
+        assert_gated(Op::TextUpper, 90);
+        assert_gated(Op::JsonKeys, 90);
+        assert_gated(Op::JsonStringifyPretty, 90);
+    }
+
+    #[test]
     fn stdin_instructions_are_gated_on_format_77() {
         assert_gated(Op::StdinReadLine, 77);
         assert_gated(Op::StdinReadAll, 77);
@@ -4739,6 +4747,10 @@ pub enum Op {
     StdinReadAll,
     Crypto(CryptoFunction),
     Sleep,
+    TextLower,
+    TextUpper,
+    JsonKeys,
+    JsonStringifyPretty,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -4943,7 +4955,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 89;
+    pub const CURRENT_VERSION: u32 = 90;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5315,6 +5327,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "BLS signature verification requires artifact format 80",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_format_90_text_json(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
             ));
         }
         if self.format_version < 88 && artifact_uses_sleep(self) {
@@ -5749,6 +5767,10 @@ impl Artifact {
                         w.u8(function.code());
                     }
                     Op::Sleep => w.u8(224),
+                    Op::TextLower => w.u8(225),
+                    Op::TextUpper => w.u8(226),
+                    Op::JsonKeys => w.u8(227),
+                    Op::JsonStringifyPretty => w.u8(228),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -6387,6 +6409,16 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "the sleep instruction requires artifact format 88",
+                        ));
+                    }
+                    225 if format_version >= 90 => Op::TextLower,
+                    226 if format_version >= 90 => Op::TextUpper,
+                    227 if format_version >= 90 => Op::JsonKeys,
+                    228 if format_version >= 90 => Op::JsonStringifyPretty,
+                    225..=228 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
                         ));
                     }
                     210 if format_version >= 74 => {
@@ -7246,6 +7278,17 @@ fn artifact_uses_chain_issuer_crypto(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
             matches!(&instruction.op, Op::Crypto(crypto) if crypto.first_format() >= 84)
+        })
+    })
+}
+
+fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::TextLower | Op::TextUpper | Op::JsonKeys | Op::JsonStringifyPretty
+            )
         })
     })
 }

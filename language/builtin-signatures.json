@@ -2570,6 +2570,22 @@
       "operation": "UnixTimeMs"
     },
     {
+      "name": "text_lower_native",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextLower"
+    },
+    {
+      "name": "text_upper_native",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Text",
+      "operation": "TextUpper"
+    },
+    {
       "name": "sleep_ms",
       "parameters": [
         "Int"

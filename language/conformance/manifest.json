@@ -11494,6 +11494,148 @@
           "owner_task": 3
         }
       }
+    },
+    {
+      "id": "host_operation-text-case",
+      "kind": "host_operation",
+      "name": "text case",
+      "owner_task": 3,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.text-case.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "host_operation.text-case.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "host_operation.text-case.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      },
+      "source_signature": "`text_lower(value: Text) -> Text`, `text_upper(value: Text) -> Text`",
+      "declared_status": "Implemented in artifact format 90; no grant, no effect; runs in the browser VM"
+    },
+    {
+      "id": "opcode-text-lower",
+      "kind": "opcode",
+      "name": "TextLower",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-text-lower.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-text-lower.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-text-lower.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-text-upper",
+      "kind": "opcode",
+      "name": "TextUpper",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-text-upper.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-text-upper.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-text-upper.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-json-keys",
+      "kind": "opcode",
+      "name": "JsonKeys",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-json-keys.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-json-keys.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-json-keys.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
+    },
+    {
+      "id": "opcode-json-stringify-pretty",
+      "kind": "opcode",
+      "name": "JsonStringifyPretty",
+      "owner_task": 3,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-json-stringify-pretty.positive",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "negative": {
+          "case_id": "opcode-json-stringify-pretty.negative",
+          "state": "implemented",
+          "owner_task": 3
+        },
+        "interaction": {
+          "case_id": "opcode-json-stringify-pretty.interaction",
+          "state": "implemented",
+          "owner_task": 3
+        }
+      }
     }
   ],
   "regression_applications": [

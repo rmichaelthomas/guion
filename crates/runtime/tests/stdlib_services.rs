@@ -621,8 +621,10 @@ fn guion_public_service_modules_call_typed_native_apis() {
     fs::create_dir_all(&project).unwrap();
     // The frozen self-hosted compiler cannot encode the Crypto instruction that std:crypto now
     // contains, so this program calls the HMAC natives directly instead of importing std:crypto.
+    // It cannot encode the text case instructions (format 90) that std:text now contains either,
+    // so the case folding comes from std:unicode instead of std:text.
     let source = r##"
-import "std:text"
+import "std:unicode"
 import "std:sqlite"
 import "std:toml"
 import "std:calendar"
@@ -642,7 +644,7 @@ pub fn main() -> Int:
     let key = bytes_from_ints([1, 2, 3])
     let body = bytes_from_text("exact bytes")
     let signature = native_crypto_hmac_sha256(key, body)
-    if text_casefold("Straße") == "strasse" and rows[0].values[0].text == "persisted" and toml_render(document) == "# retained\nport = 9090\n" and calendar[0].uid == "event-1" and native_crypto_verify_hmac_sha256(key, body, signature):
+    if unicode_casefold("Straße") == "strasse" and rows[0].values[0].text == "persisted" and toml_render(document) == "# retained\nport = 9090\n" and calendar[0].uid == "event-1" and native_crypto_verify_hmac_sha256(key, body, signature):
         return 1
     return 0
 "##;

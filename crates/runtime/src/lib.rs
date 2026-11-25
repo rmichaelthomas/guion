@@ -1544,6 +1544,9 @@ impl Instance {
         if guion_vm_core::run_json_instruction(&mut json_context, &self.policy.vm_limits())? {
             return Ok(());
         }
+        if guion_vm_core::run_text_case_instruction(&mut json_context, &self.policy.vm_limits())? {
+            return Ok(());
+        }
         macro_rules! push_stack {
             ($value:expr) => {{
                 let value = $value;

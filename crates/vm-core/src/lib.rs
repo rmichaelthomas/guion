@@ -29,6 +29,8 @@ mod array_compute;
 pub mod json_decode;
 mod json_host;
 pub use json_host::run_json_instruction;
+mod text_host;
+pub use text_host::run_text_case_instruction;
 pub mod json_try;
 mod matmul;
 pub mod ordering;
@@ -5176,6 +5178,10 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::CallFn(_) => "CallFn",
         Op::RandomBytes => "RandomBytes",
         Op::Sleep => "Sleep",
+        Op::TextLower => "TextLower",
+        Op::TextUpper => "TextUpper",
+        Op::JsonKeys => "JsonKeys",
+        Op::JsonStringifyPretty => "JsonStringifyPretty",
         Op::StdinReadLine => "StdinReadLine",
         Op::StdinReadAll => "StdinReadAll",
         Op::HigherOrder(_) => "HigherOrder",
@@ -6621,6 +6627,10 @@ impl VmHost for PortableHost {
     fn host_op(&mut self, mut context: HostOpContext<'_>) -> Result<(), RuntimeError> {
         use guion_model::HigherOrderKind as Kind;
         if self.portable_json(&mut context)? {
+            return Ok(());
+        }
+        let limits = self.limits;
+        if run_text_case_instruction(&mut context, &limits)? {
             return Ok(());
         }
         let op = context.instruction.op.clone();

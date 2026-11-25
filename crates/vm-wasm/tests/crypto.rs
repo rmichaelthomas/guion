@@ -1101,3 +1101,22 @@ fn main() -> Int:\n    return 0\n",
     // default browser budget of MAX_BROWSER_STEPS.
     assert!(tsa_steps < 300 && ed_steps < 50, "{tsa_steps} {ed_steps}");
 }
+
+const CASE_PROGRAM: &str = "import \"std:text\"
+
+fn transcript() -> Text:
+    return text_upper(\"Stra\u{df}e\") + \"|\" + text_lower(\"\u{3a3}\u{391}\u{3a3}\") + \"|\" + text_lower(\"ABC\") + \"|\" + text_upper(\"\")
+
+fn main() -> Int:
+    return 0
+";
+
+/// `text_lower` and `text_upper` are pure, so the browser VM runs them with the same results as the
+/// native runtime.
+#[test]
+fn browser_text_case_matches_native() {
+    let artifact = gub_project("case", CASE_PROGRAM);
+    let expected = Outcome::Text("STRASSE|\u{3c3}\u{3b1}\u{3c2}|abc|".to_owned());
+    assert_eq!(native(&artifact, "transcript"), expected, "native");
+    assert_eq!(browser(&artifact, "transcript"), expected, "browser");
+}

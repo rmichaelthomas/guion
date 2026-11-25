@@ -25,6 +25,9 @@ Import `std:time` and call `today_local() -> Date` when an application needs the
 
 `sleep_ms(ms: Int) -> Unit` (artifact format 88) waits for at least `ms` milliseconds unless a polled signal arrives, from 0 to 86400000 (a day); anything else is `R_SLEEP_RANGE`. It needs no grant and `guion inspect` reports it as `clock.sleep`. Use it in a service's loop: `sleep_ms(1000)` between polls. A task in `together:` that reaches its `wait_within` deadline stops sleeping within about 10 ms, and so does a run that is stopped with Ctrl-C. In a program that polls for signals with `process_signal_poll`, a signal that arrives ends one sleep early on each thread and stays pending until the next poll: `main` and every task in a `together:` block that is sleeping when it arrives (or, if the program has not read it yet, sleeps next) wakes once for it. It does not end later sleeps on the same thread, so a backoff loop that does not poll still waits its full time after the first one, and a worker's sleep cannot use up the wake that `main`'s polling loop is waiting for. A recording leaves the sleep off the tape, and a replay does not wait. The browser VM refuses it with `R_HOST_UNSUPPORTED`. A function that calls it is not compiled to machine code, which costs nothing because it spends its time waiting.
 
+`text_lower(value)` and `text_upper(value)` (`std:text`, artifact format 90) change case for display with the Unicode default case mapping: `text_upper("Straße")` is `"STRASSE"`, and a capital sigma ending a word lowercases to `ς`. To compare text without regard to case, use `text_casefold` instead.
+
+
 ## Commands
 
 The default build is the Python-free core. Core commands do not discover or launch Python or uv. The Python bridge and managed Python dependency manager are available only in a build made with the explicit `python-interop` feature.
