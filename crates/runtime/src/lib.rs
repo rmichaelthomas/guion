@@ -156,6 +156,23 @@ mod native_inline_arena_tests {
     }
 
     #[test]
+    fn boxed_handle_list_reads_back_through_its_address() {
+        let budget = Budget::new(100000, 100000, CancellationToken::new(), None);
+        let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
+        let small = arena
+            .store_native_text_list(vec!["a".into(), "b".into()])
+            .unwrap();
+        let large = arena
+            .store_native_text_list((0..40).map(|i| i.to_string().into()).collect())
+            .unwrap();
+        for handle in [small, large] {
+            let list = arena.handle_list(handle).unwrap();
+            let items = unsafe { std::slice::from_raw_parts(list.data, list.len) };
+            assert!(items.iter().all(|item| *item > 0));
+        }
+    }
+
+    #[test]
     fn tagged_value_arena_uses_inline_storage_and_stable_overflow_growth() {
         let mut arena = NativeListArena::new(std::ptr::null(), 10000, 10000, 0, None);
         let value = || NativeTaggedValue {
