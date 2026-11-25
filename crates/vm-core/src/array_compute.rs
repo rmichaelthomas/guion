@@ -10,6 +10,7 @@ use guion_model::{
 
 use crate::array::{float_value, with_element, ArrayError, Charge, Element, Release};
 use crate::matmul;
+use crate::parallel::{for_each_chunk_mut, threads_for_elements};
 
 fn error<T>(code: &'static str, message: impl Into<String>) -> Result<T, ArrayError> {
     Err((code, message.into()))
@@ -26,6 +27,80 @@ fn finish<T: Element>(shape: Vec<usize>, data: Vec<T>) -> Result<Value, ArrayErr
         shape,
         T::wrap(data),
     )?)))
+}
+
+/// Builds a vector of `size` elements by letting `fill(offset, chunk)` write each disjoint
+/// chunk of its spare capacity on several threads. The length is set only once every chunk
+/// has succeeded, so an error never exposes an unwritten element.
+fn collect_chunks<T: Element, E: Send>(
+    size: usize,
+    threads: usize,
+    fill: impl Fn(usize, &mut [std::mem::MaybeUninit<T>]) -> Result<(), E> + Sync,
+) -> Result<Vec<T>, E> {
+    let mut out: Vec<T> = Vec::with_capacity(size);
+    for_each_chunk_mut(&mut out.spare_capacity_mut()[..size], threads, fill)?;
+    // SAFETY: `for_each_chunk_mut` returned `Ok`, so `fill` ran to completion over every chunk
+    // and the chunks tile `0..size` exactly; each of those elements was written, and the
+    // capacity is at least `size`.
+    unsafe { out.set_len(size) };
+    Ok(out)
+}
+
+/// The operands of one element-wise kernel call over equal-length buffers.
+#[derive(Clone, Copy)]
+enum Operands<'a, T> {
+    Pair(&'a [T], &'a [T]),
+    ScalarRight(&'a [T], T),
+    ScalarLeft(T, &'a [T]),
+}
+
+/// Writes `f(x, y)` over `out`, which starts at element `offset` of the whole result.
+/// Returns the failing code and global index of the first failure in the chunk, and records
+/// in `unacceptable` whether a result of the `_raw` operations was not finite.
+fn fill_zipped<T: Numeric>(
+    operands: Operands<'_, T>,
+    offset: usize,
+    out: &mut [std::mem::MaybeUninit<T>],
+    f: &impl Fn(T, T) -> Result<T, &'static str>,
+    unacceptable: &std::sync::atomic::AtomicBool,
+) -> Result<(), (&'static str, usize)> {
+    let mut bad = false;
+    let end = offset + out.len();
+    let result = (|| {
+        match operands {
+            Operands::Pair(a, b) => {
+                for (i, ((slot, x), y)) in out
+                    .iter_mut()
+                    .zip(&a[offset..end])
+                    .zip(&b[offset..end])
+                    .enumerate()
+                {
+                    let value = f(*x, *y).map_err(|code| (code, offset + i))?;
+                    bad |= !value.acceptable();
+                    slot.write(value);
+                }
+            }
+            Operands::ScalarRight(a, y) => {
+                for (i, (slot, x)) in out.iter_mut().zip(&a[offset..end]).enumerate() {
+                    let value = f(*x, y).map_err(|code| (code, offset + i))?;
+                    bad |= !value.acceptable();
+                    slot.write(value);
+                }
+            }
+            Operands::ScalarLeft(x, b) => {
+                for (i, (slot, y)) in out.iter_mut().zip(&b[offset..end]).enumerate() {
+                    let value = f(x, *y).map_err(|code| (code, offset + i))?;
+                    bad |= !value.acceptable();
+                    slot.write(value);
+                }
+            }
+        }
+        Ok(())
+    })();
+    if bad {
+        unacceptable.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    result
 }
 
 fn array_arg(args: &[Value], index: usize) -> Result<&ArrayValue, ArrayError> {
@@ -308,10 +383,26 @@ fn map<A: Element, R: Element>(
     array: &ArrayValue,
     charge: &mut Charge<'_>,
     what: &str,
-    f: impl Fn(A) -> Result<R, ArrayError>,
+    f: impl Fn(A) -> Result<R, ArrayError> + Sync,
 ) -> Result<Value, ArrayError> {
     let items = A::items(&array.data);
     charge(array_bytes(R::TYPE, array.shape.len(), items.len()))?;
+    let threads = threads_for_elements(items.len());
+    if threads > 1 {
+        let out = collect_chunks(items.len(), threads, |offset, chunk| {
+            for (i, (slot, item)) in chunk.iter_mut().zip(&items[offset..]).enumerate() {
+                slot.write(f(*item).map_err(|(code, message)| {
+                    if message.is_empty() {
+                        element_error(code, what, R::TYPE, offset + i)
+                    } else {
+                        (code, message)
+                    }
+                })?);
+            }
+            Ok(())
+        })?;
+        return finish(array.shape.clone(), out);
+    }
     let mut out = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         out.push(f(*item).map_err(|(code, message)| {
@@ -336,7 +427,7 @@ fn map_owned<T: Element>(
     args: &mut [Value],
     charge: &mut Charge<'_>,
     what: &str,
-    f: impl Fn(T) -> Result<T, ArrayError>,
+    f: impl Fn(T) -> Result<T, ArrayError> + Sync,
 ) -> Result<Value, ArrayError> {
     let shape = array_arg(args, 0)?.shape.clone();
     if !reusable(&args[0], &shape) {
@@ -346,7 +437,24 @@ fn map_owned<T: Element>(
         unreachable!("checked by reusable")
     };
     let target = Shared::get_mut(&mut owned).expect("a unique array");
-    for (index, slot) in T::items_mut(&mut target.data).iter_mut().enumerate() {
+    let items = T::items_mut(&mut target.data);
+    let threads = threads_for_elements(items.len());
+    if threads > 1 {
+        for_each_chunk_mut(items, threads, |offset, chunk| {
+            for (i, slot) in chunk.iter_mut().enumerate() {
+                *slot = f(*slot).map_err(|(code, message)| {
+                    if message.is_empty() {
+                        element_error(code, what, T::TYPE, offset + i)
+                    } else {
+                        (code, message)
+                    }
+                })?;
+            }
+            Ok(())
+        })?;
+        return Ok(Value::Array(owned));
+    }
+    for (index, slot) in items.iter_mut().enumerate() {
         *slot = f(*slot).map_err(|(code, message)| {
             if message.is_empty() {
                 element_error(code, what, T::TYPE, index)
@@ -369,7 +477,7 @@ fn zip_numeric<T: Numeric>(
     charge: &mut Charge<'_>,
     what: &str,
     raw: bool,
-    f: impl Fn(T, T) -> Result<T, &'static str>,
+    f: impl Fn(T, T) -> Result<T, &'static str> + Sync,
 ) -> Result<Value, ArrayError> {
     let (reuse, shape) = {
         let left = array_arg(args, 0)?;
@@ -400,9 +508,14 @@ fn zip_numeric<T: Numeric>(
         };
         if left.shape == right.shape {
             charge(array_bytes(T::TYPE, shape.len(), left.size()))?;
+            let fail = |code, index| element_error(code, what, T::TYPE, index);
+            let threads = threads_for_elements(left.size());
+            if threads > 1 {
+                let operands = Operands::Pair(T::items(&left.data), T::items(&right.data));
+                return zip_allocating(shape, operands, threads, &f, fail);
+            }
             let mut out: Vec<T> = Vec::with_capacity(left.size());
             let mut unacceptable = false;
-            let fail = |code, index| element_error(code, what, T::TYPE, index);
             for (index, (x, y)) in T::items(&left.data)
                 .iter()
                 .zip(T::items(&right.data))
@@ -418,6 +531,31 @@ fn zip_numeric<T: Numeric>(
                 }
             }
             return finish(shape, out);
+        }
+        let threads = threads_for_elements(shape_size(&shape).unwrap_or(0));
+        if threads > 1 {
+            let operands = if right.size() == 1 && left.shape == shape {
+                Some(Operands::ScalarRight(
+                    T::items(&left.data),
+                    T::items(&right.data)[0],
+                ))
+            } else if left.size() == 1 && right.shape == shape {
+                Some(Operands::ScalarLeft(
+                    T::items(&left.data)[0],
+                    T::items(&right.data),
+                ))
+            } else {
+                None
+            };
+            if let Some(operands) = operands {
+                charge(array_bytes(
+                    T::TYPE,
+                    shape.len(),
+                    shape_size(&shape).unwrap_or(0),
+                ))?;
+                let fail = |code, index| element_error(code, what, T::TYPE, index);
+                return zip_allocating(shape, operands, threads, &f, fail);
+            }
         }
         let result = zip_with(left, right, charge, what, &f)?;
         if let (true, Value::Array(array)) = (raw, &result) {
@@ -443,8 +581,38 @@ fn zip_numeric<T: Numeric>(
     let apply = |x: T, y: T| if which == 0 { f(x, y) } else { f(y, x) };
     // Finiteness is accumulated without branching so the loop stays tight; only a result
     // that failed it is searched for the offending element.
+    let threads = threads_for_elements(items.len());
     let mut unacceptable = false;
-    if other.len() == items.len() {
+    if threads > 1 {
+        let flag = std::sync::atomic::AtomicBool::new(false);
+        let other_whole = other.len() == items.len();
+        let y = other[0];
+        for_each_chunk_mut(&mut *items, threads, |offset, chunk| {
+            let mut bad = false;
+            let result = (|| {
+                if other_whole {
+                    for (i, (slot, y)) in chunk.iter_mut().zip(&other[offset..]).enumerate() {
+                        let value = apply(*slot, *y).map_err(|code| (code, offset + i))?;
+                        bad |= !value.acceptable();
+                        *slot = value;
+                    }
+                } else {
+                    for (i, slot) in chunk.iter_mut().enumerate() {
+                        let value = apply(*slot, y).map_err(|code| (code, offset + i))?;
+                        bad |= !value.acceptable();
+                        *slot = value;
+                    }
+                }
+                Ok(())
+            })();
+            if bad {
+                flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            result
+        })
+        .map_err(|(code, index)| fail(code, index))?;
+        unacceptable = flag.load(std::sync::atomic::Ordering::Relaxed);
+    } else if other.len() == items.len() {
         for (index, (slot, y)) in items.iter_mut().zip(other).enumerate() {
             let value = apply(*slot, *y).map_err(|code| fail(code, index))?;
             unacceptable |= !value.acceptable();
@@ -464,6 +632,29 @@ fn zip_numeric<T: Numeric>(
         }
     }
     Ok(Value::Array(owned))
+}
+
+/// The threaded allocating path of `zip_numeric`: the result is built chunk by chunk and,
+/// when any result was not finite, searched once for the first such element.
+fn zip_allocating<T: Numeric>(
+    shape: Vec<usize>,
+    operands: Operands<'_, T>,
+    threads: usize,
+    f: &(impl Fn(T, T) -> Result<T, &'static str> + Sync),
+    fail: impl Fn(&'static str, usize) -> ArrayError,
+) -> Result<Value, ArrayError> {
+    let size = shape_size(&shape).unwrap_or(0);
+    let unacceptable = std::sync::atomic::AtomicBool::new(false);
+    let out = collect_chunks(size, threads, |offset, chunk| {
+        fill_zipped(operands, offset, chunk, f, &unacceptable)
+    })
+    .map_err(|(code, index)| fail(code, index))?;
+    if unacceptable.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Some(index) = T::first_nonfinite(&out) {
+            return Err(fail(NONFINITE, index));
+        }
+    }
+    finish(shape, out)
 }
 
 fn scalar_array<T: Element>(value: &Value) -> Result<ArrayValue, ArrayError> {
@@ -2158,5 +2349,229 @@ mod budget_tests {
             output + temporary,
             "the temporary is charged while the kernel runs"
         );
+    }
+}
+
+#[cfg(test)]
+mod threaded_tests {
+    use super::*;
+    use crate::parallel::{threaded_calls, with_forced_threads};
+
+    const SIZE: usize = 3_000_000;
+
+    fn make<T: Element>(items: Vec<T>) -> Value {
+        Value::Array(Shared::new(
+            ArrayValue::new(vec![items.len()], T::wrap(items)).expect("array"),
+        ))
+    }
+
+    fn filled<T: Element>(fill: impl Fn(usize) -> i64) -> Value {
+        make(
+            (0..SIZE)
+                .map(|i| T::from_int(fill(i) as i128).expect("fits"))
+                .collect::<Vec<T>>(),
+        )
+    }
+
+    fn apply(
+        function: ArrayFunction,
+        element: ElementType,
+        mut args: Vec<Value>,
+    ) -> Result<Value, ArrayError> {
+        let mut charge = |_: usize| Ok(());
+        let mut release = |_: usize| {};
+        crate::array::apply(function, element, &mut args, &mut charge, &mut release)
+    }
+
+    fn bytes<T: Element>(value: &Value) -> Vec<u8> {
+        let Value::Array(array) = value else {
+            panic!("an array")
+        };
+        let mut out = Vec::new();
+        for item in T::items(&array.data) {
+            item.write_le(&mut out);
+        }
+        out
+    }
+
+    fn scalar<T: Element>() -> Value {
+        if T::TYPE.is_float() {
+            float_value(3.0).expect("finite")
+        } else {
+            Value::Int(BigInt::from_i64(3))
+        }
+    }
+
+    fn equals_single_thread<T: Element>(element: ElementType) {
+        use ArrayFunction::*;
+        let cases = [
+            (Add, false),
+            (Sub, false),
+            (Mul, false),
+            (Div, false),
+            (AddScalar, true),
+            (SubScalar, true),
+            (MulScalar, true),
+            (DivScalar, true),
+        ];
+        for (function, with_scalar) in cases {
+            for in_place in [false, true] {
+                let run = |threads: usize| {
+                    let a = filled::<T>(|i| (i % 1000) as i64 + 1);
+                    let b = if with_scalar {
+                        scalar::<T>()
+                    } else {
+                        filled::<T>(|i| (i % 97) as i64 + 1)
+                    };
+                    // A second holder of `a` forces the allocating path.
+                    let keep = (!in_place).then(|| a.clone());
+                    let result =
+                        with_forced_threads(threads, || apply(function, element, vec![a, b]));
+                    drop(keep);
+                    bytes::<T>(
+                        &result.unwrap_or_else(|e| panic!("{function:?} {element:?}: {e:?}")),
+                    )
+                };
+                assert!(
+                    run(1) == run(4),
+                    "{function:?} {element:?} in_place={in_place}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn threaded_arithmetic_equals_single_thread() {
+        equals_single_thread::<f64>(ElementType::F64);
+        equals_single_thread::<f32>(ElementType::F32);
+        equals_single_thread::<i64>(ElementType::I64);
+        equals_single_thread::<i32>(ElementType::I32);
+    }
+
+    #[test]
+    fn threaded_math_equals_single_thread() {
+        for function in [ArrayFunction::Sqrt, ArrayFunction::Exp, ArrayFunction::Sin] {
+            let run = |threads: usize| {
+                let a = filled::<f64>(|i| (i % 50) as i64);
+                bytes::<f64>(
+                    &with_forced_threads(threads, || apply(function, ElementType::F64, vec![a]))
+                        .expect("ok"),
+                )
+            };
+            assert!(run(1) == run(4), "{function:?}");
+        }
+    }
+
+    fn message(result: Result<Value, ArrayError>) -> (String, String) {
+        let (code, message) = result.expect_err("an error");
+        (code.to_string(), message)
+    }
+
+    #[test]
+    fn threaded_error_index_is_the_first_failure() {
+        for in_place in [false, true] {
+            let a = filled::<i64>(|i| {
+                if i == 2_999_999 || i == 1_500_000 {
+                    i64::MAX
+                } else {
+                    1
+                }
+            });
+            let b = filled::<i64>(|_| 1);
+            let keep = (!in_place).then(|| a.clone());
+            let result = with_forced_threads(4, || {
+                apply(ArrayFunction::Add, ElementType::I64, vec![a, b])
+            });
+            drop(keep);
+            let (code, text) = message(result);
+            assert_eq!(code, "R_ARRAY_OVERFLOW");
+            assert!(text.contains("element 1500000"), "{text}");
+
+            let a = filled::<f64>(|i| {
+                if i == 2_999_999 || i == 1_500_000 {
+                    1
+                } else {
+                    0
+                }
+            });
+            let Value::Array(array) = &a else {
+                unreachable!()
+            };
+            let mut items = f64::items(&array.data).to_vec();
+            items[2_999_999] = 1e308;
+            items[1_500_000] = 1e308;
+            let a = make(items);
+            let b = filled::<f64>(|_| 10);
+            let keep = (!in_place).then(|| a.clone());
+            let result = with_forced_threads(4, || {
+                apply(ArrayFunction::Mul, ElementType::F64, vec![a, b])
+            });
+            drop(keep);
+            let (code, text) = message(result);
+            assert_eq!(code, "R_FLOAT_NONFINITE", "{text}");
+            assert!(text.contains("element 1500000"), "{text}");
+
+            // The same through the scalar path, and a division by zero.
+            let a = filled::<i64>(|i| {
+                if i == 2_999_999 || i == 1_500_000 {
+                    0
+                } else {
+                    1
+                }
+            });
+            let b = filled::<i64>(|_| 1);
+            let keep = (!in_place).then(|| a.clone());
+            let result = with_forced_threads(4, || {
+                apply(ArrayFunction::Div, ElementType::I64, vec![b, a])
+            });
+            drop(keep);
+            let (_, text) = message(result);
+            assert!(text.contains("element 1500000"), "{text}");
+        }
+    }
+
+    #[test]
+    fn shared_operand_is_not_modified() {
+        let a = filled::<f64>(|i| (i % 10) as i64);
+        let before = bytes::<f64>(&a);
+        let holder = a.clone();
+        let b = filled::<f64>(|_| 2);
+        let result = with_forced_threads(4, || {
+            apply(ArrayFunction::Add, ElementType::F64, vec![a, b])
+        });
+        assert!(result.is_ok());
+        assert!(bytes::<f64>(&holder) == before);
+    }
+
+    #[test]
+    fn large_kernels_fan_out_and_small_ones_do_not() {
+        use ArrayFunction::*;
+        for (function, in_place) in [
+            (Add, false),
+            (Add, true),
+            (AddScalar, false),
+            (AddScalar, true),
+            (Sqrt, true),
+            (Sqrt, false),
+        ] {
+            let a = filled::<f64>(|i| (i % 10) as i64);
+            let keep = (!in_place).then(|| a.clone());
+            let args = match function {
+                AddScalar => vec![a, scalar::<f64>()],
+                Add => vec![a, filled::<f64>(|_| 1)],
+                _ => vec![a],
+            };
+            let before = threaded_calls();
+            with_forced_threads(4, || apply(function, ElementType::F64, args)).expect("ok");
+            drop(keep);
+            assert!(
+                threaded_calls() > before,
+                "{function:?} in_place={in_place} stayed on one thread"
+            );
+        }
+        let before = threaded_calls();
+        let small = make(vec![1.0f64; 1000]);
+        apply(Add, ElementType::F64, vec![small.clone(), small]).expect("ok");
+        assert_eq!(threaded_calls(), before);
     }
 }

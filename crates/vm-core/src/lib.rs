@@ -43,6 +43,7 @@ pub mod json_projection;
 pub mod json_try;
 mod matmul;
 pub mod ordering;
+mod parallel;
 mod register;
 pub mod services;
 mod verify;
