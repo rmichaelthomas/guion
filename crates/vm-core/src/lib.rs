@@ -1275,7 +1275,7 @@ fn execute_vm_frame_with_forwarders<const PROFILED: bool, H: VmHost>(
                 if right.is_zero() {
                     return Err(RuntimeError::new(
                         "R_DIV_ZERO",
-                        "division by zero",
+                        "integer division by zero",
                         instruction.span,
                     ));
                 }

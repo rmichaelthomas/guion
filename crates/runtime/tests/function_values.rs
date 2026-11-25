@@ -888,9 +888,8 @@ fn an_error_inside_a_function_value_is_the_same_with_machine_code_on_and_off() {
     let artifact = compile("function-values-native.gu", source).unwrap();
     let on = run_artifact(artifact.clone(), policy(), Runtime::new()).unwrap_err();
     let off = run_artifact(artifact, policy(), Runtime::vm_only()).unwrap_err();
-    // The native and VM messages for a division by zero differ in wording; the code and
-    // the spans, callee first, are the same.
-    assert_eq!((&on.0, &on.2), (&off.0, &off.2));
+    // Code, message and spans (callee first) are the same with machine code on and off.
+    assert_eq!(on, off);
     assert_eq!(on.0, "R_DIV_ZERO");
 }
 
