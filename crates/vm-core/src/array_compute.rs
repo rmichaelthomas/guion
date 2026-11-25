@@ -1160,12 +1160,14 @@ fn radix_sort_stable<T: Numeric>(
     held: &mut usize,
 ) -> Result<Vec<T>, ArrayError> {
     let len = items.len();
-    hold(charge, held, array_bytes(T::TYPE, 1, len))?;
-    charge(array_bytes(T::TYPE, 1, len))?;
     let passes = radix_passes::<T>(len, |each| {
         items.iter().for_each(|item| each(item.radix_key()))
     });
+    // The first buffer is allocated before the second is charged, so the command line's
+    // refill from live memory sees it and the two buffers are charged together.
+    hold(charge, held, array_bytes(T::TYPE, 1, len))?;
     let mut from = items.to_vec();
+    charge(array_bytes(T::TYPE, 1, len))?;
     let mut to = vec![T::default(); len];
     for (shift, count) in passes {
         let mut offsets = radix_offsets(&count);
@@ -1192,17 +1194,18 @@ fn radix_argsort_stable<T: Numeric>(
     held: &mut usize,
 ) -> Result<Vec<i64>, ArrayError> {
     let len = items.len();
-    hold(charge, held, array_bytes(ElementType::I64, 1, len))?;
-    charge(array_bytes(ElementType::I64, 1, len))?;
     let passes = radix_passes::<T>(len, |each| {
         items.iter().for_each(|item| each(item.radix_key()))
     });
+    // The first buffer is allocated before the second is charged (see `radix_sort_stable`).
+    hold(charge, held, array_bytes(ElementType::I64, 1, len))?;
     if T::KEY_BYTES <= 4 && len <= u32::MAX as usize {
         let mut from: Vec<u64> = items
             .iter()
             .enumerate()
             .map(|(index, item)| (item.radix_key() << 32) | index as u64)
             .collect();
+        charge(array_bytes(ElementType::I64, 1, len))?;
         let mut to = vec![0u64; len];
         for (shift, count) in passes {
             let shift = shift + 32;
@@ -1222,6 +1225,7 @@ fn radix_argsort_stable<T: Numeric>(
             .collect());
     }
     let mut from: Vec<i64> = (0..len as i64).collect();
+    charge(array_bytes(ElementType::I64, 1, len))?;
     let mut to = vec![0i64; len];
     for (shift, count) in passes {
         let mut offsets = radix_offsets(&count);
