@@ -84,8 +84,12 @@ fn main() -> Int:
 
 /// Starts the TLS server program, then runs the client until it stops seeing a refused connect.
 fn exchange(name: &str, ca_file: &str) -> (Output, Output) {
+    exchange_with(SERVER, name, ca_file)
+}
+
+fn exchange_with(server_source: &str, name: &str, ca_file: &str) -> (Output, Output) {
     let port = free_port();
-    let dir = project(name, &SERVER.replace("PORT", &port.to_string()));
+    let dir = project(name, &server_source.replace("PORT", &port.to_string()));
     let mut server =
         spawn(&mut guion(&dir, &["--allow-bind", "127.0.0.1:*"])).expect("server starts");
     let client_dir = project(&format!("{name}-client"), &client(ca_file, port));
@@ -116,6 +120,25 @@ fn tls_round_trip_verifies_the_server_certificate_against_a_supplied_ca() {
     assert_eq!(client_out.trim(), "echo:hello tls", "{client:?}");
     assert!(
         String::from_utf8_lossy(&server.stdout).contains("served"),
+        "{server:?}"
+    );
+}
+
+/// A TLS-accepted connection is a `TcpConn`, so `tcp_peer` reports the client behind it.
+#[test]
+fn tcp_peer_works_on_a_tls_accepted_connection() {
+    let server = SERVER.replace(
+        "print(\"served\")",
+        "let peer = unwrap(tcp_peer(conn))\n            print(\"peer \" + peer.host)",
+    );
+    let (client, server) = exchange_with(&server, "tls-peer", "ca.pem");
+    assert_eq!(
+        String::from_utf8_lossy(&client.stdout).trim(),
+        "echo:hello tls",
+        "{client:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&server.stdout).contains("peer 127.0.0.1"),
         "{server:?}"
     );
 }

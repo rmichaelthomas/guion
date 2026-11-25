@@ -7392,6 +7392,7 @@ fn net_signature(function: guion_model::NetFunction) -> (Vec<Type>, Type) {
             vec![Type::Int, Type::Text, Type::Int, Type::Bytes],
             Type::Int,
         ),
+        N::PeerAddress => (vec![Type::Int], Type::Text),
         N::UdpRecvFrom => (
             vec![Type::Int, Type::Int, Type::Int],
             Type::List(Box::new(Type::Bytes)),

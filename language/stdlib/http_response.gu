@@ -47,7 +47,8 @@ pub record Response:
     headers: List[Header]
     body: Body
 
-# `params` is empty until a router fills it.
+# `params` is empty until a router fills it. `peer` is the client's address, `host:port` with an IPv6
+# host in brackets (`[::1]:4000`), and empty when the request did not come from a connection.
 pub record Request:
     method: Text
     path: Text
@@ -55,6 +56,7 @@ pub record Request:
     headers: List[Header]
     body: Bytes
     params: Map[Text, Text]
+    peer: Text
 
 # Where a file-backed body comes from and how it is framed, so a server can send it in blocks.
 pub record FilePlan:
@@ -238,7 +240,7 @@ pub fn response_redirect(status: Int, location: Text) -> Result[Response, HttpFa
 pub fn request_new(method: Text, path: Text) -> Request:
     let query: Map[Text, List[Text]] = {}
     let params: Map[Text, Text] = {}
-    return Request(method, path, query, [], bytes_from_ints([]), params)
+    return Request(method, path, query, [], bytes_from_ints([]), params, "")
 
 # The first header of that name, compared without case.
 pub fn request_header(request: Request, name: Text) -> Option[Text]:

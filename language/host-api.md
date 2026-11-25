@@ -59,6 +59,7 @@ Each operation has an explicit failure result. Host failures carry a stable code
 | JSON keys | `json_keys(value: Json) -> Result[List[Text], JsonError]` | Top-level keys of an object in the order `json_stringify` writes them; a value that is not an object is `Err` with code `R_JSON_TYPE`; bounded by the collection and allocation limits | Implemented in artifact format 90 |
 | JSON pretty encode | `json_stringify_pretty(value: Json, indent: Int) -> Text` | One member or element per line, `indent` spaces per level; `indent` is 0 to 16 or `R_JSON_INDENT`; no trailing newline; bounded output | Implemented in artifact format 90 |
 | file modes | `fs_set_mode(path: Text, mode: Text) -> Result[Unit, FileError]`, `fs_mode(path: Text) -> Result[Text, FileError]` | Octal text (1 to 4 digits to set; 3, or 4 with setuid, setgid or sticky, to read), as `chmod`; path resolved against the file root like the other `std:fs` functions; write grant to set, read grant to read; `R_FILE_MODE_INVALID`, `R_FILE_UNSUPPORTED` (no permission bits) | Implemented in artifact format 90 |
+| peer address | `tcp_peer(conn: TcpConn) -> Result[PeerAddress, StdError]`, `http_server_peer(request: HttpServerRequest) -> Result[PeerAddress, StdError]`, `Request.peer` | The remote end of a connected TCP or TLS socket as host and port (IPv6 without brackets, IPv4-mapped IPv6 as IPv4); `Request.peer` is `host:port` with IPv6 in brackets, empty when unknown; no grant beyond holding the connection; effect `network.socket`; `E_NET_HANDLE` for anything but a connected socket; `R_HOST_UNSUPPORTED` in the browser VM | Implemented in artifact format 90 |
 | JSON values | `json_null`, `json_bool`, `json_int`, `json_float`, `json_text`, `json_array`, `json_object` | Typed constructors; same JSON and allocation ceilings; artifact format 20 | Implemented |
 | JSON updates | `json_push(array: Json, value: Json) -> Json`, `json_set(object: Json, key: Text, value: Json) -> Json` | Immutable updated copy; rejects the wrong container kind and enforces collection/text ceilings; artifact format 20 | Implemented |
 | HTTP text GET | `http_get(url: Text) -> Result[Text, HttpError]` | Exact-host grant required; HTTP/HTTPS only; proxy auto-discovery disabled; time, redirect and streamed body limits; non-2xx status is `Err` | Implemented |
@@ -123,6 +124,7 @@ text_lower(Text) -> Text
 text_upper(Text) -> Text
 fs_set_mode(Text, Text) -> Result[Unit, FileError]
 fs_mode(Text) -> Result[Text, FileError]
+tcp_peer(TcpConn) -> Result[PeerAddress, StdError]
 crypto_hmac_sha256(Bytes, Bytes) -> Bytes
 crypto_verify_hmac_sha256(Bytes, Bytes, Bytes) -> Bool
 sqlite_open(Text) -> Result[Db, StdError]

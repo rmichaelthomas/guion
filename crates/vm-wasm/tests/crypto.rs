@@ -1193,3 +1193,15 @@ fn file_modes_are_unsupported_in_the_browser() {
         assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
     }
 }
+
+/// `tcp_peer` needs a socket, which the browser VM does not have.
+#[test]
+fn tcp_peer_is_unsupported_in_the_browser() {
+    let artifact = gub_project(
+        "tcp-peer",
+        "import \"std:net\"\nfn main() -> Int:\n    print(is_ok(tcp_peer(TcpConn(1))))\n    return 0\n",
+    );
+    let response = browser_response(&artifact, "main", 1000);
+    assert_eq!(response["ok"], false, "{response}");
+    assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+}

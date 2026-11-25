@@ -1611,6 +1611,11 @@ mod tests {
     }
 
     #[test]
+    fn peer_address_instruction_is_gated_on_format_90() {
+        assert_gated(Op::Net(NetFunction::PeerAddress), 90);
+    }
+
+    #[test]
     fn stdin_instructions_are_gated_on_format_77() {
         assert_gated(Op::StdinReadLine, 77);
         assert_gated(Op::StdinReadAll, 77);
@@ -4489,10 +4494,13 @@ pub enum NetFunction {
     UdpBind,
     UdpSendTo,
     UdpRecvFrom,
+    /// The remote address of a connected TCP or TLS socket as `host:port`, IPv6 in brackets
+    /// (format 90); needs no grant beyond holding the connection.
+    PeerAddress,
 }
 
 impl NetFunction {
-    const ALL: [NetFunction; 10] = [
+    const ALL: [NetFunction; 11] = [
         NetFunction::TcpConnect,
         NetFunction::TcpListen,
         NetFunction::TcpAccept,
@@ -4503,6 +4511,7 @@ impl NetFunction {
         NetFunction::UdpBind,
         NetFunction::UdpSendTo,
         NetFunction::UdpRecvFrom,
+        NetFunction::PeerAddress,
     ];
 
     pub fn code(self) -> u8 {
@@ -4529,6 +4538,7 @@ impl NetFunction {
             NetFunction::UdpBind => "NetUdpBind",
             NetFunction::UdpSendTo => "NetUdpSendTo",
             NetFunction::UdpRecvFrom => "NetUdpRecvFrom",
+            NetFunction::PeerAddress => "NetPeerAddress",
         }
     }
 
@@ -4542,7 +4552,7 @@ impl NetFunction {
     /// Number of operands the function pops.
     pub fn arity(self) -> usize {
         match self {
-            NetFunction::LocalPort | NetFunction::Close => 1,
+            NetFunction::LocalPort | NetFunction::Close | NetFunction::PeerAddress => 1,
             NetFunction::TcpListen | NetFunction::TcpAccept | NetFunction::UdpBind => 2,
             NetFunction::Send => 2,
             NetFunction::TcpConnect | NetFunction::Recv | NetFunction::UdpRecvFrom => 3,
@@ -5351,6 +5361,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "text_lower, text_upper, json_keys and json_stringify_pretty require artifact format 90",
+            ));
+        }
+        if self.format_version < 90 && artifact_uses_peer_address(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "tcp_peer requires artifact format 90",
             ));
         }
         if self.format_version < 90 && artifact_uses_file_modes(self) {
@@ -6197,6 +6213,12 @@ impl Artifact {
                     }
                     186 if format_version >= 57 => {
                         let code = r.u8()?;
+                        if code >= 10 && format_version < 90 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "tcp_peer requires artifact format 90",
+                            ));
+                        }
                         Op::Net(NetFunction::from_code(code).ok_or_else(|| {
                             ArtifactError::new(
                                 "E_ARTIFACT_ENCODING",
@@ -7320,6 +7342,15 @@ fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
                 Op::TextLower | Op::TextUpper | Op::JsonKeys | Op::JsonStringifyPretty
             )
         })
+    })
+}
+
+fn artifact_uses_peer_address(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Net(NetFunction::PeerAddress)))
     })
 }
 

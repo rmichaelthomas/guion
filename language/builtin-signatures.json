@@ -3661,6 +3661,14 @@
       "operation": "NetUdpRecvFrom"
     },
     {
+      "name": "native_net_peer_address",
+      "parameters": [
+        "Int"
+      ],
+      "result": "Result[Text, List[Text]]",
+      "operation": "NetPeerAddress"
+    },
+    {
       "name": "native_tls_connect",
       "parameters": [
         "Text",

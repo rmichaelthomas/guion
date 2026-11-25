@@ -27,6 +27,8 @@ Run it with `guion run --allow-bind 127.0.0.1:8080 main.gu`.
 
 A handler is `fn(Request) -> Result[Response, HttpFailure]`. Guion has no type aliases, so write the type out. It names no socket, so a test calls it with `request_new("GET", "/")` and reads the `Response`. `HttpFailure(status, code, message)` is the failure type of `std:http_response`; the built-in `HttpError` cannot be built in Guion code.
 
+`request.peer` (new in 0.3.0, needs Guion 0.9.0 or later) is the client's address as `"host:port"`, an IPv6 host in brackets (`"[::1]:4000"`), and `""` when the request did not come from a connection (a `request_new` value in a test). The router and the built-in middleware pass it on unchanged, so handlers and middleware see it. Behind a proxy it is the proxy's address, not the end client's.
+
 ## Routes
 
 `route(method, pattern, handler)` returns a `Route`. A pattern starts with `/`; a segment is a literal, `{name}` or `{name:text}` (any non-empty text) or `{name:int}` (digits only, no sign, no leading zero, at most 18 digits). `router(routes)` returns `Result[Router, HttpFailure]`:

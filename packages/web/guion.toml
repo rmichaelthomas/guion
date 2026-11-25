@@ -1,6 +1,6 @@
 [package]
 name = "web"
-version = "0.2.0"
+version = "0.3.0"
 entry = "src/lib.gu"
 exports = ["src/lib.gu", "src/router.gu", "src/middleware.gu", "src/serve.gu", "src/session.gu", "src/csrf.gu", "src/html.gu", "src/static.gu"]
 

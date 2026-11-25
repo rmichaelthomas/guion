@@ -215,7 +215,7 @@ fn rt_try(route: Route, segments: List[Text]) -> Option[Map[Text, Text]]:
     return Some(params)
 
 fn rt_with_params(request: Request, params: Map[Text, Text]) -> Request:
-    return Request(request.method, request.path, request.query, request.headers, request.body, params)
+    return Request(request.method, request.path, request.query, request.headers, request.body, params, request.peer)
 
 fn rt_reply(status: Int) -> Response:
     return response_text(status, rt_status_text(status))

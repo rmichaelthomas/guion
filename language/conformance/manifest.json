@@ -11616,6 +11616,36 @@
       "declared_status": "Implemented in artifact format 90"
     },
     {
+      "id": "host_operation-peer-address",
+      "kind": "host_operation",
+      "name": "peer address",
+      "owner_task": 6,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.peer-address.positive",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "negative": {
+          "case_id": "host_operation.peer-address.negative",
+          "state": "implemented",
+          "owner_task": 6
+        },
+        "interaction": {
+          "case_id": "host_operation.peer-address.interaction",
+          "state": "implemented",
+          "owner_task": 6
+        }
+      },
+      "source_signature": "`tcp_peer(conn: TcpConn) -> Result[PeerAddress, StdError]`, `http_server_peer(request: HttpServerRequest) -> Result[PeerAddress, StdError]`, `Request.peer`",
+      "declared_status": "Implemented in artifact format 90"
+    },
+    {
       "id": "opcode-text-lower",
       "kind": "opcode",
       "name": "TextLower",

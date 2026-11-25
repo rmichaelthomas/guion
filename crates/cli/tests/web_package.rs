@@ -417,6 +417,49 @@ fn an_application_using_web_by_path_serves_over_a_real_socket() {
     );
 }
 
+const PEER_APP: &str = r#"import "pkg:web/src/lib.gu"
+import "std:text"
+
+fn who(request: Request) -> Result[Response, HttpFailure]:
+    return Ok(response_text(200, "peer=" + request.peer))
+
+fn require_peer(request: Request) -> Result[Request, Response]:
+    if request.peer == "":
+        return Err(response_text(403, "no peer"))
+    return Ok(request)
+
+fn main() -> Int:
+    let port = unwrap(text_parse_int(args()[0]))
+    let table = unwrap(router([route("GET", "/who", who)]))
+    let application = wrap(app(table), layer_before(require_peer))
+    match serve_for("127.0.0.1", port, application, 1, 1500):
+        Ok(done):
+            return 0
+        Err(failure):
+            return 1
+"#;
+
+#[test]
+fn a_handler_and_middleware_see_the_client_address_as_request_peer() {
+    let server = start_app("peer", 1, PEER_APP, &[]);
+    let mut stream = connect_to(server.port).expect("connects");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(8)))
+        .unwrap();
+    let local = stream.local_addr().unwrap();
+    stream
+        .write_all(b"GET /who HTTP/1.1\r\nHost: x\r\n\r\n")
+        .unwrap();
+    let mut answer = Vec::new();
+    let _ = stream.read_to_end(&mut answer);
+    let answer = String::from_utf8_lossy(&answer).into_owned();
+    assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+    assert!(
+        answer.ends_with(&format!("peer=127.0.0.1:{}", local.port())),
+        "{answer}"
+    );
+}
+
 #[test]
 fn a_client_that_disconnects_before_the_answer_does_not_stop_the_server() {
     let server = start("disconnect", 1);
@@ -530,7 +573,7 @@ fn flow() -> Text:
     let policy = session_policy_default()
     let id = unwrap(session_open(store, policy, request_new("GET", "/")))
     let cookie = Header("Cookie", policy.cookie_name + "=" + id)
-    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {})
+    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {}, "")
     let token = unwrap(csrf_token(store, policy, request))
     return hex_encode(store.secret) + "|" + id + "|" + hex_encode(unwrap(base64url_decode(token)))
 
@@ -539,7 +582,7 @@ fn after_hours(hours: Int) -> Bool:
     let policy = session_policy_default()
     let id = unwrap(session_open_at(store, policy, request_new("GET", "/"), 1000))
     let cookie = Header("Cookie", policy.cookie_name + "=" + id)
-    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {})
+    let request = Request("GET", "/", {}, [cookie], bytes_from_text(""), {}, "")
     return unwrap(session_open_at(store, policy, request, 1000 + hours * 3600000)) == id
 "#;
 
