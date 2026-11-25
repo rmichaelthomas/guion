@@ -1,8 +1,8 @@
 # Speed report: 0.9.0 baseline and a development build made after it
 
-The baseline sections below were measured first (commit 34a7e4f). The section "After the data-speed work" at the end re-runs every kit on the finished branch and sets the two side by side.
+The baseline sections below were measured first (commit 34a7e4f). The section "After the speed changes" at the end re-runs every kit on the finished development build and sets the two side by side.
 
-Date: 2026-11-25. Guion 0.9.0 (artifact format 90, timezone data 2026c). This is the "before" measurement for the data-speed work: nothing in the engine changed between the 12 Nov report ([2026-11-12-speed-report.md](2026-11-12-speed-report.md)) and these runs except the releases since.
+Date: 2026-11-25. Guion 0.9.0 (artifact format 90, timezone data 2026c). This is the "before" measurement for the speed changes: nothing in the engine changed between the 12 Nov report ([2026-11-12-speed-report.md](2026-11-12-speed-report.md)) and these runs except the releases since.
 
 ## Setup
 
@@ -32,7 +32,7 @@ Every kit ran its default protocol: interleaved, shuffled, output-checked trials
 | stable sort, 1M `f64` | 31.6 ms | NumPy 21.1 ms | **1.50** | `arrays/results_large.json`, start-up subtracted |
 | 512x512 `f64` matmul, per multiply | 1.380 ms | NumPy 0.617 ms | **2.24** (per-trial 1.09-5.73) | `arrays/results_compute.json`, `ratio_of_medians` |
 
-Targets for the data-speed plan: CSV read, `a*b+c` and sort each at most 1.0. Baseline misses all three (2.67, 1.34, 1.50). Sum already beats NumPy; matmul is out of scope.
+Targets for the speed changes: CSV read, `a*b+c` and sort each at most 1.0. Baseline misses all three (2.67, 1.34, 1.50). Sum already beats NumPy; matmul is out of scope.
 
 Methods. The read and matmul figures come from in-process lanes: each side runs the same program with 1 and with N+1 operations (6 reads for CSV, 21 multiplies for matmul) in one process, and the per-operation cost is (long run minus short run) divided by N, as a median over interleaved trials. Start-up, compilation, the library import and input construction cancel. The reads use the full row count and `column_sum(x)` as the agreement check (both 1000000 and 494764.345556 on both sides). The `a*b+c`, sum and sort figures use the 12 Nov method: for each trial subtract that lane's `null` (start-up only) time from the workload's time, then take the median over trials, per side. To reproduce them from the committed file:
 
@@ -75,7 +75,7 @@ Work after the read (median of per-trial differences from the read-only lane):
 
 These are differences of noisy end-to-end medians, as in the 12 Nov report.
 
-## Arrays against NumPy, the plan's sizes (10M elements, 512x512 matmul)
+## Arrays against NumPy, the larger sizes (10M elements, 512x512 matmul)
 
 Raw samples: `evaluation/development/arrays/results_large.json`. NumPy 2.5.4.
 
@@ -119,9 +119,9 @@ Raw samples: `evaluation/development/arrays/results.json`.
 - NumPy is 2.5.4 here, 2.5.1 in the 12 Nov arrays rows.
 - The machine was not idle (see Setup); start-up lanes ran 5 to 10 ms slower than on 12 Nov.
 
-## After the data-speed work (a development build made after 0.9.0)
+## After the speed changes (a development build made after 0.9.0)
 
-Date: 2026-11-25, same machine. The build is not the released 0.9.0: it reports the same version string (0.9.0, artifact format 90, timezone data 2026c) but contains the data-speed changes, a release build of the development tree at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
+Date: 2026-11-25, same machine. The build is not the released 0.9.0: it reports the same version string (0.9.0, artifact format 90, timezone data 2026c) but contains the speed changes listed below, a release build of the development tree at commit 881da77, NumPy 2.5.4, pandas 3.1.1, CPython 3.14.7. Same commands as in Setup, one kit at a time, same default protocols (15 trials; 31 for `read_compute.py`). The machine was again an ordinary desktop session (load average about 3 to 4 at start), not quiet: the baseline's caveat applies. Raw files: `frames/results.json`, `frames/results_read_compute.json`, `arrays/results.json`, `arrays/results_large.json`, `arrays/results_compute.json`, all under `evaluation/development/`.
 
 ### Compute-only ratios and targets
 
@@ -161,16 +161,16 @@ Compute alone by the end-to-end difference method (workload minus start-up lane,
 
 Smaller sizes with plain CPython (`arrays/results.json`, 4M elements, 256x256): Guion / NumPy `a*b+c` 0.46 (0.0448 s vs 0.0981 s), sum 0.36, matmul 0.28, sort 0.38, loop 0.45; Guion / CPython sort 0.17, loop 0.67 (baseline: 0.682, 0.367, 0.291, 0.597 and 0.452 against NumPy). The per-workload intervals are in the `summary` of the file.
 
-In the `null` lane of `results_large.json` the first Guion sample (22 ms) is above the 17.5 ms median but is not a cold outlier of the size Task 4 saw in the threaded result; it does not move the median. The smaller-size ratios above are ratios of the medians in the file, not the paired-ratio medians of its `summary`.
+In the `null` lane of `results_large.json` the first Guion sample (22 ms) is above the 17.5 ms median but is not a cold outlier of the size the element-wise change saw in the threaded result; it does not move the median. The smaller-size ratios above are ratios of the medians in the file, not the paired-ratio medians of its `summary`.
 
-### What the branch changed (so the numbers above can be read)
+### What changed (so the numbers above can be read)
 
-- Parallel CSV reader with a cheaper hash and float parse (Task 3): CSV read 2.67 to 0.75 times pandas.
-- Element-wise kernels on a persistent thread pool (Task 4): `a*b+c` 1.34 to 0.77 times NumPy. Sum was not threaded.
-- Allocator gives a finished thread's memory back (Task 4b, `crates/cli/src/pool_alloc.rs`): before it, each thread that made a small allocation stranded a 256 KB chunk, and a program reading a 2 MiB CSV 300 times failed with `R_ALLOCATION_LIMIT`; after, it completes under a 32 MiB limit. Single-threaded speed was unchanged on macOS aarch64 (checked during the task, not committed as a result file) and was not measured elsewhere; Linux and x86 were not measured.
-- Stable radix sort for `sort` and `argsort` (Task 5): stable sort of 1M `f64` 1.50 to 0.66 times NumPy; `argsort` charges the same memory as before (16n bytes).
+- Parallel CSV reader with a cheaper hash and float parse (the CSV reader change): CSV read 2.67 to 0.75 times pandas.
+- Element-wise kernels on a persistent thread pool (the element-wise kernel change): `a*b+c` 1.34 to 0.77 times NumPy. Sum was not threaded.
+- Allocator gives a finished thread's memory back (the allocator change, `crates/cli/src/pool_alloc.rs`): before it, each thread that made a small allocation stranded a 256 KB chunk, and a program reading a 2 MiB CSV 300 times failed with `R_ALLOCATION_LIMIT`; after, it completes under a 32 MiB limit (the test `crates/cli/tests/allocator_threads.rs`).
+- Stable radix sort for `sort` and `argsort` (the sort change): stable sort of 1M `f64` 1.50 to 0.66 times NumPy; `argsort` charges the same memory as before (16n bytes).
 
-### Interpreters (Task 6)
+### Interpreters
 
 `evaluation/development/interpreters/` (README and `results.json`), one run of 15 trials on this machine: a development build made after 0.9.0 against CPython 3.14.7, free-threaded CPython 3.14.10 (uv offers no 3.14.7 free-threaded build) and PyPy 3.11.17 (PyPy 8.0.1). Guion / other, median of paired ratios, below 1 means Guion is faster:
 
@@ -183,11 +183,11 @@ In the `null` lane of `results_large.json` the first Guion sample (22 ms) is abo
 | arrays loop | 0.763 | 0.628 | 2.527 |
 | first source (5 programs) | 0.260-0.411 | 0.244-0.395 | 0.155-0.283 |
 
-Guion is faster than both CPythons on all 11 workloads and faster than PyPy on all but the array-loop program, where PyPy's JIT is 2.5 times faster than Guion. The array lanes compare Guion's native arrays with plain-Python loops, the Python programs are single-threaded so free-threading is not exercised, and the first-source workloads are start-up dominated. One machine, one run.
+Guion is faster than both CPythons on all 10 programs (and on bare start-up, the `arrays/null` baseline in the same file) and faster than PyPy on 9 of the 10 programs and on start-up; on the array-loop program PyPy's JIT is 2.5 times faster than Guion. The array lanes compare Guion's native arrays with plain-Python loops, the Python programs are single-threaded so free-threading is not exercised, and the first-source workloads are start-up dominated. One machine, one run.
 
 ### A fix made after the runs
 
-`cargo test --workspace` found one failing test on the branch, `arrays_edges::kernel_temporaries_are_charged_to_the_allocation_budget`: the radix sort charged its second buffer before allocating the first, so under the command line's live-memory refill a sort fit in one buffer less than it is charged for. The sort and argsort now allocate the first buffer before charging the second (`crates/vm-core/src/array_compute.rs`). Sort timing was spot-checked after the change with the large arrays lane (15 trials, written outside the repository): sort 0.367 times NumPy end to end (0.370 in the committed run), `a*b+c` 0.557 (0.568). The committed result files are the earlier runs.
+`cargo test --workspace` found one failing test on the development build, `arrays_edges::kernel_temporaries_are_charged_to_the_allocation_budget`: the radix sort charged its second buffer before allocating the first, so under the command line's live-memory refill a sort fit in one buffer less than it is charged for. The sort and argsort now allocate the first buffer before charging the second (`crates/vm-core/src/array_compute.rs`). Sort timing was spot-checked after the change with the large arrays lane (15 trials, written outside the repository): sort 0.367 times NumPy end to end (0.370 in the committed run), `a*b+c` 0.557 (0.568). The committed result files are the earlier runs.
 
 ### Kit changes in this task
 
