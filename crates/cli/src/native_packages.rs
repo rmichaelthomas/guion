@@ -48,6 +48,8 @@ struct LibraryManifest {
     dependencies: BTreeMap<String, PackageDependency>,
     declared_sha256: Option<String>,
     capabilities: crate::package_capabilities::Capabilities,
+    /// `[package] guion`: the Guion versions the package builds on, as requirement text.
+    guion: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -300,10 +302,13 @@ pub fn publish_library(library: &Path) -> Result<String, String> {
             .map_err(|error| format!("cannot write the pinned manifest: {error}"))?;
         package_library(&source, &packaged)?;
         let archive = crate::registry::tar_directory(&packaged)?;
-        let meta = serde_json::json!({
+        let mut meta = serde_json::json!({
             "capabilities": manifest_capabilities_json(&manifest),
             "dependencies": {},
         });
+        if let Some(guion) = &manifest.guion {
+            meta["guion"] = serde_json::json!(guion);
+        }
         registry.publish(&manifest.name, &manifest.version, archive, meta)
     })();
     let _ = fs::remove_dir_all(&stage);
@@ -1959,6 +1964,31 @@ fn read_library_manifest(
     let capabilities =
         crate::package_capabilities::Capabilities::from_toml(value.get("capabilities"))
             .map_err(|error| format!("{}: {error}", path.display()))?;
+    let guion = match package.get("guion") {
+        None => None,
+        Some(declared) => {
+            let text = declared.as_str().ok_or_else(|| {
+                format!(
+                    "{}: [package].guion must be text such as \">=0.9.0\"",
+                    path.display()
+                )
+            })?;
+            let requirement = crate::package_version::parse_guion_requirement(text)
+                .map_err(|error| format!("{}: [package].guion: {error}", path.display()))?;
+            // A package read as someone's dependency must build on the running Guion. The package's
+            // own manifest (no expected name) is only parsed: its author may be ahead of this build.
+            if expected_name.is_some()
+                && !crate::package_version::running_guion_satisfies(&requirement)
+            {
+                return Err(crate::package_version::guion_version_error(
+                    &name,
+                    &version,
+                    &requirement,
+                ));
+            }
+            Some(requirement.to_string())
+        }
+    };
     Ok(LibraryManifest {
         name,
         version,
@@ -1967,6 +1997,7 @@ fn read_library_manifest(
         dependencies,
         declared_sha256,
         capabilities,
+        guion,
     })
 }
 

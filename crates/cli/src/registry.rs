@@ -207,7 +207,14 @@ impl Registry {
         pinned: &BTreeMap<String, Version>,
     ) -> Result<VerifiedVersion, String> {
         let source = RegistryIndex { registry: self };
-        let chosen = resolve(&[(name.to_owned(), requirement.clone())], &source, pinned)?;
+        let chosen = match resolve(&[(name.to_owned(), requirement.clone())], &source, pinned) {
+            Ok(chosen) => chosen,
+            Err(problem) => {
+                return Err(self
+                    .newest_unsupported(name, requirement)?
+                    .unwrap_or(problem))
+            }
+        };
         if chosen.len() > 1 {
             let others: Vec<&str> = chosen
                 .keys()
@@ -248,6 +255,30 @@ impl Registry {
             version: version.to_string(),
             sha256,
         })
+    }
+
+    /// When releases that match `requirement` exist but all need a newer (or older) Guion than the
+    /// running one, the refusal that names the newest of them.
+    fn newest_unsupported(
+        &self,
+        name: &str,
+        requirement: &VersionReq,
+    ) -> Result<Option<String>, String> {
+        let mut newest: Option<(Version, VersionReq)> = None;
+        for (version, needs) in (RegistryIndex { registry: self }).unsupported(name)? {
+            if requirement.matches(version)
+                && newest.as_ref().is_none_or(|(best, _)| version > *best)
+            {
+                newest = Some((version, needs));
+            }
+        }
+        Ok(newest.map(|(version, needs)| {
+            format!(
+                "no release of `{name}` that matches {requirement} supports this Guion. The newest, {version}, requires Guion {needs}, but this is Guion {}: {}",
+                crate::package_version::running_guion_version(),
+                "upgrade Guion, or depend on an older release of the package with `guion add NAME --version RANGE`"
+            )
+        }).map(|text| format!("{}: {text}", crate::package_version::GUION_VERSION_CODE)))
     }
 
     /// The log entry named by the index must carry the same hash, and must itself be intact and
@@ -577,6 +608,29 @@ struct RegistryIndex<'a> {
     registry: &'a Registry,
 }
 
+impl RegistryIndex<'_> {
+    /// Releases the index says need a Guion other than the running one. A release with no `guion`
+    /// field (every release before the field existed) is never listed. The field in the index is
+    /// advisory; the archive's own manifest, checked after its hash, is what is enforced.
+    fn unsupported(&self, name: &str) -> Result<Vec<(Version, VersionReq)>, String> {
+        let Some(index) = self.registry.index(name)? else {
+            return Ok(Vec::new());
+        };
+        let mut found = Vec::new();
+        for entry in index["versions"].as_array().into_iter().flatten() {
+            let Some(needs) = entry["guion"].as_str() else {
+                continue;
+            };
+            let needs = VersionReq::parse(needs)?;
+            if !crate::package_version::running_guion_satisfies(&needs) {
+                let version = Version::parse(entry["version"].as_str().unwrap_or_default())?;
+                found.push((version, needs));
+            }
+        }
+        Ok(found)
+    }
+}
+
 impl PackageIndex for RegistryIndex<'_> {
     fn candidates(&self, name: &str) -> Result<Vec<Candidate>, String> {
         let Some(index) = self.registry.index(name)? else {
@@ -585,6 +639,11 @@ impl PackageIndex for RegistryIndex<'_> {
         let mut candidates = Vec::new();
         for entry in index["versions"].as_array().into_iter().flatten() {
             let version = Version::parse(entry["version"].as_str().unwrap_or_default())?;
+            if let Some(needs) = entry["guion"].as_str() {
+                if !crate::package_version::running_guion_satisfies(&VersionReq::parse(needs)?) {
+                    continue;
+                }
+            }
             let mut dependencies = Vec::new();
             if let Some(map) = entry["dependencies"].as_object() {
                 for (dependency, requirement) in map {

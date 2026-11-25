@@ -32,13 +32,14 @@ Nothing else is served. Ownership records, version records and token hashes are 
       "log_seq": 17,
       "capabilities": { "files": ["read"] },
       "dependencies": { "other-lib": "^1.0" },
+      "guion": ">=0.9.0",
       "signature": null
     }
   ]
 }
 ```
 
-Versions are sorted by number. The per-version `signature` is reserved for publisher signatures and always `null` in 0.x; the registry's own signature is on the log (below). Clients must ignore fields they do not know.
+Versions are sorted by number. The per-version `signature` is reserved for publisher signatures and always `null` in 0.x; the registry's own signature is on the log (below). `guion` is optional and present only when the release's manifest declares `[package] guion` (a requirement on the Guion toolchain, same syntax as a dependency requirement); a client that supports it skips releases whose requirement the running Guion does not meet, and one that does not simply ignores it. It is index metadata like `capabilities`: the signed log entries do not carry it, and the archive's own `guion.toml` is what a client enforces after verifying the archive's hash. Clients must ignore fields they do not know.
 
 ### Hash log
 
@@ -63,7 +64,7 @@ All write calls need `Authorization: Bearer <token>`. Tokens belong to a publish
 `PUT /v1/publish/<name>/<version>` with the archive as the request body and these headers:
 
 - `x-guion-sha256`: the archive's SHA-256 (required; the registry recomputes it and rejects a mismatch)
-- `x-guion-meta`: JSON `{ "dependencies": {name: requirement}, "capabilities": {...} }` (optional, 16 KiB at most). Other fields are ignored; earlier clients sent an empty `cache` list.
+- `x-guion-meta`: JSON `{ "dependencies": {name: requirement}, "capabilities": {...}, "guion": ">=0.9.0" }` (optional, 16 KiB at most; `guion` is optional text of at most 100 characters from `0-9A-Za-z.,<>=^~* `, else 400 `E_META_INVALID`, and the registry does not parse it further). Other fields are ignored; earlier clients sent an empty `cache` list.
 
 The registry checks, in order: the token; the name rules (the same rules as the client: lowercase, 64 characters or fewer, `-` and `_` identical, standard-library module names, `std`, `guion` and the `guion-` prefix reserved, `@owner/name` reserved and refused); the version is `major.minor.patch`; the archive is non-empty, at most 32 MiB and matches its hash; ownership (the first publish of a name claims it; a different publisher gets 403 `E_NOT_OWNER`, including for spellings that normalize to the same name); and that the version is new (409 `E_VERSION_EXISTS`).
 
