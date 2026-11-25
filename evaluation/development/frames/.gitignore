@@ -3,3 +3,6 @@ programs/data/
 programs/guion.lock
 programs/.guion/
 run.log
+programs_compute/data
+programs_compute/guion.lock
+programs_compute/.guion/
