@@ -1149,7 +1149,7 @@ struct Piece {
 /// Parses `data`, whole records from the start of one. It takes only what the sequential
 /// reader's fast path takes: records that are valid UTF-8, hold no quote and no carriage
 /// return but one before the newline, and are under `max_record_bytes`. Anything else, or a
-/// last record without a newline that is not plain, stops it with `Sequential`. `last` says
+/// last record without a newline that is not plain, stops it: the piece sets `stopped`. `last` says
 /// the piece may end in a record without a newline.
 fn parse_piece(
     data: &[u8],
