@@ -155,6 +155,164 @@ mod native_inline_arena_tests {
         );
     }
 
+    fn tagged_value_template() -> NativeTaggedValue {
+        NativeTaggedValue {
+            kind: 1,
+            payload_tag: 1,
+            payload: 7,
+            clone_charge_bytes: 0,
+        }
+    }
+
+    #[test]
+    fn earlier_handles_stay_usable_across_later_arena_calls() {
+        // The pattern generated code follows: hold several raw handles, let the host call
+        // `&mut self` arena methods, then read and write through the earlier handles.
+        let budget = Budget::new(1_000_000, 1_000_000, CancellationToken::new(), None);
+        let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
+        let mut tagged = Vec::new();
+        for index in 0..300 {
+            tagged.push(
+                arena
+                    .store_native_tagged_value(NATIVE_TAGGED_RESULT_OK, 1, index)
+                    .unwrap(),
+            );
+        }
+        let mut ints = Vec::new();
+        for index in 0..300_i64 {
+            ints.push(
+                arena
+                    .allocate_inline_int(&[index, index + 1], 0, index + 2)
+                    .cast::<NativeIntList>(),
+            );
+        }
+        let boxed = arena
+            .store_native_list_field(
+                &Value::List(guion_model::Shared::new(vec![Value::Text("a".into())])),
+                &guion_model::Type::Text,
+            )
+            .unwrap();
+        // Several `&mut self` calls after the handles were issued.
+        for index in 0..64 {
+            arena.ensure_tagged_capacity_for(1).unwrap();
+            arena
+                .store_tagged_descriptor(tagged_value_template())
+                .unwrap();
+            arena.allocate_inline_int(&[index], 0, index);
+            assert!(arena.native_value_handle_exists(tagged[(index as usize) % 300]));
+        }
+        assert!(arena.native_value_handle_exists(boxed));
+        // Write through the earlier tagged handles (the clone-charge cache) and read them back.
+        for (index, handle) in tagged.iter().enumerate() {
+            let expected = std::mem::size_of::<Value>();
+            assert_eq!(arena.tagged_clone_charge_bytes(*handle), Some(expected));
+            let descriptor = arena.tagged_value(*handle).unwrap();
+            assert_eq!(descriptor.payload, index as i64);
+        }
+        // Write through the earlier inline-int descriptors, as native code does.
+        for (index, pointer) in ints.iter().enumerate() {
+            let data = unsafe { (**pointer).data };
+            unsafe { data.write(-(index as i64)) };
+        }
+        for (index, pointer) in ints.iter().enumerate() {
+            let descriptor = unsafe { &**pointer };
+            assert_eq!(unsafe { *descriptor.data }, -(index as i64));
+            assert_eq!(unsafe { *descriptor.data.add(1) }, index as i64 + 1);
+        }
+    }
+
+    #[test]
+    fn list_fields_of_records_and_lists_keep_their_addresses() {
+        let budget = Budget::new(1_000_000, 1_000_000, CancellationToken::new(), None);
+        let mut arena = NativeListArena::new(&budget, 10000, 10000, 0, None);
+        let ints = Value::List(guion_model::Shared::new(vec![
+            Value::Int(guion_model::BigInt::from_i64(1)),
+            Value::Int(guion_model::BigInt::from_i64(2)),
+        ]));
+        let floats = Value::Float64List(guion_model::Shared::new(vec![guion_model::Float64::new(
+            1.5,
+        )
+        .unwrap()]));
+        let mut handles = Vec::new();
+        for _ in 0..50 {
+            handles.push((
+                arena
+                    .store_native_list_field(&ints, &guion_model::Type::Int)
+                    .unwrap(),
+                arena
+                    .store_native_list_field(&floats, &guion_model::Type::Float64)
+                    .unwrap(),
+            ));
+        }
+        for (int_handle, float_handle) in handles {
+            let list = arena.int_list(int_handle).unwrap();
+            assert_eq!(
+                unsafe { std::slice::from_raw_parts(list.data, list.len) },
+                &[1, 2]
+            );
+            let list = arena.float_list(float_handle).unwrap();
+            assert_eq!(
+                unsafe { std::slice::from_raw_parts(list.data, list.len) },
+                &[1.5_f64.to_bits()]
+            );
+        }
+    }
+
+    #[test]
+    fn native_records_read_back_through_their_handles() {
+        let source = r#"
+record Row:
+    id: Int
+    scores: List[Int]
+    weights: List[Float64]
+
+fn main() -> Int:
+    return 0
+"#;
+        let artifact = guion_compiler::compile("record-arena.gu", source).expect("compiles");
+        let budget = std::sync::Arc::new(Budget::new(
+            1_000_000,
+            1_000_000,
+            CancellationToken::new(),
+            None,
+        ));
+        let mut arena = NativeListArena::new(&*budget, 10000, 10000, 0, None);
+        arena.attach_runtime_context(
+            std::ptr::null_mut(),
+            std::sync::Arc::new(artifact),
+            std::sync::Arc::new(Vec::new()),
+            budget.clone(),
+            guion_vm_core::VmLimits::default(),
+        );
+        let mut handles = Vec::new();
+        for id in 0..40_i64 {
+            let fields = guion_model::Shared::new(vec![
+                Value::Int(guion_model::BigInt::from_i64(id)),
+                Value::List(guion_model::Shared::new(vec![Value::Int(
+                    guion_model::BigInt::from_i64(id * 2),
+                )])),
+                Value::Float64List(guion_model::Shared::new(vec![guion_model::Float64::new(
+                    id as f64,
+                )
+                .unwrap()])),
+            ]);
+            handles.push(
+                arena
+                    .store_native_record_value(0, "Row".into(), fields)
+                    .expect("record is stored"),
+            );
+        }
+        for (id, handle) in handles.iter().enumerate() {
+            let (record, _) = arena.native_record(*handle).unwrap();
+            let words = unsafe { std::slice::from_raw_parts(record.fields, record.len) };
+            assert_eq!(words[0], id as i64);
+            let scores = arena.int_list(words[1]).unwrap();
+            assert_eq!(unsafe { *scores.data }, id as i64 * 2);
+            let weights = arena.float_list(words[2]).unwrap();
+            assert_eq!(unsafe { *weights.data }, (id as f64).to_bits());
+        }
+    }
+
     #[test]
     fn boxed_handle_list_reads_back_through_its_address() {
         let budget = Budget::new(100000, 100000, CancellationToken::new(), None);
@@ -6312,11 +6470,14 @@ impl Instance {
                         encoded_fields.push(encoded);
                     }
                     let fields = encoded_fields.into_boxed_slice();
-                    let descriptor = Box::new(NativeRecord {
-                        fields: fields.as_ptr(),
-                        len: fields.len(),
-                    });
+                    let field_count = fields.len();
+                    // Take the pointer after the Box has moved into its owner; one taken
+                    // before would be invalidated by the move's retag.
                     native_record_fields.push(fields);
+                    let descriptor = Box::new(NativeRecord {
+                        fields: native_record_fields.last()?.as_ptr(),
+                        len: field_count,
+                    });
                     native_records.push(descriptor);
                     Some((&**native_records.last()? as *const NativeRecord) as i64)
                 }
