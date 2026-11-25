@@ -59,17 +59,21 @@ def version(path):
 
 
 def build_jobs(interpreters, scratch):
-    """workload name -> (cwd, {lane: command})."""
+    """workload name -> (source directory or None, cwd, {lane: command}).
+
+    Arrays programs run in place (they only print). First-source workloads run in a fresh
+    copy of their directory for every sample (`{P}` stands for it), because sqlite_toml
+    writes a database; Python lanes there run without `-I` so `import helper` finds the
+    script directory."""
     jobs = {}
     programs = os.path.join(ARRAYS, "programs")
     for name in ARRAY_WORKLOADS:
         lanes = {"guion": [GUION, "run", "--no-cache", f"{name}.gu"]}
         for lane, exe in interpreters.items():
-            lanes[lane] = [exe, f"{name}_py.py"]
-        jobs[f"arrays/{name}"] = (programs, lanes)
+            lanes[lane] = [exe, "-I", f"{name}_py.py"]
+        jobs[f"arrays/{name}"] = (None, programs, lanes)
     for name, workload in first_kit.WORKLOADS_BY_NAME.items():
-        project = os.path.join(scratch, name)
-        shutil.copytree(os.path.join(first_kit.WORKLOADS, name), project)
+        project = "{P}"
         guion = [GUION, "run", "--no-cache"]
         if workload.needs_file_root:
             guion += ["--file-root", project]
@@ -77,7 +81,7 @@ def build_jobs(interpreters, scratch):
         lanes = {"guion": guion}
         for lane, exe in interpreters.items():
             lanes[lane] = [exe, "main.py", *workload.arguments]
-        jobs[f"first_source/{name}"] = (project, lanes)
+        jobs[f"first_source/{name}"] = (os.path.join(first_kit.WORKLOADS, name), project, lanes)
     return jobs
 
 
@@ -112,18 +116,25 @@ def main():
     versions = {lane: version(path) for lane, path in interpreters.items()}
     scratch = tempfile.mkdtemp(prefix="guion-interpreters-")
     jobs = build_jobs(interpreters, scratch)
-    samples = {w: {lane: [] for lane in lanes} for w, (_, lanes) in jobs.items()}
+    samples = {w: {lane: [] for lane in lanes} for w, (_, _, lanes) in jobs.items()}
     order_rng = random.Random(2026)
     for trial in range(trials):
-        order = [(w, lane) for w, (_, lanes) in jobs.items() for lane in lanes]
+        order = [(w, lane) for w, (_, _, lanes) in jobs.items() for lane in lanes]
         order_rng.shuffle(order)
         outputs = {}
         for w, lane in order:
-            cwd, lanes = jobs[w]
-            elapsed, values = run(lanes[lane], cwd)
+            source, cwd, lanes = jobs[w]
+            command = lanes[lane]
+            if source is not None:
+                cwd = tempfile.mkdtemp(prefix=f"{lane}-", dir=scratch)
+                shutil.copytree(source, cwd, dirs_exist_ok=True)
+                command = [c.replace("{P}", cwd) for c in command]
+            elapsed, values = run(command, cwd)
+            if source is not None:
+                shutil.rmtree(cwd, ignore_errors=True)
             samples[w][lane].append(elapsed)
             outputs[(w, lane)] = values
-        for w, (_, lanes) in jobs.items():
+        for w, (_, _, lanes) in jobs.items():
             reference = outputs[(w, "cpython")]
             for lane in lanes:
                 if lane != "cpython" and not same(reference, outputs[(w, lane)]):
@@ -145,7 +156,8 @@ def main():
         "schema": "guion-interpreter-comparison/v1",
         "trials": trials,
         "machine": {"platform": platform.platform(), "processor": platform.processor(),
-                    "machine": platform.machine()},
+                    "machine": platform.machine(),
+                    "memory_bytes": int(subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True).stdout)},
         "guion": subprocess.run([GUION, "--version"], capture_output=True, text=True)
         .stdout.strip(),
         "interpreters": {lane: {"path": interpreters[lane], "spec": SPECS[lane],
