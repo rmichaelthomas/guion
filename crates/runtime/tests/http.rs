@@ -434,7 +434,10 @@ fn byte_http_cancellation_interrupts_during_response_body_read() {
         // timeout means it stayed open.
         match stream.read(&mut byte) {
             Ok(0) => true,
-            Err(error) => error.kind() == std::io::ErrorKind::ConnectionReset,
+            Err(error) => matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
+            ),
             Ok(_) => false,
         }
     });
@@ -532,6 +535,16 @@ fn parallel_worker_failure_cancels_in_flight_http_sibling_and_closes_socket() {
                     let outcome = match stream.read(&mut byte) {
                         Ok(0) => "eof".to_string(),
                         Ok(count) => format!("still open: read {count} bytes"),
+                        // Unread bytes make the close an RST: that is closed too.
+                        Err(error)
+                            if matches!(
+                                error.kind(),
+                                std::io::ErrorKind::ConnectionReset
+                                    | std::io::ErrorKind::ConnectionAborted
+                            ) =>
+                        {
+                            "eof".to_string()
+                        }
                         Err(error) => format!("read error: {:?}", error.kind()),
                     };
                     (path, outcome)
