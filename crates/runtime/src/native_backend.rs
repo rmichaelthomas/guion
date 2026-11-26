@@ -62,8 +62,9 @@ pub(crate) const NATIVE_BRIDGE_TEXT_JOIN: i64 = 39;
 pub(crate) const NATIVE_BRIDGE_TEXT_LENGTH: i64 = 40;
 pub(crate) const NATIVE_BRIDGE_MAKE_RECORD: i64 = 14;
 pub(crate) const NATIVE_BRIDGE_GET_FIELD: i64 = 15;
+pub(crate) const NATIVE_BRIDGE_ARRAY: i64 = 41;
 
-pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 37] = [
+pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 40] = [
     "json_parse",
     "json_try_text",
     "json_try_get",
@@ -101,6 +102,9 @@ pub(crate) const NATIVE_DIRECT_OPERATION_NAMES: [&str; 37] = [
     "text_trim",
     "text_join",
     "text_length",
+    "array_1",
+    "array_2",
+    "array_3",
 ];
 
 const NATIVE_BRIDGE_TAG_INT: i64 = 1;
@@ -202,8 +206,35 @@ pub(crate) fn native_bridge_operation(op: &Op) -> Option<i64> {
         Op::JsonPushLocal(_) => Some(NATIVE_BRIDGE_JSON_PUSH_LOCAL),
         Op::MakeRecord(_, _) => Some(NATIVE_BRIDGE_MAKE_RECORD),
         Op::GetField(_, _) => Some(NATIVE_BRIDGE_GET_FIELD),
+        Op::Array(function, _) if native_array_function(*function) => Some(NATIVE_BRIDGE_ARRAY),
         _ => None,
     }
+}
+
+/// The array functions machine code runs through the runtime: those whose operands and result
+/// are scalars or arrays, and that never overwrite an operand's buffer, so the arena's shared
+/// handle gives the same answer and the same allocation charge as the interpreter. Updates in
+/// place (`array_set`, the element-wise kernels) stay in the interpreter, which knows when an
+/// array has one owner.
+pub(crate) fn native_array_function(function: guion_model::ArrayFunction) -> bool {
+    use guion_model::ArrayFunction::*;
+    matches!(
+        function,
+        Range
+            | Linspace
+            | Get
+            | Size
+            | Ndim
+            | Sum
+            | Prod
+            | Min
+            | Max
+            | Argmin
+            | Argmax
+            | Mean
+            | Var
+            | Std
+    )
 }
 
 fn native_direct_operation_index(op: &Op) -> Option<usize> {
@@ -245,6 +276,7 @@ fn native_direct_operation_index(op: &Op) -> Option<usize> {
         Op::TextTrim => Some(34),
         Op::TextJoin => Some(35),
         Op::Length => Some(36),
+        Op::Array(function, _) => Some(36 + function.arity()),
         _ => None,
     }
 }
@@ -337,6 +369,7 @@ fn native_direct_argument_count(op: &Op) -> Option<usize> {
         Op::TextFind | Op::TextReplace => Some(3),
         Op::TextSplit | Op::TextJoin => Some(2),
         Op::TextTrim | Op::Length => Some(1),
+        Op::Array(function, _) => Some(function.arity()),
         _ => None,
     }
 }
@@ -595,6 +628,16 @@ pub(crate) struct NativeSymbols {
     pub(crate) count_guest_branch: *const u8,
     pub(crate) loop_safepoint: *const u8,
     pub(crate) flush_tick: *const u8,
+}
+
+/// What machine code reads of an array: its flat element count and where the elements start.
+/// The array's handle in native code is the address of this descriptor, so an element read is
+/// two loads and a bounds check. `value` holds the array, which keeps the buffer where it is.
+#[repr(C)]
+pub(crate) struct NativeArrayView {
+    pub(crate) data: *const u8,
+    pub(crate) len: usize,
+    pub(crate) value: Value,
 }
 
 #[repr(C)]
@@ -4154,12 +4197,56 @@ impl NativeBackend {
                         stack.push(tagged_value);
                         builder.seal_block(success);
                     }
+                    Op::Array(
+                        guion_model::ArrayFunction::Get,
+                        guion_model::ElementType::F64 | guion_model::ElementType::I64,
+                    ) => {
+                        // One bounds check, then a load from the array's own buffer. An
+                        // index outside the array leaves machine code, and the interpreter
+                        // raises the error, so its code and message are the interpreter's.
+                        let index = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let array = stack.pop().ok_or_else(|| "stack underflow".to_owned())?;
+                        let length = builder.ins().load(
+                            types::I64,
+                            MemFlagsData::new(),
+                            array,
+                            std::mem::offset_of!(NativeArrayView, len) as i32,
+                        );
+                        // Unsigned comparison also rejects negative signed indices.
+                        let in_bounds = builder.ins().icmp(IntCC::UnsignedLessThan, index, length);
+                        let load_item = builder.create_block();
+                        let fault_args = step_exit_args(
+                            &mut builder,
+                            steps_var,
+                            ip,
+                            block_instruction_offsets[ip] + 1,
+                        );
+                        builder
+                            .ins()
+                            .brif(in_bounds, load_item, &[], fallback, &fault_args);
+                        builder.switch_to_block(load_item);
+                        let data = builder.ins().load(
+                            ptr,
+                            MemFlagsData::new(),
+                            array,
+                            std::mem::offset_of!(NativeArrayView, data) as i32,
+                        );
+                        let byte_offset = builder.ins().ishl_imm_u(index, 3);
+                        let item_address = builder.ins().iadd(data, byte_offset);
+                        let value =
+                            builder
+                                .ins()
+                                .load(types::I64, MemFlagsData::new(), item_address, 0);
+                        stack.push(value);
+                        builder.seal_block(load_item);
+                    }
                     Op::JsonTryText
                     | Op::JsonTryGet
                     | Op::JsonTryInt
                     | Op::JsonParse
                     | Op::FileNextLine
                     | Op::Args
+                    | Op::Array(_, _)
                     | Op::MakeTypedMap(_)
                     | Op::JsonArray
                     | Op::MapKeys
@@ -5517,13 +5604,23 @@ fn infer_native_types(
                 if state.stack.pop()? != Type::Record(definition.name.to_string()) {
                     return None;
                 }
-                state
-                    .stack
-                    .push(definition.fields.get(*field_index)?.ty.clone());
+                let field_type = definition.fields.get(*field_index)?.ty.clone();
+                // Arrays stay in locals of the function that made them.
+                if matches!(field_type, Type::Array(_)) {
+                    return None;
+                }
+                state.stack.push(field_type);
             }
             Op::MakeRecord(record_index, count) => {
                 let definition = records.get(*record_index)?;
                 if *count != definition.fields.len() {
+                    return None;
+                }
+                if definition
+                    .fields
+                    .iter()
+                    .any(|field| matches!(field.ty, Type::Array(_)))
+                {
                     return None;
                 }
                 let start = state.stack.len().checked_sub(*count)?;
@@ -5823,6 +5920,29 @@ fn infer_native_types(
                     return None;
                 }
                 state.stack.push(Type::Text);
+            }
+            Op::Array(function, element) => {
+                if !native_array_function(*function) || !function.element_class().accepts(*element)
+                {
+                    return None;
+                }
+                let (operands, result) = function.signature(*element);
+                let native_type =
+                    |ty: &Type| matches!(ty, Type::Int | Type::Float64 | Type::Bool | Type::Array(_));
+                if !native_type(&result) {
+                    return None;
+                }
+                for operand in operands.iter().rev() {
+                    let actual = state.stack.pop()?;
+                    let matches = match operand {
+                        guion_model::ArrayOperand::Exact(expected) => actual == *expected,
+                        guion_model::ArrayOperand::AnyArray => matches!(actual, Type::Array(_)),
+                    };
+                    if !matches || !native_type(&actual) {
+                        return None;
+                    }
+                }
+                state.stack.push(result);
             }
             Op::TextSlice => {
                 if state.stack.pop()? != Type::Int
@@ -6246,6 +6366,7 @@ fn instruction_requires_native_value_bridge(instruction: &guion_model::Instructi
         | Op::TextReplace
         | Op::TextTrim
         | Op::TextJoin
+        | Op::Array(_, _)
         | Op::Length => false,
         Op::JsonSetLocal(_) => false,
         Op::JsonPushLocal(_) => false,
@@ -6342,6 +6463,7 @@ fn native_arena_allocation_sites(artifact: &Artifact) -> Vec<Vec<bool>> {
                                 })
                             }
                             Op::MakeTypedMap(_) | Op::MapKeys | Op::MapSet => true,
+                            Op::Array(_, _) => result_is_handle(ip),
                             Op::GetField(_, _) | Op::Add => result_is_handle(ip),
                             // Indexing a list hands back a handle the list already holds;
                             // only a map lookup goes through the bridge and allocates one.
@@ -6946,6 +7068,7 @@ fn stack_depths(function: &Function) -> Option<Vec<Option<usize>>> {
             Op::TextSplit | Op::TextJoin => (2, 1),
             Op::TextTrim => (1, 1),
             Op::Length | Op::GetField(_, _) => (1, 1),
+            Op::Array(function, _) => (function.arity(), 1),
             Op::Index => (2, 1),
             Op::MakeRecord(_, count) => (*count, 1),
             Op::MakeList(count) => (*count, 1),

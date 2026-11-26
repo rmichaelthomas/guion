@@ -85,6 +85,8 @@ impl<T> std::ops::Deref for AddressedBoxes<T> {
 
 pub(crate) struct NativeListArena {
     pub(crate) float_lists: AddressedBoxes<NativeFloatList>,
+    /// Arrays held by native code; an array's handle is the address of its descriptor.
+    pub(crate) array_views: AddressedBoxes<NativeArrayView>,
     pub(crate) float_storage: Vec<Vec<Float64>>,
     pub(crate) int_lists: AddressedBoxes<NativeIntList>,
     pub(crate) inline_int_lists: Vec<Vec<NativeIntList>>,
@@ -215,6 +217,7 @@ impl NativeListArena {
     ) -> Self {
         Self {
             float_lists: AddressedBoxes::new(),
+            array_views: AddressedBoxes::new(),
             float_storage: Vec::new(),
             int_lists: AddressedBoxes::new(),
             inline_int_lists: Vec::new(),
@@ -278,6 +281,7 @@ impl NativeListArena {
             .saturating_add(self.handle_lists.len())
             .saturating_add(self.int_lists.len())
             .saturating_add(self.float_lists.len())
+            .saturating_add(self.array_views.len())
             .saturating_add(self.native_records.len())
             .saturating_add(self.inline_tagged_value_len)
             .saturating_add(
@@ -290,6 +294,7 @@ impl NativeListArena {
 
     pub(crate) fn discard_arena_handles(&mut self) {
         self.float_lists.clear();
+        self.array_views.clear();
         self.float_storage.clear();
         self.int_lists.clear();
         self.inline_int_lists.clear();
@@ -393,6 +398,18 @@ impl NativeListArena {
     }
 
     pub(crate) fn store_value(&mut self, value: Value) -> Option<i64> {
+        if let Value::Array(array) = &value {
+            let data = guion_model::with_array_data!(&array.data, items => items.as_ptr() as *const u8);
+            let view = NativeArrayView {
+                data,
+                len: array.size(),
+                value,
+            };
+            self.array_views.try_reserve(1).ok()?;
+            self.array_views.push(Box::new(view));
+            let stored = self.array_views.last_mut()?;
+            return i64::try_from(&**stored as *const NativeArrayView as usize).ok();
+        }
         self.values.try_reserve(1).ok()?;
         // These are backend handle-table entries. Their producer has already
         // charged any guest-visible value allocation; charging the handle slot
@@ -403,7 +420,11 @@ impl NativeListArena {
 
     pub(crate) fn value(&self, handle: i64) -> Option<&Value> {
         let index = usize::try_from(handle.checked_sub(1)?).ok()?;
-        self.values.get(index)
+        self.values.get(index).or_else(|| {
+            self.array_views
+                .find_address(usize::try_from(handle).ok()?)
+                .map(|view| &view.value)
+        })
     }
 
     pub(crate) fn constant_value(&self, handle: i64) -> Option<&Value> {
@@ -1289,6 +1310,43 @@ impl NativeListArena {
             return None;
         }
         let value = match &instruction.op {
+            Op::Array(function, element) => {
+                let arity = function.arity();
+                if arguments.len() != arity || !native_backend::native_array_function(*function) {
+                    return None;
+                }
+                let mut operands = [Value::Unit, Value::Unit, Value::Unit];
+                for (slot, operand) in operands.iter_mut().enumerate().take(arity) {
+                    *operand = self.decode_bridge_value(arguments[slot], argument_tags[slot])?;
+                }
+                // The charge is taken straight from the budget, as the interpreter does, and
+                // counted so a replay in the interpreter can give it back.
+                let budget = Arc::clone(&runtime.budget);
+                let before = budget.allocation.remaining();
+                let mut charge = |bytes: usize| {
+                    if budget.allocate(bytes) {
+                        Ok(())
+                    } else {
+                        Err(("R_ALLOCATION_LIMIT", String::new()))
+                    }
+                };
+                let mut release = |bytes: usize| budget.refund_allocation(bytes);
+                let outcome = guion_vm_core::array::apply(
+                    *function,
+                    *element,
+                    &mut operands[..arity],
+                    &mut charge,
+                    &mut release,
+                );
+                let after = budget.allocation.remaining();
+                self.charged_bytes = self
+                    .charged_bytes
+                    .saturating_add(before.saturating_sub(after));
+                // Any error (an index outside the array, the limit) leaves machine code, and
+                // the interpreter runs the same instruction and raises it.
+                let value = outcome.ok()?;
+                return self.encode_bridge_value(value, result_tag);
+            }
             Op::Index => {
                 if arguments.len() != 2 || argument_tags != [4, 4] {
                     return None;
