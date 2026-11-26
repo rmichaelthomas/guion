@@ -1,5 +1,7 @@
-//! Threads for the element-wise array kernels.
+//! One pool of threads for the element-wise array kernels, matrix multiplication and the
+//! parallel CSV read.
 //!
+//! `run_on_pool` runs a work-pulling closure on the caller and on the pool's threads.
 //! A kernel hands `for_each_chunk_mut` its output buffer; disjoint chunks of it are filled on
 //! the threads of a persistent pool. The result is the one a single thread would give: each chunk reports the
 //! first failure inside it in index order, and the failure of the lowest-offset chunk wins.
@@ -72,6 +74,16 @@ fn refuse_spawn() -> bool {
     NO_NEW_THREADS.with(|refuse| refuse.get())
 }
 
+/// Runs `body` with the pool's workers unavailable to calls made from this thread, as if the
+/// operating system had refused to start them: the caller does all the work.
+#[cfg(test)]
+pub(crate) fn with_no_pool_workers<R>(body: impl FnOnce() -> R) -> R {
+    let before = NO_NEW_THREADS.with(|refuse| refuse.replace(true));
+    let result = body();
+    NO_NEW_THREADS.with(|refuse| refuse.set(before));
+    result
+}
+
 #[cfg(not(test))]
 fn refuse_spawn() -> bool {
     false
@@ -82,7 +94,7 @@ fn refuse_spawn() -> bool {
 #[derive(Clone, Copy)]
 struct Job(*const (dyn Fn() + Sync));
 
-// SAFETY: the closure behind the pointer is `Sync`, and `run_on_workers` keeps it alive until
+// SAFETY: the closure behind the pointer is `Sync`, and `run_on_pool` keeps it alive until
 // every worker that took the job has finished with it.
 unsafe impl Send for Job {}
 
@@ -148,7 +160,7 @@ fn serve(pool: &'static Pool) {
         state.unclaimed -= 1;
         let job = state.job.expect("a job is on loan while slots are open");
         drop(state);
-        // SAFETY: `run_on_workers` does not return, and so does not free the closure, until
+        // SAFETY: `run_on_pool` does not return, and so does not free the closure, until
         // `pending` reaches zero, and this worker counts in `pending` until it reports below.
         let outcome =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe { (*job.0)() }));
@@ -162,9 +174,11 @@ fn serve(pool: &'static Pool) {
 }
 
 /// Runs `worker` on the calling thread and on up to `threads - 1` pool threads, and returns
-/// when every one of them has finished. The closure pulls its work from a shared queue, so how
-/// many threads join (none, if the pool is busy, absent or refused) never changes the result.
-fn run_on_workers(threads: usize, worker: &(dyn Fn() + Sync)) {
+/// when every invocation has returned. The closure pulls its work from a shared queue or
+/// counter, so how many threads join never changes the result. If the pool is busy (a nested
+/// call, or another caller's job) or has no workers, `worker` runs once, on the caller only.
+/// A panic in any invocation is re-raised on the caller.
+pub fn run_on_pool(threads: usize, worker: &(dyn Fn() + Sync)) {
     let pool = pool();
     let available = if refuse_spawn() {
         0
@@ -224,12 +238,18 @@ pub(crate) fn for_each_chunk_mut<T: Send, E: Send>(
     let size = len.div_ceil(threads * 4).max(MIN_CHUNK);
     let queue = Mutex::new(out.chunks_mut(size).enumerate());
     let failure: Mutex<Option<(usize, E)>> = Mutex::new(None);
+    // The lowest offset known to have failed. A chunk past it cannot change the answer, so it is
+    // not run; a chunk before it still is, because it might fail at a lower offset.
+    let stop_at = AtomicUsize::new(usize::MAX);
     #[cfg(test)]
     let (caller, off_thread) = (std::thread::current().id(), AtomicUsize::new(0));
     let worker = || loop {
         let next = queue.lock().unwrap_or_else(|e| e.into_inner()).next();
         let Some((index, chunk)) = next else { return };
         let offset = index * size;
+        if offset > stop_at.load(Ordering::Acquire) {
+            return;
+        }
         #[cfg(test)]
         if std::thread::current().id() != caller {
             off_thread.fetch_add(1, Ordering::Relaxed);
@@ -238,11 +258,12 @@ pub(crate) fn for_each_chunk_mut<T: Send, E: Send>(
             let mut slot = failure.lock().unwrap_or_else(|e| e.into_inner());
             if slot.as_ref().is_none_or(|(known, _)| offset < *known) {
                 *slot = Some((offset, error));
+                stop_at.store(offset, Ordering::Release);
             }
         }
     };
     // More workers than chunks would only be woken to find the queue empty.
-    run_on_workers(threads.min(len.div_ceil(size)), &worker);
+    run_on_pool(threads.min(len.div_ceil(size)), &worker);
     #[cfg(test)]
     OFF_THREAD_CHUNKS.with(|chunks| chunks.set(chunks.get() + off_thread.load(Ordering::Relaxed)));
     match failure.into_inner().unwrap_or_else(|e| e.into_inner()) {
@@ -343,6 +364,118 @@ mod tests {
         let mut data = vec![0u8; 8 * 4 * MIN_CHUNK];
         let _: Result<(), ()> = for_each_chunk_mut(&mut data, 8, |_, _| Ok(()));
         assert!(last_joining() > 1 || available_threads() <= 2);
+    }
+
+    #[test]
+    fn run_on_pool_uses_pool_threads() {
+        if available_threads() < 2 {
+            return;
+        }
+        // Another test may hold the pool; a busy pool runs the work on the caller alone, so
+        // try again until a call really is shared.
+        let mut most = 0;
+        for _ in 0..50 {
+            let ids = Mutex::new(std::collections::HashSet::new());
+            run_on_pool(4, &|| {
+                ids.lock().unwrap().insert(std::thread::current().id());
+                let start = std::time::Instant::now();
+                while ids.lock().unwrap().len() < 4 && start.elapsed().as_millis() < 100 {
+                    std::thread::yield_now();
+                }
+            });
+            most = most.max(ids.lock().unwrap().len());
+            if most >= 2 {
+                break;
+            }
+        }
+        assert!(most >= 2, "only {most} distinct threads ran");
+    }
+
+    #[test]
+    fn nested_run_on_pool_runs_on_caller() {
+        if available_threads() < 2 {
+            return;
+        }
+        for _ in 0..50 {
+            let outer = Mutex::new(std::collections::HashSet::new());
+            let inner: Mutex<Vec<(std::thread::ThreadId, std::collections::HashSet<_>)>> =
+                Mutex::new(Vec::new());
+            run_on_pool(4, &|| {
+                outer.lock().unwrap().insert(std::thread::current().id());
+                let start = std::time::Instant::now();
+                while outer.lock().unwrap().len() < 2 && start.elapsed().as_millis() < 100 {
+                    std::thread::yield_now();
+                }
+                let seen = Mutex::new(std::collections::HashSet::new());
+                run_on_pool(4, &|| {
+                    seen.lock().unwrap().insert(std::thread::current().id());
+                });
+                inner
+                    .lock()
+                    .unwrap()
+                    .push((std::thread::current().id(), seen.into_inner().unwrap()));
+            });
+            // Only when the outer call was really shared did it hold the pool throughout.
+            if outer.lock().unwrap().len() >= 2 {
+                let inner = inner.lock().unwrap();
+                assert!(!inner.is_empty());
+                for (thread, seen) in inner.iter() {
+                    assert_eq!(seen.len(), 1);
+                    assert!(seen.contains(thread));
+                }
+                return;
+            }
+        }
+        panic!("the pool was never free for a shared call");
+    }
+
+    #[test]
+    fn failed_chunk_stops_remaining_work() {
+        const CHUNKS: usize = 400;
+        let run = |refuse: bool| {
+            let started = AtomicUsize::new(0);
+            let failed = AtomicBool::new(false);
+            let mut data = vec![0u8; CHUNKS * MIN_CHUNK];
+            let mut body = || {
+                for_each_chunk_mut(&mut data, 100, |offset, _| {
+                    started.fetch_add(1, Ordering::SeqCst);
+                    if offset == 0 {
+                        failed.store(true, Ordering::SeqCst);
+                        return Err(offset);
+                    }
+                    // Every other chunk starts only once chunk 0 has failed.
+                    let start = std::time::Instant::now();
+                    while !failed.load(Ordering::SeqCst) && start.elapsed().as_secs() < 2 {
+                        std::thread::yield_now();
+                    }
+                    Ok(())
+                })
+            };
+            let result = if refuse { with_no_pool_workers(&mut body) } else { body() };
+            (result, started.load(Ordering::SeqCst))
+        };
+        // The caller alone takes chunk 0 first and fails it: nothing else may start.
+        assert_eq!(run(true), (Err(0), 1));
+        // With workers, only chunks already taken when the failure lands may start.
+        let (result, started) = run(false);
+        assert_eq!(result, Err(0));
+        assert!(started < CHUNKS / 2, "{started} of {CHUNKS} chunks started");
+    }
+
+    #[test]
+    fn refused_spawn_still_finishes() {
+        let mut data = vec![0u32; 700_001];
+        let result: Result<(), ()> = with_no_pool_workers(|| {
+            for_each_chunk_mut(&mut data, 8, |offset, chunk| {
+                for (i, slot) in chunk.iter_mut().enumerate() {
+                    *slot += (offset + i) as u32 + 1;
+                }
+                Ok(())
+            })
+        });
+        assert_eq!(result, Ok(()));
+        assert_eq!(last_joining(), 0);
+        assert!(data.iter().enumerate().all(|(i, v)| *v == i as u32 + 1));
     }
 
     #[test]

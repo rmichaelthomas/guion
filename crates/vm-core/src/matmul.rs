@@ -110,37 +110,10 @@ pub(crate) fn matmul_f64(
         work();
     } else {
         // The workers pull row chunks from one queue, so the calling thread works too and a
-        // thread the operating system refuses to start only means fewer workers, never a
-        // missing chunk (or a panic that would abort the program).
-        std::thread::scope(|scope| {
-            for _ in 1..threads {
-                if refuse_spawn()
-                    || std::thread::Builder::new()
-                        .spawn_scoped(scope, work)
-                        .is_err()
-                {
-                    break;
-                }
-            }
-            work();
-        });
+        // pool with fewer free workers (or none, or busy) only means fewer threads, never a
+        // missing chunk.
+        crate::parallel::run_on_pool(threads, &work);
     }
-}
-
-#[cfg(test)]
-thread_local! {
-    static NO_NEW_THREADS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// Lets a test stand in for an operating system that refuses to start a thread.
-#[cfg(test)]
-fn refuse_spawn() -> bool {
-    NO_NEW_THREADS.with(|refuse| refuse.get())
-}
-
-#[cfg(not(test))]
-fn refuse_spawn() -> bool {
-    false
 }
 
 /// Packs `B` as, per `KC` block of rows, panels of `NR` columns, each stored `[p][NR]` and
@@ -416,11 +389,31 @@ mod tests {
     fn a_refused_thread_leaves_the_work_to_the_threads_that_started() {
         let (n, k, m) = (70, 300, 50);
         let (expected, _) = run(n, k, m, 1, native_isa());
-        // No helper thread can be started: the calling thread does all of it.
-        NO_NEW_THREADS.with(|refuse| refuse.set(true));
-        let (got, _) = run(n, k, m, 8, native_isa());
-        NO_NEW_THREADS.with(|refuse| refuse.set(false));
+        // No pool worker is available: the calling thread does all of it.
+        let (got, _) = crate::parallel::with_no_pool_workers(|| run(n, k, m, 8, native_isa()));
         assert_eq!(got, expected);
+    }
+
+    #[test]
+    fn matmul_inside_pool_worker_completes() {
+        let (n, k, m) = (200, 200, 200);
+        let (expected, _) = run(n, k, m, 1, native_isa());
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let results = Mutex::new(Vec::new());
+            crate::parallel::run_on_pool(4, &|| {
+                let (got, _) = run(n, k, m, 4, native_isa());
+                results.lock().unwrap().push(got);
+            });
+            let _ = sender.send(results.into_inner().unwrap());
+        });
+        let results = receiver
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("a matmul inside a pool worker finished within 10 s");
+        assert!(!results.is_empty());
+        for got in results {
+            assert_eq!(got, expected);
+        }
     }
 
     #[test]

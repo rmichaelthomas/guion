@@ -1386,19 +1386,8 @@ fn read_parallel(
                 *results[index].lock().unwrap_or_else(|e| e.into_inner()) = Some(piece);
             };
             // The workers pull pieces from one counter, so the calling thread works too and a
-            // thread the operating system refuses to start only means fewer workers.
-            std::thread::scope(|scope| {
-                for _ in 1..count {
-                    if refuse_spawn()
-                        || std::thread::Builder::new()
-                            .spawn_scoped(scope, work)
-                            .is_err()
-                    {
-                        break;
-                    }
-                }
-                work();
-            });
+            // pool with fewer free workers (or none, or busy) only means fewer threads.
+            guion_vm_core::run_on_pool(if refuse_spawn() { 1 } else { count }, &work);
             let pieces: Vec<Piece> = results
                 .into_iter()
                 .map(|slot| {
