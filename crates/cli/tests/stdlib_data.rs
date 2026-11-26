@@ -1,5 +1,7 @@
 use std::process::Command;
 
+// The name is kept because evaluation/agent-choice/switch-conditions.json cites it. The test runs
+// the embedded Rust compiler; it does not use the self-hosted compiler.
 #[test]
 fn embedded_self_host_compiler_runs_shipped_data_modules_and_streams() {
     let root = std::env::temp_dir().join(format!("guion stdlib data 東京 {}", std::process::id()));

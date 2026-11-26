@@ -1,9 +1,7 @@
 {
   "artifact_identities": {
-    "artifact_schema": "sha256:c33f38db0323a1cd02a9423001b4a83c1ee8e84f9f988a0e9093cefc2069e4a0",
-    "compiler_seed": "sha256:47bc0e2535474795d67125e7e4feb6712080070145ec2e84a61de4762175efa4",
-    "compiler_seed_manifest": "sha256:dbd30291732a1f68319bf892fd3233533f0bb428244884544957ca3878e749e0",
-    "runtime": "sha256:4b85cd7101dc1715c89ee636daa146cb8ebbee73259c61e80564c7835e1a1769",
+    "artifact_schema": "sha256:cf70d6087ace011f0b43f623ea22e257e28d60ee3f7a6f00b7bd3d751121f48a",
+    "runtime": "sha256:c12a036f49cf23b3951c5409a9f2832516c10363b23c679bac8c0019108d2cb3",
     "stdlib": "sha256:f5fb3446b680a9a531fb6fde119490378dbeb96ca1632f6188fb947eaacd9525"
   },
   "changed_path_count": 0,
@@ -34,11 +32,10 @@
   "required_targets": [
     "macos-aarch64"
   ],
-  "runtime_hash": "sha256:4b85cd7101dc1715c89ee636daa146cb8ebbee73259c61e80564c7835e1a1769",
+  "runtime_hash": "sha256:c12a036f49cf23b3951c5409a9f2832516c10363b23c679bac8c0019108d2cb3",
   "schema_version": 1,
-  "seed_hash": "sha256:47bc0e2535474795d67125e7e4feb6712080070145ec2e84a61de4762175efa4",
   "skipped_targets": [],
-  "source_revision": "864373c0f8d4218ab54320c8281d22f85d6c1b25",
+  "source_revision": "dfea7faed9268e0dfd1d1e0f1ad8a3a1e6969caf",
   "status": "incomplete",
   "stdlib_hash": "sha256:f5fb3446b680a9a531fb6fde119490378dbeb96ca1632f6188fb947eaacd9525",
   "target": "macos-aarch64",

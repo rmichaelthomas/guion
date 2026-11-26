@@ -70,7 +70,7 @@ You can try these examples and others [in your browser](https://rmichaelthomas.g
 - **One command for the whole project.** `guion` creates, checks, formats, lints, tests, runs, builds, packages, installs and documents programs. There is nothing else to install or configure.
 - **Permissions by default.** A program can't touch files, the network or the environment unless it's given permission. You can see what a program is able to do before you run it.
 - **Fast.** On measured everyday workloads, from text processing to JSON and CSV, Guion runs faster than CPython. The results are below.
-- **Built in itself.** The Guion compiler is written in Guion and runs on a Rust runtime. Compiled programs are portable `.gub` files.
+- **Portable programs.** Guion has compiled itself: a compiler written in Guion is kept in the repository as a historical proof. The compiler you run is written in Rust. Compiled programs are portable `.gub` files that run on a Rust runtime.
 - **Runs in the browser.** The same runtime compiles to WebAssembly, which is how the website runs your code.
 
 ## Install

@@ -1,4 +1,3 @@
-use crate::builtin_catalog;
 use crate::completion::{audit_closeout, validate_completion_schema};
 use crate::inventory::validate_inventory;
 use serde_json::{json, Value};
@@ -246,7 +245,6 @@ fn report_path(name: &str) -> String {
 fn task_for(command: &str, group: Option<&str>) -> Option<u64> {
     match command {
         "conformance" => Some(2),
-        "bootstrap" => Some(3),
         "stdlib" if group == Some("data") => Some(4),
         "stdlib" if group == Some("services") => Some(5),
         "runtime" => Some(6),
@@ -271,7 +269,6 @@ fn invocation(command: &str, args: Vec<String>) -> Result<Invocation, String> {
             "conformance-inventory".into()
         }
         "conformance" => "conformance".into(),
-        "bootstrap" => "bootstrap".into(),
         "stdlib" => match group {
             Some("data") => "stdlib-data",
             Some("services") => "stdlib-services",
@@ -385,7 +382,7 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
         .windows(2)
         .find(|pair| pair[0] == "--group")
         .map(|pair| pair[1].as_str());
-    let mut targets: Vec<(String, Vec<String>, String)> = match command {
+    let targets: Vec<(String, Vec<String>, String)> = match command {
         "conformance" if invocation.report_name == "conformance-inventory" => return Ok(()),
         "conformance" => vec![
             (
@@ -408,41 +405,12 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
                     "--test".into(),
                     "language_conformance".into(),
                     "--".into(),
-                    "--skip".into(),
-                    "compiler_stages_compile_full_task_two_corpus_and_locked_roots".into(),
                     "--test-threads=1".into(),
                 ],
                 "crates/cli/tests/language_conformance.rs".into(),
             ),
-        ],
-        "bootstrap" => vec![
             (
-                "compiler-seed-regeneration".into(),
-                vec![
-                    "run".into(),
-                    "-p".into(),
-                    "guion-bootstrap".into(),
-                    "--bin".into(),
-                    "guion-stage0".into(),
-                    "--".into(),
-                    "seed".into(),
-                    ".".into(),
-                ],
-                "crates/bootstrap/src/main.rs".into(),
-            ),
-            (
-                "compiler-stage-equality".into(),
-                vec![
-                    "test".into(),
-                    "-p".into(),
-                    "guion-cli".into(),
-                    "--test".into(),
-                    "bootstrap".into(),
-                ],
-                "crates/cli/tests/bootstrap.rs".into(),
-            ),
-            (
-                "default-cli-embedded-selfhost".into(),
+                "default-cli-compiler-driver".into(),
                 vec![
                     "test".into(),
                     "-p".into(),
@@ -560,28 +528,6 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
         "builders" => Vec::new(),
         _ => Vec::new(),
     };
-    if command == "conformance"
-        && invocation
-            .args
-            .windows(2)
-            .any(|pair| pair[0] == "--compilers" && pair[1] == "stage2,stage3")
-    {
-        targets.push((
-            "stage2-stage3-full-corpus".into(),
-            vec![
-                "test".into(),
-                "-p".into(),
-                "guion-cli".into(),
-                "--test".into(),
-                "language_conformance".into(),
-                "compiler_stages_compile_full_task_two_corpus_and_locked_roots".into(),
-                "--".into(),
-                "--exact".into(),
-                "--nocapture".into(),
-            ],
-            "crates/cli/tests/language_conformance.rs".into(),
-        ));
-    }
     for (id, argv, source) in targets {
         if !root.join(&source).is_file() {
             invocation.checks.push(CheckResult {
@@ -647,54 +593,6 @@ fn expected_task_checks(root: &Path, invocation: &mut Invocation) -> Result<(), 
             }
         }
     }
-    if command == "bootstrap" {
-        let args = vec![
-            "tree".into(),
-            "--locked".into(),
-            "--offline".into(),
-            "-p".into(),
-            "guion-cli".into(),
-            "--edges".into(),
-            "normal,build".into(),
-        ];
-        let command_line = std::iter::once("cargo".to_string())
-            .chain(args.iter().cloned())
-            .collect::<Vec<_>>();
-        match run_output(root, "cargo", &args, true) {
-            Ok(output) => {
-                let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if !stderr.is_empty() {
-                    if !text.is_empty() {
-                        text.push('\n');
-                    }
-                    text.push_str(&stderr);
-                }
-                let clean =
-                    output.status.success() && default_cli_dependency_graph_is_python_free(&text);
-                if !clean {
-                    invocation.exit_status = 1;
-                }
-                invocation.checks.push(CheckResult {
-                    id: "default-cli-dependency-graph".into(),
-                    status: if clean { "passed" } else { "failed" }.into(),
-                    command: command_line,
-                    exit_status: output.status.code(),
-                    output: text,
-                });
-            }
-            Err(error) => {
-                invocation.exit_status = 1;
-                invocation.checks.push(CheckResult {
-                    id: "default-cli-dependency-graph".into(),
-                    status: "failed".into(),
-                    command: command_line,
-                    exit_status: Some(127),
-                    output: error,
-                });
-            }
-        }
-    }
     Ok(())
 }
 
@@ -703,7 +601,6 @@ fn requested_targets(command: &str, args: &[String]) -> Vec<String> {
         return if matches!(
             command,
             "conformance"
-                | "bootstrap"
                 | "stdlib"
                 | "runtime"
                 | "product"
@@ -839,14 +736,6 @@ fn build_report(root: &Path, invocation: &mut Invocation) -> Result<Value, Strin
 
     let mut artifacts = BTreeMap::new();
     artifacts.insert(
-        "compiler_seed",
-        file_digest(root, "language/self_host/compiler.gub"),
-    );
-    artifacts.insert(
-        "compiler_seed_manifest",
-        file_digest(root, "language/self_host/compiler-seed.json"),
-    );
-    artifacts.insert(
         "artifact_schema",
         file_digest(root, "language/artifact-format.md"),
     );
@@ -871,7 +760,6 @@ fn build_report(root: &Path, invocation: &mut Invocation) -> Result<Value, Strin
         "required_targets": invocation.requested_targets,
         "completed_targets": completed_targets,
         "skipped_targets": skipped_targets,
-        "seed_hash": artifacts.get("compiler_seed").and_then(Clone::clone),
         "stdlib_hash": artifacts.get("stdlib").and_then(Clone::clone),
         "runtime_hash": artifacts.get("runtime").and_then(Clone::clone),
         "artifact_identities": artifacts,
@@ -909,7 +797,6 @@ fn same_source_snapshot(left: &Value, right: &Value) -> bool {
     [
         "source_revision",
         "working_tree_digest",
-        "seed_hash",
         "stdlib_hash",
         "runtime_hash",
         "required_targets",
@@ -1071,7 +958,7 @@ fn print_json(value: &Value) -> Result<(), String> {
 
 pub fn run(root: &Path, args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("usage: cargo xtask <conformance|bootstrap|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|browser-docs|artifact-format-audit|surface-diff|outside-check> [options]");
+        eprintln!("usage: cargo xtask <conformance|stdlib|runtime|product|release|performance|builders|closeout|agent-reference|browser-docs|artifact-format-audit|surface-diff|outside-check> [options]");
         return 2;
     }
     let command = args[0].as_str();
@@ -1080,23 +967,6 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
     }
     if command == "outside-check" {
         return crate::outside_check::run(root, &args[1..]);
-    }
-    if command == "catalog" {
-        let result = if args.iter().any(|arg| arg == "--write") {
-            builtin_catalog::write(root)
-        } else {
-            builtin_catalog::validate(root)
-        };
-        return match result {
-            Ok(()) => {
-                println!("builtin catalog is valid");
-                0
-            }
-            Err(error) => {
-                eprintln!("{error}");
-                1
-            }
-        };
     }
     if command == "browser-docs" {
         let result = if args.iter().any(|arg| arg == "--write") {
@@ -1161,14 +1031,7 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
 
     let format_preflight_failed = if matches!(
         command,
-        "conformance"
-            | "bootstrap"
-            | "stdlib"
-            | "runtime"
-            | "product"
-            | "release"
-            | "performance"
-            | "builders"
+        "conformance" | "stdlib" | "runtime" | "product" | "release" | "performance" | "builders"
     ) {
         match crate::artifact_format::audit_repository(root) {
             Ok(()) => {
@@ -1278,58 +1141,7 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
         }
     } else if invocation.report_name == "conformance-inventory" {
         // Inventory-only is intentionally self-contained and does not claim Task 2 completion.
-        if let Err(error) = builtin_catalog::validate(root) {
-            invocation.explicit_status = Some("failed".into());
-            invocation.exit_status = 1;
-            invocation.message = Some(error.clone());
-            invocation.checks.push(CheckResult {
-                id: "builtin-signature-catalog".into(),
-                status: "failed".into(),
-                command: vec![
-                    "cargo".into(),
-                    "xtask".into(),
-                    "catalog".into(),
-                    "--check".into(),
-                ],
-                exit_status: Some(1),
-                output: error,
-            });
-        } else {
-            invocation.checks.push(CheckResult {
-                id: "builtin-signature-catalog".into(),
-                status: "passed".into(),
-                command: vec![
-                    "cargo".into(),
-                    "xtask".into(),
-                    "catalog".into(),
-                    "--check".into(),
-                ],
-                exit_status: Some(0),
-                output:
-                    "declarative builtin signatures validate and generated Guion catalog is current"
-                        .into(),
-            });
-        }
     } else {
-        if command == "conformance" {
-            if let Err(error) = builtin_catalog::validate(root) {
-                invocation.explicit_status = Some("failed".into());
-                invocation.exit_status = 1;
-                invocation.message = Some(error.clone());
-                invocation.checks.push(CheckResult {
-                    id: "builtin-signature-catalog".into(),
-                    status: "failed".into(),
-                    command: vec![
-                        "cargo".into(),
-                        "xtask".into(),
-                        "catalog".into(),
-                        "--check".into(),
-                    ],
-                    exit_status: Some(1),
-                    output: error,
-                });
-            }
-        }
         let manifest = match read_json(root, "language/conformance/manifest.json") {
             Ok(value) => value,
             Err(error) => {
@@ -1345,7 +1157,6 @@ pub fn run(root: &Path, args: &[String]) -> i32 {
                 .map(|pair| pair[1].clone());
             let group = match command {
                 "conformance" => Some("conformance"),
-                "bootstrap" => Some("bootstrap"),
                 "runtime" => Some("runtime"),
                 "product" => product_group.as_deref(),
                 _ => None,
@@ -1497,7 +1308,6 @@ mod target_report_tests {
             "message": null,
             "source_revision": "abc123",
             "working_tree_digest": "sha256:source",
-            "seed_hash": "sha256:seed",
             "stdlib_hash": "sha256:stdlib",
             "runtime_hash": "sha256:runtime",
             "exact_command": "cargo xtask product --group applications --target both",

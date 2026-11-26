@@ -949,7 +949,7 @@ TOML parsing preserves the original source bytes for an unedited document. Typed
 
 ## Stable compiler and runtime error codes
 
-Codes below are collected from compiler/runtime source and self-hosted language files. Host error codes are also documented beside their operations in the host API contract.
+Codes below are collected from compiler/runtime source and Guion language files. Host error codes are also documented beside their operations in the host API contract.
 
 ```text
 E_ABI_ARTIFACT
@@ -1001,7 +1001,6 @@ E_CLI_REQUIRED
 E_CLI_SCHEMA
 E_CLI_UNKNOWN
 E_CLI_VALUE
-E_COMPILE_ARGUMENTS
 E_COMPRESS_ARGUMENT
 E_COMPRESS_CORRUPT
 E_COMPRESS_LIMIT
@@ -1045,7 +1044,6 @@ E_FLOAT_PARSE
 E_FN_CLOSURE
 E_FN_COMPARE
 E_FN_NOT_SERIALIZABLE
-E_FN_NO_CLOSURES
 E_FRAME_COLUMN
 E_FRAME_KIND
 E_FRAME_PARSE
@@ -1171,7 +1169,6 @@ E_PYTHON_FSTRING
 E_PYTHON_IMPORT
 E_PYTHON_KEYWORD
 E_PYTHON_KEYWORD_DUPLICATE
-E_PYTHON_RANGE
 E_PYTHON_TRY
 E_RANDOM_COUNT
 E_RANGE_CONTEXT
@@ -1657,4 +1654,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:cb99cf50dc6251a38ad7d4e6cb780a4cfa6a8e921fe9569b3f7b1595093e020f. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:4bdcffe7875c3080ab7d5c54fe88325c52a5012a3c65a91ee4b706ecb8a176f8. Validated by `cargo xtask agent-reference --check`. -->

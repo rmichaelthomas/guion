@@ -66,8 +66,7 @@ struct Token {
 /// name followed by `_list` (the list-taking builtin of that name: `map` finds `map_list`,
 /// `filter` finds `filter_list`) and the name has at least three characters. A candidate that
 /// qualifies only by the `_list` rule counts as exactly the threshold away. Candidates are
-/// sorted by distance, then by name, and at most three are kept. The self-hosted compiler
-/// (`language/self_host/compiler.gu`, `suggest_names`) implements the same rule.
+/// sorted by distance, then by name, and at most three are kept.
 fn suggest_names(name: &str, candidates: &[&str]) -> Vec<String> {
     let name_chars: Vec<char> = name.chars().collect();
     let threshold = std::cmp::max(2, name_chars.len() / 3);

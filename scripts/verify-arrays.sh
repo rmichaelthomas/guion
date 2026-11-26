@@ -31,13 +31,10 @@ step "construction, access, shape, bytes" cargo test --locked --offline -p guion
 step "elementwise arithmetic, comparisons, math" cargo test --locked --offline -p guion-cli --test arrays_elementwise
 step "reductions, sorting, linear algebra, random" cargo test --locked --offline -p guion-cli --test arrays_reduce
 step "review edge cases (memory, overflow, non-finite)" cargo test --locked --offline -p guion-cli --test arrays_edges
-step "self-hosted compiler parity" cargo test --locked --offline -p guion-cli --test arrays_self_host
 step "machine code on and off" cargo test --locked --offline -p guion-runtime --test arrays_native
-step "shared catalog, both compilers" cargo test --locked --offline -p guion-cli --test compiler_conformance
-step "builtin catalog is valid" cargo xtask catalog --check
+step "shared catalog, Rust compiler" cargo test --locked --offline -p guion-cli --test compiler_conformance
 step "agent reference is current" cargo xtask agent-reference --check
-step "three-stage bootstrap" cargo xtask bootstrap --stages 3
-step "conformance (stage2, stage3)" cargo xtask conformance --compilers stage2,stage3
+step "conformance" cargo xtask conformance
 step "clippy, warnings denied" cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 step "full workspace tests (includes old-format fixtures)" cargo test --workspace --locked --offline --no-fail-fast
 

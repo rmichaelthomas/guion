@@ -70,6 +70,11 @@ fn walk_files(directory: &Path, output: &mut Vec<PathBuf>) -> Result<(), String>
             .map_err(|error| format!("read directory entry: {error}"))?
             .path();
         if path.is_dir() {
+            // The frozen self-hosted compiler is a stored historical artifact; the reference
+            // does not read it.
+            if path.ends_with("language/self_host") {
+                continue;
+            }
             walk_files(&path, output)?;
         } else if path
             .extension()
@@ -203,7 +208,7 @@ pub fn render(root: &Path) -> Result<String, String> {
     }
 
     output.push_str("## Stable compiler and runtime error codes\n\n");
-    output.push_str("Codes below are collected from compiler/runtime source and self-hosted language files. Host error codes are also documented beside their operations in the host API contract.\n\n```text\n");
+    output.push_str("Codes below are collected from compiler/runtime source and Guion language files. Host error codes are also documented beside their operations in the host API contract.\n\n```text\n");
     for code in error_codes(root)? {
         output.push_str(&code);
         output.push('\n');

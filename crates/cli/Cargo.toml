@@ -25,11 +25,7 @@ reqwest.workspace = true
 tokio.workspace = true
 ring.workspace = true
 
-[dev-dependencies]
-guion-bootstrap = { path = "../bootstrap" }
-
 [build-dependencies]
-serde_json.workspace = true
 sha2.workspace = true
 
 [[test]]

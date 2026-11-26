@@ -18,7 +18,7 @@ export function renderAgentsJson({ claims, cli, gaps }) {
   return `${JSON.stringify({
     product: 'Guion',
     status: STATUS,
-    summary: 'Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.',
+    summary: 'Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a Rust compiler and a Rust runtime. Guion has compiled itself; a compiler written in Guion is kept as a historical proof.',
     site: SITE_URL,
     contact: CONTACT,
     howToUse: 'Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.',
@@ -42,7 +42,7 @@ export function renderLlmsTxt({ claims, gaps }) {
   const lines = [
     '# Guion',
     '',
-    '> Guion is a general-purpose programming language and toolchain: readable typed syntax, a compiler written in Guion, and a Rust runtime. Release 0.9.1 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.9.1',
+    '> Guion is a general-purpose programming language and toolchain: readable typed syntax, a Rust compiler and a Rust runtime. Guion has compiled itself; a compiler written in Guion is kept as a historical proof. Release 0.9.1 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.9.1',
     '',
     `Site: ${SITE_URL}`,
     `Machine-readable copy of everything below: ${SITE_URL}agents.json`,

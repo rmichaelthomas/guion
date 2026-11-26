@@ -357,4 +357,4 @@ The VM also builds for WebAssembly. [`browser.md`](browser.md) describes the two
 
 # Bootstrap compiler interface
 
-The experimental compiler-to-artifact interchange used by the Guion self-hosting bootstrap is documented in [bytecode IR interchange](bytecode-ir.md). It is not a stable public ABI.
+The experimental compiler-to-artifact interchange used by the historical Guion self-hosting proof is documented in [bytecode IR interchange](bytecode-ir.md). It is not a stable public ABI.

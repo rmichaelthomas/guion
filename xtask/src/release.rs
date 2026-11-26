@@ -785,14 +785,6 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             &stage.join("bin/guion-reference.md"),
         )?;
         copy_tree(
-            &root.join("language/self_host/compiler.gub"),
-            &share.join("compiler.gub"),
-        )?;
-        copy_tree(
-            &root.join("language/self_host/compiler-seed.json"),
-            &share.join("compiler-seed.json"),
-        )?;
-        copy_tree(
             &root.join("language/artifact-format.md"),
             &share.join("artifact-format.md"),
         )?;
@@ -816,7 +808,6 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
                 .replace('\\', "/");
             hashes.insert(relative, sha256(&path)?);
         }
-        let seed_hash = sha256(&share.join("compiler.gub"))?;
         let runtime_hash = sha256(&stage.join("bin/guion"))?;
         let stdlib_files = files(&share.join("stdlib"))?;
         let mut stdlib_hash = Sha256::new();
@@ -839,7 +830,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             "minimum_os": minimum_os,
             "architecture": target_architecture(target), "python_or_uv_required": false,
             "profile_guided": profile_guided,
-            "compiler_seed_sha256": seed_hash, "runtime_binary_sha256": runtime_hash,
+            "runtime_binary_sha256": runtime_hash,
             "stdlib_sha256": format!("{:x}", stdlib_hash.finalize()), "files": hashes,
             "native_components": "native-components.lock.json",
             "sqlite": "statically linked bundled SQLite; loadable extensions disabled",
@@ -911,7 +902,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
     };
     let mut checks = vec![
         check("release-binary-build", "passed", std::iter::once("cargo".into()).chain(build_args.iter().map(|value| (*value).into())).collect(), Some(0), format!("built {} ({})", binary.display(), manifest["release_id"].as_str().unwrap_or("release"))),
-        check("release-package-contents", "passed", vec!["cargo xtask release".into()], Some(0), format!("compiler seed, standard library, docs, native component manifest, installer, {} dependency license sets; archive has {archive_entries} safe members", license_count)),
+        check("release-package-contents", "passed", vec!["cargo xtask release".into()], Some(0), format!("standard library, docs, native component manifest, installer, {} dependency license sets; archive has {archive_entries} safe members", license_count)),
         check("release-archive-audit", "passed", vec!["Rust path/type audit + tar listing".into()], Some(0), format!("{} ({} bytes, sha256 {})", archive.display(), fs::metadata(&archive).map(|meta| meta.len()).unwrap_or(0), sha256(&archive)?)),
     ];
     if let Some(note) = signing_note {
@@ -938,13 +929,13 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
             .map_err(|error| format!("remove old tamper fixture: {error}"))?;
     }
     copy_tree(&current, &tampered)?;
-    let mut seed = fs::read(tampered.join("share/guion/compiler.gub"))
+    let mut shipped = fs::read(tampered.join("share/guion/artifact-format.md"))
         .map_err(|error| format!("read tamper fixture: {error}"))?;
-    if seed.is_empty() {
-        return Err("embedded compiler seed package is empty".into());
+    if shipped.is_empty() {
+        return Err("packaged artifact format contract is empty".into());
     }
-    seed[0] ^= 1;
-    fs::write(tampered.join("share/guion/compiler.gub"), seed)
+    shipped[0] ^= 1;
+    fs::write(tampered.join("share/guion/artifact-format.md"), shipped)
         .map_err(|error| format!("write tamper fixture: {error}"))?;
     let tamper_rejected = verify_package_manifest(&tampered, target).is_err();
     fs::remove_dir_all(&tampered).map_err(|error| format!("remove tamper fixture: {error}"))?;
@@ -953,7 +944,7 @@ fn release_target(root: &Path, target: &str, slug: &str) -> Result<Vec<Check>, S
         if tamper_rejected { "passed" } else { "failed" },
         vec!["Rust release manifest verification".into()],
         Some(if tamper_rejected { 0 } else { 1 }),
-        "modified compiler seed rejected by SHA-256 manifest verification".into(),
+        "modified shipped file rejected by SHA-256 manifest verification".into(),
     ));
     if !tamper_rejected {
         return Ok(checks);

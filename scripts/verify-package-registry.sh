@@ -42,8 +42,7 @@ run "A5 artifact format 60 gating" cargo test -p guion-model --locked --offline 
 run "A6/A7 publish, add, yank against the local registry" cargo test -p guion-cli --locked --offline --test registry_end_to_end -- --nocapture
 run "A7 tampered index, log and object fail closed" cargo test -p guion-cli --locked --offline --bin guion registry::
 run "older locks and native packages still load" cargo test -p guion-cli --locked --offline --test native_packages
-run "three-stage bootstrap" cargo xtask bootstrap --stages 3
-run "conformance (stage2, stage3)" cargo xtask conformance --compilers stage2,stage3
+run "conformance" cargo xtask conformance
 run "clippy, warnings denied" cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 run "full workspace tests" cargo test --workspace --locked --offline --no-fail-fast
 

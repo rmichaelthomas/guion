@@ -147,13 +147,10 @@ fn closeout_requires_release_and_performance_from_the_same_final_snapshot() {
                   "skipped_targets": [],
                   "source_revision": "abc123",
                   "working_tree_digest": "{digest}",
-                  "seed_hash": "{artifact_hash}",
                   "stdlib_hash": "{artifact_hash}",
                   "runtime_hash": "{artifact_hash}",
                   "artifact_identities": {{
                     "artifact_schema": "{artifact_hash}",
-                    "compiler_seed": "{artifact_hash}",
-                    "compiler_seed_manifest": "{artifact_hash}",
                     "runtime": "{artifact_hash}",
                     "stdlib": "{artifact_hash}"
                   }}

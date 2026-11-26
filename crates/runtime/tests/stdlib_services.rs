@@ -4,15 +4,13 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use guion_model::{Artifact, BigInt, SharedJson, Value};
+use guion_model::{BigInt, Value};
 use guion_runtime::stdlib_services::{
     calendar_parse, crypto_hmac_sha256, crypto_verify_hmac_sha256, text_casefold,
     text_collapse_whitespace, text_collapse_whitespace_if_changed, text_normalize,
     DatabaseRegistry, SqlValue, TomlDocument, TomlRegistry, SQLITE_BUSY_DEADLINE_MS,
 };
 use guion_runtime::{HostPolicy, Runtime};
-
-const SELF_HOSTED_COMPILER: &[u8] = include_bytes!("../../../language/self_host/compiler.gub");
 
 fn temp_path(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
@@ -619,10 +617,6 @@ fn main() -> Int:
 fn guion_public_service_modules_call_typed_native_apis() {
     let project = temp_path("service-program");
     fs::create_dir_all(&project).unwrap();
-    // The frozen self-hosted compiler cannot encode the Crypto instruction that std:crypto now
-    // contains, so this program calls the HMAC natives directly instead of importing std:crypto.
-    // It cannot encode the text case instructions (format 90) that std:text now contains either,
-    // so the case folding comes from std:unicode instead of std:text.
     let source = r##"
 import "std:unicode"
 import "std:sqlite"
@@ -650,38 +644,13 @@ pub fn main() -> Int:
 "##;
     fs::write(project.join("main.gu"), source).unwrap();
     let stdlib = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../language/stdlib");
-    let compiler_artifact =
-        Artifact::from_bytes(SELF_HOSTED_COMPILER).expect("read checked self-host compiler");
-    let compiler_args = vec![
-        Value::Text("main.gu".into()),
-        Value::Text(source.into()),
-        Value::Text("std".into()),
-        Value::Json(SharedJson::from_serde(serde_json::json!({}))),
-    ];
-    let compiler_policy = HostPolicy {
-        instruction_limit: 500_000_000,
-        allocation_limit_bytes: 8_589_934_592,
-        call_depth_limit: 160,
-        max_collection_items: 1_000_000,
-        max_file_bytes: 64 * 1024 * 1024,
-        ..HostPolicy::default()
-    }
-    .with_file_access(&project, true, false)
-    .with_file_root_alias("std", &stdlib);
-    let mut compiler_runtime = Runtime::new()
-        .load(compiler_artifact, compiler_policy)
-        .expect("load installed self-host compiler");
-    let compiled = compiler_runtime
-        .invoke("compiler_compile_project", compiler_args)
-        .unwrap();
-    let Value::ResultOk(compiled) = compiled else {
-        panic!("self-host compiler rejected service program: {compiled:?}");
-    };
-    let Value::Bytes(compiled) = *compiled else {
-        panic!("compiler returned non-bytecode output: {compiled:?}");
-    };
-    let artifact = Artifact::from_bytes(compiled.as_ref())
-        .expect("native verifier accepts self-hosted artifact");
+    let artifact = guion_compiler::compile_project_with_roots(
+        &project.join("main.gu"),
+        &project,
+        Some(&stdlib),
+        &std::collections::HashMap::new(),
+    )
+    .expect("service program compiles");
     let mut runtime = Runtime::new()
         .load(
             artifact,

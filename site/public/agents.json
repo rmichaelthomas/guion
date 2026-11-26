@@ -1,7 +1,7 @@
 {
   "product": "Guion",
   "status": "Pre-1.0. Release 0.9.1 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64).",
-  "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a compiler written in Guion, and a Rust runtime.",
+  "summary": "Guion is an experimental general-purpose programming language and toolchain with readable typed syntax, a Rust compiler and a Rust runtime. Guion has compiled itself; a compiler written in Guion is kept as a historical proof.",
   "site": "https://rmichaelthomas.github.io/guion/",
   "contact": "rmichael@rmichaelthomas.com",
   "howToUse": "Treat each claim as true only under its holdsWhen conditions, and say what it doesntTell the reader. None of these results shows that Guion generally replaces Python.",
