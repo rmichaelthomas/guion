@@ -136,13 +136,28 @@ enum Mode {
 struct Dictionary {
     values: Vec<String>,
     table: Vec<usize>,
-    /// Seed of the hash, drawn once per dictionary from the process's random state, so the
-    /// order of the table cannot be predicted from the text.
+    /// Seed of the fast hash, drawn once per dictionary from the process's random state.
     seed: u64,
+    /// Keys of SipHash-1-3 (from the standard library), drawn at random for each dictionary.
+    state: std::collections::hash_map::RandomState,
+    /// The table is hashed with SipHash. It starts with the fast hash, and switches for good
+    /// once one probe sequence runs past `PROBE_LIMIT` slots, which texts crafted to collide
+    /// under the fast hash would force; the table is then rebuilt.
+    strong: bool,
     text_bytes: usize,
+    /// The longest run of slots one lookup or one rebuild step walked, and the total steps
+    /// walked, for the tests that bound the cost of colliding texts.
+    #[cfg(test)]
+    max_probe: usize,
+    #[cfg(test)]
+    total_probes: usize,
 }
 
 const HASH_MULTIPLIER: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// The longest run of slots a lookup may walk under the fast hash before the dictionary
+/// changes to SipHash.
+const PROBE_LIMIT: usize = 32;
 
 /// A multiply-fold hash of the bytes: eight bytes at a time, then mixed.
 #[inline]
@@ -169,11 +184,33 @@ const EMPTY_SLOT: usize = usize::MAX;
 
 impl Dictionary {
     fn new() -> Self {
+        let state = std::collections::hash_map::RandomState::new();
         Self {
             values: Vec::new(),
             table: Vec::new(),
-            seed: std::collections::hash_map::RandomState::new().hash_one(0u64),
+            seed: state.hash_one(0u64),
+            state,
+            strong: false,
             text_bytes: 0,
+            #[cfg(test)]
+            max_probe: 0,
+            #[cfg(test)]
+            total_probes: 0,
+        }
+    }
+
+    #[cfg(test)]
+    fn note_probe(&mut self, steps: usize) {
+        self.max_probe = self.max_probe.max(steps);
+        self.total_probes += steps;
+    }
+
+    #[inline]
+    fn hash(&self, text: &str) -> usize {
+        if self.strong {
+            self.state.hash_one(text) as usize
+        } else {
+            hash_bytes(self.seed, text.as_bytes()) as usize
         }
     }
 
@@ -182,39 +219,78 @@ impl Dictionary {
             self.table = vec![EMPTY_SLOT; 16];
         }
         let mask = self.table.len() - 1;
-        let mut slot = (hash_bytes(self.seed, text.as_bytes()) as usize) & mask;
+        let mut slot = self.hash(text) & mask;
+        let mut steps = 0usize;
         loop {
             let entry = self.table[slot];
             if entry == EMPTY_SLOT {
                 break;
             }
             if self.values[entry] == text {
+                #[cfg(test)]
+                self.note_probe(steps);
                 return entry;
             }
             slot = (slot + 1) & mask;
+            steps += 1;
+            if steps > PROBE_LIMIT && !self.strong {
+                // Texts that collide under the fast hash: rehash everything with SipHash,
+                // in the table already held, and look this text up again.
+                #[cfg(test)]
+                self.note_probe(steps);
+                self.strong = true;
+                let size = self.table.len();
+                self.rebuild(size);
+                return self.code(text);
+            }
         }
+        #[cfg(test)]
+        self.note_probe(steps);
         let code = self.values.len();
         self.values.push(text.to_owned());
         self.text_bytes += text.len();
         self.table[slot] = code;
         if self.values.len() * 2 > self.table.len() {
-            self.grow();
+            let size = self.table.len() * 2;
+            self.rebuild(size);
         }
         code
     }
 
-    fn grow(&mut self) {
-        let size = self.table.len() * 2;
-        let mut table = vec![EMPTY_SLOT; size];
-        let mask = size - 1;
-        for (code, value) in self.values.iter().enumerate() {
-            let mut slot = (hash_bytes(self.seed, value.as_bytes()) as usize) & mask;
-            while table[slot] != EMPTY_SLOT {
-                slot = (slot + 1) & mask;
+    /// Hashes every text again into a table of `size` slots (a power of two). Under the fast
+    /// hash a run longer than `PROBE_LIMIT` switches the dictionary to SipHash and starts over.
+    fn rebuild(&mut self, size: usize) {
+        let mut table = std::mem::take(&mut self.table);
+        loop {
+            table.clear();
+            table.resize(size, EMPTY_SLOT);
+            let mask = size - 1;
+            let mut longest = 0usize;
+            let mut switch = false;
+            for (code, value) in self.values.iter().enumerate() {
+                let mut slot = self.hash(value) & mask;
+                let mut steps = 0usize;
+                while table[slot] != EMPTY_SLOT {
+                    slot = (slot + 1) & mask;
+                    steps += 1;
+                }
+                if steps > PROBE_LIMIT && !self.strong {
+                    switch = true;
+                    break;
+                }
+                longest = longest.max(steps);
+                table[slot] = code;
             }
-            table[slot] = code;
+            if switch {
+                self.strong = true;
+                continue;
+            }
+            #[cfg(test)]
+            self.note_probe(longest);
+            let _ = longest;
+            self.table = table;
+            return;
         }
-        self.table = table;
     }
 
     fn accounted_bytes(&self) -> usize {
@@ -505,14 +581,15 @@ impl Builder {
         Ok(())
     }
 
-    /// Drops the room the vectors hold beyond their length.
-    fn shrink(&mut self) {
-        self.ints.shrink_to_fit();
-        self.floats.shrink_to_fit();
-        self.flags.shrink_to_fit();
-        self.codes.shrink_to_fit();
-        self.valid.shrink_to_fit();
-        self.dictionary.values.shrink_to_fit();
+    /// Drops the room the vectors hold beyond their length. Each copy is charged while it and
+    /// the vector it replaces both exist, then given back.
+    fn shrink(&mut self, meter: &mut Meter<'_>) -> Result<(), ColumnsError> {
+        shrink_charged(&mut self.ints, meter)?;
+        shrink_charged(&mut self.floats, meter)?;
+        shrink_charged(&mut self.flags, meter)?;
+        shrink_charged(&mut self.codes, meter)?;
+        shrink_charged(&mut self.valid, meter)?;
+        shrink_charged(&mut self.dictionary.values, meter)
     }
 
     fn accounted_bytes(&self) -> usize {
@@ -526,7 +603,7 @@ impl Builder {
             .saturating_add(self.dictionary.accounted_bytes())
     }
 
-    fn finish(mut self) -> Column {
+    fn finish(mut self, meter: &mut Meter<'_>) -> Result<Column, ColumnsError> {
         let rows = self.valid.len();
         let kind = match self.mode {
             Mode::Int => ColumnKind::I64,
@@ -535,10 +612,16 @@ impl Builder {
             Mode::Text | Mode::Unset | Mode::Reread => ColumnKind::Text,
         };
         if self.mode == Mode::Unset {
-            // No present value: text, every row missing.
+            // No present value: text, every row missing. The zero codes are charged before
+            // they are allocated, and given back once the column holds them.
+            let bytes = rows.saturating_mul(8);
+            if !(meter.charge)(bytes) {
+                return Err(ColumnsError::Allocation(bytes));
+            }
             self.codes = vec![0; rows];
+            (meter.release)(bytes);
         }
-        Column {
+        Ok(Column {
             name: self.name,
             kind,
             ints: self.ints,
@@ -547,8 +630,22 @@ impl Builder {
             codes: self.codes,
             dictionary: self.dictionary.values,
             valid: self.valid,
-        }
+        })
     }
+}
+
+/// `vector.shrink_to_fit()`, with the copy it may make charged first and released after.
+fn shrink_charged<T>(vector: &mut Vec<T>, meter: &mut Meter<'_>) -> Result<(), ColumnsError> {
+    if vector.capacity() == vector.len() {
+        return Ok(());
+    }
+    let copy = vector.len().saturating_mul(std::mem::size_of::<T>());
+    if !(meter.charge)(copy) {
+        return Err(ColumnsError::Allocation(copy));
+    }
+    vector.shrink_to_fit();
+    (meter.release)(copy);
+    Ok(())
 }
 
 /// An integer in the i64 range: an optional sign and at least one digit, nothing else.
@@ -1378,7 +1475,9 @@ fn read_parallel(
                 }
                 let piece = parse_piece(
                     &data[cuts[index]..cuts[index + 1]],
-                    eof && index + 1 == count,
+                    // The piece that reaches the end of the data may end without a newline,
+                    // whichever of the pieces that is.
+                    eof && cuts[index + 1] == data.len(),
                     specs,
                     *one_column,
                     max_record_bytes,
@@ -1442,7 +1541,7 @@ fn read_parallel(
     // that a sequential read of the same file would not hold: trim it, charge what is left (a
     // refusal is the sequential reader's to decide) and give back the rest.
     for global in &mut globals {
-        global.shrink();
+        budgeted!(global.shrink(settler.meter));
     }
     let retained = globals
         .iter()
@@ -1452,7 +1551,15 @@ fn read_parallel(
     (settler.meter.release)(settler.charged.saturating_sub(retained));
     #[cfg(test)]
     LAST_ROUNDS.with(|last| last.set(rounds));
-    Ok(Some(globals.into_iter().map(Builder::finish).collect()))
+    let mut columns = Vec::with_capacity(globals.len());
+    for global in globals {
+        match global.finish(settler.meter) {
+            Ok(column) => columns.push(column),
+            Err(ColumnsError::Allocation(_)) => sequential!(settler),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(Some(columns))
 }
 
 fn read_passes(
@@ -1529,7 +1636,7 @@ fn read_passes(
         columns.push(if again.contains(&index) {
             None
         } else {
-            Some(builder.finish())
+            Some(builder.finish(settler.meter)?)
         });
     }
     if !again.is_empty() {
@@ -1598,7 +1705,7 @@ fn read_passes(
         }
         settler.settle(&texts, buffers)?;
         for (builder, &index) in texts.into_iter().zip(&again) {
-            columns[index] = Some(builder.finish());
+            columns[index] = Some(builder.finish(settler.meter)?);
         }
     }
     Ok(columns
@@ -2180,9 +2287,13 @@ mod tests {
             }
             pool.used.set(pool.used.get() + bytes);
             pool.peak.set(pool.peak.get().max(pool.used.get()));
+            pool.charges.borrow_mut().push(bytes);
             true
         };
-        let mut release = |bytes: usize| pool.used.set(pool.used.get() - bytes);
+        let mut release = |bytes: usize| {
+            pool.used.set(pool.used.get() - bytes);
+            pool.releases.borrow_mut().push(bytes);
+        };
         let cancelled = || false;
         let mut meter = Meter {
             charge: &mut charge,
@@ -2301,6 +2412,231 @@ mod tests {
             }
         }
         let _ = std::fs::remove_file(&path);
+    }
+
+    // ---- a final record without a newline, the dictionary's hash, charged transients ----
+
+    #[test]
+    fn no_trailing_newline_past_block_multiple_reads_once() {
+        for threads in [2, 3, 8] {
+            // One block and ten bytes, the last record without a newline: the second round
+            // holds a record cut off by the first and the unterminated one.
+            let block = threads * PIECE_BYTES;
+            let rows = block / 8;
+            let mut body = String::with_capacity(block + 10);
+            body.push_str("x\n");
+            for _ in 0..rows {
+                body.push_str("1234567\n");
+            }
+            body.push_str("12345678");
+            assert_eq!(body.len(), block + 10);
+            let path = temp_csv(&format!("no-newline-{threads}"), &body);
+            let one = read_threads(&path, &BTreeMap::new(), 1).unwrap();
+            assert_eq!(last_path(), "sequential");
+            let many = read_threads(&path, &BTreeMap::new(), threads).unwrap();
+            let taken = last_path();
+            let rounds = LAST_ROUNDS.with(|rounds| rounds.get());
+            let _ = std::fs::remove_file(&path);
+            assert_eq!(taken, "parallel", "{threads} threads fell back");
+            assert_eq!(rounds, 2, "{threads} threads");
+            assert_eq!(one, many, "{threads} threads");
+            assert_eq!(many[0].ints.len(), rows + 1);
+            assert_eq!(many[0].ints[rows], 12_345_678);
+        }
+    }
+
+    /// The dictionary's fast hash, as it was when the dictionary used nothing else, kept here
+    /// to craft texts that collide under it.
+    fn old_hash_bytes(seed: u64, bytes: &[u8]) -> u64 {
+        let mut hash = seed ^ (bytes.len() as u64).wrapping_mul(HASH_MULTIPLIER);
+        let mut chunks = bytes.chunks_exact(8);
+        for chunk in &mut chunks {
+            let word = u64::from_le_bytes(chunk.try_into().unwrap());
+            hash = (hash ^ word).wrapping_mul(HASH_MULTIPLIER);
+            hash ^= hash >> 32;
+        }
+        let rest = chunks.remainder();
+        if !rest.is_empty() {
+            let mut tail = [0u8; 8];
+            tail[..rest.len()].copy_from_slice(rest);
+            hash = (hash ^ u64::from_le_bytes(tail)).wrapping_mul(HASH_MULTIPLIER);
+        }
+        hash ^= hash >> 29;
+        hash = hash.wrapping_mul(HASH_MULTIPLIER);
+        hash ^ (hash >> 32)
+    }
+
+    /// The `x` with `x ^ (x >> shift) == y`.
+    fn undo_xor_shift(y: u64, shift: u32) -> u64 {
+        let mut x = y;
+        for _ in 0..(64 / shift + 1) {
+            x = y ^ (x >> shift);
+        }
+        x
+    }
+
+    /// `count` distinct sixteen-byte ASCII texts whose old hash under `seed` has the same
+    /// low sixteen bits: the first word counts, the second is solved for.
+    fn texts_colliding_under_the_old_hash(seed: u64, count: usize) -> Vec<String> {
+        let mut inverse = HASH_MULTIPLIER;
+        for _ in 0..6 {
+            inverse = inverse.wrapping_mul(2u64.wrapping_sub(HASH_MULTIPLIER.wrapping_mul(inverse)));
+        }
+        assert_eq!(inverse.wrapping_mul(HASH_MULTIPLIER), 1);
+        let mut texts = Vec::with_capacity(count);
+        let mut upper = 0u64;
+        for index in 0..count {
+            let first = format!("{index:08}");
+            let word = u64::from_le_bytes(first.as_bytes().try_into().unwrap());
+            let mut hash = seed ^ 16u64.wrapping_mul(HASH_MULTIPLIER);
+            hash = (hash ^ word).wrapping_mul(HASH_MULTIPLIER);
+            hash ^= hash >> 32;
+            loop {
+                upper += 1;
+                let target = (upper << 16) | 0x2A5C;
+                // Undo the final mix, then the second word's step.
+                let mixed = undo_xor_shift(target, 32).wrapping_mul(inverse);
+                let after_second = undo_xor_shift(mixed, 29);
+                let product = undo_xor_shift(after_second, 32);
+                let second = product.wrapping_mul(inverse) ^ hash;
+                let bytes = second.to_le_bytes();
+                if bytes.iter().all(|byte| (0x20..0x7F).contains(byte) && *byte != b',') {
+                    let mut text = first.clone();
+                    text.push_str(std::str::from_utf8(&bytes).unwrap());
+                    texts.push(text);
+                    break;
+                }
+            }
+        }
+        texts
+    }
+
+    #[test]
+    fn colliding_text_values_stay_linear() {
+        const SEED: u64 = 0x1234_5678_9ABC_DEF0;
+        let texts = texts_colliding_under_the_old_hash(SEED, 200_000);
+        let mut distinct = std::collections::HashSet::new();
+        for text in texts.iter().take(1000) {
+            assert_eq!(
+                old_hash_bytes(SEED, text.as_bytes()),
+                hash_bytes(SEED, text.as_bytes())
+            );
+        }
+        for text in &texts {
+            assert!(distinct.insert(text.as_str()), "texts are distinct");
+            assert_eq!(
+                old_hash_bytes(SEED, text.as_bytes()) & 0xFFFF,
+                0x2A5C,
+                "crafted to share the low sixteen bits"
+            );
+        }
+        let mut dictionary = Dictionary::new();
+        dictionary.seed = SEED;
+        for (code, text) in texts.iter().enumerate() {
+            assert_eq!(dictionary.code(text), code);
+        }
+        assert_eq!(dictionary.values.len(), 200_000);
+        eprintln!(
+            "max probe {} total probes {}",
+            dictionary.max_probe, dictionary.total_probes
+        );
+        // A hash that mixes every bit keeps runs short at this load (the table is a third
+        // full); the old one made a single run of the order of the whole dictionary.
+        assert!(
+            dictionary.max_probe <= 512,
+            "a lookup walked {} slots",
+            dictionary.max_probe
+        );
+        assert!(
+            dictionary.total_probes <= texts.len() * 8,
+            "{} probe steps for {} texts",
+            dictionary.total_probes,
+            texts.len()
+        );
+    }
+
+    #[test]
+    fn shrink_and_finish_are_charged_in_a_read() {
+        // Shrinking the merged columns copies them: the copy is charged while it exists.
+        let body = mixed_rows(300_000);
+        let path = temp_csv("pool-shrink", &body);
+        let pool = Pool {
+            limit: 1 << 30,
+            ..Pool::default()
+        };
+        let columns = pooled_threads(&pool, &path, 4).unwrap();
+        assert_eq!(last_path(), "parallel");
+        let copy = columns[0].ints.len() * 8;
+        assert!(
+            pool.charges.borrow().contains(&copy),
+            "no charge of {copy} bytes for the integer column's shrink copy: {:?}",
+            pool.charges.borrow()
+        );
+        assert!(pool.releases.borrow().contains(&copy));
+        let _ = std::fs::remove_file(&path);
+        // A column with no value at all is finished into a vector of zero codes, one per row:
+        // charged before it is allocated, and handed back after.
+        let rows = 600_000;
+        let mut body = String::from("a,b\n");
+        for _ in 0..rows {
+            body.push_str(",5\n");
+        }
+        let path = temp_csv("pool-all-empty", &body);
+        for threads in [1, 4] {
+            let pool = Pool {
+                limit: 1 << 30,
+                ..Pool::default()
+            };
+            let columns = pooled_threads(&pool, &path, threads).unwrap();
+            assert_eq!(columns[0].codes.len(), rows);
+            assert!(
+                pool.charges.borrow().contains(&(rows * 8)),
+                "{threads} threads: the all-empty codes were not charged"
+            );
+            assert_eq!(pool.used.get() + rows * 8, accounted(&columns), "{threads} threads");
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn shrink_and_finish_are_charged() {
+        // A vector with room to spare: shrinking copies 80 bytes, which must fit the budget
+        // on top of what is already held, and is given back afterwards.
+        let held = 1000usize;
+        for (limit, fits) in [(held + 79, false), (held + 80, true)] {
+            let pool = Pool {
+                limit,
+                ..Pool::default()
+            };
+            pool.used.set(held);
+            let mut charge = |bytes: usize| {
+                if pool.used.get() + bytes > pool.limit {
+                    return false;
+                }
+                pool.used.set(pool.used.get() + bytes);
+                true
+            };
+            let mut release = |bytes: usize| pool.used.set(pool.used.get() - bytes);
+            let cancelled = || false;
+            let mut meter = Meter {
+                charge: &mut charge,
+                release: &mut release,
+                cancelled: &cancelled,
+            };
+            let mut ints: Vec<i64> = Vec::with_capacity(1000);
+            ints.extend(0..10);
+            let result = shrink_charged(&mut ints, &mut meter);
+            assert_eq!(result.is_ok(), fits, "limit {limit}");
+            assert!(matches!(result, Ok(()) | Err(ColumnsError::Allocation(80))));
+            assert_eq!(ints.capacity() == 10, fits);
+            assert_eq!(pool.used.get(), held, "the copy is given back");
+            // The all-empty column's zero codes are refused the same way.
+            let mut builder = Builder::new("a".into(), None);
+            builder.valid = vec![false; 10];
+            let finished = builder.finish(&mut meter);
+            assert_eq!(finished.is_ok(), fits, "limit {limit}");
+            assert_eq!(pool.used.get(), held);
+        }
     }
 
     /// What the columns of a read hold, as the budget counts it: the capacity of every array,
