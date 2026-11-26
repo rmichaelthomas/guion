@@ -1122,22 +1122,26 @@ const RADIX_MIN_LEN: usize = 1024;
 
 /// The byte positions (as shifts) at which the keys of `keys` differ, with each position's
 /// 256-bucket counts. A position whose byte is the same for every element is skipped.
+/// The histograms (`KEY_BYTES` of 256 counts each) are charged before they are allocated.
 fn radix_passes<T: Numeric>(
     len: usize,
+    charge: &mut Charge<'_>,
+    held: &mut usize,
     mut keys: impl FnMut(&mut dyn FnMut(u64)),
-) -> Vec<(u32, [usize; 256])> {
+) -> Result<Vec<(u32, [usize; 256])>, ArrayError> {
+    hold(charge, held, T::KEY_BYTES * size_of::<[usize; 256]>())?;
     let mut counts = vec![[0usize; 256]; T::KEY_BYTES];
     keys(&mut |key| {
         for (byte, count) in counts.iter_mut().enumerate() {
             count[((key >> (byte * 8)) & 0xff) as usize] += 1;
         }
     });
-    counts
+    Ok(counts
         .into_iter()
         .enumerate()
         .filter(|(_, count)| !count.contains(&len))
         .map(|(byte, count)| (byte as u32 * 8, count))
-        .collect()
+        .collect())
 }
 
 /// Turns bucket counts into the starting offset of each bucket.
@@ -1160,9 +1164,9 @@ fn radix_sort_stable<T: Numeric>(
     held: &mut usize,
 ) -> Result<Vec<T>, ArrayError> {
     let len = items.len();
-    let passes = radix_passes::<T>(len, |each| {
+    let passes = radix_passes::<T>(len, charge, held, |each| {
         items.iter().for_each(|item| each(item.radix_key()))
-    });
+    })?;
     // The first buffer is allocated before the second is charged, so the command line's
     // refill from live memory sees it and the two buffers are charged together.
     hold(charge, held, array_bytes(T::TYPE, 1, len))?;
@@ -1194,9 +1198,9 @@ fn radix_argsort_stable<T: Numeric>(
     held: &mut usize,
 ) -> Result<Vec<i64>, ArrayError> {
     let len = items.len();
-    let passes = radix_passes::<T>(len, |each| {
+    let passes = radix_passes::<T>(len, charge, held, |each| {
         items.iter().for_each(|item| each(item.radix_key()))
-    });
+    })?;
     // The first buffer is allocated before the second is charged (see `radix_sort_stable`).
     hold(charge, held, array_bytes(ElementType::I64, 1, len))?;
     if T::KEY_BYTES <= 4 && len <= u32::MAX as usize {
@@ -1218,11 +1222,13 @@ fn radix_argsort_stable<T: Numeric>(
             std::mem::swap(&mut from, &mut to);
         }
         drop(to);
-        // Same size and alignment: the collect reuses the allocation.
-        return Ok(from
+        // `u64` to `i64` keeps size and alignment, so this in-place collect reuses `from`'s
+        // allocation: the output is the scratch buffer, with no further allocation.
+        let order: Vec<i64> = from
             .into_iter()
             .map(|packed| (packed & 0xffff_ffff) as i64)
-            .collect());
+            .collect();
+        return Ok(order);
     }
     let mut from: Vec<i64> = (0..len as i64).collect();
     charge(array_bytes(ElementType::I64, 1, len))?;
@@ -2362,12 +2368,32 @@ mod budget_tests {
                 let result = run(function, element, vec![make()], output, &used);
                 assert_limit(result, "radix scratch");
                 assert_eq!(used.get(), 0, "nothing stays charged after a failure");
+                let histograms = element.width() * 2048;
                 let used = Cell::new(0);
-                let result = run(function, element, vec![make()], output + scratch - 1, &used);
-                assert_limit(result, "radix scratch plus output, one byte short");
+                let result = run(function, element, vec![make()], histograms - 1, &used);
+                assert_limit(result, "radix histograms, one byte short");
                 assert_eq!(used.get(), 0, "nothing stays charged after a failure");
                 let used = Cell::new(0);
-                let result = run(function, element, vec![make()], output + scratch, &used);
+                let result = run(
+                    function,
+                    element,
+                    vec![make()],
+                    output + scratch + histograms - 1,
+                    &used,
+                );
+                assert_limit(
+                    result,
+                    "radix histograms, scratch and output, one byte short",
+                );
+                assert_eq!(used.get(), 0, "nothing stays charged after a failure");
+                let used = Cell::new(0);
+                let result = run(
+                    function,
+                    element,
+                    vec![make()],
+                    output + scratch + histograms,
+                    &used,
+                );
                 assert!(result.is_ok(), "{function:?} {element:?} fits exactly");
                 assert_eq!(used.get(), output, "only the output stays charged");
             }
@@ -2978,12 +3004,54 @@ mod radix_tests {
 
     #[test]
     fn radix_argsort_is_stable_for_equal_keys() {
-        let items: Vec<i32> = (0..50_000).map(|i| (i * 31 % 17) - 8).collect();
-        let (_, order) = radix(&items);
-        for pair in order.windows(2) {
-            let (a, b) = (items[pair[0] as usize], items[pair[1] as usize]);
-            assert!(a < b || (a == b && pair[0] < pair[1]));
+        // Ten distinct keys over 100,000 elements, in both argsort paths (the packed one for
+        // four key bytes or fewer, the position sort for eight).
+        fn check<T: Numeric>(items: &[T]) {
+            let (_, order) = radix(items);
+            assert_eq!(order.len(), items.len());
+            for pair in order.windows(2) {
+                let (a, b) = (items[pair[0] as usize], items[pair[1] as usize]);
+                assert!(a < b || (a == b && pair[0] < pair[1]), "{pair:?}");
+            }
         }
+        let keys = |i: usize| ((i * 7919) % 10) as i64 - 5;
+        check(&(0..100_000).map(|i| keys(i) as i32).collect::<Vec<_>>());
+        check(&(0..100_000).map(keys).collect::<Vec<_>>());
+    }
+
+    /// The pass list itself: only the bytes that vary get a pass.
+    #[test]
+    fn radix_passes_skip_constant_bytes() {
+        let items: Vec<u64> = (0..2_000u64)
+            .map(|i| ((i % 251) << 56) | 0x0012_3456_7800 | (i * 7 % 256))
+            .collect();
+        let mut charge = |_: usize| Ok(());
+        let mut held = 0;
+        let passes = radix_passes::<u64>(items.len(), &mut charge, &mut held, |each| {
+            items.iter().for_each(|item| each(item.radix_key()))
+        })
+        .expect("passes");
+        let shifts: Vec<u32> = passes.iter().map(|(shift, _)| *shift).collect();
+        assert_eq!(shifts, vec![0, 56], "only the two varying bytes get a pass");
+    }
+
+    #[test]
+    fn radix_skips_constant_bytes_and_still_sorts() {
+        // Keys that differ only in byte 0 and byte 7: the six middle bytes are constant.
+        let mut next = stream(11);
+        let items: Vec<u64> = (0..20_000)
+            .map(|_| {
+                let r = next();
+                ((r & 0xff) << 56) | 0x0000_0012_3456_7800 | ((r >> 8) & 0xff)
+            })
+            .collect();
+        assert_matches_reference(&items);
+        // The same shape through the packed argsort path (four key bytes).
+        let small: Vec<u32> = items
+            .iter()
+            .map(|v| ((v >> 56) as u32) << 24 | (*v & 0xff) as u32 | 0x0012_3400)
+            .collect();
+        assert_matches_reference(&small);
     }
 
     /// Total bytes charged by the radix sort and argsort of `items`, and what stays held.
@@ -3011,13 +3079,31 @@ mod radix_tests {
             let len = items.len();
             let element = array_bytes(T::TYPE, 1, len);
             let index = array_bytes(ElementType::I64, 1, len);
+            let histograms = T::KEY_BYTES * 2048;
             let (sort_total, sort_held, arg_total, arg_held) = charged(&items);
-            assert_eq!(sort_total, 2 * element, "sort: scratch and output");
-            assert_eq!(sort_held, element, "sort: the scratch buffer is held");
-            assert_eq!(arg_held, index, "argsort: one scratch buffer is held");
-            assert_eq!(arg_total, 2 * index, "argsort: scratch and output");
+            assert_eq!(
+                sort_total,
+                2 * element + histograms,
+                "sort: scratch, output, histograms"
+            );
+            assert_eq!(
+                sort_held,
+                element + histograms,
+                "sort: scratch and histograms held"
+            );
+            assert_eq!(
+                arg_held,
+                index + histograms,
+                "argsort: scratch and histograms held"
+            );
+            assert_eq!(
+                arg_total,
+                2 * index + histograms,
+                "argsort: scratch, output, histograms"
+            );
+            // Everything beyond the histograms (a constant) is the 16 bytes per element.
             assert!(
-                arg_total <= 2 * len * size_of::<usize>() + 2 * (index - 8 * len),
+                arg_total - histograms <= 2 * len * size_of::<usize>() + 2 * (index - 8 * len),
                 "argsort stays within 16 bytes per element plus the headers"
             );
         }
