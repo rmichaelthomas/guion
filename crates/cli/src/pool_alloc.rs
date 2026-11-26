@@ -185,21 +185,7 @@ static SHARED: Shared = Shared {
 };
 
 impl Shared {
-    fn with<R>(&self, action: impl FnOnce(&mut SharedState) -> R) -> R {
-        while self
-            .lock
-            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_err()
-        {
-            std::hint::spin_loop();
-        }
-        // SAFETY: the spin lock gives exclusive access.
-        let result = action(unsafe { &mut *self.state.get() });
-        self.lock.store(false, Ordering::Release);
-        result
-    }
-
-    /// Like `with`, but gives up after `spins` failed attempts and returns `None`.
+    /// Takes the lock and runs `action`; gives up after `spins` failed attempts and returns `None`.
     fn try_with<R>(&self, spins: usize, action: impl FnOnce(&mut SharedState) -> R) -> Option<R> {
         let mut attempts = 0;
         while self
@@ -252,8 +238,15 @@ unsafe fn push(local: &mut Local, class: usize, block: *mut u8) {
 
 #[cold]
 unsafe fn spill(local: &mut Local, class: usize) {
+    unsafe { spill_from(local, class, &SHARED, RETIRE_SPINS) }
+}
+
+/// `spill` into `shared`, waiting at most `spins` attempts for its lock. If the lock cannot be
+/// taken the detached half goes back on the thread's own list (nothing is lost; the next free
+/// tries again), so a lock held forever by a thread that no longer runs cannot hang this one.
+unsafe fn spill_from(local: &mut Local, class: usize, shared: &Shared, spins: usize) {
     if local.retired {
-        unsafe { spill_retired(local, class, &SHARED, RETIRE_SPINS) };
+        unsafe { spill_retired(local, class, shared, spins) };
         return;
     }
     let keep = SPILL_LIMIT / 2;
@@ -263,6 +256,7 @@ unsafe fn spill(local: &mut Local, class: usize) {
     }
     let detached = unsafe { cursor.cast::<*mut u8>().read() };
     unsafe { cursor.cast::<*mut u8>().write(ptr::null_mut()) };
+    let total = local.counts[class];
     local.counts[class] = keep;
     let mut tail = detached;
     loop {
@@ -272,10 +266,15 @@ unsafe fn spill(local: &mut Local, class: usize) {
         }
         tail = next;
     }
-    SHARED.with(|shared| {
-        unsafe { tail.cast::<*mut u8>().write(shared.heads[class]) };
-        shared.heads[class] = detached;
+    let handed = shared.try_with(spins, |state| {
+        unsafe { tail.cast::<*mut u8>().write(state.heads[class]) };
+        state.heads[class] = detached;
     });
+    if handed.is_none() {
+        // SAFETY: `cursor` is the last block of the kept list; `detached` is its former tail.
+        unsafe { cursor.cast::<*mut u8>().write(detached) };
+        local.counts[class] = total;
+    }
 }
 
 /// A retired thread keeps nothing: the one block just freed goes to `shared`. If its lock cannot
@@ -369,14 +368,8 @@ unsafe fn retire_into(local: &mut Local, shared: &Shared, spins: usize) {
     });
 }
 
-/// An allocation for a retired thread: a shared free block, else a shared region, else a new
-/// chunk held as a shared region.
-#[cold]
-unsafe fn shared_alloc(class: usize) -> *mut u8 {
-    unsafe { shared_alloc_from(class, &SHARED, RETIRE_SPINS) }
-}
-
-/// `shared_alloc` from `shared`, waiting at most `spins` attempts for its lock. If the lock
+/// A retired thread's allocation from `shared` (a shared free block, else a shared region, else
+/// a new chunk held as a shared region), waiting at most `spins` attempts for its lock. If the lock
 /// cannot be taken the block comes from a fresh chunk that is not shared (counted in
 /// `HELD_BYTES`; the rest of it is leaked): the process may be exiting with the lock held by a
 /// thread that no longer runs.
@@ -416,11 +409,21 @@ unsafe fn shared_alloc_from(class: usize, shared: &Shared, spins: usize) -> *mut
 
 #[cold]
 unsafe fn refill(local: &mut Local, class: usize) -> *mut u8 {
+    unsafe { refill_from(local, class, &SHARED, RETIRE_SPINS) }
+}
+
+/// `refill` from `shared`, waiting at most `spins` attempts for each lock take. If the lock
+/// cannot be taken nothing is adopted and the block comes from the thread's own region or a
+/// fresh chunk (counted in `HELD_BYTES`), so a lock held forever cannot hang this thread.
+unsafe fn refill_from(local: &mut Local, class: usize, shared: &Shared, spins: usize) -> *mut u8 {
     if local.retired {
-        return unsafe { shared_alloc(class) };
+        return unsafe { shared_alloc_from(class, shared, spins) };
     }
-    let adopted =
-        SHARED.with(|shared| std::mem::replace(&mut shared.heads[class], ptr::null_mut()));
+    let adopted = shared
+        .try_with(spins, |state| {
+            std::mem::replace(&mut state.heads[class], ptr::null_mut())
+        })
+        .unwrap_or(ptr::null_mut());
     if !adopted.is_null() {
         let mut count = 0usize;
         let mut cursor = adopted;
@@ -435,7 +438,10 @@ unsafe fn refill(local: &mut Local, class: usize) -> *mut u8 {
     let size = (class + 1) * GRANULE;
     if (local.bump_end as usize) - (local.bump as usize) < size {
         // Prefer the unused region a finished thread left over to a new chunk.
-        if let Some((start, end)) = SHARED.with(|shared| unsafe { pop_region(shared, size) }) {
+        let region = shared
+            .try_with(spins, |state| unsafe { pop_region(state, size) })
+            .flatten();
+        if let Some((start, end)) = region {
             local.bump = start;
             local.bump_end = end;
         } else {
@@ -526,8 +532,9 @@ unsafe impl GlobalAlloc for PoolAllocator {
 #[cfg(test)]
 mod tests {
     use super::{
-        held_bytes, pop_region, push_region, retire, retire_into, shared_alloc_from, spill_retired,
-        Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
+        held_bytes, pop_region, push_region, refill_from, retire, retire_into, shared_alloc_from,
+        spill_from, spill_retired, Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
+        SPILL_LIMIT,
     };
 
     /// A private shared state whose lock is `locked`.
@@ -734,6 +741,116 @@ mod tests {
         // SAFETY: the lock is held by nobody who touches the state in this test.
         let state = unsafe { &*shared.state.get() };
         assert!(state.heads.iter().all(|head| head.is_null()) && state.regions.is_null());
+    }
+
+    /// Runs `work` on a spawned thread against `shared` and returns its result, or fails the test
+    /// if it takes over a second. On timeout the lock is released so the stuck thread can finish.
+    fn within_a_second<R: Send + 'static>(
+        shared: &'static Shared,
+        work: impl FnOnce(&'static Shared) -> R + Send + 'static,
+    ) -> R {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = sender.send(work(shared));
+        });
+        match receiver.recv_timeout(std::time::Duration::from_secs(1)) {
+            Ok(result) => result,
+            Err(_) => {
+                shared
+                    .lock
+                    .store(false, std::sync::atomic::Ordering::Release);
+                panic!("the call kept waiting for the shared lock");
+            }
+        }
+    }
+
+    /// A 16-byte block straight from the system allocator, so building a list does not touch the
+    /// counted pool.
+    fn system_block() -> *mut u8 {
+        use std::alloc::GlobalAlloc;
+        // SAFETY: the layout is valid and non-zero.
+        let block = unsafe {
+            std::alloc::System.alloc(std::alloc::Layout::from_size_align(16, 16).unwrap())
+        };
+        assert!(!block.is_null());
+        block
+    }
+
+    /// A list of `length` blocks in class 0 of `local`.
+    fn fill(local: &mut Local, length: usize) {
+        for _ in 0..length {
+            let block = system_block();
+            // SAFETY: `block` is a valid block no list holds.
+            unsafe { block.cast::<*mut u8>().write(local.heads[0]) };
+            local.heads[0] = block;
+            local.counts[0] += 1;
+        }
+    }
+
+    #[test]
+    fn spill_and_refill_give_up_when_shared_lock_is_held() {
+        if !isolated("pool_alloc::tests::spill_and_refill_give_up_when_shared_lock_is_held") {
+            return;
+        }
+        use std::sync::atomic::Ordering;
+        let shared: &'static Shared = Box::leak(Box::new(private_shared(true)));
+        let blocks = SPILL_LIMIT + 1;
+
+        // Spill: a live thread with a full list; the lock is held, so the list stays local.
+        let (kept, count, grown) = within_a_second(shared, move |shared| {
+            let mut local = Local::EMPTY;
+            fill(&mut local, blocks);
+            let before = held_bytes();
+            // SAFETY: `local` is private and its list is `blocks` valid blocks.
+            unsafe { spill_from(&mut local, 0, shared, 1_000) };
+            let grown = held_bytes() - before;
+            let mut length = 0;
+            let mut cursor = local.heads[0];
+            while !cursor.is_null() {
+                length += 1;
+                // SAFETY: the list is made of valid blocks.
+                cursor = unsafe { cursor.cast::<*mut u8>().read() };
+            }
+            (length, local.counts[0], grown)
+        });
+        assert_eq!(
+            (kept, count, grown),
+            (blocks, blocks, 0),
+            "nothing lost, nothing shared"
+        );
+        // SAFETY: nobody touches the state while the lock is held.
+        assert!(unsafe { &*shared.state.get() }
+            .heads
+            .iter()
+            .all(|head| head.is_null()));
+
+        // Refill: nothing can be adopted, so the block comes from a fresh, counted chunk.
+        let grown = within_a_second(shared, |shared| {
+            let mut local = Local::EMPTY;
+            let before = held_bytes();
+            // SAFETY: `local` is private.
+            let block = unsafe { refill_from(&mut local, 3, shared, 1_000) };
+            assert!(!block.is_null());
+            assert!(
+                !local.bump.is_null(),
+                "the rest of the chunk stays with the thread"
+            );
+            held_bytes() - before
+        });
+        assert_eq!(grown, CHUNK_BYTES);
+
+        // With the lock free again the same spill hands the surplus on, and the bytes balance.
+        shared.lock.store(false, Ordering::Release);
+        let (count, grown) = within_a_second(shared, move |shared| {
+            let mut local = Local::EMPTY;
+            fill(&mut local, blocks);
+            let before = held_bytes();
+            unsafe { spill_from(&mut local, 0, shared, 1_000) };
+            (local.counts[0], held_bytes() - before)
+        });
+        assert_eq!((count, grown), (SPILL_LIMIT / 2, 0));
+        // SAFETY: the lock is free and no call is running.
+        assert!(!unsafe { &*shared.state.get() }.heads[0].is_null());
     }
 
     #[test]
