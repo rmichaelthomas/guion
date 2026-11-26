@@ -198,3 +198,41 @@ Guion is faster than both CPythons on all 10 programs (and on bare start-up, the
 - One machine, one day, one run per kit; matmul and in-process read ratios have wide per-trial spread (matmul 0.84 to 4.38); compare medians.
 - The machine was not idle.
 - Allocator claims are for macOS aarch64.
+
+## Re-measure after the shared pool, matmul tuning and native element reads (2026-11-25)
+
+This section re-runs the kits on a build that adds, since the runs above: one shared thread pool for CSV reads and matrix multiplication, matmul tuning ([matmul_ceiling.md](../../development/arrays/matmul_ceiling.md)), bounds-checked native `f64` element reads in compiled loops, CSV fixes (collision-resistant dictionary hash, no fallback for a final record without a newline), radix-sort and allocator robustness changes. The sections above are unchanged.
+
+Build: commit 262f12a, `cargo build --release` (the working tree also held an unstaged, formatting-only edit to a test in `crates/vm-core/src/parallel.rs`; it does not change the binary's behaviour). Same machine as above (Apple M1 Pro, 10 cores, 16 GB, macOS 27.0.1), CPython 3.14.7, pandas 3.1.1, NumPy 2.5.4. The machine was an ordinary desktop session, not idle: load average about 4.2 at the start, with the window server near 66% of a core and a few background indexing and health-monitor processes running. Each kit ran alone, one after another, never alongside a test suite or another kit.
+
+Commands, from the repository root:
+
+```
+python3 evaluation/development/frames/read_compute.py                 # 31 trials -> frames/results_read_compute.json
+python3 evaluation/development/frames/run.py 15 evaluation/development/frames/results_remeasure.json   # 15 trials
+cd evaluation/development/arrays
+../frames/.venv/bin/python matmul_compute.py                          # 15 trials -> results_compute.json
+../frames/.venv/bin/python run.py 15 results_large_remeasure.json programs_large   # 15 trials -> results_large_remeasure.json
+cd ../interpreters
+python3 run.py                                                        # 15 trials -> results.json
+```
+
+The `results_large_remeasure.json` run is new (the file above, `results_large.json`, is the earlier run and was not overwritten). Its `a*b+c`, sum and sort figures use the start-up-subtracted method from the first section, applied to the new file's `samples_seconds`.
+
+| Workload | Before (this report) | After | Source |
+|---|---|---|---|
+| CSV read, 1M rows, Guion per read | 132.9 ms (2.67 times pandas 49.7 ms) | 37.2 ms, **0.77** times pandas (48.0 ms) | `frames/results_read_compute.json`, `guion_ms`, `pandas_ms`, `guion_over_pandas.ratio_of_medians` (per-trial range in the file includes one invalid first-trial pandas sample) |
+| CSV read, first read in a process (end-to-end difference method) | 51.8 ms against pandas 53.5 ms (0.97) | 56.2 ms against pandas 60.5 ms, **0.93** | `frames/results_remeasure.json`, `samples_seconds` (`read` minus `null`, median of per-trial differences) |
+| Five tested CSV workloads, end to end, Guion / pandas | 0.465 to 0.522 | 0.226 to 0.300 | same file, `summary` (`read`, `filter`, `group`, `join`, `sort`) |
+| 512x512 matmul, per multiply | 1.380 ms (2.24 times NumPy 0.617 ms) | 1.281 ms, **1.96** times NumPy (0.652 ms; per-trial 1.02-2.76) | `arrays/results_compute.json`, `per_multiply_ms`, `guion_over_numpy.ratio_of_medians` |
+| `a*b+c`, 5 passes, 10M `f64` | 127.2 ms (1.34 times NumPy) | 75.1 ms, **0.77** times NumPy (97.9 ms) | `arrays/results_large_remeasure.json`, `samples_seconds` (`elementwise` minus `null`, median) |
+| sum, 10 passes, 10M `f64` | 28.4 ms (0.79 times NumPy) | 30.3 ms, **0.83** times NumPy (36.5 ms) | same file, `sum` |
+| stable sort, 1M `f64` | 31.6 ms (1.50 times NumPy) | 14.4 ms, **0.68** times NumPy (21.0 ms) | same file, `sort` |
+| `arrays/loop` against PyPy 3.11.17 | 2.527 (PyPy faster, 0.396 of Guion's time) | **0.435** (Guion faster; interval 0.427-0.456) | `interpreters/results.json`, `summary["arrays/loop"]["guion_over_pypy"]` |
+| `arrays/loop` against CPython 3.14.7 and free-threaded 3.14.10 | 0.763 and 0.628 | 0.134 and 0.113 | same entry, `guion_over_cpython` and `guion_over_cpython-free-threaded` |
+| Programs faster than PyPy, of 11 | 10 | **11** | `interpreters/results.json`, `summary`, every `guion_over_pypy.median` below 1 |
+| Programs faster than both CPythons, of 11 | 11 | 11 | same, `guion_over_cpython` and `guion_over_cpython-free-threaded` |
+
+Reading the table. The CSV figure is 0.77, a little above the 0.75 of the first development run and the roughly 0.74 seen in other development runs: the read ratio moves a few hundredths between runs on this machine. The sort figure moved from 0.66 to 0.68 and the sum figure stayed at 0.83, both within the run-to-run spread seen so far. Matrix multiplication is still about twice NumPy's time. The tuning removed some packing and queue overhead (see `matmul_ceiling.md`), but the ratio is inside the per-trial spread of the earlier figure. The remaining gap is not a tuning shortfall in Guion's own ceiling: NumPy on Apple M1 to M3 uses a library that drives Apple's undocumented matrix unit, and Guion uses only documented processor instructions.
+
+The interpreters results: all 11 programs are now faster than CPython 3.14.7, free-threaded CPython 3.14.10 and PyPy 3.11.17. The array loop, the one program where PyPy was faster, now takes 0.435 of PyPy's time. As before, the array lanes compare Guion's native arrays with plain-Python loops, the Python programs are single-threaded, the first-source workloads are start-up dominated, and this is one machine and one run of each kit.

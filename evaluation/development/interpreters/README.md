@@ -7,7 +7,8 @@ One local comparison. Run with `python3 run.py [trials] [output.json]`; the comm
 
 - Apple M1 Pro, 16 GB (17179869184 bytes), macOS-27.0.1-arm64-arm-64bit-Mach-O.
 - Guion: `guion 0.9.0 (artifact format 90, timezone data 2026c)`, `target/release/guion`,
-  built from commit d1e6ccc (a development build made after 0.9.0).
+  built from commit 262f12a (a development build made after 0.9.0, with the shared thread pool,
+  matmul tuning and native element reads).
 - CPython: 3.14.7 (uv, `cpython-3.14.7-macos-aarch64-none`).
 - Free-threaded CPython: 3.14.10 (uv, `3.14t`; uv offers no 3.14.7 free-threaded build, so the
   newest 3.14t it provides was used).
@@ -31,17 +32,17 @@ Median of paired per-trial ratios Guion time / other lane time, with 95% bootstr
 
 | workload | Guion / CPython | Guion / free-threaded | Guion / PyPy |
 |---|---|---|---|
-| arrays/null (start-up only) | 0.399 (0.379-0.459) | 0.374 (0.354-0.437) | 0.252 (0.240-0.298) |
-| arrays/elementwise | 0.023 (0.023-0.024) | 0.020 (0.020-0.020) | 0.051 (0.050-0.052) |
-| arrays/sum | 0.058 (0.056-0.059) | 0.049 (0.048-0.050) | 0.234 (0.228-0.239) |
-| arrays/matmul | 0.012 (0.012-0.013) | 0.010 (0.010-0.010) | 0.043 (0.043-0.045) |
-| arrays/sort | 0.124 (0.118-0.126) | 0.122 (0.118-0.125) | 0.379 (0.374-0.390) |
-| arrays/loop | 0.763 (0.719-0.770) | 0.628 (0.606-0.651) | 2.527 (2.462-2.547) |
-| first_source/tiny | 0.355 (0.345-0.361) | 0.337 (0.326-0.341) | 0.216 (0.208-0.228) |
-| first_source/arithmetic | 0.411 (0.393-0.424) | 0.395 (0.376-0.412) | 0.267 (0.246-0.273) |
-| first_source/json_file | 0.260 (0.240-0.274) | 0.244 (0.237-0.251) | 0.157 (0.148-0.161) |
-| first_source/imported_helper | 0.400 (0.387-0.429) | 0.387 (0.375-0.412) | 0.283 (0.263-0.291) |
-| first_source/sqlite_toml | 0.333 (0.325-0.340) | 0.320 (0.301-0.332) | 0.155 (0.149-0.158) |
+| arrays/null (start-up only) | 0.420 (0.407-0.436) | 0.403 (0.393-0.431) | 0.277 (0.266-0.287) |
+| arrays/elementwise | 0.024 (0.023-0.024) | 0.021 (0.020-0.021) | 0.052 (0.051-0.053) |
+| arrays/sum | 0.065 (0.064-0.067) | 0.054 (0.053-0.058) | 0.257 (0.250-0.269) |
+| arrays/matmul | 0.012 (0.012-0.014) | 0.011 (0.011-0.011) | 0.045 (0.045-0.049) |
+| arrays/sort | 0.124 (0.119-0.129) | 0.124 (0.118-0.128) | 0.383 (0.371-0.403) |
+| arrays/loop | 0.134 (0.131-0.137) | 0.113 (0.106-0.115) | 0.435 (0.427-0.456) |
+| first_source/tiny | 0.353 (0.333-0.385) | 0.346 (0.315-0.362) | 0.225 (0.217-0.246) |
+| first_source/arithmetic | 0.414 (0.394-0.429) | 0.390 (0.373-0.419) | 0.272 (0.258-0.275) |
+| first_source/json_file | 0.258 (0.255-0.268) | 0.248 (0.242-0.256) | 0.152 (0.150-0.159) |
+| first_source/imported_helper | 0.411 (0.394-0.414) | 0.391 (0.372-0.404) | 0.280 (0.276-0.289) |
+| first_source/sqlite_toml | 0.342 (0.325-0.347) | 0.311 (0.302-0.321) | 0.152 (0.143-0.157) |
 
 ## Scope: what this does and does not say
 
@@ -56,5 +57,5 @@ The first-source workloads are start-up dominated.
 The Python programs are single-threaded, so the free-threaded build's lack of a global
 interpreter lock does not help them; this does not measure multi-threaded Python code. PyPy is
 a JIT, so its numbers depend on how long a program runs; the loop workload is the one where it
-is faster than Guion. One machine, one run of 15 trials; nothing here is a claim about other
+was faster than Guion in the earlier run (2.5 times) and is not in this one (Guion 0.435 of PyPy's time). One machine, one run of 15 trials; nothing here is a claim about other
 hardware or larger sizes.
