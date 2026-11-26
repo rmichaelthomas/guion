@@ -114,9 +114,10 @@ fn native_array_get_out_of_bounds_matches_vm() {
 }
 
 #[test]
-fn native_array_get_non_f64_falls_back() {
-    // i64 reads share the f64 lowering; narrower and unsigned element types go through the
-    // runtime. Every one must give the VM's answer.
+fn non_f64_array_get_guards_the_vm_path_and_error_parity() {
+    // This guards the VM path and output/error parity, not native code: i64 reads share the f64
+    // lowering, but no narrower or unsigned array (u8 included) reaches native code today, so
+    // these programs run through the runtime. Every one must give the VM's answer.
     let cases = [
         ("array_i64_range(0, n, 1)", "0", "499500"),
         ("array_i32_zeros([n])", "0", "0"),
@@ -144,7 +145,9 @@ fn native_array_get_non_f64_falls_back() {
 }
 
 #[test]
-fn native_array_get_two_dimensional_matches_vm() {
+fn two_dimensional_array_get_guards_the_vm_path_and_output_parity() {
+    // This guards the VM path and output parity, not native code: no 2-D array reaches native
+    // code today, so the program runs through the runtime and must match the VM's answer.
     let scratch = Scratch::new("two-d");
     write(
         &scratch,

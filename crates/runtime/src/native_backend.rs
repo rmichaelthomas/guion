@@ -276,7 +276,13 @@ fn native_direct_operation_index(op: &Op) -> Option<usize> {
         Op::TextTrim => Some(34),
         Op::TextJoin => Some(35),
         Op::Length => Some(36),
-        Op::Array(function, _) => Some(36 + function.arity()),
+        // Slots 37..=39 hold arities 1 to 3; arity 0 would alias `Length` and 4 or more would run
+        // past the table, so anything else is not a direct operation.
+        Op::Array(function, _)
+            if native_array_function(*function) && (1..=3).contains(&function.arity()) =>
+        {
+            Some(36 + function.arity())
+        }
         _ => None,
     }
 }
@@ -7283,4 +7289,25 @@ fn fuel_reservation_requirements(
             .map(|(required, region_start)| if region_start { required } else { 0 })
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod direct_operation_slot_tests {
+    use super::*;
+    use guion_model::{ArrayFunction, ElementType};
+
+    #[test]
+    fn array_direct_operation_slots_stay_inside_the_table() {
+        for function in ArrayFunction::ALL.iter().copied() {
+            let slot = native_direct_operation_index(&Op::Array(function, ElementType::F64));
+            let wanted = native_array_function(function) && (1..=3).contains(&function.arity());
+            assert_eq!(slot.is_some(), wanted, "{function:?}");
+            if let Some(slot) = slot {
+                assert!(
+                    (37..NATIVE_DIRECT_OPERATION_NAMES.len()).contains(&slot),
+                    "{function:?} slot {slot}"
+                );
+            }
+        }
+    }
 }
