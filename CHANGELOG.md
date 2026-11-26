@@ -2,6 +2,10 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
+## Unreleased
+
+- The self-hosted compiler is now a stored historical artifact only; the build, tests and release checks no longer check it, and release archives no longer include `share/guion/compiler.gub` or `compiler-seed.json`.
+
 ## 0.9.1 — 2026-11-26
 
 No artifact format change; programs and artifacts built for 0.9.0 run unchanged. Speed figures are from the [25 November speed report](evaluation/completion/results/2026-11-25-speed-report.md): one Apple M1 Pro, one run of each kit, compute only (start-up subtracted), against pandas 3.1.1 and NumPy 2.5.4.
