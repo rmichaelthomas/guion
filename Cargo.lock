@@ -911,7 +911,6 @@ dependencies = [
 name = "guion-cli"
 version = "0.9.1"
 dependencies = [
- "guion-bootstrap",
  "guion-compiler",
  "guion-model",
  "guion-runtime",

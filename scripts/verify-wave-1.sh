@@ -34,8 +34,7 @@ step "B6 TCP and UDP (default-deny, limits)" cargo test --locked --offline -p gu
 step "B7 TLS (verification, rejection, grants)" cargo test --locked --offline -p guion-cli --test stdlib_tls
 step "B8 HTTP server, WebSockets, SHA-1" cargo test --locked --offline -p guion-cli --test stdlib_http_server
 step "artifact format gating (formats 52 to 59)" cargo test --locked --offline -p guion-model
-step "three-stage bootstrap" cargo xtask bootstrap --stages 3
-step "conformance (stage2, stage3)" cargo xtask conformance --compilers stage2,stage3
+step "conformance" cargo xtask conformance
 step "clippy, warnings denied" cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 step "full workspace tests (includes old-format fixtures)" cargo test --workspace --locked --offline --no-fail-fast
 

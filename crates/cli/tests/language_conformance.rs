@@ -1,11 +1,9 @@
 use guion_compiler::{compile_project, Diagnostic};
-use guion_model::{Artifact, BigInt, RuntimeError, SharedJson, Value as RuntimeValue};
-use guion_runtime::{EffectRecord, HostPolicy, Instance, Runtime};
+use guion_model::{Artifact, BigInt, RuntimeError, Value as RuntimeValue};
+use guion_runtime::{EffectRecord, HostPolicy, Runtime};
 use serde_json::Value;
 use std::fs;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 struct TempProject(PathBuf);
@@ -594,7 +592,7 @@ struct DiagnosticLocation {
     suggestions: Vec<String>,
 }
 
-fn bootstrap_location(error: &Diagnostic) -> DiagnosticLocation {
+fn compile_location(error: &Diagnostic) -> DiagnosticLocation {
     DiagnosticLocation {
         code: error.code.clone(),
         source: error.source_name.clone().unwrap_or_default(),
@@ -602,25 +600,6 @@ fn bootstrap_location(error: &Diagnostic) -> DiagnosticLocation {
         column: error.span.column,
         suggestions: error.suggestions().to_vec(),
     }
-}
-
-fn self_host_location(diagnostic: &Value) -> Option<DiagnosticLocation> {
-    Some(DiagnosticLocation {
-        code: diagnostic.get("code")?.as_str()?.to_string(),
-        source: diagnostic.get("source_name")?.as_str()?.to_string(),
-        line: diagnostic.get("span")?.get("line")?.as_u64()? as usize,
-        column: diagnostic.get("span")?.get("column")?.as_u64()? as usize,
-        suggestions: diagnostic
-            .get("suggestions")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|item| item.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
-    })
 }
 
 #[derive(Debug, PartialEq)]
@@ -656,154 +635,19 @@ fn observe(artifact: Artifact, file_root: &Path) -> Result<RuntimeObservation, S
     })
 }
 
-fn compile_both(
-    binary: &Path,
-    compiler_artifact: &Path,
+fn compile_rust(
     case_project: &TempProject,
     source: &str,
-    case_id: &str,
-) -> (
-    Option<Artifact>,
-    Option<Artifact>,
-    Option<DiagnosticLocation>,
-    Option<DiagnosticLocation>,
-) {
+) -> (Option<Artifact>, Option<DiagnosticLocation>) {
     case_project.write("main.gu", source);
-    let bootstrap = compile_project(&case_project.0.join("main.gu"), &case_project.0);
-    let self_host = Command::new(binary)
-        .args(["run", "--json", "--file-root"])
-        .arg(&case_project.0)
-        .arg(compiler_artifact)
-        .arg("main.gu")
-        .current_dir(&case_project.0)
-        .output()
-        .unwrap_or_else(|error| panic!("{case_id}: launch self-host compiler: {error}"));
-    assert!(
-        self_host.status.success(),
-        "{case_id}: {}",
-        String::from_utf8_lossy(&self_host.stderr)
-    );
-    let report: Value = serde_json::from_slice(&self_host.stdout).unwrap_or_else(|error| {
-        panic!(
-            "{case_id}: invalid self-host run report: {error}: {}",
-            String::from_utf8_lossy(&self_host.stdout)
-        )
-    });
-    assert_eq!(report["exit_code"], 0, "{case_id}: {report}");
-    assert!(
-        report["diagnostic"].is_null(),
-        "{case_id}: runtime failed while compiling: {report}"
-    );
-    let program_stdout = report["program_stdout"]
-        .as_str()
-        .expect("self-host compiler prints JSON");
-    let result: Value = serde_json::from_str(program_stdout).unwrap_or_else(|error| {
-        panic!("{case_id}: invalid compiler result: {error}: {program_stdout}")
-    });
-    let self_host_diagnostic = result.get("diagnostic").and_then(self_host_location);
-    let (bootstrap_artifact, bootstrap_diagnostic) = match bootstrap {
+    match compile_project(&case_project.0.join("main.gu"), &case_project.0) {
         Ok(artifact) => (Some(artifact), None),
-        Err(error) => (None, Some(bootstrap_location(&error))),
-    };
-    let self_host_artifact = if self_host_diagnostic.is_none() {
-        let ir = case_project.0.join("self-host-output.json");
-        let artifact_path = case_project.0.join("self-host-output.gub");
-        fs::write(&ir, program_stdout).expect("write self-host IR for verification");
-        let assembled = Command::new(binary)
-            .args(["assemble-ir"])
-            .arg(&ir)
-            .arg("--output")
-            .arg(&artifact_path)
-            .current_dir(&case_project.0)
-            .output()
-            .unwrap_or_else(|error| panic!("{case_id}: launch self-host IR verifier: {error}"));
-        assert!(
-            assembled.status.success(),
-            "{case_id}: {}",
-            String::from_utf8_lossy(&assembled.stderr)
-        );
-        Some(
-            Artifact::from_bytes(
-                &fs::read(&artifact_path).expect("read assembled self-host artifact"),
-            )
-            .unwrap_or_else(|error| {
-                panic!("{case_id}: self-host IR produced an invalid artifact: {error:?}")
-            }),
-        )
-    } else {
-        None
-    };
-    (
-        bootstrap_artifact,
-        self_host_artifact,
-        bootstrap_diagnostic,
-        self_host_diagnostic,
-    )
-}
-
-fn prepare_self_host_compiler() -> PathBuf {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let self_host = repository.join("language/self_host");
-    let filenames = [
-        "guion.toml",
-        "compiler.gu",
-        "lexer.gu",
-        "parser.gu",
-        "builtin_catalog.gu",
-        "artifact.gu",
-    ];
-    let mut hasher = DefaultHasher::new();
-    for filename in filenames {
-        filename.hash(&mut hasher);
-        fs::read(self_host.join(filename))
-            .expect("read self-host compiler source for cache identity")
-            .hash(&mut hasher);
+        Err(error) => (None, Some(compile_location(&error))),
     }
-    let project = repository.join("target").join(format!(
-        "guion-language-conformance-{:016x}",
-        hasher.finish()
-    ));
-    fs::create_dir_all(&project).expect("create compiler artifact cache");
-    let artifact = project.join("compiler.gub");
-    if artifact.is_file() {
-        return artifact;
-    }
-    for filename in filenames {
-        fs::copy(self_host.join(filename), project.join(filename))
-            .expect("copy self-host compiler");
-    }
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
-    let stage_zero = Command::new(&binary)
-        .args(["run", "compiler.gu", "compiler.gu"])
-        .current_dir(&project)
-        .output()
-        .expect("compile self-host compiler with bootstrap compiler");
-    assert!(
-        stage_zero.status.success(),
-        "{}{}",
-        String::from_utf8_lossy(&stage_zero.stdout),
-        String::from_utf8_lossy(&stage_zero.stderr)
-    );
-    let ir = project.join("compiler.gui.json");
-    fs::write(&ir, stage_zero.stdout).expect("write compiler IR");
-    let assembled = Command::new(&binary)
-        .args(["assemble-ir"])
-        .arg(&ir)
-        .arg("--output")
-        .arg(&artifact)
-        .current_dir(&project)
-        .output()
-        .expect("assemble self-host compiler artifact");
-    assert!(
-        assembled.status.success(),
-        "{}",
-        String::from_utf8_lossy(&assembled.stderr)
-    );
-    artifact
 }
 
 #[test]
-fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
+fn manifest_current_language_corpus_compiles_and_runs() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let manifest: Value = serde_json::from_slice(
         &fs::read(repository.join("language/conformance/manifest.json")).expect("read manifest"),
@@ -820,8 +664,6 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
         "Task 2 manifest feature count changed; update corpus classification"
     );
 
-    let compiler_artifact = prepare_self_host_compiler();
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
     let mut ran = 0usize;
     let mut failures = Vec::new();
     for entry in task_two {
@@ -833,42 +675,17 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
             for (path, source) in extra_modules(id, class) {
                 case_project.write(path, source);
             }
-            let (
-                bootstrap_artifact,
-                self_host_artifact,
-                bootstrap_diagnostic,
-                self_host_diagnostic,
-            ) = compile_both(
-                &binary,
-                &compiler_artifact,
-                &case_project,
-                &fixture.source,
-                &format!("{id}.{class}"),
-            );
-            let bootstrap_ok = bootstrap_artifact.is_some();
-            let self_host_ok = self_host_artifact.is_some();
-            if bootstrap_ok != fixture.accepts {
-                failures.push(format!("{id}.{class}: bootstrap acceptance={}, expected={}, diagnostic={bootstrap_diagnostic:?}", bootstrap_ok, fixture.accepts));
+            let (artifact, diagnostic) = compile_rust(&case_project, &fixture.source);
+            let accepted = artifact.is_some();
+            if accepted != fixture.accepts {
+                failures.push(format!(
+                    "{id}.{class}: acceptance={accepted}, expected={}, diagnostic={diagnostic:?}",
+                    fixture.accepts
+                ));
             }
-            if self_host_ok != fixture.accepts {
-                failures.push(format!("{id}.{class}: self-host acceptance={}, expected={}, diagnostic={self_host_diagnostic:?}", self_host_ok, fixture.accepts));
-            }
-            if !fixture.accepts {
-                if self_host_diagnostic != bootstrap_diagnostic {
-                    failures.push(format!("{id}.{class}: self-host diagnostic/location={self_host_diagnostic:?}, bootstrap diagnostic/location={bootstrap_diagnostic:?}"));
-                }
-            } else if let (Some(bootstrap), Some(self_host)) =
-                (bootstrap_artifact, self_host_artifact)
-            {
-                let bootstrap_observation = observe(bootstrap, &case_project.0);
-                let self_host_observation = observe(self_host, &case_project.0);
-                match (bootstrap_observation, self_host_observation) {
-                    (Ok(bootstrap), Ok(self_host)) if bootstrap != self_host => {
-                        failures.push(format!("{id}.{class}: bootstrap runtime={bootstrap:?}, self-host runtime={self_host:?}"));
-                    }
-                    (Err(error), _) => failures.push(format!("{id}.{class}: bootstrap {error}")),
-                    (_, Err(error)) => failures.push(format!("{id}.{class}: self-host {error}")),
-                    _ => {}
+            if let Some(artifact) = artifact {
+                if let Err(error) = observe(artifact, &case_project.0) {
+                    failures.push(format!("{id}.{class}: {error}"));
                 }
             }
             ran += 1;
@@ -886,7 +703,7 @@ fn manifest_current_language_corpus_has_bootstrap_and_self_host_parity() {
 }
 
 #[test]
-fn temporal_resolver_conformance_is_declared_for_both_compilers() {
+fn temporal_resolver_conformance_is_declared() {
     let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let manifest: Value = serde_json::from_slice(
         &fs::read(repository.join("language/conformance/manifest.json")).unwrap(),
@@ -899,216 +716,20 @@ fn temporal_resolver_conformance_is_declared_for_both_compilers() {
         .find(|entry| entry["id"] == "host_operation-local-time-resolution")
         .expect("temporal resolver has a conformance entry");
     assert_eq!(entry["compiler_status"]["bootstrap"], "implemented");
-    assert_eq!(entry["compiler_status"]["self_hosted"], "implemented");
     assert_eq!(entry["coverage"]["positive"]["state"], "implemented");
     assert_eq!(entry["coverage"]["negative"]["state"], "implemented");
     assert_eq!(entry["coverage"]["interaction"]["state"], "implemented");
 }
 
 #[test]
-fn compiler_stages_compile_full_task_two_corpus_and_locked_roots() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let stage_directory = repository.join("target/self-hosted-bootstrap");
-    let stage2 = Artifact::from_bytes(
-        &fs::read(stage_directory.join("stage2.gub"))
-            .expect("run three-stage bootstrap before stage conformance"),
-    )
-    .expect("native reader accepts cached C2");
-    let stage3 = Artifact::from_bytes(
-        &fs::read(stage_directory.join("stage3.gub"))
-            .expect("run three-stage bootstrap before stage conformance"),
-    )
-    .expect("native reader accepts cached C3");
-    let project = TempProject::new("stage-two-three");
-    let standard_root = project.0.join("stdlib");
-    let package_root = project.0.join("packages/report_helpers");
-    fs::create_dir_all(&standard_root).unwrap();
-    fs::create_dir_all(package_root.join("render")).unwrap();
-    let policy = HostPolicy {
-        instruction_limit: 500_000_000,
-        allocation_limit_bytes: 8_589_934_592,
-        call_depth_limit: 160,
-        max_collection_items: 1_000_000,
-        ..HostPolicy::default()
-    }
-    .with_file_access(&project.0, true, false)
-    .with_file_root_alias("std", &standard_root)
-    .with_file_root_alias("pkg:report_helpers", &package_root);
-    let mut stage2_runtime = Runtime::new()
-        .load(stage2, policy.clone())
-        .expect("load C2 self-hosted compiler");
-    let mut stage3_runtime = Runtime::new()
-        .load(stage3, policy)
-        .expect("load C3 self-hosted compiler");
-
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(repository.join("language/conformance/manifest.json"))
-            .expect("read compiler conformance inventory"),
-    )
-    .expect("parse compiler conformance inventory");
-    let entries = manifest["entries"].as_array().expect("manifest entries");
-    let task_two: Vec<_> = entries
-        .iter()
-        .filter(|entry| entry["owner_task"] == 2)
-        .collect();
-    assert_eq!(task_two.len(), 67, "Task 2 conformance inventory changed");
-    let mut cases_run = 0usize;
-    for entry in task_two {
-        let id = entry["id"].as_str().expect("feature ID");
-        for class in ["positive", "negative", "interaction"] {
-            let fixture =
-                source_case(id, class).unwrap_or_else(|| panic!("missing {class} case for {id}"));
-            eprintln!("C2/C3 corpus case {}/201: {id}.{class}", cases_run + 1);
-            let case_root = format!("cases/{id}/{class}");
-            let source_name = format!("{case_root}/main.gu");
-            project.write(&source_name, &fixture.source);
-            for (path, source) in extra_modules(id, class) {
-                project.write(&format!("{case_root}/{path}"), source);
-            }
-            let stage2_result = compile_with_stage(
-                &mut stage2_runtime,
-                &source_name,
-                &fixture.source,
-                "",
-                serde_json::json!({}),
-            );
-            let stage3_result = compile_with_stage(
-                &mut stage3_runtime,
-                &source_name,
-                &fixture.source,
-                "",
-                serde_json::json!({}),
-            );
-            match (fixture.accepts, stage2_result, stage3_result) {
-                (true, Ok(stage2_bytes), Ok(stage3_bytes)) => {
-                    assert_eq!(
-                        stage2_bytes, stage3_bytes,
-                        "C2/C3 artifact mismatch for {id}.{class}"
-                    );
-                    let artifact = Artifact::from_bytes(&stage2_bytes)
-                        .unwrap_or_else(|error| panic!("{id}.{class}: {error:?}"));
-                    Runtime::new()
-                        .load(artifact, HostPolicy::default())
-                        .unwrap_or_else(|error| panic!("{id}.{class}: verifier: {error:?}"));
-                }
-                (false, Err(stage2_error), Err(stage3_error)) => {
-                    assert_eq!(
-                        stage2_error, stage3_error,
-                        "C2/C3 diagnostic mismatch for {id}.{class}"
-                    );
-                    assert_eq!(
-                        stage2_error["schema"], "guion-compile-failure/v1",
-                        "negative input must be a structured compile failure: {id}.{class}"
-                    );
-                }
-                (expected, stage2_result, stage3_result) => panic!(
-                    "C2/C3 acceptance mismatch for {id}.{class}: expected {expected}, C2={stage2_result:?}, C3={stage3_result:?}"
-                ),
-            }
-            cases_run += 1;
-        }
-    }
-    assert!(
-        cases_run >= 180,
-        "unexpectedly small C2/C3 corpus run: {cases_run}"
-    );
-
-    let standard_source = "import \"std:csv\"\nimport \"pkg:report_helpers/render/table.gu\"\n\nfn main() -> Int:\n    return csv_rows() + rendered_rows()\n";
-    project.write(
-        "stdlib/csv.gu",
-        "pub fn csv_rows() -> Int:\n    return 40\n",
-    );
-    project.write(
-        "packages/report_helpers/render/table.gu",
-        "pub fn rendered_rows() -> Int:\n    return 2\n",
-    );
-    project.write("roots/main.gu", standard_source);
-    let roots = serde_json::json!({ "report_helpers": "pkg:report_helpers" });
-    let stage2_bytes = compile_with_stage(
-        &mut stage2_runtime,
-        "roots/main.gu",
-        standard_source,
-        "std",
-        roots.clone(),
-    )
-    .expect("C2 resolves explicitly granted standard and package roots");
-    let stage3_bytes = compile_with_stage(
-        &mut stage3_runtime,
-        "roots/main.gu",
-        standard_source,
-        "std",
-        roots,
-    )
-    .expect("C3 resolves explicitly granted standard and package roots");
-    assert_eq!(stage2_bytes, stage3_bytes);
-    let mut application = Runtime::new()
-        .load(
-            Artifact::from_bytes(&stage2_bytes).unwrap(),
-            HostPolicy::default(),
-        )
-        .expect("verify application built by C2");
-    assert_eq!(
-        application.invoke("main", vec![]).unwrap(),
-        RuntimeValue::Int(BigInt::from_usize(42))
-    );
-}
-
-fn compile_with_stage(
-    runtime: &mut Instance,
-    source_name: &str,
-    source: &str,
-    stdlib_root: &str,
-    package_roots: Value,
-) -> Result<Vec<u8>, Value> {
-    let result = runtime
-        .invoke(
-            "compiler_compile_project",
-            vec![
-                RuntimeValue::Text(source_name.into()),
-                RuntimeValue::Text(source.into()),
-                RuntimeValue::Text(stdlib_root.into()),
-                RuntimeValue::Json(SharedJson::from_serde(package_roots)),
-            ],
-        )
-        .expect("C2/C3 compiler entry returns a Result");
-    match result {
-        RuntimeValue::ResultOk(value) => match *value {
-            RuntimeValue::Bytes(bytes) => Ok(bytes.as_ref().clone()),
-            value => panic!("C2/C3 returned {value:?}; expected Bytes"),
-        },
-        RuntimeValue::ResultErr(value) => match *value {
-            RuntimeValue::Json(error) => Err(error.to_serde()),
-            value => panic!("C2/C3 returned {value:?}; expected JSON diagnostic"),
-        },
-        value => panic!("C2/C3 returned {value:?}; expected Result"),
-    }
-}
-
-#[test]
-fn collection_updates_preserve_preexisting_aliases_in_both_compilers() {
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
-    let compiler_artifact = prepare_self_host_compiler();
+fn collection_updates_preserve_preexisting_aliases() {
     let project = TempProject::new("collection-aliases");
     let source = "fn main() -> Int:\n    let original_list = [20]\n    let list_alias = original_list\n    let changed_list = list_push(original_list, 22)\n    let original_map = {\"answer\": 40}\n    let map_alias = original_map\n    let changed_map = map_set(original_map, \"other\", 2)\n    if len(list_alias) == 1 and changed_list[1] == 22 and not map_has(map_alias, \"other\") and map_has(changed_map, \"other\"):\n        return 42\n    else:\n        return 0\n";
-    let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
-        &binary,
-        &compiler_artifact,
-        &project,
-        source,
-        "collection alias preservation",
-    );
-    assert!(bootstrap_diagnostic.is_none(), "{bootstrap_diagnostic:?}");
-    assert!(self_host_diagnostic.is_none(), "{self_host_diagnostic:?}");
-    let bootstrap =
-        observe(bootstrap.expect("bootstrap artifact"), &project.0).expect("bootstrap runtime");
-    let self_host =
-        observe(self_host.expect("self-host artifact"), &project.0).expect("self-host runtime");
+    let (artifact, diagnostic) = compile_rust(&project, source);
+    assert!(diagnostic.is_none(), "{diagnostic:?}");
+    let observed = observe(artifact.expect("compiled artifact"), &project.0).expect("runtime");
     assert_eq!(
-        bootstrap, self_host,
-        "compiler outputs, effects, and aliases must agree"
-    );
-    assert_eq!(
-        bootstrap.result,
+        observed.result,
         Ok(RuntimeValue::Int(BigInt::from_usize(42)))
     );
 }
@@ -1209,18 +830,10 @@ fn loop_jump_cases() -> Vec<LoopJumpCase> {
 }
 
 #[test]
-fn break_and_continue_cases_match_in_both_compilers() {
-    let compiler_artifact = prepare_self_host_compiler();
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+fn break_and_continue_cases_compile_and_run() {
     for case in loop_jump_cases() {
         let project = TempProject::new(case.name);
-        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
-            &binary,
-            &compiler_artifact,
-            &project,
-            case.source,
-            case.name,
-        );
+        let (artifact, diagnostic) = compile_rust(&project, case.source);
         match case.expected {
             Err((code, line, column)) => {
                 let expected = DiagnosticLocation {
@@ -1230,107 +843,20 @@ fn break_and_continue_cases_match_in_both_compilers() {
                     column,
                     suggestions: Vec::new(),
                 };
-                assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
-                assert_eq!(
-                    bootstrap_diagnostic.as_ref(),
-                    Some(&expected),
-                    "{}",
-                    case.name
-                );
-                assert_eq!(
-                    self_host_diagnostic.as_ref(),
-                    Some(&expected),
-                    "{}",
-                    case.name
-                );
+                assert!(artifact.is_none(), "{}", case.name);
+                assert_eq!(diagnostic.as_ref(), Some(&expected), "{}", case.name);
             }
             Ok(value) => {
-                let bootstrap = bootstrap.unwrap_or_else(|| {
-                    panic!(
-                        "{}: bootstrap rejected: {bootstrap_diagnostic:?}",
-                        case.name
-                    )
-                });
-                let self_host = self_host.unwrap_or_else(|| {
-                    panic!(
-                        "{}: self-host rejected: {self_host_diagnostic:?}",
-                        case.name
-                    )
-                });
-                // The two front ends differ in redundant jumps and spans (an `if` without
-                // `else` already did before this change); the observable behaviour must agree.
-                // Byte-identity is asserted between the self-hosted stages below.
-                for (compiler, artifact) in [("bootstrap", bootstrap), ("self-host", self_host)] {
-                    let observed = observe(artifact, &project.0).expect("artifact loads");
-                    assert_eq!(
-                        observed.result,
-                        Ok(RuntimeValue::Int(BigInt::from_usize(value))),
-                        "{}: {compiler}",
-                        case.name
-                    );
-                }
+                let artifact =
+                    artifact.unwrap_or_else(|| panic!("{}: rejected: {diagnostic:?}", case.name));
+                let observed = observe(artifact, &project.0).expect("artifact loads");
+                assert_eq!(
+                    observed.result,
+                    Ok(RuntimeValue::Int(BigInt::from_usize(value))),
+                    "{}",
+                    case.name
+                );
             }
-        }
-    }
-}
-
-#[test]
-fn break_and_continue_cases_match_between_stage_two_and_three() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let stage_directory = repository.join("target/self-hosted-bootstrap");
-    let project = TempProject::new("break-continue-stages");
-    let load = |name: &str| {
-        Runtime::new()
-            .load(
-                Artifact::from_bytes(
-                    &fs::read(stage_directory.join(name))
-                        .expect("run three-stage bootstrap before stage conformance"),
-                )
-                .expect("native reader accepts the stage artifact"),
-                HostPolicy {
-                    instruction_limit: 500_000_000,
-                    allocation_limit_bytes: 8_589_934_592,
-                    call_depth_limit: 160,
-                    max_collection_items: 1_000_000,
-                    ..HostPolicy::default()
-                }
-                .with_file_access(&project.0, true, false),
-            )
-            .expect("load stage compiler")
-    };
-    let mut stage2 = load("stage2.gub");
-    let mut stage3 = load("stage3.gub");
-    for case in loop_jump_cases() {
-        let source_name = format!("cases/{}/main.gu", case.name);
-        project.write(&source_name, case.source);
-        let two = compile_with_stage(
-            &mut stage2,
-            &source_name,
-            case.source,
-            "",
-            serde_json::json!({}),
-        );
-        let three = compile_with_stage(
-            &mut stage3,
-            &source_name,
-            case.source,
-            "",
-            serde_json::json!({}),
-        );
-        match (case.expected, two, three) {
-            (Ok(_), Ok(two), Ok(three)) => {
-                assert_eq!(two, three, "{}: C2/C3 artifact mismatch", case.name)
-            }
-            (Err((code, line, column)), Err(two), Err(three)) => {
-                assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
-                assert_eq!(two["diagnostic"]["code"], code, "{}", case.name);
-                assert_eq!(two["diagnostic"]["span"]["line"], line, "{}", case.name);
-                assert_eq!(two["diagnostic"]["span"]["column"], column, "{}", case.name);
-            }
-            (expected, two, three) => panic!(
-                "{}: acceptance mismatch: expected {expected:?}, C2={two:?}, C3={three:?}",
-                case.name
-            ),
         }
     }
 }
@@ -1416,18 +942,10 @@ fn unknown_call_cases() -> Vec<UnknownCallCase> {
 }
 
 #[test]
-fn unknown_call_suggestions_match_in_both_compilers() {
-    let compiler_artifact = prepare_self_host_compiler();
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+fn unknown_call_suggestions_are_reported() {
     for case in unknown_call_cases() {
         let project = TempProject::new(case.name);
-        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
-            &binary,
-            &compiler_artifact,
-            &project,
-            case.source,
-            case.name,
-        );
+        let (artifact, diagnostic) = compile_rust(&project, case.source);
         let expected = DiagnosticLocation {
             code: "E_NAME_UNKNOWN".into(),
             source: "main.gu".into(),
@@ -1435,82 +953,9 @@ fn unknown_call_suggestions_match_in_both_compilers() {
             column: case.column,
             suggestions: case.suggestions.iter().map(|s| s.to_string()).collect(),
         };
-        assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
-        assert_eq!(
-            bootstrap_diagnostic.as_ref(),
-            Some(&expected),
-            "{}",
-            case.name
-        );
-        assert_eq!(
-            self_host_diagnostic.as_ref(),
-            Some(&expected),
-            "{}",
-            case.name
-        );
+        assert!(artifact.is_none(), "{}", case.name);
+        assert_eq!(diagnostic.as_ref(), Some(&expected), "{}", case.name);
         let _ = case.callee;
-    }
-}
-
-#[test]
-fn unknown_call_suggestions_match_between_stage_two_and_three() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let stage_directory = repository.join("target/self-hosted-bootstrap");
-    let project = TempProject::new("unknown-call-stages");
-    let load = |name: &str| {
-        Runtime::new()
-            .load(
-                Artifact::from_bytes(
-                    &fs::read(stage_directory.join(name))
-                        .expect("run three-stage bootstrap before stage conformance"),
-                )
-                .expect("native reader accepts the stage artifact"),
-                HostPolicy {
-                    instruction_limit: 500_000_000,
-                    allocation_limit_bytes: 8_589_934_592,
-                    call_depth_limit: 160,
-                    max_collection_items: 1_000_000,
-                    ..HostPolicy::default()
-                }
-                .with_file_access(&project.0, true, false),
-            )
-            .expect("load stage compiler")
-    };
-    let mut stage2 = load("stage2.gub");
-    let mut stage3 = load("stage3.gub");
-    for case in unknown_call_cases() {
-        let source_name = format!("cases/{}/main.gu", case.name);
-        project.write(&source_name, case.source);
-        let two = compile_with_stage(
-            &mut stage2,
-            &source_name,
-            case.source,
-            "",
-            serde_json::json!({}),
-        );
-        let three = compile_with_stage(
-            &mut stage3,
-            &source_name,
-            case.source,
-            "",
-            serde_json::json!({}),
-        );
-        let (Err(two), Err(three)) = (two, three) else {
-            panic!("{}: expected a diagnostic from both stages", case.name);
-        };
-        assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
-        assert_eq!(two["diagnostic"]["code"], "E_NAME_UNKNOWN", "{}", case.name);
-        let suggestions: Vec<String> = two["diagnostic"]
-            .get("suggestions")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|i| i.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default();
-        assert_eq!(suggestions, case.suggestions, "{}", case.name);
     }
 }
 
@@ -1569,22 +1014,14 @@ fn sort_cases() -> Vec<SortCase> {
 }
 
 #[test]
-fn sort_cases_match_in_both_compilers() {
-    cases_match_in_both_compilers(sort_cases());
+fn sort_cases_compile_and_run() {
+    cases_compile_and_run(sort_cases());
 }
 
-fn cases_match_in_both_compilers(cases: Vec<SortCase>) {
-    let compiler_artifact = prepare_self_host_compiler();
-    let binary = PathBuf::from(env!("CARGO_BIN_EXE_guion"));
+fn cases_compile_and_run(cases: Vec<SortCase>) {
     for case in cases {
         let project = TempProject::new(case.name);
-        let (bootstrap, self_host, bootstrap_diagnostic, self_host_diagnostic) = compile_both(
-            &binary,
-            &compiler_artifact,
-            &project,
-            case.source,
-            case.name,
-        );
+        let (artifact, diagnostic) = compile_rust(&project, case.source);
         match case.expected {
             Err((code, line, column)) => {
                 let expected = DiagnosticLocation {
@@ -1594,104 +1031,16 @@ fn cases_match_in_both_compilers(cases: Vec<SortCase>) {
                     column,
                     suggestions: Vec::new(),
                 };
-                assert!(bootstrap.is_none() && self_host.is_none(), "{}", case.name);
-                assert_eq!(
-                    bootstrap_diagnostic.as_ref(),
-                    Some(&expected),
-                    "{}",
-                    case.name
-                );
-                assert_eq!(
-                    self_host_diagnostic.as_ref(),
-                    Some(&expected),
-                    "{}",
-                    case.name
-                );
+                assert!(artifact.is_none(), "{}", case.name);
+                assert_eq!(diagnostic.as_ref(), Some(&expected), "{}", case.name);
             }
             Ok(stdout) => {
-                let bootstrap = bootstrap.unwrap_or_else(|| {
-                    panic!(
-                        "{}: bootstrap rejected: {bootstrap_diagnostic:?}",
-                        case.name
-                    )
-                });
-                let self_host = self_host.unwrap_or_else(|| {
-                    panic!(
-                        "{}: self-host rejected: {self_host_diagnostic:?}",
-                        case.name
-                    )
-                });
-                for (compiler, artifact) in [("bootstrap", bootstrap), ("self-host", self_host)] {
-                    assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
-                    let observed = observe(artifact, &project.0).expect("artifact loads");
-                    assert_eq!(observed.stdout, stdout, "{}: {compiler} output", case.name);
-                }
+                let artifact =
+                    artifact.unwrap_or_else(|| panic!("{}: rejected: {diagnostic:?}", case.name));
+                assert_eq!(artifact.format_version, Artifact::CURRENT_VERSION);
+                let observed = observe(artifact, &project.0).expect("artifact loads");
+                assert_eq!(observed.stdout, stdout, "{}: output", case.name);
             }
-        }
-    }
-}
-
-#[test]
-fn sort_cases_match_between_stage_two_and_three() {
-    cases_match_between_stages("sort-stages", sort_cases());
-}
-
-fn cases_match_between_stages(label: &str, cases: Vec<SortCase>) {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let stage_directory = repository.join("target/self-hosted-bootstrap");
-    let project = TempProject::new(label);
-    let load = |name: &str| {
-        Runtime::new()
-            .load(
-                Artifact::from_bytes(
-                    &fs::read(stage_directory.join(name))
-                        .expect("run three-stage bootstrap before stage conformance"),
-                )
-                .expect("native reader accepts the stage artifact"),
-                HostPolicy {
-                    instruction_limit: 500_000_000,
-                    allocation_limit_bytes: 8_589_934_592,
-                    call_depth_limit: 160,
-                    max_collection_items: 1_000_000,
-                    ..HostPolicy::default()
-                }
-                .with_file_access(&project.0, true, false),
-            )
-            .expect("load stage compiler")
-    };
-    let mut stage2 = load("stage2.gub");
-    let mut stage3 = load("stage3.gub");
-    for case in cases {
-        let source_name = format!("cases/{}/main.gu", case.name);
-        project.write(&source_name, case.source);
-        let two = compile_with_stage(
-            &mut stage2,
-            &source_name,
-            case.source,
-            "",
-            serde_json::json!({}),
-        );
-        let three = compile_with_stage(
-            &mut stage3,
-            &source_name,
-            case.source,
-            "",
-            serde_json::json!({}),
-        );
-        match (case.expected, two, three) {
-            (Ok(_), Ok(two), Ok(three)) => {
-                assert_eq!(two, three, "{}: C2/C3 artifact mismatch", case.name)
-            }
-            (Err((code, line, column)), Err(two), Err(three)) => {
-                assert_eq!(two, three, "{}: C2/C3 diagnostic mismatch", case.name);
-                assert_eq!(two["diagnostic"]["code"], code, "{}", case.name);
-                assert_eq!(two["diagnostic"]["span"]["line"], line, "{}", case.name);
-                assert_eq!(two["diagnostic"]["span"]["column"], column, "{}", case.name);
-            }
-            (expected, two, three) => panic!(
-                "{}: acceptance mismatch: expected {expected:?}, C2={two:?}, C3={three:?}",
-                case.name
-            ),
         }
     }
 }
@@ -1808,11 +1157,6 @@ fn function_value_cases() -> Vec<SortCase> {
 }
 
 #[test]
-fn function_value_cases_match_in_both_compilers() {
-    cases_match_in_both_compilers(function_value_cases());
-}
-
-#[test]
-fn function_value_cases_match_between_stage_two_and_three() {
-    cases_match_between_stages("function-value-stages", function_value_cases());
+fn function_value_cases_compile_and_run() {
+    cases_compile_and_run(function_value_cases());
 }

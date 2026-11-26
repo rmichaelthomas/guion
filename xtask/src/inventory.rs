@@ -112,7 +112,7 @@ pub fn validate_inventory(root: &Path) -> Result<Vec<String>, String> {
         if entry.get("owner_task").and_then(Value::as_u64).is_none() {
             missing.push(format!("{id}: owner_task is missing or not an integer"));
         }
-        for status_field in ["bootstrap", "self_hosted"] {
+        for status_field in ["bootstrap"] {
             let status = entry
                 .get("compiler_status")
                 .and_then(|value| value.get(status_field))

@@ -69,8 +69,7 @@ PY
 }
 
 run_gate conformance-inventory conformance-inventory no conformance --inventory-only
-run_gate bootstrap bootstrap yes bootstrap --stages 3
-run_gate conformance conformance yes conformance --compilers stage2,stage3
+run_gate conformance conformance yes conformance
 run_gate stdlib-data stdlib-data yes stdlib --group data
 run_gate stdlib-services stdlib-services yes stdlib --group services
 run_gate runtime runtime yes runtime

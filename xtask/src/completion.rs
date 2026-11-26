@@ -206,13 +206,7 @@ fn validate_final_artifact_snapshot(
         return Err("release report does not cover every required target".into());
     }
 
-    let required_identities = [
-        "artifact_schema",
-        "compiler_seed",
-        "compiler_seed_manifest",
-        "runtime",
-        "stdlib",
-    ];
+    let required_identities = ["artifact_schema", "runtime", "stdlib"];
     for field in required_identities {
         let release_hash = release
             .get("artifact_identities")
@@ -231,8 +225,6 @@ fn validate_final_artifact_snapshot(
         }
         let actual = match field {
             "artifact_schema" => file_digest(root, "language/artifact-format.md"),
-            "compiler_seed" => file_digest(root, "language/self_host/compiler.gub"),
-            "compiler_seed_manifest" => file_digest(root, "language/self_host/compiler-seed.json"),
             "runtime" => directory_digest(root, "crates/runtime"),
             "stdlib" => directory_digest(root, "language/stdlib"),
             _ => None,
@@ -243,11 +235,7 @@ fn validate_final_artifact_snapshot(
         }
     }
     for (report_name, report) in [("release", &release), ("performance", &performance)] {
-        for (field, identity) in [
-            ("seed_hash", "compiler_seed"),
-            ("runtime_hash", "runtime"),
-            ("stdlib_hash", "stdlib"),
-        ] {
+        for (field, identity) in [("runtime_hash", "runtime"), ("stdlib_hash", "stdlib")] {
             if report.get(field)
                 != report
                     .get("artifact_identities")

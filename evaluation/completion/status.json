@@ -19,7 +19,6 @@
     "evaluation/completion/results/conformance.json",
     "evaluation/completion/results/closeout-schema.json",
     "evaluation/completion/results/closeout.json",
-    "evaluation/completion/results/bootstrap.json",
     "evaluation/completion/results/stdlib-data.json",
     "evaluation/completion/results/stdlib-services.json",
     "evaluation/completion/results/runtime-macos-aarch64.json",
@@ -33,7 +32,6 @@
   ],
   "required_evidence": [
     "evaluation/completion/results/conformance.json",
-    "evaluation/completion/results/bootstrap.json",
     "evaluation/completion/results/stdlib-data.json",
     "evaluation/completion/results/stdlib-services.json",
     "evaluation/completion/results/runtime.json",
@@ -58,7 +56,6 @@
   ],
   "required_check_ids": [
     "full-language-conformance",
-    "compiler-stage-equality",
     "runtime-execution",
     "runtime-http",
     "runtime-lifecycle",

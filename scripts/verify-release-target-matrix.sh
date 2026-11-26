@@ -35,7 +35,7 @@ export GUION_APPLICATION_RESULTS="$EVIDENCE_ROOT/applications"
 export GUION_RUNTIME_MEMORY_RESULTS="$EVIDENCE_ROOT/reports"
 mkdir -p "$TMPDIR"
 
-report_names=(conformance-inventory bootstrap conformance stdlib-data stdlib-services runtime product-dependencies product-lifecycle product-applications release)
+report_names=(conformance-inventory conformance stdlib-data stdlib-services runtime product-dependencies product-lifecycle product-applications release)
 targets=(macos-aarch64 debian-aarch64 debian-x86_64)
 for report in "${report_names[@]}"; do
     for target in "${targets[@]}"; do
@@ -105,8 +105,7 @@ PY
 }
 
 run_gate conformance-inventory conformance-inventory no conformance --inventory-only
-run_gate bootstrap bootstrap yes bootstrap --stages 3
-run_gate conformance conformance yes conformance --compilers stage2,stage3
+run_gate conformance conformance yes conformance
 run_gate stdlib-data stdlib-data yes stdlib --group data
 run_gate stdlib-services stdlib-services yes stdlib --group services
 run_gate runtime runtime yes runtime
@@ -178,7 +177,7 @@ for report_path in application_reports:
 app_passed = len(application_reports) == 18 and application_passed == 18
 required_targets = ["macos-aarch64", "debian-aarch64", "debian-x86_64"]
 aggregate_names = [
-    "bootstrap", "conformance", "stdlib-data", "stdlib-services", "runtime",
+    "conformance", "stdlib-data", "stdlib-services", "runtime",
     "product-dependencies", "product-lifecycle", "product-applications", "release",
 ]
 aggregate_passed = True

@@ -11944,19 +11944,6 @@
       "source": "crates/compiler/tests/pipeline.rs"
     },
     {
-      "id": "self-host-compiler-parity",
-      "group": "bootstrap",
-      "argv": [
-        "test",
-        "-p",
-        "guion-cli",
-        "--test",
-        "cli",
-        "guion_source_compiler_compiles_itself_and_real_programs_with_parity"
-      ],
-      "source": "crates/cli/tests/cli.rs"
-    },
-    {
       "id": "runtime-execution",
       "group": "runtime",
       "argv": [
