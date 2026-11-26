@@ -776,6 +776,21 @@ mod tests {
         }
     }
 
+    /// Bytes other threads of the test process may count or give back while a check runs (the
+    /// waiting thread and the thread being started and retired). Far below `CHUNK_BYTES`, so a
+    /// chunk that went missing or was counted twice still fails.
+    const BACKGROUND_BYTES: isize = 16 * 1024;
+
+    /// How far the counted bytes moved since `before`, signed.
+    fn held_delta(before: usize) -> isize {
+        held_bytes() as isize - before as isize
+    }
+
+    /// `delta` is `expected` give or take what other threads did meanwhile.
+    fn about(delta: isize, expected: usize) -> bool {
+        (delta - expected as isize).abs() < BACKGROUND_BYTES
+    }
+
     /// A 16-byte block straight from the system allocator, so building a list does not touch the
     /// counted pool.
     fn system_block() -> *mut u8 {
@@ -815,7 +830,7 @@ mod tests {
             let before = held_bytes();
             // SAFETY: `local` is private and its list is `blocks` valid blocks.
             unsafe { spill_from(&mut local, 0, shared, 1_000) };
-            let grown = held_bytes() - before;
+            let grown = held_delta(before);
             let mut length = 0;
             let mut cursor = local.heads[0];
             while !cursor.is_null() {
@@ -826,10 +841,11 @@ mod tests {
             (length, local.counts[0], grown)
         });
         assert_eq!(
-            (kept, count, grown),
-            (blocks, blocks, 0),
+            (kept, count),
+            (blocks, blocks),
             "nothing lost, nothing shared"
         );
+        assert!(about(grown, 0), "no counted bytes moved: {grown}");
         // SAFETY: nobody touches the state while the lock is held.
         assert!(unsafe { &*shared.state.get() }
             .heads
@@ -847,9 +863,12 @@ mod tests {
                 !local.bump.is_null(),
                 "the rest of the chunk stays with the thread"
             );
-            held_bytes() - before
+            held_delta(before)
         });
-        assert_eq!(grown, CHUNK_BYTES);
+        assert!(
+            about(grown, CHUNK_BYTES),
+            "one fresh chunk counted: {grown}"
+        );
 
         // With the lock free again the same spill hands the surplus on, and the bytes balance.
         shared.lock.store(false, Ordering::Release);
@@ -858,9 +877,10 @@ mod tests {
             fill(&mut local, blocks);
             let before = held_bytes();
             unsafe { spill_from(&mut local, 0, shared, 1_000) };
-            (local.counts[0], held_bytes() - before)
+            (local.counts[0], held_delta(before))
         });
-        assert_eq!((count, grown), (SPILL_LIMIT / 2, 0));
+        assert_eq!(count, SPILL_LIMIT / 2);
+        assert!(about(grown, 0), "the bytes balance: {grown}");
         // SAFETY: the lock is free and no call is running.
         assert!(!unsafe { &*shared.state.get() }.heads[0].is_null());
     }
@@ -886,14 +906,17 @@ mod tests {
                 // SAFETY: `block` is a valid block no list holds; `local` is private.
                 unsafe { push_in(&mut local, 0, block, shared, spins) };
             }
-            (local.counts[0], held_bytes() - before)
+            (local.counts[0], held_delta(before))
         });
         assert_eq!(
             count,
             SPILL_LIMIT + 1_000,
             "nothing lost while the lock is held"
         );
-        assert_eq!(grown, 0, "no counted bytes appeared or vanished");
+        assert!(
+            about(grown, 0),
+            "no counted bytes appeared or vanished: {grown}"
+        );
 
         // With the lock free again the list spills once it passes its pushed-out threshold, the
         // threshold goes back to SPILL_LIMIT, and the bytes still balance.
@@ -920,7 +943,7 @@ mod tests {
                     break;
                 }
             }
-            (local.counts[0], local.spill_at[0], held_bytes() - before)
+            (local.counts[0], local.spill_at[0], held_delta(before))
         });
         assert_eq!(
             count,
@@ -931,7 +954,7 @@ mod tests {
             spill_at, SPILL_LIMIT,
             "a successful spill resets the threshold"
         );
-        assert_eq!(grown, 0);
+        assert!(about(grown, 0), "the bytes balance: {grown}");
     }
 
     #[test]
