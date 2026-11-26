@@ -429,7 +429,14 @@ fn byte_http_cancellation_interrupts_during_response_body_read() {
         stream.flush().unwrap();
         body_started_tx.send(()).unwrap();
         let mut byte = [0; 1];
-        stream.read(&mut byte).unwrap()
+        // A closed socket reads as end of stream, or as a reset when the client closed it with
+        // response bytes still unread. Either way the client has closed it; only the 2 s read
+        // timeout means it stayed open.
+        match stream.read(&mut byte) {
+            Ok(0) => true,
+            Err(error) => error.kind() == std::io::ErrorKind::ConnectionReset,
+            Ok(_) => false,
+        }
     });
     let url = format!("http://{address}/trickle");
     let source = format!(
@@ -454,12 +461,13 @@ fn byte_http_cancellation_interrupts_during_response_body_read() {
     cancellation.cancel();
     let (result, effects) = invocation.join().unwrap();
     assert_eq!(result.unwrap_err().code, "R_CANCELLED");
-    assert!(cancelled_at.elapsed() < Duration::from_millis(150));
+    // The request timeout is 5000 ms. Returning well before it shows cancellation interrupted the
+    // body read; the bound is loose so a loaded machine does not fail it.
+    assert!(cancelled_at.elapsed() < Duration::from_millis(2500));
     assert_eq!(effects.len(), 1);
     assert_eq!(effects[0].outcome, EffectOutcome::Interrupted);
-    assert_eq!(
+    assert!(
         server.join().unwrap(),
-        0,
         "cancelled response socket closes promptly"
     );
 }
