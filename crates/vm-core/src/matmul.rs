@@ -18,6 +18,12 @@ pub(crate) const KC: usize = 256;
 /// Products (n*m*k) below which one thread does the work: 128^3 is faster on one thread and
 /// 160^3 on several (M1 Pro), so the cut sits between them.
 const PARALLEL_MIN: usize = (1 << 21) + (1 << 20);
+/// Packed-`B` size (values) from which packing is shared across the workers; below it the
+/// hand-off costs more than it saves (512^3 measured no faster shared, 1024^3 about 3% faster).
+const PARALLEL_PACK_MIN: usize = 1 << 19;
+/// Panels of `B` a worker packs per queue pull (a single panel is about a microsecond, so
+/// pulling one at a time is dominated by the queue).
+const PACK_GROUP: usize = 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Isa {
@@ -93,8 +99,8 @@ pub(crate) fn matmul_f64(
         return;
     }
     let mpad = m.next_multiple_of(NR);
-    let packed_b = pack_b(b, k, m, mpad);
     let threads = threads.clamp(1, n.div_ceil(MR));
+    let packed_b = pack_b(b, k, m, mpad, threads);
     let rows = chunk_rows(n, threads);
     let queue = Mutex::new(c.chunks_mut(rows * m).enumerate());
     let work = || {
@@ -117,20 +123,47 @@ pub(crate) fn matmul_f64(
 }
 
 /// Packs `B` as, per `KC` block of rows, panels of `NR` columns, each stored `[p][NR]` and
-/// zero-padded past column `m`. The block starting at row `pc` begins at `pc * mpad`.
-fn pack_b(b: &[f64], k: usize, m: usize, mpad: usize) -> Vec<f64> {
+/// zero-padded past column `m`. The block starting at row `pc` begins at `pc * mpad`. The
+/// panels are independent, so the workers pull them from one queue.
+fn pack_b(b: &[f64], k: usize, m: usize, mpad: usize, threads: usize) -> Vec<f64> {
     let mut packed = vec![0.0f64; k * mpad];
-    for pc in (0..k).step_by(KC) {
-        let kc = KC.min(k - pc);
-        let block = &mut packed[pc * mpad..(pc + kc) * mpad];
-        for (panel, out) in block.chunks_exact_mut(kc * NR).enumerate() {
-            let j0 = panel * NR;
+    let shared = packed.len() >= PARALLEL_PACK_MIN;
+    let groups = packed
+        .chunks_mut(KC * mpad)
+        .enumerate()
+        .flat_map(|(block, rows)| {
+            let (pc, kc) = (block * KC, rows.len() / mpad);
+            rows.chunks_mut(PACK_GROUP * kc * NR)
+                .enumerate()
+                .map(move |(index, out)| (pc, kc, index * PACK_GROUP * NR, out))
+        });
+    let queue = Mutex::new(groups);
+    let work = || loop {
+        let next = queue.lock().unwrap_or_else(|e| e.into_inner()).next();
+        let Some((pc, kc, first, out)) = next else {
+            return;
+        };
+        for (panel, out) in out.chunks_exact_mut(kc * NR).enumerate() {
+            let j0 = first + panel * NR;
             let width = NR.min(m - j0);
-            for p in 0..kc {
-                let source = &b[(pc + p) * m + j0..(pc + p) * m + j0 + width];
-                out[p * NR..p * NR + width].copy_from_slice(source);
+            if width == NR {
+                // A full panel copies `NR` values per row; the fixed length compiles to plain moves.
+                for (p, row) in out.chunks_exact_mut(NR).enumerate() {
+                    let start = (pc + p) * m + j0;
+                    row.copy_from_slice(&b[start..start + NR]);
+                }
+            } else {
+                for p in 0..kc {
+                    let source = &b[(pc + p) * m + j0..(pc + p) * m + j0 + width];
+                    out[p * NR..p * NR + width].copy_from_slice(source);
+                }
             }
         }
+    };
+    if threads <= 1 || !shared {
+        work();
+    } else {
+        crate::parallel::run_on_pool(threads, &work);
     }
     packed
 }
@@ -440,6 +473,16 @@ mod tests {
     }
 
     #[test]
+    fn packing_b_on_several_workers_gives_the_same_panels() {
+        // Large enough that the workers share the packing.
+        let (k, m): (usize, usize) = (300, 1999);
+        assert!(k * m.next_multiple_of(NR) >= PARALLEL_PACK_MIN);
+        let b = fill(k * m, 5);
+        let mpad = m.next_multiple_of(NR);
+        assert_eq!(pack_b(&b, k, m, mpad, 1), pack_b(&b, k, m, mpad, 4));
+    }
+
+    #[test]
     fn small_products_stay_on_one_thread() {
         // Measured on M1 Pro: 128^3 is faster on one thread, 160^3 and up on several.
         assert_eq!(threads_for((128, 128, 128)), 1);
@@ -456,6 +499,102 @@ mod tests {
         eprintln!("matmul kernel path: {isa:?}");
         if let Ok(expected) = std::env::var("GUION_EXPECT_ISA") {
             assert_eq!(format!("{isa:?}"), expected);
+        }
+    }
+
+    /// Kernel-only throughput: the micro-kernel on packed panels that sit in L1, one core.
+    /// Run with `cargo test --release -p guion-vm-core kernel_ceiling -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn kernel_ceiling() {
+        let kc = KC;
+        let a = fill(kc * MR, 3);
+        let b = fill(kc * NR, 4);
+        let mut tile = [0.0f64; MR * NR];
+        let calls = 400_000usize;
+        let isa = native_isa();
+        let mut best = f64::MAX;
+        for _ in 0..7 {
+            let start = std::time::Instant::now();
+            for _ in 0..calls {
+                micro_kernel(
+                    isa,
+                    kc,
+                    std::hint::black_box(&a),
+                    std::hint::black_box(&b),
+                    &mut tile,
+                );
+                std::hint::black_box(&tile);
+            }
+            best = best.min(start.elapsed().as_secs_f64());
+        }
+        let flops = (calls * kc * MR * NR * 2) as f64;
+        let gflops = flops / best / 1e9;
+        eprintln!("kernel {isa:?}: {gflops:.2} GFLOPS on one core (best of 7)");
+        #[cfg(target_arch = "aarch64")]
+        {
+            // Core clock from a chain of dependent integer adds (one cycle each); the peak is
+            // 4 pipes x 2 lanes x 2 flops = 16 flops per cycle.
+            let iterations = 200_000_000u64;
+            let mut best = f64::MAX;
+            for _ in 0..5 {
+                let (mut count, mut left) = (0u64, iterations);
+                let start = std::time::Instant::now();
+                // SAFETY: register-only arithmetic.
+                unsafe {
+                    std::arch::asm!(
+                        "2:",
+                        "add {c}, {c}, #1", "add {c}, {c}, #1", "add {c}, {c}, #1",
+                        "add {c}, {c}, #1", "add {c}, {c}, #1", "add {c}, {c}, #1",
+                        "add {c}, {c}, #1", "add {c}, {c}, #1",
+                        "subs {n}, {n}, #1",
+                        "b.ne 2b",
+                        c = inout(reg) count, n = inout(reg) left,
+                        options(nostack, nomem)
+                    );
+                }
+                std::hint::black_box((count, left));
+                best = best.min(start.elapsed().as_secs_f64());
+            }
+            let ghz = iterations as f64 * 8.0 / best / 1e9;
+            eprintln!(
+                "core clock {ghz:.2} GHz; peak {:.1} GFLOPS; kernel is {:.0}% of peak",
+                ghz * 16.0,
+                gflops / (ghz * 16.0) * 100.0
+            );
+        }
+    }
+
+    /// End-to-end throughput by size and thread count, median of many runs.
+    #[test]
+    #[ignore]
+    fn end_to_end_throughput() {
+        let cores = std::thread::available_parallelism().map_or(1, |count| count.get());
+        for size in [128usize, 256, 512, 1024, 2048] {
+            let (n, k, m) = (size, size, size);
+            let a = fill(n * k, 1);
+            let b = fill(k * m, 2);
+            let mut c = vec![0.0; n * m];
+            for threads in [1, threads_for((n, k, m)).min(cores)] {
+                let mut times = Vec::new();
+                let runs = if size >= 2048 { 9 } else { 61 };
+                for _ in 0..runs + 2 {
+                    let start = std::time::Instant::now();
+                    matmul_f64(&a, &b, &mut c, (n, k, m), threads, native_isa());
+                    times.push(start.elapsed().as_secs_f64());
+                }
+                times.sort_by(|x, y| x.partial_cmp(y).unwrap());
+                let median = times[times.len() / 2];
+                let gflops = 2.0 * (n * k * m) as f64 / median / 1e9;
+                eprintln!(
+                    "{size}^3 threads {threads}: median {:.3} ms, min {:.3} ms, {gflops:.1} GFLOPS",
+                    median * 1e3,
+                    times[0] * 1e3
+                );
+                if threads_for((n, k, m)).min(cores) == 1 {
+                    break;
+                }
+            }
         }
     }
 }
