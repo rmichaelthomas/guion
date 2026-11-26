@@ -230,7 +230,7 @@ pub struct Candidate {
     pub yanked: bool,
 }
 
-/// Splits a leading stable code (`E_SOMETHING: message`) off an error string.
+/// Splits a leading stable error code (the code, a colon, then the message) off an error string.
 pub fn split_error_code(message: &str) -> Option<(&str, &str)> {
     let (code, rest) = message.split_once(": ")?;
     (code.starts_with("E_")
