@@ -2,9 +2,9 @@
 
 Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview.2, were published before this release. 0.2.0 is the first release with a written [stability policy](docs/stability-policy.md).
 
-## Unreleased
+## 0.9.1 — 2026-11-26
 
-No artifact format change. Speed figures are from the [25 November speed report](evaluation/completion/results/2026-11-25-speed-report.md): one Apple M1 Pro, one run of each kit, compute only (start-up subtracted), against pandas 3.1.1 and NumPy 2.5.4.
+No artifact format change; programs and artifacts built for 0.9.0 run unchanged. Speed figures are from the [25 November speed report](evaluation/completion/results/2026-11-25-speed-report.md): one Apple M1 Pro, one run of each kit, compute only (start-up subtracted), against pandas 3.1.1 and NumPy 2.5.4.
 
 - `frames`/CSV: the CSV reader splits the file across threads and uses a cheaper hash and float parse. The results are identical to the single-threaded read (values, dictionary code order, error code, line and column). Reading a 1,000,000-row CSV went from 2.67 to 0.77 times pandas (132.9 ms to 37.2 ms per read, in-process lane: repeated reads in one process; the first read in a process measured 0.93 times pandas).
 - Arrays: element-wise kernels run on a persistent thread pool. `a*b+c` over 10M `f64`, five passes, went from 1.34 to 0.77 times NumPy (127.2 ms to 75.1 ms). Sum was not changed (0.79 before, 0.83 after, within run-to-run spread).
@@ -13,6 +13,8 @@ No artifact format change. Speed figures are from the [25 November speed report]
 - Matrix multiplication: the multiply threads share the same pool as the CSV reader, packing of the right-hand matrix is done on the pool, and block sizes were tuned for the M1 Pro. A 512x512 multiply went from 2.24 to 1.96 times NumPy (1.380 ms to 1.281 ms; per-trial range of the new ratio 1.02 to 2.76). Guion uses only documented processor instructions; NumPy's library on Apple M1 to M3 uses an undocumented matrix unit, which is the rest of the gap.
 - Loops: compiled loops read `f64` array elements directly, with a bounds check. In the interpreter comparison below the array loop program went from 0.763 to 0.134 of CPython's time and from 2.527 to 0.435 of PyPy's.
 - Evaluation: [`evaluation/development/interpreters/`](evaluation/development/interpreters/README.md) compares Guion with CPython 3.14.7, free-threaded CPython 3.14.10 and PyPy 3.11.17 on one machine, one run of 15 trials. Guion was faster than both CPythons and than PyPy on all 10 small programs and on bare start-up (array work written as plain Python loops, without NumPy, and short scripts dominated by start-up). The Python programs were single-threaded.
+- CSV: a text column whose values collide under the dictionary hash no longer slows the read to quadratic time; the reader moves that column to a keyed hash once a lookup runs long. A file whose last record has no final newline is read in one pass. The memory a read keeps, including the codes of a column that is entirely empty, counts toward `R_ALLOCATION_LIMIT`.
+- Allocator: every wait on the shared lock is bounded, so a thread that exits while another holds the lock no longer waits for it forever, and a free after a failed hand-back no longer waits again on each call.
 - Known issue 29 is resolved; see "Resolved known issues" below.
 
 ## 0.9.0 — 2026-11-25
