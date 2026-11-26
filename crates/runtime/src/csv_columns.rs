@@ -601,9 +601,17 @@ impl Builder {
             .saturating_add(self.codes.capacity().saturating_mul(8))
             .saturating_add(self.valid.capacity())
             .saturating_add(self.dictionary.accounted_bytes())
+            // A column with no present value is finished into one zero code per row. Those
+            // codes are counted from the first row, so they are charged as rows arrive and
+            // `finish` allocates memory the budget already holds.
+            .saturating_add(if self.mode == Mode::Unset {
+                self.valid.len().saturating_mul(8)
+            } else {
+                0
+            })
     }
 
-    fn finish(mut self, meter: &mut Meter<'_>) -> Result<Column, ColumnsError> {
+    fn finish(mut self, _meter: &mut Meter<'_>) -> Result<Column, ColumnsError> {
         let rows = self.valid.len();
         let kind = match self.mode {
             Mode::Int => ColumnKind::I64,
@@ -612,14 +620,9 @@ impl Builder {
             Mode::Text | Mode::Unset | Mode::Reread => ColumnKind::Text,
         };
         if self.mode == Mode::Unset {
-            // No present value: text, every row missing. The zero codes are charged before
-            // they are allocated, and given back once the column holds them.
-            let bytes = rows.saturating_mul(8);
-            if !(meter.charge)(bytes) {
-                return Err(ColumnsError::Allocation(bytes));
-            }
+            // No present value: text, every row missing. The zero codes were charged as the
+            // rows arrived (`accounted_bytes`), so they stay charged once the column holds them.
             self.codes = vec![0; rows];
-            (meter.release)(bytes);
         }
         Ok(Column {
             name: self.name,
@@ -1549,6 +1552,9 @@ fn read_parallel(
         .fold(0usize, usize::saturating_add);
     budgeted!(settler.settle_live(retained));
     (settler.meter.release)(settler.charged.saturating_sub(retained));
+    // What is still charged is what the columns hold: a refusal after this point must give
+    // back that, not the whole charge a second time.
+    settler.charged = retained;
     #[cfg(test)]
     LAST_ROUNDS.with(|last| last.set(rounds));
     let mut columns = Vec::with_capacity(globals.len());
@@ -2575,7 +2581,7 @@ mod tests {
         assert!(pool.releases.borrow().contains(&copy));
         let _ = std::fs::remove_file(&path);
         // A column with no value at all is finished into a vector of zero codes, one per row:
-        // charged before it is allocated, and handed back after.
+        // charged as its rows arrive, and still charged after the read.
         let rows = 600_000;
         let mut body = String::from("a,b\n");
         for _ in 0..rows {
@@ -2589,11 +2595,42 @@ mod tests {
             };
             let columns = pooled_threads(&pool, &path, threads).unwrap();
             assert_eq!(columns[0].codes.len(), rows);
-            assert!(
-                pool.charges.borrow().contains(&(rows * 8)),
-                "{threads} threads: the all-empty codes were not charged"
-            );
-            assert_eq!(pool.used.get() + rows * 8, accounted(&columns), "{threads} threads");
+            // The returned column's codes stay charged: what is used is what the columns hold.
+            assert_eq!(pool.used.get(), accounted(&columns), "{threads} threads");
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn all_empty_column_near_the_limit_releases_no_more_than_it_charged() {
+        // Sweep the limit across the window where the all-empty column's codes (rows * 8) do or
+        // do not fit on top of what the read already holds: whatever the outcome, the pool is
+        // never released below zero and never ends up holding more than the columns, or
+        // nothing at all after an error.
+        let rows = 200_000;
+        let mut body = String::from("a,b\n");
+        for _ in 0..rows {
+            body.push_str(",5\n");
+        }
+        let path = temp_csv("pool-all-empty-window", &body);
+        let mut limit = 256 << 10;
+        while limit <= 6 << 20 {
+            let pool = Pool {
+                limit,
+                ..Pool::default()
+            };
+            match pooled_threads(&pool, &path, 4) {
+                Ok(columns) => {
+                    assert_eq!(columns[0].codes.len(), rows);
+                    assert_eq!(pool.used.get(), accounted(&columns), "limit {limit}");
+                }
+                Err(ColumnsError::Allocation(_)) => {
+                    assert_eq!(pool.used.get(), 0, "limit {limit}");
+                }
+                Err(other) => panic!("limit {limit}: {other:?}"),
+            }
+            assert!(pool.peak.get() <= limit);
+            limit += 64 << 10;
         }
         let _ = std::fs::remove_file(&path);
     }
@@ -2630,11 +2667,12 @@ mod tests {
             assert!(matches!(result, Ok(()) | Err(ColumnsError::Allocation(80))));
             assert_eq!(ints.capacity() == 10, fits);
             assert_eq!(pool.used.get(), held, "the copy is given back");
-            // The all-empty column's zero codes are refused the same way.
+            // The all-empty column's zero codes were charged as its rows arrived (see
+            // `accounted_bytes`), so finishing it charges nothing more.
             let mut builder = Builder::new("a".into(), None);
             builder.valid = vec![false; 10];
-            let finished = builder.finish(&mut meter);
-            assert_eq!(finished.is_ok(), fits, "limit {limit}");
+            assert!(builder.accounted_bytes() >= 80, "ten zero codes are counted");
+            assert!(builder.finish(&mut meter).is_ok());
             assert_eq!(pool.used.get(), held);
         }
     }
