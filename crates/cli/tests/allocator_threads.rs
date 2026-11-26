@@ -1,6 +1,7 @@
-//! A program that starts threads over and over (the parallel CSV reader does, on every read of a
-//! large file) must not creep toward the allocation limit (the test sets 32 MiB): a finished
-//! thread gives back what it held.
+//! A program that reads a large CSV file over and over (the parallel reader hands the work to the
+//! shared worker pool, whose threads allocate and free on their own lists) must not creep toward
+//! the allocation limit (the test sets 32 MiB): what a worker frees goes back to a pool the next
+//! read can use, and nothing a read allocated stays counted after its columns are dropped.
 
 use std::process::Command;
 

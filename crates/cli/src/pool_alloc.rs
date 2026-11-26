@@ -46,6 +46,9 @@ const RETIRED_COUNT: usize = usize::MAX / 2;
 struct Local {
     heads: [*mut u8; CLASSES],
     counts: [usize; CLASSES],
+    /// The length at which a class's list spills: `SPILL_LIMIT`, pushed out (doubled) after each
+    /// spill that could not take the shared lock and put back after one that did.
+    spill_at: [usize; CLASSES],
     bump: *mut u8,
     bump_end: *mut u8,
     /// The exit guard has been registered (set before registering, so registering, which may
@@ -59,6 +62,7 @@ impl Local {
     const EMPTY: Local = Local {
         heads: [ptr::null_mut(); CLASSES],
         counts: [0; CLASSES],
+        spill_at: [SPILL_LIMIT; CLASSES],
         bump: ptr::null_mut(),
         bump_end: ptr::null_mut(),
         guarded: false,
@@ -206,11 +210,13 @@ impl Shared {
     }
 }
 
-/// How long a retiring thread waits for the shared lock. Where a process exit runs thread-local
-/// destructors after the other threads were killed, the lock may be held forever by a dead
-/// thread; the exiting thread then leaks its lists (already counted in `HELD_BYTES`) rather than
-/// hang. Every other holder keeps the lock for a few instructions, so this is practically never
-/// reached; under preemption of a holder it can be, and the only outcome is a leak.
+/// How many attempts a thread makes to take the shared lock before it gives up on that one
+/// call. Every holder keeps the lock for a few instructions, so this is practically never
+/// reached; where a process exit runs thread-local destructors after the other threads were
+/// killed, the lock may be held forever by a dead thread. The outcome of giving up depends on
+/// the path: a retiring thread leaks its block or lists (already counted in `HELD_BYTES`), a live
+/// spill keeps the list on the thread (and backs off before trying again), and a refill takes an
+/// extra counted chunk instead of adopting free blocks.
 const RETIRE_SPINS: usize = 1 << 22;
 
 pub struct PoolAllocator;
@@ -228,17 +234,18 @@ fn is_small(layout: &Layout) -> bool {
 /// Every free block stores the address of the next free block in its first word.
 #[inline]
 unsafe fn push(local: &mut Local, class: usize, block: *mut u8) {
+    unsafe { push_in(local, class, block, &SHARED, RETIRE_SPINS) }
+}
+
+/// `push` against `shared`, waiting at most `spins` attempts when a spill needs its lock.
+#[inline]
+unsafe fn push_in(local: &mut Local, class: usize, block: *mut u8, shared: &Shared, spins: usize) {
     unsafe { block.cast::<*mut u8>().write(local.heads[class]) };
     local.heads[class] = block;
     local.counts[class] += 1;
-    if local.counts[class] > SPILL_LIMIT {
-        unsafe { spill(local, class) };
+    if local.counts[class] > local.spill_at[class] {
+        unsafe { spill_from(local, class, shared, spins) };
     }
-}
-
-#[cold]
-unsafe fn spill(local: &mut Local, class: usize) {
-    unsafe { spill_from(local, class, &SHARED, RETIRE_SPINS) }
 }
 
 /// `spill` into `shared`, waiting at most `spins` attempts for its lock. If the lock cannot be
@@ -274,6 +281,11 @@ unsafe fn spill_from(local: &mut Local, class: usize, shared: &Shared, spins: us
         // SAFETY: `cursor` is the last block of the kept list; `detached` is its former tail.
         unsafe { cursor.cast::<*mut u8>().write(detached) };
         local.counts[class] = total;
+        // Do not wait and walk the list again on the very next free: try again when the list
+        // has doubled its threshold. Nothing is lost, the thread just holds more for a while.
+        local.spill_at[class] = local.spill_at[class].saturating_mul(2).max(total);
+    } else {
+        local.spill_at[class] = SPILL_LIMIT;
     }
 }
 
@@ -532,7 +544,7 @@ unsafe impl GlobalAlloc for PoolAllocator {
 #[cfg(test)]
 mod tests {
     use super::{
-        held_bytes, pop_region, push_region, refill_from, retire, retire_into, shared_alloc_from,
+        held_bytes, pop_region, push_in, push_region, refill_from, retire, retire_into, shared_alloc_from,
         spill_from, spill_retired, Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
         SPILL_LIMIT,
     };
@@ -854,6 +866,60 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_spill_backs_off_instead_of_retrying_on_every_free() {
+        if !isolated("pool_alloc::tests::a_failed_spill_backs_off_instead_of_retrying_on_every_free")
+        {
+            return;
+        }
+        use std::sync::atomic::Ordering;
+        let shared: &'static Shared = Box::leak(Box::new(private_shared(true)));
+        // A long wait per attempt: a free that retried the spill every time would take 1,000
+        // waits of tens of milliseconds each.
+        let spins = 1 << 16;
+        let (count, grown) = within_a_second(shared, move |shared| {
+            let mut local = Local::EMPTY;
+            fill(&mut local, SPILL_LIMIT);
+            let before = held_bytes();
+            for _ in 0..1_000 {
+                let block = system_block();
+                // SAFETY: `block` is a valid block no list holds; `local` is private.
+                unsafe { push_in(&mut local, 0, block, shared, spins) };
+            }
+            (local.counts[0], held_bytes() - before)
+        });
+        assert_eq!(count, SPILL_LIMIT + 1_000, "nothing lost while the lock is held");
+        assert_eq!(grown, 0, "no counted bytes appeared or vanished");
+
+        // With the lock free again the list spills once it passes its pushed-out threshold, the
+        // threshold goes back to SPILL_LIMIT, and the bytes still balance.
+        shared.lock.store(false, Ordering::Release);
+        let (count, spill_at, grown) = within_a_second(shared, move |shared| {
+            let mut local = Local::EMPTY;
+            fill(&mut local, SPILL_LIMIT);
+            let before = held_bytes();
+            let block = system_block();
+            // First failure to move the threshold is simulated by a held lock.
+            shared.lock.store(true, Ordering::Release);
+            unsafe { push_in(&mut local, 0, block, shared, 1_000) };
+            assert!(local.spill_at[0] > SPILL_LIMIT, "a failed spill pushes the threshold out");
+            shared.lock.store(false, Ordering::Release);
+            // Push until the list shrinks: that is the spill that took the lock.
+            loop {
+                let length = local.counts[0];
+                let block = system_block();
+                unsafe { push_in(&mut local, 0, block, shared, 1_000) };
+                if local.counts[0] < length {
+                    break;
+                }
+            }
+            (local.counts[0], local.spill_at[0], held_bytes() - before)
+        });
+        assert_eq!(count, SPILL_LIMIT / 2, "the list spilled once the lock was free");
+        assert_eq!(spill_at, SPILL_LIMIT, "a successful spill resets the threshold");
+        assert_eq!(grown, 0);
+    }
+
+    #[test]
     fn a_region_too_small_for_the_request_is_kept_as_free_blocks() {
         if !isolated("pool_alloc::tests::a_region_too_small_for_the_request_is_kept_as_free_blocks")
         {
@@ -909,7 +975,7 @@ mod tests {
             let grown = held_bytes().saturating_sub(before);
             println!("retired thread grew held bytes by {grown}");
             assert!(grown <= 2 * CHUNK_BYTES, "grew by {grown}");
-            // Far more than the shared state holds: new chunks come in through `shared_alloc`
+            // Far more than the shared state holds: new chunks come in through `shared_alloc_from`
             // (the first pass), and what is freed is found again (the second).
             for (pass, expected_chunks) in [(0, 1..=6usize), (1, 0..=0usize)] {
                 let before = held_bytes();
