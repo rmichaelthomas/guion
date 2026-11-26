@@ -1235,7 +1235,7 @@ fn parse_piece(
 ///
 /// Rounds: one block of `threads` pieces of `PIECE_BYTES` is read, cut at its last newline (the
 /// rest starts the next block), split at newlines into `threads` pieces, and the pieces are
-/// parsed on scoped threads, each into builders of its own. The coordinating thread then
+/// parsed on the shared thread pool, each into builders of its own. The coordinating thread then
 /// joins the pieces onto the columns so far in file order. It alone charges the budget and
 /// checks for cancellation, once per round.
 fn read_parallel(

@@ -396,24 +396,47 @@ mod tests {
 
     #[test]
     fn matmul_inside_pool_worker_completes() {
+        if std::thread::available_parallelism().map_or(1, |count| count.get()) < 2 {
+            return;
+        }
         let (n, k, m) = (200, 200, 200);
         let (expected, _) = run(n, k, m, 1, native_isa());
-        let (sender, receiver) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            let results = Mutex::new(Vec::new());
-            crate::parallel::run_on_pool(4, &|| {
-                let (got, _) = run(n, k, m, 4, native_isa());
-                results.lock().unwrap().push(got);
+        // Another test may hold the pool, which runs the outer call on the caller alone; try
+        // again until a matmul really ran on a pool worker.
+        for _ in 0..50 {
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let expected = expected.clone();
+            std::thread::spawn(move || {
+                let caller = std::thread::current().id();
+                let off_caller = Mutex::new(Vec::new());
+                let gate = std::sync::atomic::AtomicUsize::new(0);
+                crate::parallel::run_on_pool(4, &|| {
+                    // Hold every invocation until two have started, so a worker joins in.
+                    gate.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let start = std::time::Instant::now();
+                    while gate.load(std::sync::atomic::Ordering::SeqCst) < 2
+                        && start.elapsed().as_millis() < 100
+                    {
+                        std::thread::yield_now();
+                    }
+                    let (got, _) = run(n, k, m, 4, native_isa());
+                    if std::thread::current().id() != caller {
+                        off_caller.lock().unwrap().push(got);
+                    }
+                });
+                let _ = sender.send(off_caller.into_inner().unwrap());
             });
-            let _ = sender.send(results.into_inner().unwrap());
-        });
-        let results = receiver
-            .recv_timeout(std::time::Duration::from_secs(10))
-            .expect("a matmul inside a pool worker finished within 10 s");
-        assert!(!results.is_empty());
-        for got in results {
-            assert_eq!(got, expected);
+            let results = receiver
+                .recv_timeout(std::time::Duration::from_secs(10))
+                .expect("a matmul inside a pool worker finished within 10 s");
+            if !results.is_empty() {
+                for got in results {
+                    assert_eq!(got, expected);
+                }
+                return;
+            }
         }
+        panic!("no matmul ever ran on a pool worker");
     }
 
     #[test]
