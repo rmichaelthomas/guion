@@ -10,7 +10,7 @@ Builders, and the assistants who advise them. The project's own goal is a langua
 
 ## Status wording
 
-Always: **release 0.9.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows, and it is still pre-1.0; the Mac builds are signed and notarized by Apple and the Windows build is not signed.** Earlier previews (v0.1.0-preview and v0.1.0-preview.2) stay on the release page as history. The page links the GitHub repository and the release page; cite evidence by the published files on the evidence page, not by repository URLs.
+Always: **release 0.9.1 is out for Linux, macOS (Apple Silicon and Intel) and Windows, and it is still pre-1.0; the Mac builds are signed and notarized by Apple and the Windows build is not signed.** Earlier previews (v0.1.0-preview and v0.1.0-preview.2) stay on the release page as history. The page links the GitHub repository and the release page; cite evidence by the published files on the evidence page, not by repository URLs.
 
 ## Voice
 
