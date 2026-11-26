@@ -399,7 +399,10 @@ impl NativeListArena {
 
     pub(crate) fn store_value(&mut self, value: Value) -> Option<i64> {
         if let Value::Array(array) = &value {
-            let data = guion_model::with_array_data!(&array.data, items => items.as_ptr() as *const u8);
+            // The macro expands once per element type; the cast is a no-op only for u8.
+            #[allow(clippy::unnecessary_cast)]
+            let data =
+                guion_model::with_array_data!(&array.data, items => items.as_ptr() as *const u8);
             let view = NativeArrayView {
                 data,
                 len: array.size(),

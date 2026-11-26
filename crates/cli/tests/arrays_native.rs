@@ -103,7 +103,10 @@ fn native_array_get_out_of_bounds_matches_vm() {
         assert!(!native.status.success(), "{name}: expected a runtime error");
         assert_eq!(native.status.code(), vm.status.code(), "{name}: exit code");
         let native_error = String::from_utf8_lossy(&native.stderr).into_owned();
-        assert!(native_error.contains("R_ARRAY_INDEX"), "{name}: {native_error}");
+        assert!(
+            native_error.contains("R_ARRAY_INDEX"),
+            "{name}: {native_error}"
+        );
         assert_eq!(
             native_error,
             String::from_utf8_lossy(&vm.stderr),
@@ -122,7 +125,11 @@ fn non_f64_array_get_guards_the_vm_path_and_error_parity() {
         ("array_i64_range(0, n, 1)", "0", "499500"),
         ("array_i32_zeros([n])", "0", "0"),
         ("array_u8_full([n], 200)", "0", "200000"),
-        ("array_u64_full([n], 18446744073709551615)", "0", "18446744073709551615000"),
+        (
+            "array_u64_full([n], 18446744073709551615)",
+            "0",
+            "18446744073709551615000",
+        ),
         ("array_f32_full([n], 0.5)", "0.0", "500"),
         ("array_bool_full([n], true)", "0", ""),
     ];
@@ -169,15 +176,24 @@ fn native_array_kernels_charge_the_same_budget_as_the_vm() {
         "[package]\nname = \"limited\"\nversion = \"0.1.0\"\n\n[runtime]\nallocation_limit_bytes = 4194304\n",
     )
     .unwrap();
-    write(&scratch, &loop_over("array_f64_linspace(0.0, 1.0, 1000000)", "n", "0.0"));
+    write(
+        &scratch,
+        &loop_over("array_f64_linspace(0.0, 1.0, 1000000)", "n", "0.0"),
+    );
     let native = guion(&scratch, &["run", "main.gu"]);
     let vm = vm_run(&scratch);
     assert!(!native.status.success());
     let native_error = String::from_utf8_lossy(&native.stderr).into_owned();
-    assert!(native_error.contains("R_ALLOCATION_LIMIT"), "{native_error}");
+    assert!(
+        native_error.contains("R_ALLOCATION_LIMIT"),
+        "{native_error}"
+    );
     let vm_error = String::from_utf8_lossy(&vm.stderr).into_owned();
     assert!(vm_error.contains("R_ALLOCATION_LIMIT"), "{vm_error}");
     // The "in use" figure differs between a recorded and a plain run; the request does not.
-    assert!(native_error.contains("requested 8000064 more"), "{native_error}");
+    assert!(
+        native_error.contains("requested 8000064 more"),
+        "{native_error}"
+    );
     assert!(vm_error.contains("requested 8000064 more"), "{vm_error}");
 }

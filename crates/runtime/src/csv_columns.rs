@@ -2486,7 +2486,8 @@ mod tests {
     fn texts_colliding_under_the_old_hash(seed: u64, count: usize) -> Vec<String> {
         let mut inverse = HASH_MULTIPLIER;
         for _ in 0..6 {
-            inverse = inverse.wrapping_mul(2u64.wrapping_sub(HASH_MULTIPLIER.wrapping_mul(inverse)));
+            inverse =
+                inverse.wrapping_mul(2u64.wrapping_sub(HASH_MULTIPLIER.wrapping_mul(inverse)));
         }
         assert_eq!(inverse.wrapping_mul(HASH_MULTIPLIER), 1);
         let mut texts = Vec::with_capacity(count);
@@ -2506,7 +2507,10 @@ mod tests {
                 let product = undo_xor_shift(after_second, 32);
                 let second = product.wrapping_mul(inverse) ^ hash;
                 let bytes = second.to_le_bytes();
-                if bytes.iter().all(|byte| (0x20..0x7F).contains(byte) && *byte != b',') {
+                if bytes
+                    .iter()
+                    .all(|byte| (0x20..0x7F).contains(byte) && *byte != b',')
+                {
                     let mut text = first.clone();
                     text.push_str(std::str::from_utf8(&bytes).unwrap());
                     texts.push(text);
@@ -2671,7 +2675,10 @@ mod tests {
             // `accounted_bytes`), so finishing it charges nothing more.
             let mut builder = Builder::new("a".into(), None);
             builder.valid = vec![false; 10];
-            assert!(builder.accounted_bytes() >= 80, "ten zero codes are counted");
+            assert!(
+                builder.accounted_bytes() >= 80,
+                "ten zero codes are counted"
+            );
             assert!(builder.finish(&mut meter).is_ok());
             assert_eq!(pool.used.get(), held);
         }

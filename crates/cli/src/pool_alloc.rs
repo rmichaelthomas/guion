@@ -544,9 +544,9 @@ unsafe impl GlobalAlloc for PoolAllocator {
 #[cfg(test)]
 mod tests {
     use super::{
-        held_bytes, pop_region, push_in, push_region, refill_from, retire, retire_into, shared_alloc_from,
-        spill_from, spill_retired, Local, Shared, SharedState, CHUNK_BYTES, CLASSES, LOCAL,
-        SPILL_LIMIT,
+        held_bytes, pop_region, push_in, push_region, refill_from, retire, retire_into,
+        shared_alloc_from, spill_from, spill_retired, Local, Shared, SharedState, CHUNK_BYTES,
+        CLASSES, LOCAL, SPILL_LIMIT,
     };
 
     /// A private shared state whose lock is `locked`.
@@ -867,8 +867,9 @@ mod tests {
 
     #[test]
     fn a_failed_spill_backs_off_instead_of_retrying_on_every_free() {
-        if !isolated("pool_alloc::tests::a_failed_spill_backs_off_instead_of_retrying_on_every_free")
-        {
+        if !isolated(
+            "pool_alloc::tests::a_failed_spill_backs_off_instead_of_retrying_on_every_free",
+        ) {
             return;
         }
         use std::sync::atomic::Ordering;
@@ -887,7 +888,11 @@ mod tests {
             }
             (local.counts[0], held_bytes() - before)
         });
-        assert_eq!(count, SPILL_LIMIT + 1_000, "nothing lost while the lock is held");
+        assert_eq!(
+            count,
+            SPILL_LIMIT + 1_000,
+            "nothing lost while the lock is held"
+        );
         assert_eq!(grown, 0, "no counted bytes appeared or vanished");
 
         // With the lock free again the list spills once it passes its pushed-out threshold, the
@@ -901,7 +906,10 @@ mod tests {
             // First failure to move the threshold is simulated by a held lock.
             shared.lock.store(true, Ordering::Release);
             unsafe { push_in(&mut local, 0, block, shared, 1_000) };
-            assert!(local.spill_at[0] > SPILL_LIMIT, "a failed spill pushes the threshold out");
+            assert!(
+                local.spill_at[0] > SPILL_LIMIT,
+                "a failed spill pushes the threshold out"
+            );
             shared.lock.store(false, Ordering::Release);
             // Push until the list shrinks: that is the spill that took the lock.
             loop {
@@ -914,8 +922,15 @@ mod tests {
             }
             (local.counts[0], local.spill_at[0], held_bytes() - before)
         });
-        assert_eq!(count, SPILL_LIMIT / 2, "the list spilled once the lock was free");
-        assert_eq!(spill_at, SPILL_LIMIT, "a successful spill resets the threshold");
+        assert_eq!(
+            count,
+            SPILL_LIMIT / 2,
+            "the list spilled once the lock was free"
+        );
+        assert_eq!(
+            spill_at, SPILL_LIMIT,
+            "a successful spill resets the threshold"
+        );
         assert_eq!(grown, 0);
     }
 

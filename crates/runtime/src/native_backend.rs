@@ -5933,8 +5933,9 @@ fn infer_native_types(
                     return None;
                 }
                 let (operands, result) = function.signature(*element);
-                let native_type =
-                    |ty: &Type| matches!(ty, Type::Int | Type::Float64 | Type::Bool | Type::Array(_));
+                let native_type = |ty: &Type| {
+                    matches!(ty, Type::Int | Type::Float64 | Type::Bool | Type::Array(_))
+                };
                 if !native_type(&result) {
                     return None;
                 }

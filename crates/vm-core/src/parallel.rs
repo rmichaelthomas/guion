@@ -451,7 +451,11 @@ mod tests {
                     Ok(())
                 })
             };
-            let result = if refuse { with_no_pool_workers(&mut body) } else { body() };
+            let result = if refuse {
+                with_no_pool_workers(&mut body)
+            } else {
+                body()
+            };
             (result, started.load(Ordering::SeqCst))
         };
         // The caller alone takes chunk 0 first and fails it: nothing else may start.
