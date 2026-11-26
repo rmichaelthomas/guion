@@ -63,8 +63,8 @@ mod tasks;
 pub use entropy::{EntropySource, ENTROPY_MAX_BYTES};
 use native_backend::{
     decode_inline_native_record, encode_inline_native_record, native_inline_record,
-    native_record_has_native_layout, native_record_words, NativeBackend, NativeCode,
-    NativeFloatList, NativeHandleList, NativeIntList, NativeRecord, NativeSymbols,
+    native_record_has_native_layout, native_record_words, NativeArrayView, NativeBackend,
+    NativeCode, NativeFloatList, NativeHandleList, NativeIntList, NativeRecord, NativeSymbols,
     NativeTaggedValue, NATIVE_CONSTANT_HANDLE_BASE, NATIVE_INLINE_LIST_ITEMS,
     NATIVE_TAGGED_OPTION_NONE, NATIVE_TAGGED_OPTION_SOME, NATIVE_TAGGED_RESULT_ERR,
     NATIVE_TAGGED_RESULT_OK,
@@ -4266,6 +4266,9 @@ impl Instance {
                         native_direct_text_trim as *const () as *const u8,
                         native_direct_text_join as *const () as *const u8,
                         native_direct_text_length as *const () as *const u8,
+                        native_direct_array_1 as *const () as *const u8,
+                        native_direct_array_2 as *const () as *const u8,
+                        native_direct_array_3 as *const () as *const u8,
                     ],
                     make_record: native_direct_make_record as *const () as *const u8,
                     capture_vm_continuation: native_capture_vm_continuation as *const ()
@@ -6904,6 +6907,21 @@ native_direct_operation_entry!(
     native_direct_text_join,
     native_backend::NATIVE_BRIDGE_TEXT_JOIN,
     2
+);
+native_direct_operation_entry!(
+    native_direct_array_1,
+    native_backend::NATIVE_BRIDGE_ARRAY,
+    1
+);
+native_direct_operation_entry!(
+    native_direct_array_2,
+    native_backend::NATIVE_BRIDGE_ARRAY,
+    2
+);
+native_direct_operation_entry!(
+    native_direct_array_3,
+    native_backend::NATIVE_BRIDGE_ARRAY,
+    3
 );
 native_direct_operation_entry!(
     native_direct_text_length,

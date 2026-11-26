@@ -93,7 +93,13 @@ fn error_codes(root: &Path) -> Result<Vec<String>, String> {
         let bytes = text.as_bytes();
         let mut index = 0;
         while index + 2 < bytes.len() {
-            if (bytes[index] == b'R' || bytes[index] == b'E') && bytes[index + 1] == b'_' {
+            // A code starts a word: `RETIRE_SPINS` holds no `E_SPINS`.
+            let starts_word = index == 0
+                || !(bytes[index - 1].is_ascii_alphanumeric() || bytes[index - 1] == b'_');
+            if starts_word
+                && (bytes[index] == b'R' || bytes[index] == b'E')
+                && bytes[index + 1] == b'_'
+            {
                 let mut end = index + 2;
                 while end < bytes.len()
                     && (bytes[end].is_ascii_uppercase()

@@ -1,0 +1,14 @@
+import "pkg:frames/src/lib.gu"
+
+fn main() -> Unit:
+    var rows = 0
+    var total = 0.0
+    var i = 0
+    while i < 1:
+        let frame = unwrap(frame_read_csv("data/rows.csv"))
+        let x = unwrap(frame_column(frame, "x"))
+        set rows = frame_rows(frame)
+        set total = column_sum(x)
+        set i = i + 1
+    print(rows)
+    print(total)

@@ -1,0 +1,17 @@
+[approved-capabilities.frames]
+files = [
+    "read",
+    "write",
+]
+
+[dependencies.frames]
+path = "../../../../packages/frames"
+version = "0.1.0"
+
+[project]
+entry = "read_x1.gu"
+name = "frames-bench"
+version = "0.1.0"
+
+[runtime]
+instruction_limit = 100000000000
