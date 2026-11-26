@@ -112,14 +112,12 @@ pub fn validate_inventory(root: &Path) -> Result<Vec<String>, String> {
         if entry.get("owner_task").and_then(Value::as_u64).is_none() {
             missing.push(format!("{id}: owner_task is missing or not an integer"));
         }
-        for status_field in ["bootstrap"] {
-            let status = entry
-                .get("compiler_status")
-                .and_then(|value| value.get(status_field))
-                .and_then(Value::as_str);
-            if status.is_none_or(str::is_empty) {
-                missing.push(format!("{id}: compiler_status.{status_field} is missing"));
-            }
+        let status = entry
+            .get("compiler_status")
+            .and_then(|value| value.get("bootstrap"))
+            .and_then(Value::as_str);
+        if status.is_none_or(str::is_empty) {
+            missing.push(format!("{id}: compiler_status.bootstrap is missing"));
         }
         for class in ["positive", "negative", "interaction"] {
             let coverage = entry.get("coverage").and_then(|value| value.get(class));
