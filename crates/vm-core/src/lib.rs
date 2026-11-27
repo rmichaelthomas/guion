@@ -7421,7 +7421,8 @@ fn fs_result_type(function: FsFunction) -> Type {
         | FsFunction::Remove
         | FsFunction::RemoveAll
         | FsFunction::Rename
-        | FsFunction::SetMode => Type::Unit,
+        | FsFunction::SetMode
+        | FsFunction::MakeLink => Type::Unit,
     };
     Type::Result(Box::new(ok), Box::new(Type::FileError))
 }

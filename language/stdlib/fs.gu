@@ -81,6 +81,14 @@ pub fn fs_free_space(path: Text) -> Result[Int, FileError]:
 pub fn fs_is_link(path: Text) -> Result[Bool, FileError]:
     return native_fs_is_link(path)
 
+# Creates a symbolic link at `link` whose stored text is `target`, as `ln -s target link`. The
+# target is stored as is: it is not resolved or checked, and may be relative, absolute, outside
+# the file root or dangling; reads through the link stay confined to the file root like every
+# other path. `link` must be a new entry inside the file root (an existing entry is
+# `R_FILE_EXISTS`). Needs the file-write grant.
+pub fn fs_make_link(target: Text, link: Text) -> Result[Unit, FileError]:
+    return native_fs_make_link(target, link)
+
 pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]:
     return native_fs_temp_dir(prefix)
 

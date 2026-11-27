@@ -1421,6 +1421,12 @@ mod tests {
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
+        gate_messages(op, first_format);
+    }
+
+    /// Checks the gate as `assert_gated` does and returns the rejection messages on write and
+    /// on read.
+    fn gate_messages(op: Op, first_format: u32) -> (String, String) {
         let mut artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -1453,13 +1459,13 @@ mod tests {
         let at_first = artifact.to_bytes().unwrap();
         assert_eq!(Artifact::from_bytes(&at_first).unwrap(), artifact);
         artifact.format_version = first_format - 1;
-        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let write_error = artifact.to_bytes().unwrap_err();
+        assert_eq!(write_error.code, "E_ARTIFACT_VERSION");
         let mut old = bytes;
         old[4..8].copy_from_slice(&(first_format - 1).to_le_bytes());
-        assert_eq!(
-            Artifact::from_bytes(&old).unwrap_err().code,
-            "E_ARTIFACT_VERSION"
-        );
+        let read_error = Artifact::from_bytes(&old).unwrap_err();
+        assert_eq!(read_error.code, "E_ARTIFACT_VERSION");
+        (write_error.message, read_error.message)
     }
 
     #[test]
@@ -1615,6 +1621,22 @@ mod tests {
         assert_gated(Op::Fs(FsFunction::DiskUsage), 91);
         assert_gated(Op::Fs(FsFunction::FreeSpace), 91);
         assert_gated(Op::Fs(FsFunction::IsLink), 91);
+    }
+
+    #[test]
+    fn make_link_is_gated_on_format_91_and_is_code_25() {
+        let (write, read) = gate_messages(Op::Fs(FsFunction::MakeLink), 91);
+        assert_eq!(write, "fs_make_link requires artifact format 91");
+        assert_eq!(read, "fs_make_link requires artifact format 91");
+        assert_eq!(FsFunction::MakeLink.code(), 25);
+        assert_eq!(FsFunction::from_code(25), Some(FsFunction::MakeLink));
+        assert_eq!(FsFunction::from_code(26), None);
+        assert_eq!(FsFunction::MakeLink.arity(), 2);
+        assert!(FsFunction::MakeLink.writes());
+        assert_eq!(
+            FsFunction::from_op_name("FsOpMakeLink"),
+            Some(FsFunction::MakeLink)
+        );
     }
 
     #[test]
@@ -4349,10 +4371,13 @@ pub enum FsFunction {
     FreeSpace,
     /// Whether a path is itself a symbolic link (format 91); needs the file-read grant.
     IsLink,
+    /// Creates a symbolic link holding the given target text as is (format 91); needs the
+    /// file-write grant.
+    MakeLink,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 25] = [
+    const ALL: [FsFunction; 26] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -4378,6 +4403,7 @@ impl FsFunction {
         FsFunction::DiskUsage,
         FsFunction::FreeSpace,
         FsFunction::IsLink,
+        FsFunction::MakeLink,
     ];
 
     pub fn code(self) -> u8 {
@@ -4419,6 +4445,7 @@ impl FsFunction {
             FsFunction::DiskUsage => "FsOpDiskUsage",
             FsFunction::FreeSpace => "FsOpFreeSpace",
             FsFunction::IsLink => "FsOpIsLink",
+            FsFunction::MakeLink => "FsOpMakeLink",
         }
     }
 
@@ -4439,7 +4466,8 @@ impl FsFunction {
             | FsFunction::TarWrite
             | FsFunction::TarRead
             | FsFunction::ConfinedPath
-            | FsFunction::SetMode => 2,
+            | FsFunction::SetMode
+            | FsFunction::MakeLink => 2,
             FsFunction::ReadRange => 3,
             _ => 1,
         }
@@ -5529,6 +5557,12 @@ impl Artifact {
                 "tcp_peer requires artifact format 90",
             ));
         }
+        if self.format_version < 91 && artifact_uses_make_link(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fs_make_link requires artifact format 91",
+            ));
+        }
         if self.format_version < 91 && artifact_uses_disk_usage(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -6474,6 +6508,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "ranged file reads and confined paths require artifact format 73",
+                            ));
+                        }
+                        if code == 25 && format_version < 91 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "fs_make_link requires artifact format 91",
                             ));
                         }
                         if code >= 22 && format_version < 91 {
@@ -7598,6 +7638,15 @@ fn artifact_uses_disk_usage(artifact: &Artifact) -> bool {
                 Op::Fs(FsFunction::DiskUsage | FsFunction::FreeSpace | FsFunction::IsLink)
             )
         })
+    })
+}
+
+fn artifact_uses_make_link(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Fs(FsFunction::MakeLink)))
     })
 }
 

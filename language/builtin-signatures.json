@@ -3420,6 +3420,15 @@
       "operation": "FsOpIsLink"
     },
     {
+      "name": "native_fs_make_link",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpMakeLink"
+    },
+    {
       "name": "native_fs_modified_ms",
       "parameters": [
         "Text"

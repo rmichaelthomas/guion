@@ -1200,6 +1200,7 @@ fn disk_usage_free_space_and_links_are_unsupported_in_the_browser() {
         ("fs-disk-usage", "print(unwrap(fs_disk_usage(\"a\")))"),
         ("fs-free-space", "print(unwrap(fs_free_space(\".\")))"),
         ("fs-is-link", "print(unwrap(fs_is_link(\"a\")))"),
+        ("fs-make-link", "print(unwrap(fs_make_link(\"a\", \"b\")))"),
     ] {
         let artifact = gub_project(
             name,

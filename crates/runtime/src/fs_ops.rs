@@ -120,6 +120,28 @@ fn set_mode(_resolved: &Path, _bits: u32, path: &str, span: Span) -> Result<(), 
     ))
 }
 
+/// Creates the symbolic link `link` holding `target` as given, never resolving or checking it.
+#[cfg(unix)]
+fn make_link(target: &str, link: &Path, link_name: &str, span: Span) -> Result<(), RuntimeError> {
+    std::os::unix::fs::symlink(target, link).map_err(|error| {
+        let code = if error.kind() == std::io::ErrorKind::AlreadyExists {
+            "R_FILE_EXISTS"
+        } else {
+            "R_FILE_WRITE"
+        };
+        file_error(&error, code, "create the link", link_name, span)
+    })
+}
+
+#[cfg(not(unix))]
+fn make_link(_target: &str, _link: &Path, link_name: &str, span: Span) -> Result<(), RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!("cannot create the link `{link_name}`: symbolic links are not supported on this platform"),
+        span,
+    ))
+}
+
 #[cfg(unix)]
 fn read_mode(resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeError> {
     use std::os::unix::fs::PermissionsExt;
@@ -540,6 +562,15 @@ fn run_inner(
         | FsFunction::TarRead
         | FsFunction::TarList => {
             super::compress::run_file_function(policy, function, operands, span)
+        }
+        FsFunction::MakeLink => {
+            // `path` is the target text, stored as is; the second operand names the new entry,
+            // whose parent is resolved and confined like a write and whose last component is
+            // not followed.
+            let link = operands[1].as_str();
+            let resolved = host_file_entry_path(policy, link, span)?;
+            make_link(path, &resolved, link, span)?;
+            Ok(ok(Value::Unit))
         }
         FsFunction::DiskUsage => {
             // The named entry itself: a link at `path` is measured, not followed.

@@ -15,7 +15,7 @@ Functions in the `std:` modules need `import "std:MODULE"`; the built-in functio
 | Print and write to standard error | `print`, `eprint` | |
 | Read and write a whole file | `read_text`, `read_bytes`, `write_text`, `write_text_atomic`, `write_bytes` | Needs a file grant; `write_text_atomic` replaces a file in one step. |
 | Read a file line by line | `file_open_lines`, `file_next_line`, `file_close` | Streams, so memory stays bounded. |
-| Files and directories | `fs_exists`, `fs_size`, `fs_list_dir`, `fs_walk`, `fs_disk_usage`, `fs_free_space`, `fs_is_link`, `fs_make_dir`, `fs_copy`, `fs_rename`, `fs_remove`, `fs_remove_all`, `fs_temp_dir` | `fs_walk` is a built-in, not part of `std:fs`; `fs_disk_usage`, `fs_free_space` and `fs_is_link` need `import "std:fs"` and the file-read grant. |
+| Files and directories | `fs_exists`, `fs_size`, `fs_list_dir`, `fs_walk`, `fs_disk_usage`, `fs_free_space`, `fs_is_link`, `fs_make_link`, `fs_make_dir`, `fs_copy`, `fs_rename`, `fs_remove`, `fs_remove_all`, `fs_temp_dir` | `fs_walk` is a built-in, not part of `std:fs`; `fs_disk_usage`, `fs_free_space` and `fs_is_link` need `import "std:fs"` and the file-read grant; `fs_make_link` needs the file-write grant. |
 | File paths | `path_join`, `path_basename`, `path_dirname`, `path_extension`, `path_normalize` | |
 | Text | `len`, `text_slice`, `text_find`, `text_split`, `text_join`, `text_trim`, `text_replace`, `text_chars`, `text_casefold`, `text_normalize` | |
 | Parse and format numbers | `text_parse_integer`, `text_parse_float`, `text_parse_decimal`, `int_to_text`, `float_to_text`, `int_to_float`, `float_to_int` | |

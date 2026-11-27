@@ -11762,6 +11762,36 @@
       "declared_status": "Implemented in artifact format 91"
     },
     {
+      "id": "host_operation-make-link",
+      "kind": "host_operation",
+      "name": "make link",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.make-link.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.make-link.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.make-link.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`fs_make_link(target: Text, link: Text) -> Result[Unit, FileError]`",
+      "declared_status": "Implemented in artifact format 91"
+    },
+    {
       "id": "host_operation-peer-address",
       "kind": "host_operation",
       "name": "peer address",
