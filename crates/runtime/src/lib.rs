@@ -3176,7 +3176,12 @@ impl Instance {
                 let resolved = match host_file_path_no_follow(&self.policy, &path, instruction.span)
                 {
                     Ok(path) => path,
-                    Err(error) => {
+                    Err(mut error) => {
+                        // `fs_walk` keeps reporting a non-directory leading component as a
+                        // read failure.
+                        if error.code == "R_FILE_NOT_DIRECTORY" {
+                            error.code = "R_FILE_READ".into();
+                        }
                         push_stack!(file_error_result(error));
                         return Ok(());
                     }
@@ -7788,8 +7793,15 @@ fn host_file_path_with_walk_root(
                             break;
                         }
                         Err(error) => {
+                            // A leading component that is not a directory is told apart so
+                            // `fs_is_link` can answer false without reading the message.
+                            let code = if error.kind() == std::io::ErrorKind::NotADirectory {
+                                "R_FILE_NOT_DIRECTORY"
+                            } else {
+                                file_io_error_code(&error, "R_FILE_READ")
+                            };
                             failure = Some(RuntimeError::new(
-                                file_io_error_code(&error, "R_FILE_READ"),
+                                code,
                                 format!("cannot inspect `{requested}`: {error}"),
                                 span,
                             ));

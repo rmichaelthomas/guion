@@ -188,11 +188,11 @@ fn disk_usage(resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeErr
         if metadata.dev() != device {
             continue;
         }
-        // Only a non-directory with several names can be reached twice, as `du` tracks it.
-        if !metadata.file_type().is_dir()
-            && metadata.nlink() > 1
-            && !seen.insert((metadata.dev(), metadata.ino()))
-        {
+        // A non-directory with several names can be reached twice, as `du` tracks it. Every
+        // directory is recorded too (they are few), so a loop on one device, such as a bind
+        // mount of an ancestor, is visited once rather than followed to the path limit.
+        let is_dir = metadata.file_type().is_dir();
+        if (is_dir || metadata.nlink() > 1) && !seen.insert((metadata.dev(), metadata.ino())) {
             continue;
         }
         total = total.saturating_add(metadata.blocks().saturating_mul(512));
@@ -588,11 +588,8 @@ fn run_inner(
                 Err(error) if error.code == "R_FILE_NOT_FOUND" => {
                     return Ok(ok(Value::Bool(false)));
                 }
-                // A leading component that is a regular file (`f.txt/x`) holds no link either;
-                // the resolver reports ENOTDIR with the OS text, which is "Not a directory".
-                Err(error)
-                    if error.code == "R_FILE_READ" && error.message.contains("Not a directory") =>
-                {
+                // A leading component that is a regular file (`f.txt/x`) holds no link either.
+                Err(error) if error.code == "R_FILE_NOT_DIRECTORY" => {
                     return Ok(ok(Value::Bool(false)));
                 }
                 Err(error) => return Err(error),
