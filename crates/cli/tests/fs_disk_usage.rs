@@ -390,3 +390,37 @@ fn format_90_artifact_using_disk_usage_is_rejected() {
     assert!(text.contains("E_ARTIFACT_VERSION"), "{text}");
     assert!(text.contains("require artifact format 91"), "{text}");
 }
+
+#[test]
+fn unreadable_subdirectory_is_a_permission_error_naming_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let scratch = Scratch::new("unreadable");
+    let sub = scratch.root().join("d/sub");
+    std::fs::create_dir_all(&sub).unwrap();
+    std::fs::write(sub.join("f"), "x").unwrap();
+    std::fs::set_permissions(&sub, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let output = run_from_elsewhere(
+        &scratch,
+        r#"import "std:fs"
+import "std:text"
+fn main() -> Int:
+    match fs_disk_usage("d"):
+        Ok(_):
+            print("ok")
+        Err(problem):
+            print(file_error_code(problem))
+            print(file_error_message(problem))
+    return 0
+"#,
+    );
+    std::fs::set_permissions(&sub, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(output.status.success(), "{}", stderr(&output));
+    let text = stdout(&output);
+    let mut lines = text.lines();
+    // Running as root can read anything; the denial only exists for an ordinary user.
+    if lines.next() == Some("ok") {
+        return;
+    }
+    assert!(text.starts_with("R_FILE_PERMISSION\n"), "{text}");
+    assert!(text.contains("d/sub"), "{text}");
+}

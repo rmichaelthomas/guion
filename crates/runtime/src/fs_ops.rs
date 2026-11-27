@@ -3,8 +3,8 @@
 //! symlink resolution. Mutating operations need the file-write grant. `remove` and `rename` act
 //! on the named entry itself, so a symlink is removed or moved rather than its target.
 use super::{
-    file_error_result, file_io_error_code, host_file_entry_path, host_file_path, HostPolicy,
-    RuntimeError, Shared, Span, Value,
+    file_error_result, file_io_error_code, host_file_entry_path, host_file_path,
+    host_file_path_no_follow, HostPolicy, RuntimeError, Shared, Span, Value,
 };
 use guion_model::{BigInt, FsFunction};
 use std::fs;
@@ -137,6 +137,15 @@ fn read_mode(_resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeErr
     ))
 }
 
+/// Resolves the entry `path` names without following a final link, using only the read grant.
+/// Every read root is searched in order and the first that holds the entry wins (a dangling link
+/// counts as an entry); a path with no final name (`.`, a root alias) is the root itself. A
+/// symlink among the leading components is refused, as for `fs_walk`, so the walk cannot leave
+/// the root through one.
+fn read_entry_path(policy: &HostPolicy, path: &str, span: Span) -> Result<PathBuf, RuntimeError> {
+    host_file_path_no_follow(policy, path, span)
+}
+
 fn u64_value(value: u64) -> Value {
     Value::Int(BigInt::parse(&value.to_string()).expect("a u64 is a valid integer"))
 }
@@ -188,15 +197,20 @@ fn disk_usage(resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeErr
                 )
             })?;
             let child_path = child.path();
-            let child_metadata = fs::symlink_metadata(&child_path).map_err(|error| {
-                file_error(
-                    &error,
-                    "R_FILE_READ",
-                    "measure",
-                    &relative(&child_path),
-                    span,
-                )
-            })?;
+            let child_metadata = match fs::symlink_metadata(&child_path) {
+                Ok(metadata) => metadata,
+                // Removed since the directory was listed: skipped, as `du` does.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    return Err(file_error(
+                        &error,
+                        "R_FILE_READ",
+                        "measure",
+                        &relative(&child_path),
+                        span,
+                    ));
+                }
+            };
             stack.push((child_path, child_metadata));
         }
     }
@@ -521,15 +535,8 @@ fn run_inner(
             super::compress::run_file_function(policy, function, operands, span)
         }
         FsFunction::DiskUsage => {
-            // The named entry itself: a link at `path` is measured, not followed. `.` and other
-            // paths with no final name (the file root) fall back to the confined, following form.
-            let resolved = match host_file_entry_path(policy, path, span) {
-                Ok(resolved) => resolved,
-                Err(error) if error.code == "R_HOST_DENIED" => {
-                    host_file_path(policy, path, false, span)?
-                }
-                Err(error) => return Err(error),
-            };
+            // The named entry itself: a link at `path` is measured, not followed.
+            let resolved = read_entry_path(policy, path, span)?;
             Ok(ok(u64_value(disk_usage(&resolved, path, span)?)))
         }
         FsFunction::FreeSpace => {
@@ -537,10 +544,11 @@ fn run_inner(
             Ok(ok(u64_value(free_space(&resolved, path, span)?)))
         }
         FsFunction::IsLink => {
-            let resolved = match host_file_entry_path(policy, path, span) {
+            // A missing entry is not a link, as `fs_exists` gives false for it.
+            let resolved = match read_entry_path(policy, path, span) {
                 Ok(resolved) => resolved,
-                Err(error) if error.code == "R_HOST_DENIED" => {
-                    host_file_path(policy, path, false, span)?
+                Err(error) if error.code == "R_FILE_NOT_FOUND" => {
+                    return Ok(ok(Value::Bool(false)));
                 }
                 Err(error) => return Err(error),
             };
@@ -593,3 +601,79 @@ fn run_inner(
 
 #[allow(dead_code)]
 fn _shared_is_used(_: &Shared<Vec<Value>>) {}
+
+#[cfg(all(test, unix))]
+mod disk_usage_tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("guion-fsops-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn ok_value(outcome: Outcome) -> Value {
+        match outcome.unwrap() {
+            Value::ResultOk(inner) => *inner,
+            other => panic!("expected Ok, got {other:?}"),
+        }
+    }
+
+    fn call(policy: &HostPolicy, function: FsFunction, path: &str) -> Value {
+        ok_value(run_inner(
+            policy,
+            function,
+            &[path.to_owned()],
+            Span::default(),
+        ))
+    }
+
+    #[test]
+    fn read_only_policy_does_not_follow_a_final_link() {
+        let dir = scratch("readonly");
+        let root = dir.join("root");
+        fs::create_dir_all(root.join("d")).unwrap();
+        fs::write(root.join("d/big.bin"), vec![7u8; 1 << 20]).unwrap();
+        std::os::unix::fs::symlink("d", root.join("dlink")).unwrap();
+        std::os::unix::fs::symlink("missing-target", root.join("dangling")).unwrap();
+        std::os::unix::fs::symlink(&dir, root.join("outward")).unwrap();
+        let policy = HostPolicy::default().with_file_access(&root, true, false);
+        for link in ["dlink", "dangling", "outward"] {
+            assert_eq!(
+                call(&policy, FsFunction::IsLink, link),
+                Value::Bool(true),
+                "{link}"
+            );
+            let Value::Int(bytes) = call(&policy, FsFunction::DiskUsage, link) else {
+                panic!("not an Int");
+            };
+            assert!(bytes.to_string().parse::<u64>().unwrap() < 65_536, "{link}");
+        }
+        assert_eq!(
+            call(&policy, FsFunction::IsLink, "nope"),
+            Value::Bool(false)
+        );
+        assert_eq!(call(&policy, FsFunction::IsLink, "d"), Value::Bool(false));
+        assert_eq!(
+            call(&policy, FsFunction::IsLink, "d/big.bin"),
+            Value::Bool(false)
+        );
+        assert_eq!(call(&policy, FsFunction::IsLink, "."), Value::Bool(false));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_child_removed_after_listing_is_skipped() {
+        // `disk_usage` lists a directory and then stats each child; a child that vanishes in
+        // between is NotFound. The race cannot be forced from outside, so a dangling entry
+        // that `read_dir` reports and `symlink_metadata` still finds is the closest real case;
+        // the NotFound arm itself is a one-line `continue`.
+        let dir = scratch("vanish");
+        fs::create_dir_all(dir.join("d")).unwrap();
+        std::os::unix::fs::symlink("nowhere", dir.join("d/dangling")).unwrap();
+        let bytes = disk_usage(&dir.join("d"), "d", Span::default()).unwrap();
+        assert!(bytes < 65_536);
+        let _ = fs::remove_dir_all(&dir);
+    }
+}
