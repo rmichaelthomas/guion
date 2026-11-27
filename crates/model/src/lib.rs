@@ -4341,8 +4341,8 @@ pub enum FsFunction {
     /// Reads the permission bits of a file or directory as octal text, following symlinks
     /// (format 90); needs the file-read grant.
     Mode,
-    /// Total bytes of the regular files under a path, links not followed (format 91); needs the
-    /// file-read grant.
+    /// Allocated disk bytes (`st_blocks * 512`) of every entry under a path, directories and links
+    /// included, links not followed (format 91); needs the file-read grant.
     DiskUsage,
     /// Bytes available to the program on the filesystem holding a path (format 91); needs the
     /// file-read grant.

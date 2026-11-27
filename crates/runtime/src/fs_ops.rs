@@ -163,7 +163,14 @@ fn disk_usage(resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeErr
     let mut total: u64 = 0;
     let mut stack: Vec<(PathBuf, fs::Metadata)> = vec![(resolved.to_path_buf(), start)];
     while let Some((entry, metadata)) = stack.pop() {
-        if metadata.dev() != device || !seen.insert((metadata.dev(), metadata.ino())) {
+        if metadata.dev() != device {
+            continue;
+        }
+        // Only a non-directory with several names can be reached twice, as `du` tracks it.
+        if !metadata.file_type().is_dir()
+            && metadata.nlink() > 1
+            && !seen.insert((metadata.dev(), metadata.ino()))
+        {
             continue;
         }
         total = total.saturating_add(metadata.blocks().saturating_mul(512));
@@ -550,11 +557,21 @@ fn run_inner(
                 Err(error) if error.code == "R_FILE_NOT_FOUND" => {
                     return Ok(ok(Value::Bool(false)));
                 }
+                // A leading component that is a regular file (`f.txt/x`) holds no link either;
+                // the resolver reports ENOTDIR with the OS text, which is "Not a directory".
+                Err(error)
+                    if error.code == "R_FILE_READ" && error.message.contains("Not a directory") =>
+                {
+                    return Ok(ok(Value::Bool(false)));
+                }
                 Err(error) => return Err(error),
             };
             match fs::symlink_metadata(&resolved) {
                 Ok(metadata) => Ok(ok(Value::Bool(metadata.file_type().is_symlink()))),
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::NotFound
+                        || error.kind() == std::io::ErrorKind::NotADirectory =>
+                {
                     Ok(ok(Value::Bool(false)))
                 }
                 Err(error) => Err(file_error(&error, "R_FILE_READ", "inspect", path, span)),

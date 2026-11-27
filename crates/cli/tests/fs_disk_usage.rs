@@ -198,6 +198,23 @@ fn main() -> Int:
 }
 
 #[test]
+fn is_link_false_below_a_regular_file() {
+    let scratch = Scratch::new("islink-notdir");
+    std::fs::write(scratch.root().join("f.txt"), "x").unwrap();
+    let output = run_from_elsewhere(
+        &scratch,
+        r#"import "std:fs"
+fn main() -> Int:
+    print(unwrap(fs_is_link("f.txt/x")))
+    print(unwrap(fs_is_link("f.txt/x/y")))
+    return 0
+"#,
+    );
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_eq!(stdout(&output), "false\nfalse\n");
+}
+
+#[test]
 fn free_space_matches_statvfs() {
     let scratch = Scratch::new("free");
     let output = run_from_elsewhere(

@@ -7776,7 +7776,7 @@ fn host_file_path_with_walk_root(
                         {
                             failure = Some(RuntimeError::new(
                                 "R_HOST_DENIED",
-                                "fs_walk root cannot pass through a symlink directory",
+                                "file path cannot pass through a symlink directory",
                                 span,
                             ));
                             break;
