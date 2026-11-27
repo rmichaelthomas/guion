@@ -424,3 +424,44 @@ fn main() -> Int:
     assert!(text.starts_with("R_FILE_PERMISSION\n"), "{text}");
     assert!(text.contains("d/sub"), "{text}");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_recording_replays_without_touching_the_files() {
+    let scratch = Scratch::new("tape");
+    let file = scratch.root().join("t.txt");
+    std::fs::write(&file, vec![7u8; 20_000]).unwrap();
+    std::os::unix::fs::symlink("t.txt", scratch.root().join("l")).unwrap();
+    let program = scratch.0.join("main.gu");
+    std::fs::write(
+        &program,
+        "import \"std:fs\"\nfn main() -> Int:\n    print(unwrap(fs_disk_usage(\"t.txt\")))\n    print(unwrap(fs_free_space(\".\")))\n    print(unwrap(fs_is_link(\"l\")))\n    print(unwrap(fs_is_link(\"t.txt\")))\n    return 0\n",
+    )
+    .unwrap();
+    let root = scratch.root();
+    let tape = scratch.0.join("run.tape");
+    let args = |mode: &'static str| {
+        vec![
+            "run".to_owned(),
+            mode.to_owned(),
+            tape.to_str().unwrap().to_owned(),
+            "--file-root".to_owned(),
+            root.to_str().unwrap().to_owned(),
+            program.to_str().unwrap().to_owned(),
+        ]
+    };
+    let run = |arguments: Vec<String>| {
+        let borrowed: Vec<&str> = arguments.iter().map(String::as_str).collect();
+        guion(&scratch.0.join("elsewhere"), &borrowed)
+    };
+    let recorded = run(args("--record"));
+    assert!(recorded.status.success(), "{}", stderr(&recorded));
+    let lines: Vec<String> = stdout(&recorded).lines().map(str::to_owned).collect();
+    assert_eq!(lines.len(), 4, "{lines:?}");
+    assert_eq!(&lines[2..], ["true", "false"]);
+    std::fs::remove_file(&file).unwrap();
+    std::fs::remove_file(scratch.root().join("l")).unwrap();
+    let replayed = run(args("--replay"));
+    assert!(replayed.status.success(), "{}", stderr(&replayed));
+    assert_eq!(stdout(&replayed), stdout(&recorded));
+}
