@@ -4,7 +4,7 @@
     "runtime": "sha256:994b74669f36a23114c3765f44d9a68f1a033f2729e1ea3c00767300c6b31668",
     "stdlib": "sha256:8d5c8d19973eff138dc3015048b5550f14457ac0d54780c2dfd3370f2d877d81"
   },
-  "changed_path_count": 35,
+  "changed_path_count": 0,
   "checks": [
     {
       "command": [
@@ -35,10 +35,10 @@
   "runtime_hash": "sha256:994b74669f36a23114c3765f44d9a68f1a033f2729e1ea3c00767300c6b31668",
   "schema_version": 1,
   "skipped_targets": [],
-  "source_revision": "97ab50894133c0d7fd38ca63301ba8416c229516",
+  "source_revision": "548ab6480e410e2d31c636a317d1ea98f52deb68",
   "status": "incomplete",
   "stdlib_hash": "sha256:8d5c8d19973eff138dc3015048b5550f14457ac0d54780c2dfd3370f2d877d81",
   "target": "macos-aarch64",
   "unsatisfied_goal_ids": [],
-  "working_tree_digest": "sha256:42ee83b5b29d1a52a706a3ba7f9f5ffd6c490c4764ff76e633539a23e5727d63"
+  "working_tree_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 }
