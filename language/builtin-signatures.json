@@ -2212,6 +2212,15 @@
       "operation": "TomlGetText"
     },
     {
+      "name": "native_toml_get_text_list",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[List[Text], Record[StdError]]",
+      "operation": "TomlGetTextList"
+    },
+    {
       "name": "native_toml_has",
       "parameters": [
         "TomlDocument",
@@ -2219,6 +2228,15 @@
       ],
       "result": "Bool",
       "operation": "TomlHas"
+    },
+    {
+      "name": "native_toml_keys",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[List[Text], Record[StdError]]",
+      "operation": "TomlKeys"
     },
     {
       "name": "native_toml_parse",

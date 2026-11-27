@@ -2239,6 +2239,20 @@ fn verify_stack(function: &guion_model::Function, artifact: &Artifact) -> Result
                     Box::new(Type::Record("StdError".into())),
                 ));
             }
+            Op::TomlGetTextList | Op::TomlKeys => {
+                if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Text))
+                    || pop_type(&mut state.stack, pc)?
+                        != Type::NativeResource("TomlDocument".into())
+                {
+                    return Err(format!(
+                        "TOML lookup requires TomlDocument and List[Text] path at instruction {pc}"
+                    ));
+                }
+                state.stack.push(Type::Result(
+                    Box::new(Type::List(Box::new(Type::Text))),
+                    Box::new(Type::Record("StdError".into())),
+                ));
+            }
             Op::TomlHas | Op::TomlGetText | Op::TomlGetInt | Op::TomlGetBool => {
                 if pop_type(&mut state.stack, pc)? != Type::List(Box::new(Type::Text))
                     || pop_type(&mut state.stack, pc)?

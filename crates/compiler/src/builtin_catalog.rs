@@ -340,6 +340,8 @@ pub(crate) fn operation(name: &str) -> Option<Op> {
         "TomlParse" => Op::TomlParse,
         "TomlHas" => Op::TomlHas,
         "TomlGetText" => Op::TomlGetText,
+        "TomlGetTextList" => Op::TomlGetTextList,
+        "TomlKeys" => Op::TomlKeys,
         "TomlGetInt" => Op::TomlGetInt,
         "TomlGetBool" => Op::TomlGetBool,
         "TomlPutText" => Op::TomlPutText,

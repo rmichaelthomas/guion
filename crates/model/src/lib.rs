@@ -1629,6 +1629,12 @@ mod tests {
     }
 
     #[test]
+    fn toml_list_instructions_are_gated_on_format_91() {
+        assert_gated(Op::TomlGetTextList, 91);
+        assert_gated(Op::TomlKeys, 91);
+    }
+
+    #[test]
     fn file_mode_instructions_are_gated_on_format_90() {
         assert_gated(Op::Fs(FsFunction::SetMode), 90);
         assert_gated(Op::Fs(FsFunction::Mode), 90);
@@ -4925,6 +4931,8 @@ pub enum Op {
     JsonStringifyPretty,
     IntToTextRadix,
     TextParseIntRadix,
+    TomlGetTextList,
+    TomlKeys,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -5527,6 +5535,12 @@ impl Artifact {
                 "fs_disk_usage, fs_free_space and fs_is_link require artifact format 91",
             ));
         }
+        if self.format_version < 91 && artifact_uses_toml_lists(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "toml_get_text_list and toml_keys require artifact format 91",
+            ));
+        }
         if self.format_version < 90 && artifact_uses_file_modes(self) {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
@@ -5977,6 +5991,8 @@ impl Artifact {
                     Op::JsonStringifyPretty => w.u8(228),
                     Op::IntToTextRadix => w.u8(229),
                     Op::TextParseIntRadix => w.u8(230),
+                    Op::TomlGetTextList => w.u8(231),
+                    Op::TomlKeys => w.u8(232),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -6657,6 +6673,14 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "int_to_text_radix and text_parse_int_radix require artifact format 90",
+                        ));
+                    }
+                    231 if format_version >= 91 => Op::TomlGetTextList,
+                    232 if format_version >= 91 => Op::TomlKeys,
+                    231..=232 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "toml_get_text_list and toml_keys require artifact format 91",
                         ));
                     }
                     210 if format_version >= 74 => {
@@ -7531,6 +7555,15 @@ fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_toml_lists(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::TomlGetTextList | Op::TomlKeys))
+    })
+}
+
 fn artifact_uses_stop_requested(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -8125,6 +8158,8 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
                         | Op::TomlParse
                         | Op::TomlHas
                         | Op::TomlGetText
+                        | Op::TomlGetTextList
+                        | Op::TomlKeys
                         | Op::TomlGetInt
                         | Op::TomlGetBool
                         | Op::TomlPutText

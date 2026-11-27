@@ -241,10 +241,10 @@ pub fn render(root: &Path) -> Result<String, String> {
     let digest = Sha256::digest(output.as_bytes());
     output.push_str(&format!("<!-- Generated reference content digest: sha256:{digest:x}. Validated by `cargo xtask agent-reference --check`. -->\n"));
     let bytes = output.len();
-    // The cap was raised from 128 KiB when std:crypto gained the beacon primitives (signatures are embedded automatically).
-    if bytes > 144 * 1024 {
+    // The cap was raised from 128 KiB when std:crypto gained the beacon primitives (signatures are embedded automatically), and to 148 KiB for format 91.
+    if bytes > 148 * 1024 {
         return Err(format!(
-            "generated agent reference is {bytes} bytes; limit is 147456"
+            "generated agent reference is {bytes} bytes; limit is 151552"
         ));
     }
     Ok(output)

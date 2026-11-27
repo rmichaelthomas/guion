@@ -5260,6 +5260,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TomlParse => "TomlParse",
         Op::TomlHas => "TomlHas",
         Op::TomlGetText => "TomlGetText",
+        Op::TomlGetTextList => "TomlGetTextList",
+        Op::TomlKeys => "TomlKeys",
         Op::TomlGetInt => "TomlGetInt",
         Op::TomlGetBool => "TomlGetBool",
         Op::TomlPutText => "TomlPutText",

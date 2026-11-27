@@ -10,6 +10,12 @@ pub fn toml_has(document: TomlDocument, path: List[Text]) -> Bool:
 pub fn toml_get_text(document: TomlDocument, path: List[Text]) -> Result[Text, StdError]:
     return native_toml_get_text(document, path)
 
+pub fn toml_get_text_list(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]:
+    return native_toml_get_text_list(document, path)
+
+pub fn toml_keys(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]:
+    return native_toml_keys(document, path)
+
 pub fn toml_get_int(document: TomlDocument, path: List[Text]) -> Result[Int, StdError]:
     return native_toml_get_int(document, path)
 
