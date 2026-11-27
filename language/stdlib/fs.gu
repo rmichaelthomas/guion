@@ -65,6 +65,22 @@ pub fn fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]:
 pub fn fs_mode(path: Text) -> Result[Int, FileError]:
     return native_fs_mode(path)
 
+# Bytes the entry occupies on disk (like `du -k` times 1024, so a sparse file counts only its
+# allocated blocks). A directory adds everything beneath it; links are not followed, other
+# devices are skipped and a hard-linked file counts once. Needs the file-read grant.
+pub fn fs_disk_usage(path: Text) -> Result[Int, FileError]:
+    return native_fs_disk_usage(path)
+
+# Bytes free to an unprivileged user on the volume that holds `path` (`.` is the file root).
+# Needs the file-read grant.
+pub fn fs_free_space(path: Text) -> Result[Int, FileError]:
+    return native_fs_free_space(path)
+
+# Whether `path` itself is a symbolic link (the link is not followed). False for anything else,
+# including a missing entry. Needs the file-read grant.
+pub fn fs_is_link(path: Text) -> Result[Bool, FileError]:
+    return native_fs_is_link(path)
+
 pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]:
     return native_fs_temp_dir(prefix)
 

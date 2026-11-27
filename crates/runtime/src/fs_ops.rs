@@ -137,6 +137,116 @@ fn read_mode(_resolved: &Path, path: &str, span: Span) -> Result<u32, RuntimeErr
     ))
 }
 
+fn u64_value(value: u64) -> Value {
+    Value::Int(BigInt::parse(&value.to_string()).expect("a u64 is a valid integer"))
+}
+
+/// Bytes the entry occupies on disk (`st_blocks * 512`, as `du -k` times 1024): never follows
+/// links, skips other devices (`du -x`) and counts each inode once, so hard links add up once.
+#[cfg(unix)]
+fn disk_usage(resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeError> {
+    use std::collections::HashSet;
+    use std::os::unix::fs::MetadataExt;
+    let start = fs::symlink_metadata(resolved)
+        .map_err(|error| file_error(&error, "R_FILE_READ", "measure", path, span))?;
+    let device = start.dev();
+    let mut seen: HashSet<(u64, u64)> = HashSet::new();
+    let mut total: u64 = 0;
+    let mut stack: Vec<(PathBuf, fs::Metadata)> = vec![(resolved.to_path_buf(), start)];
+    while let Some((entry, metadata)) = stack.pop() {
+        if metadata.dev() != device || !seen.insert((metadata.dev(), metadata.ino())) {
+            continue;
+        }
+        total = total.saturating_add(metadata.blocks().saturating_mul(512));
+        if !metadata.file_type().is_dir() {
+            continue;
+        }
+        let relative = |entry: &Path| -> String {
+            match entry.strip_prefix(resolved) {
+                Ok(rest) if rest.as_os_str().is_empty() => path.to_owned(),
+                Ok(rest) => format!("{}/{}", path.trim_end_matches('/'), rest.display()),
+                Err(_) => path.to_owned(),
+            }
+        };
+        let children = fs::read_dir(&entry).map_err(|error| {
+            file_error(
+                &error,
+                "R_FILE_READ",
+                "read the directory",
+                &relative(&entry),
+                span,
+            )
+        })?;
+        for child in children {
+            let child = child.map_err(|error| {
+                file_error(
+                    &error,
+                    "R_FILE_READ",
+                    "read the directory",
+                    &relative(&entry),
+                    span,
+                )
+            })?;
+            let child_path = child.path();
+            let child_metadata = fs::symlink_metadata(&child_path).map_err(|error| {
+                file_error(
+                    &error,
+                    "R_FILE_READ",
+                    "measure",
+                    &relative(&child_path),
+                    span,
+                )
+            })?;
+            stack.push((child_path, child_metadata));
+        }
+    }
+    Ok(total)
+}
+
+#[cfg(not(unix))]
+fn disk_usage(_resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!("cannot measure `{path}`: disk usage is not supported on this platform"),
+        span,
+    ))
+}
+
+/// Bytes available to an unprivileged user on the volume holding `resolved` (`f_bavail * f_frsize`).
+#[cfg(unix)]
+fn free_space(resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeError> {
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = std::ffi::CString::new(resolved.as_os_str().as_bytes()).map_err(|_| {
+        RuntimeError::new(
+            "R_FILE_READ",
+            format!("cannot read the free space of `{path}`: the path contains a NUL byte"),
+            span,
+        )
+    })?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: `c_path` is a valid NUL-terminated string and `stat` a valid out-pointer.
+    if unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) } != 0 {
+        let error = std::io::Error::last_os_error();
+        return Err(file_error(
+            &error,
+            "R_FILE_READ",
+            "read the free space of",
+            path,
+            span,
+        ));
+    }
+    Ok((stat.f_bavail as u64).saturating_mul(stat.f_frsize as u64))
+}
+
+#[cfg(not(unix))]
+fn free_space(_resolved: &Path, path: &str, span: Span) -> Result<u64, RuntimeError> {
+    Err(RuntimeError::new(
+        "R_FILE_UNSUPPORTED",
+        format!("cannot read the free space of `{path}`: not supported on this platform"),
+        span,
+    ))
+}
+
 pub(crate) fn run(
     policy: &HostPolicy,
     function: FsFunction,
@@ -410,10 +520,38 @@ fn run_inner(
         | FsFunction::TarList => {
             super::compress::run_file_function(policy, function, operands, span)
         }
-        // Placeholder until the runtime task implements them.
-        FsFunction::DiskUsage | FsFunction::FreeSpace | FsFunction::IsLink => Err(
-            RuntimeError::new("R_FILE_UNSUPPORTED", "not implemented yet", span),
-        ),
+        FsFunction::DiskUsage => {
+            // The named entry itself: a link at `path` is measured, not followed. `.` and other
+            // paths with no final name (the file root) fall back to the confined, following form.
+            let resolved = match host_file_entry_path(policy, path, span) {
+                Ok(resolved) => resolved,
+                Err(error) if error.code == "R_HOST_DENIED" => {
+                    host_file_path(policy, path, false, span)?
+                }
+                Err(error) => return Err(error),
+            };
+            Ok(ok(u64_value(disk_usage(&resolved, path, span)?)))
+        }
+        FsFunction::FreeSpace => {
+            let resolved = host_file_path(policy, path, false, span)?;
+            Ok(ok(u64_value(free_space(&resolved, path, span)?)))
+        }
+        FsFunction::IsLink => {
+            let resolved = match host_file_entry_path(policy, path, span) {
+                Ok(resolved) => resolved,
+                Err(error) if error.code == "R_HOST_DENIED" => {
+                    host_file_path(policy, path, false, span)?
+                }
+                Err(error) => return Err(error),
+            };
+            match fs::symlink_metadata(&resolved) {
+                Ok(metadata) => Ok(ok(Value::Bool(metadata.file_type().is_symlink()))),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    Ok(ok(Value::Bool(false)))
+                }
+                Err(error) => Err(file_error(&error, "R_FILE_READ", "inspect", path, span)),
+            }
+        }
         FsFunction::TempDir | FsFunction::TempFile => {
             let valid = !path.is_empty()
                 && path.len() <= 64

@@ -3378,6 +3378,30 @@
       "operation": "FsOpMode"
     },
     {
+      "name": "native_fs_disk_usage",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpDiskUsage"
+    },
+    {
+      "name": "native_fs_free_space",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpFreeSpace"
+    },
+    {
+      "name": "native_fs_is_link",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bool, FileError]",
+      "operation": "FsOpIsLink"
+    },
+    {
       "name": "native_fs_modified_ms",
       "parameters": [
         "Text"
