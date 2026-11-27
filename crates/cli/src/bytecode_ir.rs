@@ -477,6 +477,8 @@ fn parse_instruction(
         "TomlParse" => Op::TomlParse,
         "TomlHas" => Op::TomlHas,
         "TomlGetText" => Op::TomlGetText,
+        "TomlGetTextList" => Op::TomlGetTextList,
+        "TomlKeys" => Op::TomlKeys,
         "TomlGetInt" => Op::TomlGetInt,
         "TomlGetBool" => Op::TomlGetBool,
         "TomlPutText" => Op::TomlPutText,

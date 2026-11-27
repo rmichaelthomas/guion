@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const SITE_URL = 'https://rmichaelthomas.github.io/guion/';
-export const STATUS = 'Pre-1.0. Release 0.9.1 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64).';
+export const STATUS = 'Pre-1.0. Release 0.10.0 is out for Linux (Debian 12, ARM64 and x86_64), macOS (Apple Silicon and Intel) and Windows (x86_64).';
 const CONTACT = 'rmichael@rmichaelthomas.com';
 
 /** The page's "Where Python still leads" entries, read from the same slots the page renders, so the two cannot drift. */
@@ -42,7 +42,7 @@ export function renderLlmsTxt({ claims, gaps }) {
   const lines = [
     '# Guion',
     '',
-    '> Guion is a general-purpose programming language and toolchain: readable typed syntax, a Rust compiler and a Rust runtime. Guion has compiled itself; a compiler written in Guion is kept as a historical proof. Release 0.9.1 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.9.1',
+    '> Guion is a general-purpose programming language and toolchain: readable typed syntax, a Rust compiler and a Rust runtime. Guion has compiled itself; a compiler written in Guion is kept as a historical proof. Release 0.10.0 is out for Linux, macOS (Apple Silicon and Intel) and Windows: https://github.com/rmichaelthomas/guion/releases/tag/v0.10.0',
     '',
     `Site: ${SITE_URL}`,
     `Machine-readable copy of everything below: ${SITE_URL}agents.json`,

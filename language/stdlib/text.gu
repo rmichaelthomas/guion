@@ -66,3 +66,22 @@ pub fn int_to_text_radix(value: Int, radix: Int) -> Text:
 # 36 is R_RADIX_RANGE. The value can be as large as an Int can be.
 pub fn text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]:
     return text_parse_int_radix_native(text, radix)
+
+# Whether `value` begins with `prefix`, comparing Unicode scalar values as `len` and `text_slice`
+# count them. An empty prefix is always a match; a prefix longer than `value` is false, never an
+# error.
+pub fn text_starts_with(value: Text, prefix: Text) -> Bool:
+    let size = len(prefix)
+    if size > len(value):
+        return false
+    return text_slice(value, 0, size) == prefix
+
+# Whether `value` ends with `suffix`, comparing Unicode scalar values as `len` and `text_slice`
+# count them. An empty suffix is always a match; a suffix longer than `value` is false, never an
+# error.
+pub fn text_ends_with(value: Text, suffix: Text) -> Bool:
+    let size = len(suffix)
+    let total = len(value)
+    if size > total:
+        return false
+    return text_slice(value, total - size, total) == suffix

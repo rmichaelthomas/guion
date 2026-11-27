@@ -5260,6 +5260,8 @@ pub fn opcode_profile_name(op: &Op) -> &'static str {
         Op::TomlParse => "TomlParse",
         Op::TomlHas => "TomlHas",
         Op::TomlGetText => "TomlGetText",
+        Op::TomlGetTextList => "TomlGetTextList",
+        Op::TomlKeys => "TomlKeys",
         Op::TomlGetInt => "TomlGetInt",
         Op::TomlGetBool => "TomlGetBool",
         Op::TomlPutText => "TomlPutText",
@@ -7399,11 +7401,14 @@ pub fn splitmix64_mix(state: u64) -> u64 {
 /// The `Result[T, FileError]` type a filesystem function pushes.
 fn fs_result_type(function: FsFunction) -> Type {
     let ok = match function {
-        FsFunction::Exists => Type::Bool,
+        FsFunction::Exists | FsFunction::IsLink => Type::Bool,
         FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
-        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy | FsFunction::Mode => {
-            Type::Int
-        }
+        FsFunction::Size
+        | FsFunction::ModifiedMs
+        | FsFunction::Copy
+        | FsFunction::Mode
+        | FsFunction::DiskUsage
+        | FsFunction::FreeSpace => Type::Int,
         FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
         FsFunction::ConfinedPath => Type::Text,
         FsFunction::GzipCompressFile
@@ -7416,7 +7421,8 @@ fn fs_result_type(function: FsFunction) -> Type {
         | FsFunction::Remove
         | FsFunction::RemoveAll
         | FsFunction::Rename
-        | FsFunction::SetMode => Type::Unit,
+        | FsFunction::SetMode
+        | FsFunction::MakeLink => Type::Unit,
     };
     Type::Result(Box::new(ok), Box::new(Type::FileError))
 }

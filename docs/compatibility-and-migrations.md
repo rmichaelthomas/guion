@@ -26,6 +26,12 @@ The rename is a pre-1.0 transition. The current CLI retains read compatibility f
 
 This compatibility is a migration aid, not a guarantee that old names will remain supported through 1.0. New projects and new outputs use Guion names. A Guion project may continue to contain a legacy-named manifest while it is being migrated; avoid creating both old and new manifest or lock files in the same project, because that makes project identity ambiguous.
 
+## Moving from 0.9.1 to 0.10.0
+
+Nothing is removed or renamed, and no word is newly reserved. Programs written for 0.9.1 compile and run unchanged.
+
+- **Artifact format 91.** The runtime reads formats 14 through 91 and writes 91. A program that uses `fs_disk_usage`, `fs_free_space`, `fs_is_link`, `fs_make_link`, `toml_get_text_list` or `toml_keys` needs a runtime that reads its format and is refused by an older one with `E_ARTIFACT_VERSION`. `text_starts_with` and `text_ends_with` are Guion source in `std:text` and need no new format.
+
 ## Moving from 0.9.0 to 0.9.1
 
 Nothing to change. The artifact format is still 90, nothing is removed, renamed or newly reserved, and programs and artifacts built for 0.9.0 run unchanged. The release makes CSV reads, array maths, sorting and compiled array loops faster; see the [CHANGELOG](../CHANGELOG.md).

@@ -1,6 +1,6 @@
 # The basics list
 
-**Version 1, as of Guion 0.9.1.**
+**Version 1, as of Guion 0.10.0.**
 
 This is the list of tasks a small program usually needs, with the function that covers each. The claim it supports is exactly this one: **Guion covers the basics as of this list.** It is not a claim that Guion covers everything a program might need, and the list is versioned so the claim can be checked: a test (`crates/cli/tests/basics_list.rs`) fails if any function named in the "Covered by" column is missing from the shipped standard library or the built-in functions.
 
@@ -15,9 +15,9 @@ Functions in the `std:` modules need `import "std:MODULE"`; the built-in functio
 | Print and write to standard error | `print`, `eprint` | |
 | Read and write a whole file | `read_text`, `read_bytes`, `write_text`, `write_text_atomic`, `write_bytes` | Needs a file grant; `write_text_atomic` replaces a file in one step. |
 | Read a file line by line | `file_open_lines`, `file_next_line`, `file_close` | Streams, so memory stays bounded. |
-| Files and directories | `fs_exists`, `fs_size`, `fs_list_dir`, `fs_walk`, `fs_make_dir`, `fs_copy`, `fs_rename`, `fs_remove`, `fs_remove_all`, `fs_temp_dir` | |
+| Files and directories | `fs_exists`, `fs_size`, `fs_list_dir`, `fs_walk`, `fs_disk_usage`, `fs_free_space`, `fs_is_link`, `fs_make_link`, `fs_make_dir`, `fs_copy`, `fs_rename`, `fs_remove`, `fs_remove_all`, `fs_temp_dir` | `fs_walk` is a built-in, not part of `std:fs`; `fs_disk_usage`, `fs_free_space` and `fs_is_link` need `import "std:fs"` and the file-read grant; `fs_make_link` needs the file-write grant. |
 | File paths | `path_join`, `path_basename`, `path_dirname`, `path_extension`, `path_normalize` | |
-| Text | `len`, `text_slice`, `text_find`, `text_split`, `text_join`, `text_trim`, `text_replace`, `text_chars`, `text_casefold`, `text_normalize` | |
+| Text | `len`, `text_slice`, `text_find`, `text_starts_with`, `text_ends_with`, `text_split`, `text_join`, `text_trim`, `text_replace`, `text_chars`, `text_casefold`, `text_normalize` | |
 | Parse and format numbers | `text_parse_integer`, `text_parse_float`, `text_parse_decimal`, `int_to_text`, `float_to_text`, `int_to_float`, `float_to_int` | |
 | Maths | `math_abs`, `math_pow`, `math_floor`, `math_round`, `math_log`, `math_sin`, `sqrt` | |
 | Lists and maps | `list_push`, `list_get`, `list_set`, `map_get`, `map_set`, `map_has` | |

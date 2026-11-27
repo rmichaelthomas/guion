@@ -1421,6 +1421,12 @@ mod tests {
     /// Writing or reading an artifact that uses `op` below `first_format` is `E_ARTIFACT_VERSION`;
     /// at `first_format` and at the current format it round-trips.
     fn assert_gated(op: Op, first_format: u32) {
+        gate_messages(op, first_format);
+    }
+
+    /// Checks the gate as `assert_gated` does and returns the rejection messages on write and
+    /// on read.
+    fn gate_messages(op: Op, first_format: u32) -> (String, String) {
         let mut artifact = Artifact {
             format_version: Artifact::CURRENT_VERSION,
             build_metadata: None,
@@ -1453,13 +1459,13 @@ mod tests {
         let at_first = artifact.to_bytes().unwrap();
         assert_eq!(Artifact::from_bytes(&at_first).unwrap(), artifact);
         artifact.format_version = first_format - 1;
-        assert_eq!(artifact.to_bytes().unwrap_err().code, "E_ARTIFACT_VERSION");
+        let write_error = artifact.to_bytes().unwrap_err();
+        assert_eq!(write_error.code, "E_ARTIFACT_VERSION");
         let mut old = bytes;
         old[4..8].copy_from_slice(&(first_format - 1).to_le_bytes());
-        assert_eq!(
-            Artifact::from_bytes(&old).unwrap_err().code,
-            "E_ARTIFACT_VERSION"
-        );
+        let read_error = Artifact::from_bytes(&old).unwrap_err();
+        assert_eq!(read_error.code, "E_ARTIFACT_VERSION");
+        (write_error.message, read_error.message)
     }
 
     #[test]
@@ -1608,6 +1614,46 @@ mod tests {
     fn radix_instructions_are_gated_on_format_90() {
         assert_gated(Op::IntToTextRadix, 90);
         assert_gated(Op::TextParseIntRadix, 90);
+    }
+
+    #[test]
+    fn disk_usage_instructions_are_gated_on_format_91() {
+        assert_gated(Op::Fs(FsFunction::DiskUsage), 91);
+        assert_gated(Op::Fs(FsFunction::FreeSpace), 91);
+        assert_gated(Op::Fs(FsFunction::IsLink), 91);
+    }
+
+    #[test]
+    fn make_link_is_gated_on_format_91_and_is_code_25() {
+        let (write, read) = gate_messages(Op::Fs(FsFunction::MakeLink), 91);
+        assert_eq!(write, "fs_make_link requires artifact format 91");
+        assert_eq!(read, "fs_make_link requires artifact format 91");
+        assert_eq!(FsFunction::MakeLink.code(), 25);
+        assert_eq!(FsFunction::from_code(25), Some(FsFunction::MakeLink));
+        assert_eq!(FsFunction::from_code(26), None);
+        assert_eq!(FsFunction::MakeLink.arity(), 2);
+        assert!(FsFunction::MakeLink.writes());
+        assert_eq!(
+            FsFunction::from_op_name("FsOpMakeLink"),
+            Some(FsFunction::MakeLink)
+        );
+    }
+
+    #[test]
+    fn disk_usage_fs_codes_are_22_to_24() {
+        assert_eq!(FsFunction::DiskUsage.code(), 22);
+        assert_eq!(FsFunction::FreeSpace.code(), 23);
+        assert_eq!(FsFunction::IsLink.code(), 24);
+        assert_eq!(
+            FsFunction::from_op_name("FsOpIsLink"),
+            Some(FsFunction::IsLink)
+        );
+    }
+
+    #[test]
+    fn toml_list_instructions_are_gated_on_format_91() {
+        assert_gated(Op::TomlGetTextList, 91);
+        assert_gated(Op::TomlKeys, 91);
     }
 
     #[test]
@@ -4317,10 +4363,21 @@ pub enum FsFunction {
     /// Reads the permission bits of a file or directory as octal text, following symlinks
     /// (format 90); needs the file-read grant.
     Mode,
+    /// Allocated disk bytes (`st_blocks * 512`) of every entry under a path, directories and links
+    /// included, links not followed (format 91); needs the file-read grant.
+    DiskUsage,
+    /// Bytes available to the program on the filesystem holding a path (format 91); needs the
+    /// file-read grant.
+    FreeSpace,
+    /// Whether a path is itself a symbolic link (format 91); needs the file-read grant.
+    IsLink,
+    /// Creates a symbolic link holding the given target text as is (format 91); needs the
+    /// file-write grant.
+    MakeLink,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 22] = [
+    const ALL: [FsFunction; 26] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -4343,6 +4400,10 @@ impl FsFunction {
         FsFunction::ConfinedPath,
         FsFunction::SetMode,
         FsFunction::Mode,
+        FsFunction::DiskUsage,
+        FsFunction::FreeSpace,
+        FsFunction::IsLink,
+        FsFunction::MakeLink,
     ];
 
     pub fn code(self) -> u8 {
@@ -4381,6 +4442,10 @@ impl FsFunction {
             FsFunction::ConfinedPath => "FsOpConfinedPath",
             FsFunction::SetMode => "FsOpSetMode",
             FsFunction::Mode => "FsOpMode",
+            FsFunction::DiskUsage => "FsOpDiskUsage",
+            FsFunction::FreeSpace => "FsOpFreeSpace",
+            FsFunction::IsLink => "FsOpIsLink",
+            FsFunction::MakeLink => "FsOpMakeLink",
         }
     }
 
@@ -4401,7 +4466,8 @@ impl FsFunction {
             | FsFunction::TarWrite
             | FsFunction::TarRead
             | FsFunction::ConfinedPath
-            | FsFunction::SetMode => 2,
+            | FsFunction::SetMode
+            | FsFunction::MakeLink => 2,
             FsFunction::ReadRange => 3,
             _ => 1,
         }
@@ -4421,6 +4487,9 @@ impl FsFunction {
                 | FsFunction::ReadRange
                 | FsFunction::ConfinedPath
                 | FsFunction::Mode
+                | FsFunction::DiskUsage
+                | FsFunction::FreeSpace
+                | FsFunction::IsLink
         )
     }
 
@@ -4890,6 +4959,8 @@ pub enum Op {
     JsonStringifyPretty,
     IntToTextRadix,
     TextParseIntRadix,
+    TomlGetTextList,
+    TomlKeys,
     RandomBytes,
     SqliteBeginRead,
     LogAppend,
@@ -5094,7 +5165,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 90;
+    pub const CURRENT_VERSION: u32 = 91;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5484,6 +5555,24 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "tcp_peer requires artifact format 90",
+            ));
+        }
+        if self.format_version < 91 && artifact_uses_make_link(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fs_make_link requires artifact format 91",
+            ));
+        }
+        if self.format_version < 91 && artifact_uses_disk_usage(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fs_disk_usage, fs_free_space and fs_is_link require artifact format 91",
+            ));
+        }
+        if self.format_version < 91 && artifact_uses_toml_lists(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "toml_get_text_list and toml_keys require artifact format 91",
             ));
         }
         if self.format_version < 90 && artifact_uses_file_modes(self) {
@@ -5936,6 +6025,8 @@ impl Artifact {
                     Op::JsonStringifyPretty => w.u8(228),
                     Op::IntToTextRadix => w.u8(229),
                     Op::TextParseIntRadix => w.u8(230),
+                    Op::TomlGetTextList => w.u8(231),
+                    Op::TomlKeys => w.u8(232),
                     Op::RandomBytes => w.u8(201),
                     Op::SqliteBeginRead => w.u8(202),
                     Op::LogAppend => w.u8(203),
@@ -6419,6 +6510,18 @@ impl Artifact {
                                 "ranged file reads and confined paths require artifact format 73",
                             ));
                         }
+                        if code == 25 && format_version < 91 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "fs_make_link requires artifact format 91",
+                            ));
+                        }
+                        if code >= 22 && format_version < 91 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "fs_disk_usage, fs_free_space and fs_is_link require artifact format 91",
+                            ));
+                        }
                         if code >= 20 && format_version < 90 {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
@@ -6610,6 +6713,14 @@ impl Artifact {
                         return Err(ArtifactError::new(
                             "E_ARTIFACT_VERSION",
                             "int_to_text_radix and text_parse_int_radix require artifact format 90",
+                        ));
+                    }
+                    231 if format_version >= 91 => Op::TomlGetTextList,
+                    232 if format_version >= 91 => Op::TomlKeys,
+                    231..=232 => {
+                        return Err(ArtifactError::new(
+                            "E_ARTIFACT_VERSION",
+                            "toml_get_text_list and toml_keys require artifact format 91",
                         ));
                     }
                     210 if format_version >= 74 => {
@@ -7484,6 +7595,15 @@ fn artifact_uses_format_90_text_json(artifact: &Artifact) -> bool {
     })
 }
 
+fn artifact_uses_toml_lists(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::TomlGetTextList | Op::TomlKeys))
+    })
+}
+
 fn artifact_uses_stop_requested(artifact: &Artifact) -> bool {
     artifact.functions.iter().any(|function| {
         function.code.iter().any(|instruction| {
@@ -7507,6 +7627,26 @@ fn artifact_uses_radix(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::IntToTextRadix | Op::TextParseIntRadix))
+    })
+}
+
+fn artifact_uses_disk_usage(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Fs(FsFunction::DiskUsage | FsFunction::FreeSpace | FsFunction::IsLink)
+            )
+        })
+    })
+}
+
+fn artifact_uses_make_link(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function
+            .code
+            .iter()
+            .any(|instruction| matches!(instruction.op, Op::Fs(FsFunction::MakeLink)))
     })
 }
 
@@ -8067,6 +8207,8 @@ fn artifact_uses_task5_services(artifact: &Artifact) -> bool {
                         | Op::TomlParse
                         | Op::TomlHas
                         | Op::TomlGetText
+                        | Op::TomlGetTextList
+                        | Op::TomlKeys
                         | Op::TomlGetInt
                         | Op::TomlGetBool
                         | Op::TomlPutText

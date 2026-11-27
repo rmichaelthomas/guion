@@ -2212,6 +2212,15 @@
       "operation": "TomlGetText"
     },
     {
+      "name": "native_toml_get_text_list",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[List[Text], Record[StdError]]",
+      "operation": "TomlGetTextList"
+    },
+    {
       "name": "native_toml_has",
       "parameters": [
         "TomlDocument",
@@ -2219,6 +2228,15 @@
       ],
       "result": "Bool",
       "operation": "TomlHas"
+    },
+    {
+      "name": "native_toml_keys",
+      "parameters": [
+        "TomlDocument",
+        "List[Text]"
+      ],
+      "result": "Result[List[Text], Record[StdError]]",
+      "operation": "TomlKeys"
     },
     {
       "name": "native_toml_parse",
@@ -3376,6 +3394,39 @@
       ],
       "result": "Result[Int, FileError]",
       "operation": "FsOpMode"
+    },
+    {
+      "name": "native_fs_disk_usage",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpDiskUsage"
+    },
+    {
+      "name": "native_fs_free_space",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Int, FileError]",
+      "operation": "FsOpFreeSpace"
+    },
+    {
+      "name": "native_fs_is_link",
+      "parameters": [
+        "Text"
+      ],
+      "result": "Result[Bool, FileError]",
+      "operation": "FsOpIsLink"
+    },
+    {
+      "name": "native_fs_make_link",
+      "parameters": [
+        "Text",
+        "Text"
+      ],
+      "result": "Result[Unit, FileError]",
+      "operation": "FsOpMakeLink"
     },
     {
       "name": "native_fs_modified_ms",

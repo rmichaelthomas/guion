@@ -791,6 +791,41 @@ pub fn run_pure_instruction(
             });
             push_stack!(service_result_value(result));
         }
+        Op::TomlGetTextList | Op::TomlKeys => {
+            let path = runtime_text_path(&pop!(), instruction.span)?;
+            let (owner, id) = runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;
+            let handle = crate::services::TomlHandle::from_parts(owner, id);
+            let found = if instruction.op == Op::TomlKeys {
+                toml.keys(handle, &path)
+            } else {
+                toml.get_text_list(handle, &path)
+            };
+            let result = match found {
+                Ok(items) => {
+                    if items.len() > limits.max_collection_items {
+                        return Err(RuntimeError::new(
+                            "R_COLLECTION_LIMIT",
+                            "TOML list exceeds the configured item limit",
+                            instruction.span,
+                        ));
+                    }
+                    let text_bytes: usize = items.iter().map(String::len).sum();
+                    charge_allocation(
+                        budget.as_ref(),
+                        crate::text_list_allocation(items.len(), text_bytes),
+                        instruction.span,
+                    )?;
+                    Ok(Value::from_list_items(
+                        items
+                            .into_iter()
+                            .map(|item| Value::Text(item.into()))
+                            .collect(),
+                    ))
+                }
+                Err(error) => Err(error),
+            };
+            push_stack!(service_result_value(result));
+        }
         Op::TomlHas | Op::TomlGetText | Op::TomlGetInt | Op::TomlGetBool => {
             let path = runtime_text_path(&pop!(), instruction.span)?;
             let (owner, id) = runtime_service_resource(&pop!(), "TomlDocument", instruction.span)?;

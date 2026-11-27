@@ -60,6 +60,9 @@ Each operation has an explicit failure result. Host failures carry a stable code
 | JSON pretty encode | `json_stringify_pretty(value: Json, indent: Int) -> Text` | One member or element per line, `indent` spaces per level; `indent` is 0 to 16 or `R_JSON_INDENT`; no trailing newline; bounded output | Implemented in artifact format 90 |
 | integer radix | `int_to_text_radix(value: Int, radix: Int) -> Text`, `text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]` | Radix 2 to 36 (else `R_RADIX_RANGE`); lowercase digits, `-` for negatives, no prefix or separators; parsing takes either case and one leading `-`, else `E_INT_PARSE`; a value over the digit limit is `R_INTEGER_LIMIT`; no grant | Implemented in artifact format 90 |
 | file modes | `fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]`, `fs_mode(path: Text) -> Result[Int, FileError]` | Permission bits as an `Int` (0 to 0o7777 to set), as `chmod`; path resolved against the file root like the other `std:fs` functions; write grant to set, read grant to read; `R_FILE_MODE_INVALID`, `R_FILE_UNSUPPORTED` (no permission bits) | Implemented in artifact format 90 |
+| TOML text lists and keys | `toml_get_text_list(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]`, `toml_keys(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]` | The strings of an array in order, and a table's keys in document order (an empty path is the root table); a missing path, a wrong kind of value or a non-string element is `E_TOML_TYPE`; no grant; runs in the browser VM | Implemented in artifact format 91 |
+| disk usage and links | `fs_disk_usage(path: Text) -> Result[Int, FileError]`, `fs_free_space(path: Text) -> Result[Int, FileError]`, `fs_is_link(path: Text) -> Result[Bool, FileError]` | Disk bytes of an entry (`st_blocks * 512`, a directory adds everything beneath it, never follows links, skips other devices, counts hard links once; `R_FILE_NOT_FOUND`, `R_FILE_PERMISSION` naming an unreadable directory beneath, vanished children skipped); bytes free to an unprivileged user on the volume of `path` (`statvfs`, follows links, `.` is the file root); whether the entry is a symbolic link (`Ok(true)` even if dangling, `Ok(false)` for anything else or a missing path); file-read grant only, effect `filesystem.read`; `fs_disk_usage` and `fs_is_link` search every read root and refuse a symlinked leading component with `R_HOST_DENIED`; `fs_disk_usage` and `fs_free_space` are `R_FILE_UNSUPPORTED` on Windows (`fs_is_link` works on every native host), `R_HOST_UNSUPPORTED` in the browser VM | Implemented in artifact format 91 |
+| make link | `fs_make_link(target: Text, link: Text) -> Result[Unit, FileError]` | Symbolic link at `link` whose stored text is `target`, as `ln -s`; `target` is stored as is (relative, absolute, outside the root or dangling) and reads through the link stay confined; `link` is a new entry whose parent is inside the file root, an existing entry is `R_FILE_EXISTS`; file-write grant, effect `filesystem.write`; `R_FILE_UNSUPPORTED` on Windows, `R_HOST_UNSUPPORTED` in the browser VM | Implemented in artifact format 91 |
 | peer address | `tcp_peer(conn: TcpConn) -> Result[PeerAddress, StdError]`, `http_server_peer(request: HttpServerRequest) -> Result[PeerAddress, StdError]`, `Request.peer` | The remote end of a connected TCP or TLS socket as host and port (IPv6 without brackets, IPv4-mapped IPv6 as IPv4); `Request.peer` is `host:port` with IPv6 in brackets, empty when unknown; no grant beyond holding the connection; effect `network.socket`; `E_NET_HANDLE` for anything but a connected socket; `R_HOST_UNSUPPORTED` in the browser VM | Implemented in artifact format 90 |
 | stop requested | `process_stop_requested() -> Bool` | True once an `INT`, `TERM` or `HUP` has arrived in a program that polls for signals (`process_signal_poll` called at least once); sticky, the same on every thread, does not clear the pending signal or change `process_signal_poll` or `sleep_ms`; no grant; effect `process.signals`; false in the browser VM; recorded on tapes like `process_signal_poll` | Implemented in artifact format 90 |
 | JSON values | `json_null`, `json_bool`, `json_int`, `json_float`, `json_text`, `json_array`, `json_object` | Typed constructors; same JSON and allocation ceilings; artifact format 20 | Implemented |
@@ -128,6 +131,10 @@ int_to_text_radix(Int, Int) -> Text
 text_parse_int_radix(Text, Int) -> Result[Int, FileError]
 fs_set_mode(Text, Int) -> Result[Unit, FileError]
 fs_mode(Text) -> Result[Int, FileError]
+fs_disk_usage(Text) -> Result[Int, FileError]
+fs_free_space(Text) -> Result[Int, FileError]
+fs_is_link(Text) -> Result[Bool, FileError]
+fs_make_link(Text, Text) -> Result[Unit, FileError]
 tcp_peer(TcpConn) -> Result[PeerAddress, StdError]
 process_stop_requested() -> Bool
 crypto_hmac_sha256(Bytes, Bytes) -> Bytes
@@ -144,6 +151,8 @@ toml_parse(Text) -> Result[TomlDocument, StdError]
 toml_has(TomlDocument, List[Text]) -> Bool
 toml_get_text/int/bool(TomlDocument, List[Text]) -> Result[Text/Int/Bool, StdError]
 toml_put_text/int/bool(TomlDocument, List[Text], Text/Int/Bool) -> Result[Unit, StdError]
+toml_get_text_list(TomlDocument, List[Text]) -> Result[List[Text], StdError]
+toml_keys(TomlDocument, List[Text]) -> Result[List[Text], StdError]
 toml_render(TomlDocument) -> Text
 calendar_parse(Text) -> Result[List[CalendarEvent], StdError]
 ```

@@ -7314,6 +7314,62 @@
       }
     },
     {
+      "id": "opcode-toml-get-text-list",
+      "kind": "opcode",
+      "name": "TomlGetTextList",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-toml-get-text-list.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-toml-get-text-list.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-toml-get-text-list.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
+      "id": "opcode-toml-keys",
+      "kind": "opcode",
+      "name": "TomlKeys",
+      "owner_task": 5,
+      "source": "crates/model/src/lib.rs::Op",
+      "compiler_status": {
+        "bootstrap": "implemented_current_subset",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "opcode-toml-keys.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "opcode-toml-keys.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "opcode-toml-keys.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      }
+    },
+    {
       "id": "opcode-toml-get-int",
       "kind": "opcode",
       "name": "TomlGetInt",
@@ -11644,6 +11700,96 @@
       },
       "source_signature": "`fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]`, `fs_mode(path: Text) -> Result[Int, FileError]`",
       "declared_status": "Implemented in artifact format 90"
+    },
+    {
+      "id": "host_operation-toml-text-lists-and-keys",
+      "kind": "host_operation",
+      "name": "TOML text lists and keys",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.toml-text-lists-and-keys.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.toml-text-lists-and-keys.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.toml-text-lists-and-keys.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`toml_get_text_list(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]`, `toml_keys(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]`",
+      "declared_status": "Implemented in artifact format 91"
+    },
+    {
+      "id": "host_operation-disk-usage-and-links",
+      "kind": "host_operation",
+      "name": "disk usage and links",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.disk-usage-and-links.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.disk-usage-and-links.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.disk-usage-and-links.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`fs_disk_usage(path: Text) -> Result[Int, FileError]`, `fs_free_space(path: Text) -> Result[Int, FileError]`, `fs_is_link(path: Text) -> Result[Bool, FileError]`",
+      "declared_status": "Implemented in artifact format 91"
+    },
+    {
+      "id": "host_operation-make-link",
+      "kind": "host_operation",
+      "name": "make link",
+      "owner_task": 5,
+      "source": "language/host-api.md#public-operations",
+      "compiler_status": {
+        "bootstrap": "implemented",
+        "self_hosted": "not_applicable"
+      },
+      "coverage": {
+        "positive": {
+          "case_id": "host_operation.make-link.positive",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "negative": {
+          "case_id": "host_operation.make-link.negative",
+          "state": "implemented",
+          "owner_task": 5
+        },
+        "interaction": {
+          "case_id": "host_operation.make-link.interaction",
+          "state": "implemented",
+          "owner_task": 5
+        }
+      },
+      "source_signature": "`fs_make_link(target: Text, link: Text) -> Result[Unit, FileError]`",
+      "declared_status": "Implemented in artifact format 91"
     },
     {
       "id": "host_operation-peer-address",

@@ -253,6 +253,18 @@ impl TomlRegistry {
         let keys = path.iter().map(String::as_str).collect::<Vec<_>>();
         self.get(handle)?.get_text(&keys)
     }
+    pub fn get_text_list(
+        &self,
+        handle: TomlHandle,
+        path: &[String],
+    ) -> Result<Vec<String>, ServiceError> {
+        let keys = path.iter().map(String::as_str).collect::<Vec<_>>();
+        self.get(handle)?.get_text_list(&keys)
+    }
+    pub fn keys(&self, handle: TomlHandle, path: &[String]) -> Result<Vec<String>, ServiceError> {
+        let keys = path.iter().map(String::as_str).collect::<Vec<_>>();
+        self.get(handle)?.keys(&keys)
+    }
     pub fn get_integer(&self, handle: TomlHandle, path: &[String]) -> Result<i64, ServiceError> {
         let keys = path.iter().map(String::as_str).collect::<Vec<_>>();
         self.get(handle)?.get_integer(&keys)
@@ -383,6 +395,31 @@ impl TomlDocument {
             .and_then(Item::as_str)
             .map(str::to_owned)
             .ok_or_else(|| wrong_toml_type("text", path))
+    }
+    /// The strings of the array at `path`, in order. Every element must be a string.
+    pub fn get_text_list(&self, path: &[&str]) -> Result<Vec<String>, ServiceError> {
+        let array = get_item(self.document.as_item(), path)
+            .and_then(Item::as_array)
+            .ok_or_else(|| wrong_toml_type("an array of text", path))?;
+        array
+            .iter()
+            .enumerate()
+            .map(|(index, element)| {
+                element.as_str().map(str::to_owned).ok_or_else(|| {
+                    ServiceError::new(
+                        "E_TOML_TYPE",
+                        format!("{}[{index}] must be text", path.join(".")),
+                    )
+                })
+            })
+            .collect()
+    }
+    /// The keys of the table at `path` (the root when empty), in document order.
+    pub fn keys(&self, path: &[&str]) -> Result<Vec<String>, ServiceError> {
+        let table = get_item(self.document.as_item(), path)
+            .and_then(Item::as_table_like)
+            .ok_or_else(|| wrong_toml_type("a table", path))?;
+        Ok(table.iter().map(|(key, _)| key.to_owned()).collect())
     }
     pub fn get_integer(&self, path: &[&str]) -> Result<i64, ServiceError> {
         get_item(self.document.as_item(), path)

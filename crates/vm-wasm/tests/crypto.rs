@@ -1192,6 +1192,26 @@ fn file_modes_are_unsupported_in_the_browser() {
     }
 }
 
+/// `fs_disk_usage`, `fs_free_space` and `fs_is_link` need a host filesystem, which the browser VM
+/// does not have.
+#[test]
+fn disk_usage_free_space_and_links_are_unsupported_in_the_browser() {
+    for (name, body) in [
+        ("fs-disk-usage", "print(unwrap(fs_disk_usage(\"a\")))"),
+        ("fs-free-space", "print(unwrap(fs_free_space(\".\")))"),
+        ("fs-is-link", "print(unwrap(fs_is_link(\"a\")))"),
+        ("fs-make-link", "print(unwrap(fs_make_link(\"a\", \"b\")))"),
+    ] {
+        let artifact = gub_project(
+            name,
+            &format!("import \"std:fs\"\nfn main() -> Int:\n    {body}\n    return 0\n"),
+        );
+        let response = browser_response(&artifact, "main", 1000);
+        assert_eq!(response["ok"], false, "{response}");
+        assert_eq!(response["code"], "R_HOST_UNSUPPORTED", "{response}");
+    }
+}
+
 /// `tcp_peer` needs a socket, which the browser VM does not have.
 #[test]
 fn tcp_peer_is_unsupported_in_the_browser() {

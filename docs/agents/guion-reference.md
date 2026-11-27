@@ -34,10 +34,14 @@ Everyday forms: see `docs/reference.md`.
 - `unix_time_ms() -> Int` returns wall-clock milliseconds since the Unix epoch, and `today_local() -> Date` returns the current date in the host process time zone. `format_utc_date(instant) -> Text` formats an `Instant` as its `YYYY-MM-DD` UTC calendar date without formatting the time of day. Clock access is denied unless `[clock].enabled = true` or the caller uses `guion run --allow-clock` / an embedding `HostPolicy` grant. The host supplies local-time and daylight-saving rules; tests and embedders can pin the clock through `HostPolicy::with_clock_unix_time_ms`.
 - `sleep_ms(ms: Int) -> Unit` (artifact format 88) blocks the calling thread for at least `ms` milliseconds; `ms` outside 0 to 86400000 (one day) is the runtime fault `R_SLEEP_RANGE`. It needs no grant and is reported as the effect `clock.sleep`. It waits in slices of at most 10 ms, so a task that reaches its `wait_within` deadline or is stopped, and Ctrl-C, end it promptly; in a program that polls for signals with `process_signal_poll`, a signal that arrives ends one sleep early on each thread, so `main` and every sleeping task wake once for it (later sleeps on the same thread run their full time), and stays pending for the next poll. A tape does not record it, and a replay returns at once. In the browser it is `R_HOST_UNSUPPORTED`. A function that calls it runs in the VM, not as machine code.
 - `text_lower(value: Text) -> Text` and `text_upper(value: Text) -> Text` in `std:text` (artifact format 90) change case with the Unicode default case mapping, for display: `Straße` uppercases to `STRASSE`, a capital sigma ending a word lowercases to the final form `ς`, and `İ` lowercases to `i` followed by a combining dot, so the result can be longer than the input (a result over the text limit is `R_TEXT_LIMIT`). To compare text without regard to case, use `text_casefold`. They need no grant and run in the browser VM.
+- `text_starts_with(value: Text, prefix: Text) -> Bool` and `text_ends_with(value: Text, suffix: Text) -> Bool` in `std:text` test whether a `Text` begins or ends with another, comparing Unicode scalar values as `len` and `text_slice` count them. An empty prefix or suffix is `true`, and one longer than the value is `false`, never an error: `text_starts_with("/Users/x/target/a", "/Users/x/target/")` is `true`, `text_starts_with("/", "/Users/x/target/")` is `false` and `text_ends_with("a.tar.gz", ".gz")` is `true`. They are written in Guion in `std:text`, need no grant and no artifact format change, and run in the browser VM.
 - `json_keys(value: Json) -> Result[List[Text], JsonError]` in `std:json` (artifact format 90) lists an object's top-level keys in the order `json_stringify` writes them, which is ascending byte order of the key text; a value that is not an object is `Err` with code `R_JSON_TYPE`. It needs no grant and runs in the browser VM.
 - `json_stringify_pretty(value: Json, indent: Int) -> Text` in `std:json` (artifact format 90) writes the value with each array element and object member on its own line, indented by `indent` spaces per level (0 to 16, else the runtime fault `R_JSON_INDENT`; 0 puts the lines at the left edge), `": "` after a key, `,` at the end of every line but the last of a container, `{}` and `[]` for empty containers, no trailing newline, non-ASCII text as is, and strings and numbers written as `json_stringify` writes them. It needs no grant and runs in the browser VM.
 - `int_to_text_radix(value: Int, radix: Int) -> Text` and `text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]` in `std:text` (artifact format 90) write and read an `Int` of any size in radix 2 to 36: lowercase digits, a leading `-` for a negative value, no prefix, no separators; parsing accepts either case and one optional leading `-` and gives `Err` with code `E_INT_PARSE` for anything else. A radix outside 2 to 36 is `R_RADIX_RANGE`, a parsed value over the digit limit `R_INTEGER_LIMIT`. Pure, no grant; the browser VM runs them.
 - `fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]` and `fs_mode(path: Text) -> Result[Int, FileError]` in `std:fs` (artifact format 90) set and read permission bits as an `Int`, as `chmod` does and following symlinks. `mode` is 0 to `0o7777` (`0o600`, `0o755`, `0o4755`); anything else is `R_FILE_MODE_INVALID`. `fs_mode` returns the bits as an `Int` (`0o600` is 384), so `int_to_text_radix(mode, 8)` shows `"600"`. The path resolves against the granted file root like every other `std:fs` function, never the working directory, so it cannot leave the root; `fs_set_mode` needs the file-write grant and is reported as `filesystem.write`, `fs_mode` needs the file-read grant and is reported as `filesystem.read`. A missing path is `R_FILE_NOT_FOUND` and a refusal by the operating system is `R_FILE_PERMISSION`. Where the host has no permission bits (Windows) both are `R_FILE_UNSUPPORTED`, and the browser VM refuses them with `R_HOST_UNSUPPORTED`. A recording keeps them on the tape like the other file operations.
+- `toml_get_text_list(document, path) -> Result[List[Text], StdError]` and `toml_keys(document, path) -> Result[List[Text], StdError]` in `std:toml` (artifact format 91) return an array's strings in order and a table's keys in document order (an empty `path` is the root table). A missing path, a wrong kind of value or a non-string element is `Err` with code `E_TOML_TYPE`. No grant; they run in the browser VM.
+- `fs_disk_usage(path: Text) -> Result[Int, FileError]`, `fs_free_space(path: Text) -> Result[Int, FileError]` and `fs_is_link(path: Text) -> Result[Bool, FileError]` in `std:fs` (artifact format 91) report disk use, free space and symbolic links. `fs_disk_usage` returns the bytes the named entry occupies on disk (`st_blocks * 512`, like `du -k` times 1024, so a sparse file counts only its allocated blocks); for a directory it adds every entry beneath it. It never follows symbolic links (a link counts its own blocks only, and a link at `path` is measured, not followed), skips entries on a different device from `path` (like `du -x`) and counts each hard-linked file once per call. A missing path is `R_FILE_NOT_FOUND`, a directory beneath that cannot be read is `R_FILE_PERMISSION` naming its path relative to `path`, and a child that disappears during the walk is skipped. `fs_free_space` returns the bytes available to an unprivileged user on the volume that holds `path` (`statvfs` `f_bavail * f_frsize`); it follows symbolic links and is confined to the file root, and `"."` is the file root. `fs_is_link` is `Ok(true)` when the named entry is a symbolic link, dangling or not, and `Ok(false)` for anything else and for a missing path (as `fs_exists` gives `false`); the link is not followed, so its parent must be inside the root but its target need not be. All three need only the file-read grant and are reported as `filesystem.read`. `fs_disk_usage` and `fs_is_link` search every read root and, like `fs_walk`, refuse a path that passes through a symbolic link in a leading component with `R_HOST_DENIED`. Windows gives `R_FILE_UNSUPPORTED` for `fs_disk_usage` and `fs_free_space` (`fs_is_link` works there) and the browser VM `R_HOST_UNSUPPORTED` for all three. A recording keeps them on the tape like the other file operations.
+- `fs_make_link(target: Text, link: Text) -> Result[Unit, FileError]` in `std:fs` (artifact format 91) creates a symbolic link at `link` whose stored text is `target`, as `ln -s target link` does. The target is stored as is: it is not resolved or checked and may be relative, absolute, outside the file root or dangling, and reads through the link stay confined to the file root like every other path. `link` is a new entry whose parent must lie inside the file root, as for `fs_make_dir` and the write functions; an existing entry at `link` is `R_FILE_EXISTS`. It needs the file-write grant (`filesystem.write`). Windows gives `R_FILE_UNSUPPORTED` and the browser VM `R_HOST_UNSUPPORTED`. A recording keeps it on the tape like the other file operations.
 - `parallel_map(items, worker, limit)` calls a named unary function on immutable list items in worker-local VM instances and returns `Result[List[U], TaskError]`. `is_ok(result)` tests the variant; `unwrap(result)` returns the list from `Ok`; `error(result)` returns the `TaskError` from `Err`. `task_index`, `task_code`, and `task_message` read its failed input index and failure details. Workers preserve result order, use a bounded shared worker instruction allowance, stop scheduling and poll cancellation after failure, join running tasks, and merge completed output by input index. An instruction-limit failure inside a worker is a `TaskError`; host setup errors still fail the invocation.
 - Numeric conversion and math (artifact format 52): `int_to_float(Int) -> Float64`, `float_to_int(Float64) -> Int` (truncates toward zero), `int_to_text(Int) -> Text`, and `float_to_text(Float64) -> Text` (the same shortest round-trip text `print` shows). `std:math` provides `math_sin`, `math_cos`, `math_tan`, `math_asin`, `math_acos`, `math_atan`, `math_atan2`, `math_sinh`, `math_cosh`, `math_tanh`, `math_exp`, `math_ln`, `math_log10`, `math_log2`, `math_log`, `math_pow`, `math_hypot`, `math_abs`, `math_floor`, `math_ceil`, `math_round` (half away from zero), `math_floor_int`, `math_ceil_int`, `math_round_int`, `math_radians`, `math_degrees`, and the constants `math_pi()`, `math_tau()`, `math_e()`. A domain error raises `R_MATH_DOMAIN`, zero to a negative power raises `R_DIV_ZERO`, and a non-finite result raises `R_FLOAT_NONFINITE`. Results use the platform's IEEE 754 libm, so they can differ in the last digit between targets. `std:random` is a deterministic SplitMix64 generator over immutable `Rng` values: `random_new(seed)`, `random_next_u64` (in `[0, 2^64)`), `random_next_i64` (the same 64 bits read as a signed integer), `random_next_float` (in `[0, 1)`), and `random_next_range(rng, low, high)` (uniform over `low <= value < high`, by rejection sampling; a range of more than 2^64 values raises `R_RANDOM_RANGE`); each returns the value together with the next `Rng`. The same seed gives the same sequence on every target. It reads no clock; seed it from `unix_time_ms()` when a changing sequence is wanted. From artifact format 61 the generator state in `Rng.state` is the 64-bit state read as a signed integer, and every function except `random_next_u64` runs on the machine-code path; the sequences are the same as in format 52.
 - Bytes, encodings and URLs (artifact format 53): `bytes_to_ints(Bytes) -> List[Int]`, `bytes_slice(Bytes, start, end) -> Bytes` (raises `R_INDEX_BOUNDS` outside `0 <= start <= end <= len`), `text_from_bytes(Bytes) -> Option[Text]` (strict UTF-8) and `text_from_bytes_lossy(Bytes) -> Text`. `std:encoding` provides `base64_encode`/`base64_decode` and `base64url_encode`/`base64url_decode` (padded; decoding is strict about alphabet, length and padding and returns `E_BASE64_INVALID`), `hex_encode`/`hex_decode` (lowercase output; either case accepted; `E_HEX_INVALID`), and `encoding_utf8_encode`, `encoding_utf8_decode` (`E_UTF8_INVALID`) and `encoding_utf8_decode_lossy`. `std:url` provides `url_parse(Text) -> Result[Url, StdError]` (an RFC 3986 split into `scheme`, `userinfo`, `host`, `port` (`-1` when absent), `path`, `query` and `fragment`, with no normalization; bracketed IPv6 hosts; `E_URL_INVALID`), `url_to_text`, `url_encode_component` (everything except `A-Z a-z 0-9 - . _ ~` is percent-encoded as UTF-8), `url_decode_component`, `url_query_parse` (`+` decodes to a space) and `url_query_build`.
@@ -360,12 +364,16 @@ native_crypto_x509_validity(Bytes) -> Result[List[Int], Record[StdError]]
 native_crypto_x509_verify_issued_by(Bytes, Bytes) -> Result[Bool, Record[StdError]]
 native_fs_confined_path(Text, Text) -> Result[Text, FileError]
 native_fs_copy(Text, Text) -> Result[Int, FileError]
+native_fs_disk_usage(Text) -> Result[Int, FileError]
 native_fs_exists(Text) -> Result[Bool, FileError]
+native_fs_free_space(Text) -> Result[Int, FileError]
 native_fs_gzip_compress_file(Text, Text) -> Result[Int, FileError]
 native_fs_gzip_decompress_file(Text, Text) -> Result[Int, FileError]
+native_fs_is_link(Text) -> Result[Bool, FileError]
 native_fs_kind(Text) -> Result[Text, FileError]
 native_fs_list_dir(Text) -> Result[List[Text], FileError]
 native_fs_make_dir(Text) -> Result[Unit, FileError]
+native_fs_make_link(Text, Text) -> Result[Unit, FileError]
 native_fs_mode(Text) -> Result[Int, FileError]
 native_fs_modified_ms(Text) -> Result[Int, FileError]
 native_fs_read_range(Text, Text, Text) -> Result[Bytes, FileError]
@@ -463,7 +471,9 @@ native_tls_connect_identity(Text, Int, Int, Text, Text, Text) -> Result[Int, Lis
 native_toml_get_bool(TomlDocument, List[Text]) -> Result[Bool, Record[StdError]]
 native_toml_get_int(TomlDocument, List[Text]) -> Result[Int, Record[StdError]]
 native_toml_get_text(TomlDocument, List[Text]) -> Result[Text, Record[StdError]]
+native_toml_get_text_list(TomlDocument, List[Text]) -> Result[List[Text], Record[StdError]]
 native_toml_has(TomlDocument, List[Text]) -> Bool
+native_toml_keys(TomlDocument, List[Text]) -> Result[List[Text], Record[StdError]]
 native_toml_parse(Text) -> Result[TomlDocument, Record[StdError]]
 native_toml_put_bool(TomlDocument, List[Text], Bool) -> Result[Unit, Record[StdError]]
 native_toml_put_int(TomlDocument, List[Text], Int) -> Result[Unit, Record[StdError]]
@@ -605,6 +615,10 @@ std:fs — pub fn fs_rename(from: Text, to: Text) -> Result[Unit, FileError]
 std:fs — pub fn fs_copy(from: Text, to: Text) -> Result[Int, FileError]
 std:fs — pub fn fs_set_mode(path: Text, mode: Int) -> Result[Unit, FileError]
 std:fs — pub fn fs_mode(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_disk_usage(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_free_space(path: Text) -> Result[Int, FileError]
+std:fs — pub fn fs_is_link(path: Text) -> Result[Bool, FileError]
+std:fs — pub fn fs_make_link(target: Text, link: Text) -> Result[Unit, FileError]
 std:fs — pub fn fs_temp_dir(prefix: Text) -> Result[Text, FileError]
 std:fs — pub fn fs_temp_file(prefix: Text) -> Result[Text, FileError]
 std:http — pub fn http_response_json(response: HttpResponse) -> Result[Json, StdError]
@@ -786,6 +800,8 @@ std:text — pub fn text_lower(value: Text) -> Text
 std:text — pub fn text_upper(value: Text) -> Text
 std:text — pub fn int_to_text_radix(value: Int, radix: Int) -> Text
 std:text — pub fn text_parse_int_radix(text: Text, radix: Int) -> Result[Int, FileError]
+std:text — pub fn text_starts_with(value: Text, prefix: Text) -> Bool
+std:text — pub fn text_ends_with(value: Text, suffix: Text) -> Bool
 std:time — pub fn today_local() -> Date
 std:time — pub fn parse_date(value: Text) -> Result[Date, FileError]
 std:time — pub fn parse_timestamp(value: Text) -> Result[Instant, FileError]
@@ -796,6 +812,8 @@ std:time — pub fn time_zone_data_version() -> Text
 std:toml — pub fn toml_parse(source: Text) -> Result[TomlDocument, StdError]
 std:toml — pub fn toml_has(document: TomlDocument, path: List[Text]) -> Bool
 std:toml — pub fn toml_get_text(document: TomlDocument, path: List[Text]) -> Result[Text, StdError]
+std:toml — pub fn toml_get_text_list(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]
+std:toml — pub fn toml_keys(document: TomlDocument, path: List[Text]) -> Result[List[Text], StdError]
 std:toml — pub fn toml_get_int(document: TomlDocument, path: List[Text]) -> Result[Int, StdError]
 std:toml — pub fn toml_get_bool(document: TomlDocument, path: List[Text]) -> Result[Bool, StdError]
 std:toml — pub fn toml_put_text(document: TomlDocument, path: List[Text], value: Text) -> Result[Unit, StdError]
@@ -910,6 +928,10 @@ int_to_text_radix(Int, Int) -> Text
 text_parse_int_radix(Text, Int) -> Result[Int, FileError]
 fs_set_mode(Text, Int) -> Result[Unit, FileError]
 fs_mode(Text) -> Result[Int, FileError]
+fs_disk_usage(Text) -> Result[Int, FileError]
+fs_free_space(Text) -> Result[Int, FileError]
+fs_is_link(Text) -> Result[Bool, FileError]
+fs_make_link(Text, Text) -> Result[Unit, FileError]
 tcp_peer(TcpConn) -> Result[PeerAddress, StdError]
 process_stop_requested() -> Bool
 crypto_hmac_sha256(Bytes, Bytes) -> Bytes
@@ -926,6 +948,8 @@ toml_parse(Text) -> Result[TomlDocument, StdError]
 toml_has(TomlDocument, List[Text]) -> Bool
 toml_get_text/int/bool(TomlDocument, List[Text]) -> Result[Text/Int/Bool, StdError]
 toml_put_text/int/bool(TomlDocument, List[Text], Text/Int/Bool) -> Result[Unit, StdError]
+toml_get_text_list(TomlDocument, List[Text]) -> Result[List[Text], StdError]
+toml_keys(TomlDocument, List[Text]) -> Result[List[Text], StdError]
 toml_render(TomlDocument) -> Text
 calendar_parse(Text) -> Result[List[CalendarEvent], StdError]
 ```
@@ -1326,8 +1350,10 @@ R_ENV_DENIED
 R_ENV_ENCODING
 R_EXPORT_UNKNOWN
 R_FILE_
+R_FILE_EXISTS
 R_FILE_LIMIT
 R_FILE_MODE_INVALID
+R_FILE_NOT_DIRECTORY
 R_FILE_NOT_FOUND
 R_FILE_PERMISSION
 R_FILE_READ
@@ -1654,4 +1680,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:4bdcffe7875c3080ab7d5c54fe88325c52a5012a3c65a91ee4b706ecb8a176f8. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:a316ec0862e1aadbf21a19560c2317efde359606ba5c000887919465d63269c5. Validated by `cargo xtask agent-reference --check`. -->

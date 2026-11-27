@@ -349,6 +349,35 @@ fn main() -> Int:
 }
 
 #[test]
+fn browser_toml_text_lists_and_keys_match_native() {
+    agree(
+        "toml-lists",
+        r#"import "std:toml"
+import "std:text"
+import "std:types"
+
+fn show(result: Result[List[Text], StdError]) -> Text:
+    match result:
+        Ok(items):
+            return "[" + text_join(items, "|") + "]"
+        Err(problem):
+            return problem.code + ": " + problem.message
+
+fn transcript() -> Text:
+    let document = unwrap(toml_parse("top = 1\nkeep = [\"a\", \"b\"]\nbad = [1]\n[rule.y]\nn = 1\n[rule.x]\nn = 2\n"))
+    return show(toml_get_text_list(document, ["keep"])) + show(toml_get_text_list(document, ["bad"])) + show(toml_get_text_list(document, ["top"])) + show(toml_keys(document, [])) + show(toml_keys(document, ["rule"])) + show(toml_keys(document, ["top"]))
+
+fn main() -> Int:
+    return 0
+"#,
+        "transcript",
+        &[
+            "[a|b]E_TOML_TYPE: bad[0] must be textE_TOML_TYPE: top must be an array of text[top|keep|bad|rule][y|x]E_TOML_TYPE: top must be a table",
+        ],
+    );
+}
+
+#[test]
 fn browser_http_response_accessors_match_native() {
     agree(
         "http-response",
