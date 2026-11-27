@@ -1611,6 +1611,24 @@ mod tests {
     }
 
     #[test]
+    fn disk_usage_instructions_are_gated_on_format_91() {
+        assert_gated(Op::Fs(FsFunction::DiskUsage), 91);
+        assert_gated(Op::Fs(FsFunction::FreeSpace), 91);
+        assert_gated(Op::Fs(FsFunction::IsLink), 91);
+    }
+
+    #[test]
+    fn disk_usage_fs_codes_are_22_to_24() {
+        assert_eq!(FsFunction::DiskUsage.code(), 22);
+        assert_eq!(FsFunction::FreeSpace.code(), 23);
+        assert_eq!(FsFunction::IsLink.code(), 24);
+        assert_eq!(
+            FsFunction::from_op_name("FsOpIsLink"),
+            Some(FsFunction::IsLink)
+        );
+    }
+
+    #[test]
     fn file_mode_instructions_are_gated_on_format_90() {
         assert_gated(Op::Fs(FsFunction::SetMode), 90);
         assert_gated(Op::Fs(FsFunction::Mode), 90);
@@ -4317,10 +4335,18 @@ pub enum FsFunction {
     /// Reads the permission bits of a file or directory as octal text, following symlinks
     /// (format 90); needs the file-read grant.
     Mode,
+    /// Total bytes of the regular files under a path, links not followed (format 91); needs the
+    /// file-read grant.
+    DiskUsage,
+    /// Bytes available to the program on the filesystem holding a path (format 91); needs the
+    /// file-read grant.
+    FreeSpace,
+    /// Whether a path is itself a symbolic link (format 91); needs the file-read grant.
+    IsLink,
 }
 
 impl FsFunction {
-    const ALL: [FsFunction; 22] = [
+    const ALL: [FsFunction; 25] = [
         FsFunction::Exists,
         FsFunction::Kind,
         FsFunction::Size,
@@ -4343,6 +4369,9 @@ impl FsFunction {
         FsFunction::ConfinedPath,
         FsFunction::SetMode,
         FsFunction::Mode,
+        FsFunction::DiskUsage,
+        FsFunction::FreeSpace,
+        FsFunction::IsLink,
     ];
 
     pub fn code(self) -> u8 {
@@ -4381,6 +4410,9 @@ impl FsFunction {
             FsFunction::ConfinedPath => "FsOpConfinedPath",
             FsFunction::SetMode => "FsOpSetMode",
             FsFunction::Mode => "FsOpMode",
+            FsFunction::DiskUsage => "FsOpDiskUsage",
+            FsFunction::FreeSpace => "FsOpFreeSpace",
+            FsFunction::IsLink => "FsOpIsLink",
         }
     }
 
@@ -4421,6 +4453,9 @@ impl FsFunction {
                 | FsFunction::ReadRange
                 | FsFunction::ConfinedPath
                 | FsFunction::Mode
+                | FsFunction::DiskUsage
+                | FsFunction::FreeSpace
+                | FsFunction::IsLink
         )
     }
 
@@ -5094,7 +5129,7 @@ impl Artifact {
         artifact_uses_int_map(self)
     }
 
-    pub const CURRENT_VERSION: u32 = 90;
+    pub const CURRENT_VERSION: u32 = 91;
     pub fn entry(&self) -> &str {
         &self.entry
     }
@@ -5484,6 +5519,12 @@ impl Artifact {
             return Err(ArtifactError::new(
                 "E_ARTIFACT_VERSION",
                 "tcp_peer requires artifact format 90",
+            ));
+        }
+        if self.format_version < 91 && artifact_uses_disk_usage(self) {
+            return Err(ArtifactError::new(
+                "E_ARTIFACT_VERSION",
+                "fs_disk_usage, fs_free_space and fs_is_link require artifact format 91",
             ));
         }
         if self.format_version < 90 && artifact_uses_file_modes(self) {
@@ -6417,6 +6458,12 @@ impl Artifact {
                             return Err(ArtifactError::new(
                                 "E_ARTIFACT_VERSION",
                                 "ranged file reads and confined paths require artifact format 73",
+                            ));
+                        }
+                        if code >= 22 && format_version < 91 {
+                            return Err(ArtifactError::new(
+                                "E_ARTIFACT_VERSION",
+                                "fs_disk_usage, fs_free_space and fs_is_link require artifact format 91",
                             ));
                         }
                         if code >= 20 && format_version < 90 {
@@ -7507,6 +7554,17 @@ fn artifact_uses_radix(artifact: &Artifact) -> bool {
             .code
             .iter()
             .any(|instruction| matches!(instruction.op, Op::IntToTextRadix | Op::TextParseIntRadix))
+    })
+}
+
+fn artifact_uses_disk_usage(artifact: &Artifact) -> bool {
+    artifact.functions.iter().any(|function| {
+        function.code.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                Op::Fs(FsFunction::DiskUsage | FsFunction::FreeSpace | FsFunction::IsLink)
+            )
+        })
     })
 }
 

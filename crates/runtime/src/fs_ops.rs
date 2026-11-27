@@ -410,6 +410,10 @@ fn run_inner(
         | FsFunction::TarList => {
             super::compress::run_file_function(policy, function, operands, span)
         }
+        // Placeholder until the runtime task implements them.
+        FsFunction::DiskUsage | FsFunction::FreeSpace | FsFunction::IsLink => Err(
+            RuntimeError::new("R_FILE_UNSUPPORTED", "not implemented yet", span),
+        ),
         FsFunction::TempDir | FsFunction::TempFile => {
             let valid = !path.is_empty()
                 && path.len() <= 64

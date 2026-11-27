@@ -7399,11 +7399,14 @@ pub fn splitmix64_mix(state: u64) -> u64 {
 /// The `Result[T, FileError]` type a filesystem function pushes.
 fn fs_result_type(function: FsFunction) -> Type {
     let ok = match function {
-        FsFunction::Exists => Type::Bool,
+        FsFunction::Exists | FsFunction::IsLink => Type::Bool,
         FsFunction::Kind | FsFunction::TempDir | FsFunction::TempFile => Type::Text,
-        FsFunction::Size | FsFunction::ModifiedMs | FsFunction::Copy | FsFunction::Mode => {
-            Type::Int
-        }
+        FsFunction::Size
+        | FsFunction::ModifiedMs
+        | FsFunction::Copy
+        | FsFunction::Mode
+        | FsFunction::DiskUsage
+        | FsFunction::FreeSpace => Type::Int,
         FsFunction::Sha256 | FsFunction::ReadRange => Type::Bytes,
         FsFunction::ConfinedPath => Type::Text,
         FsFunction::GzipCompressFile
