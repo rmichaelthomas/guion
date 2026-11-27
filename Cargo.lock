@@ -899,7 +899,7 @@ dependencies = [
 
 [[package]]
 name = "guion-bootstrap"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "guion-compiler",
  "guion-model",
@@ -909,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "guion-cli"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "guion-compiler",
  "guion-model",
@@ -926,7 +926,7 @@ dependencies = [
 
 [[package]]
 name = "guion-compiler"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "guion-model",
  "serde_json",
@@ -935,7 +935,7 @@ dependencies = [
 
 [[package]]
 name = "guion-crypto"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "guion-model"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "hashbrown 0.16.1",
  "serde",
@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "guion-runtime"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "base64",
  "cc",
@@ -996,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "guion-vm-core"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "flate2",
  "guion-compiler",
@@ -1016,7 +1016,7 @@ dependencies = [
 
 [[package]]
 name = "guion-vm-wasm"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "base64",
  "guion-compiler",

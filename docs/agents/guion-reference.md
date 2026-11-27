@@ -1353,6 +1353,7 @@ R_FILE_
 R_FILE_EXISTS
 R_FILE_LIMIT
 R_FILE_MODE_INVALID
+R_FILE_NOT_DIRECTORY
 R_FILE_NOT_FOUND
 R_FILE_PERMISSION
 R_FILE_READ
@@ -1679,4 +1680,4 @@ fn main() -> Int:
 - [Host API and effects](../../language/host-api.md)
 - [Agent recipes](recipes.md)
 
-<!-- Generated reference content digest: sha256:ea6229f6ec0a7e53d64d95a2985a90ea43be94207b975c0e6d9c063623877cb1. Validated by `cargo xtask agent-reference --check`. -->
+<!-- Generated reference content digest: sha256:a316ec0862e1aadbf21a19560c2317efde359606ba5c000887919465d63269c5. Validated by `cargo xtask agent-reference --check`. -->

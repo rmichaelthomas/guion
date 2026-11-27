@@ -9,7 +9,7 @@ Fields occur in this order, without padding:
 | Field | Encoding | Meaning |
 |---|---|---|
 | Magic | 4 bytes `VRTA` | Identifies a Guion artifact. |
-| Format version | `u32` | Reader accepts versions 14 through 90. The current writer emits 90. |
+| Format version | `u32` | Reader accepts versions 14 through 91. The current writer emits 91. |
 | Source name | string | Entry source identity; relative names are portable. |
 | Entry function | string | Name of the entry function, normally `main`. |
 | Sources | count, then strings | Source graph in stable compiler order. A span's `source_id` indexes this table. |
