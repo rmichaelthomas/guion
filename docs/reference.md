@@ -29,6 +29,8 @@ Import `std:time` and call `today_local() -> Date` when an application needs the
 
 `text_lower(value)` and `text_upper(value)` (`std:text`, artifact format 90) change case for display with the Unicode default case mapping: `text_upper("Straße")` is `"STRASSE"`, and a capital sigma ending a word lowercases to `ς`. To compare text without regard to case, use `text_casefold` instead.
 
+`text_starts_with(value, prefix)` and `text_ends_with(value, suffix)` (`std:text`) test whether a `Text` begins or ends with another, comparing Unicode scalar values as `len` and `text_slice` count them. An empty prefix or suffix is `true`, and one longer than the value is `false`, never an error: `text_starts_with("/Users/x/target/a", "/Users/x/target/")` is `true`, `text_starts_with("/", "/Users/x/target/")` is `false` and `text_ends_with("a.tar.gz", ".gz")` is `true`. They are written in Guion in `std:text`, need no grant and no artifact format change, and run in the browser VM.
+
 `json_keys(value)` (`std:json`, artifact format 90) returns `Ok` with an object's keys in the order `json_stringify` writes them (ascending by the key's bytes), or `Err` with code `R_JSON_TYPE` for any other kind of JSON.
 
 `json_stringify_pretty(value, indent)` (`std:json`, artifact format 90) returns the value with one member or element per line, `indent` spaces per level (0 to 16; anything else is `R_JSON_INDENT`), and no newline at the end.
