@@ -2,7 +2,7 @@
 
 For supported artifact, package, Python and host versions plus upgrade guidance, see [`compatibility-and-migrations.md`](compatibility-and-migrations.md).
 
-The current format is 90. The runtime also reads supported earlier artifact formats; see the compatibility guide for the exact range.
+The current format is 91. The runtime also reads supported earlier artifact formats; see the compatibility guide for the exact range.
 
 ## Minimal program
 
@@ -34,6 +34,8 @@ Import `std:time` and call `today_local() -> Date` when an application needs the
 `json_stringify_pretty(value, indent)` (`std:json`, artifact format 90) returns the value with one member or element per line, `indent` spaces per level (0 to 16; anything else is `R_JSON_INDENT`), and no newline at the end.
 
 `fs_set_mode(path, mode)` and `fs_mode(path)` (`std:fs`, artifact format 90) set and read file permission bits as an `Int`, as `chmod` does, following symlinks. `mode` is 0 to `0o7777`: `fs_set_mode("key.pem", 0o600)`, `0o755`, `0o4755`; anything else is `R_FILE_MODE_INVALID`. `fs_mode` returns the bits as an `Int` (`fs_mode("key.pem") == 0o600`); show it as octal with `int_to_text_radix(mode, 8)`, which gives `"600"`.
+
+`fs_disk_usage(path)`, `fs_free_space(path)` and `fs_is_link(path)` (`std:fs`, artifact format 91) measure disk use and links. `fs_disk_usage` is the bytes the entry occupies on disk, `st_blocks * 512` as `du -k` counts (a sparse file counts only its allocated blocks); a directory adds everything beneath it. It never follows symlinks (a link, including one at `path`, counts its own blocks), skips other devices like `du -x` and counts a hard-linked file once per call. A missing path is `R_FILE_NOT_FOUND`; a directory beneath that cannot be read is `R_FILE_PERMISSION` naming its relative path; a child that vanishes during the walk is skipped. `fs_free_space` is the bytes free to an unprivileged user on the volume holding `path` (`statvfs`: `f_bavail * f_frsize`), following links; `fs_free_space(".")` is the file root. `fs_is_link` is `Ok(true)` for a symbolic link, dangling or not, and `Ok(false)` for anything else or a missing path; the link is not followed. All three need only the file-read grant (`filesystem.read`). `fs_disk_usage` and `fs_is_link` search every read root and, like `fs_walk`, refuse a path through a symlink in a leading component with `R_HOST_DENIED`. Windows gives `R_FILE_UNSUPPORTED` and the browser VM `R_HOST_UNSUPPORTED`.
 
 `int_to_text_radix(value, radix)` and `text_parse_int_radix(text, radix)` (`std:text`, artifact format 90) convert an `Int` of any size to and from text in radix 2 to 36: `int_to_text_radix(255, 16)` is `"ff"`, `int_to_text_radix(-5, 2)` is `"-101"`, `text_parse_int_radix("FF", 16)` is `Ok(255)`. The text has lowercase digits, no prefix and no separators; parsing takes either case and one leading `-`, and anything else is `Err` with code `E_INT_PARSE`. A radix outside 2 to 36 is `R_RADIX_RANGE`. Integer literals can be written in these bases too: `0xFF`, `0o755`, `0b1010`. The path resolves against the file root like the other `std:fs` functions, not the working directory. `fs_set_mode` needs the file-write grant (`filesystem.write`), `fs_mode` the file-read grant (`filesystem.read`). Windows gives `R_FILE_UNSUPPORTED` and the browser VM `R_HOST_UNSUPPORTED`.
 

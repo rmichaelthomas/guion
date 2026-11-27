@@ -138,7 +138,7 @@ Every operation the portable host does not implement fails the same way, and eac
 
 | Still unsupported | Operations (builtin names) | Why |
 |---|---|---|
-| Files | `read_text`, `write_text`, `write_text_atomic`, `read_bytes`, `write_bytes`, `file_open_lines` and the line and CSV readers (`csv_open`, `csv_read_columns`), `fs_walk`, every `std:fs`, `std:tar`, `std:compress` file function (`fs_*`, including `fs_confined_path`, which resolves symlinks) | A page has no filesystem. |
+| Files | `read_text`, `write_text`, `write_text_atomic`, `read_bytes`, `write_bytes`, `file_open_lines` and the line and CSV readers (`csv_open`, `csv_read_columns`), `fs_walk`, every `std:fs` (`fs_disk_usage`, `fs_free_space` and `fs_is_link` included), `std:tar`, `std:compress` file function (`fs_*`, including `fs_confined_path`, which resolves symlinks) | A page has no filesystem. |
 | Network | `http_get`, `http_request*`, `std:net`, `std:tls` and the web server | A page has no sockets; use `fetch` and pass the bytes in as program input. `http_response_text` and `http_response_json` work on a response the program already holds. |
 | Database | `sqlite_*` | SQLite opens a file. |
 | Clock and sleep | `unix_time_ms`, `time_today_local`, `sleep_ms` | There is no clock to read and no thread to block. Pass the time in as input. |

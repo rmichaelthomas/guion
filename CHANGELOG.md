@@ -4,6 +4,7 @@ Changes are recorded here. Two preview builds, v0.1.0-preview and v0.1.0-preview
 
 ## Unreleased
 
+- Artifact format 91: `fs_disk_usage`, `fs_free_space` and `fs_is_link` in `std:fs` report the disk bytes an entry or folder occupies (like `du -k`, never following links, counting hard links once), the bytes free to an unprivileged user on a volume, and whether a path is a symbolic link. They need only the file-read grant and are `R_HOST_UNSUPPORTED` in the browser VM. Artifacts in formats 14 through 90 still run.
 - The self-hosted compiler is now a stored historical artifact only; the build, tests and release checks no longer check it, and release archives no longer include `share/guion/compiler.gub` or `compiler-seed.json`.
 
 ## 0.9.1 — 2026-11-26
